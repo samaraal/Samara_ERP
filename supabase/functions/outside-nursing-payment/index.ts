@@ -39,6 +39,7 @@ async function reconcile(r){
  return settled;
 }
 // ── 2.18.64: AUTOMATIC WhatsApp receipt (approved template samara_payment_receipt, same as resident receipts) ──
+// 2.18.65: the template has the Samara logo IMAGE header — it must be sent (Meta error 132012 without it).
 const RECEIPT_TEMPLATE='samara_payment_receipt';
 const dmy=d=>{const x=String(d||'').slice(0,10).split('-');return x.length===3?x[2]+'-'+x[1]+'-'+x[0]:String(d||'');};
 async function sendReceipt(req){
@@ -64,7 +65,7 @@ async function sendReceipt(req){
   const token=env('WHATSAPP_ACCESS_TOKEN'),sender=env('WHATSAPP_PHONE_NUMBER_ID');if(!token||!sender)throw Error('Samara WhatsApp service is not configured.');
   submitted=true;
   const response=await fetch('https://graph.facebook.com/v25.0/'+sender+'/messages',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-   body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_TEMPLATE,language:{code:'en'},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))}]}})});
+   body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:env('WHATSAPP_HEADER_IMAGE_URL')||'https://samaraassistedliving.com/assets/samara-whatsapp-logo.png'}}]},{type:'body',parameters:values.map(text=>({type:'text',text}))}]}})});
   const result=await response.json().catch(()=>({}));
   const id=result?.messages?.[0]?.id;
   if(!response.ok||!id){await done({receipt_status:'Failed',receipt_error:String(result?.error?.message||'WhatsApp did not accept the receipt.').slice(0,300),receipt_phone:to});return null;}
