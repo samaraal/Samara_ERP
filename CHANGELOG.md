@@ -1,3 +1,11 @@
+## 2.18.64 — Outside nursing: baby-pink dashboard + AUTOMATIC WhatsApp receipt for Razorpay payments (needs SQL 268 + Edge Function)
+- Outside Nursing Dashboard uses the screensaver baby-pink gradient (no dark maroon header); boxes in soft pink.
+- **Automatic receipt:** as soon as a Razorpay payment is recorded, the family gets the WhatsApp receipt (approved template samara_payment_receipt: amount, patient, date, Receipt No. = invoice / Razorpay payment id, mode Razorpay (Online)) — sent ONCE, logged in WhatsApp Inbox. Sent to the number the payment link went to, else the patient's number.
+- **Every 2 minutes** the server checks unpaid links, so a payment is recorded (and the receipt sent) even if the family closes the browser — no need to press Sync.
+- A failed WhatsApp send is retried after 10 minutes (3 tries). The online payment panel shows "✓ Receipt sent automatically on WhatsApp to … · time" or why it was not sent.
+- Payments made before this version are marked "Before auto receipt" and never messaged.
+- Run supabase/sql/268_outside_nursing_auto_receipt.sql and update the Edge Function outside-nursing-payment (supabase/functions/outside-nursing-payment/index.ts).
+
 ## 2.18.63 — Outside Samara Nursing: Start a New Procedure (needs SQL 267)
 - Big green **+ Start a New Procedure** button on the Outside Nursing Dashboard and the procedure register (nurses, and the Nursing Manager in Nurse mode). One form: patient (search, or **+ New patient** in the same form), procedure, where, **Source** (Doctor's prescription / Family request / Hospital referral / Director / Admin, with name), **Approved by** + **how** (Phone call / WhatsApp / Written / In person), optional **proof photo** (prescription / message), notes. Not blocked — Admin still checks the charge before any invoice.
 - **To finish** list (dashboard and register): **Finish** opens the usual completed-procedure form already filled (used items as before) and saves + links it in one step → goes to Admin as before. **Cancel** (nurse who started it, Nursing Manager or Admin) keeps the record with the reason.
