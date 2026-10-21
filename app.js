@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.59';
+  const APP_VERSION = '2.18.60';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '20-Oct-2026 Kitchen: Nursing Manager view';
+  const APP_BUILD_DATE = '21-Oct-2026 MAR by dose time + Medication History';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -33652,6 +33652,348 @@ function RoomsBeds({profile,onNavigate}){
       })()
     );
   }
+  // 2.18.60: Medicines → MEDICATION HISTORY (Boomi, 21-10-2026).
+  // Every scheduled dose for a chosen Guest (or all Guests) and period, with what happened to it:
+  // Given / Withheld / Refused / Missed / Delayed, or "Not recorded" when a past dose has no entry.
+  // Filters (Apply button): Guest + search (from 3 letters), Date / Period (Today, Selected Date, This Week,
+  // This Month, Month (choose), Selected Period — never before 27-08-2026), Status, Medicine.
+  // Shown date → time → Guest (Guest once per group, one line per medicine; no wide table). Each date folds
+  // to a one-line summary when the period is longer than a day. Tap a dose to see the full audit.
+  // Print (A4 landscape), Download PDF (real .pdf) and Download Excel follow the applied filter.
+  // Reuses srPeriodBounds / srMonthOptions / SR_PERIODS / srEsc / SR_COMPACT_CSS (stores/stock-report.js),
+  // loadXlsxLibrary / freshFetchAll / freshSaveBlob / freshCsv / freshFileStamp (stores/stock-fresh-start.js),
+  // loadAstPdfLibrary (accounts/11-accounts-statement.js), samaraPrintBar / RowDetailModal / useAppliedFilters.
+  // Read only — no SQL, nothing is written.
+  const MH_START='2026-08-27';
+  const MH_STATUSES=[['all','All statuses'],['Given','Given'],['Withheld','Withheld'],['Refused','Refused'],['Missed','Missed'],['Delayed','Delayed'],['Not recorded','Not recorded']];
+  const MH_EXCEPTION=['missed','refused','delayed','not given','withheld','unavailable'];
+  const mhName=p=>formalName(p)||p?.full_name||'Guest';
+  const mhRoom=p=>p?.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'Room —';
+  const mhMedicine=o=>[o?.medicine_name,o?.strength||o?.dose].filter(Boolean).join(' ')||'Medicine';
+  const mhTimes=o=>(Array.isArray(o?.scheduled_times)?o.scheduled_times:String(o?.scheduled_times||'').split(',')).map(normalizeMedicationTime).filter(Boolean);
+  const mhDayIndia=v=>{if(!v)return '';const d=new Date(v);if(!Number.isFinite(d.getTime()))return '';try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}).slice(0,10)}catch(_){return String(v).slice(0,10)}};
+  const mhTimeIN=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase():''};
+  function mhStatusOf(row){
+    const log=row.log;if(!log)return 'Not recorded';
+    if(log.status==='Withheld')return medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld';
+    return log.status||'Recorded';
+  }
+  function mhStatusGroup(row){const s=row.log?String(row.log.status||'Recorded'):'Not recorded';return s}
+  function mhTone(row){
+    if(!row.log)return 'miss';
+    const s=String(row.log.status||'').toLowerCase();
+    if(s==='given')return 'ok';
+    if(s==='withheld')return 'held';
+    return MH_EXCEPTION.includes(s)?'warn':'ok';
+  }
+  function mhReason(log){
+    if(!log)return '';
+    return [log.withhold_reason,log.withhold_reading,log.doctor_instruction?`Doctor: ${log.doctor_instruction}${log.doctor_instruction_notes?` (${log.doctor_instruction_notes})`:''}`:(log.status==='Withheld'?"Doctor's instruction pending":''),
+      log.rescheduled_time?`Rescheduled to ${medicationTimeLabel(log.rescheduled_time)}`:'',log.remarks].filter(x=>x&&String(x).trim()).join(' · ');
+  }
+  // Last day a Guest could have had doses (discharge), and the first (admission).
+  function mhGuestWindow(p){
+    const first=String(p?.admission_date||'').slice(0,10)||mhDayIndia(p?.created_at);
+    const gone=p?.is_active===false||p?.admission_status==='Discharged';
+    const last=gone?(String(p?.discharge_date||'').slice(0,10)||mhDayIndia(p?.discharged_at)||mhDayIndia(p?.updated_at)):'';
+    return {first,last};
+  }
+  function buildMedicationHistory({orders,patients,logs,from,to,A}){
+    const byPatient=new Map((patients||[]).map(p=>[p.id,p]));
+    const byOrder=new Map((orders||[]).map(o=>[o.id,o]));
+    const q=String(A.search||'').trim().toLowerCase();
+    const wantGuest=p=>{
+      if(!p)return false;
+      if(A.guestId)return p.id===A.guestId;
+      if(q.length>=3)return `${mhName(p)} ${p.full_name||''} ${p.patient_id||''} ${p.room_no||''}`.toLowerCase().includes(q);
+      return true;
+    };
+    const key=(o,d,t)=>`${o}|${d}|${normalizeMedicationTime(t)}`;
+    const logMap=new Map();
+    (logs||[]).forEach(l=>{const k=key(l.order_id,String(l.scheduled_date||'').slice(0,10),l.scheduled_time);const prev=logMap.get(k);
+      if(!prev||String(l.entry_recorded_at||l.created_at||'')>String(prev.entry_recorded_at||prev.created_at||''))logMap.set(k,l)});
+    const rows=[],seen=new Set(),now=Date.now();
+    const push=(order,date,time,log,extra={})=>{
+      const k=key(order.id,date,time);if(seen.has(k))return;seen.add(k);
+      rows.push({k,order,patient:byPatient.get(order.patient_id)||{},date,time:normalizeMedicationTime(time),log,...extra});
+    };
+    // 1. every entry recorded in the period
+    logMap.forEach(l=>{const d=String(l.scheduled_date||'').slice(0,10);if(d<from||d>to)return;
+      const order=byOrder.get(l.order_id);if(!order||!wantGuest(byPatient.get(order.patient_id)))return;push(order,d,l.scheduled_time,l)});
+    // 2. rescheduled doses (the new time) — recorded or not yet
+    (logs||[]).filter(l=>l.rescheduled_time).forEach(l=>{
+      const d=rescheduledDoseDate(l);if(!d||d<from||d>to)return;
+      const order=byOrder.get(l.order_id);if(!order||!wantGuest(byPatient.get(order.patient_id)))return;
+      const t=normalizeMedicationTime(l.rescheduled_time);const due=new Date(`${d}T${t}:00+05:30`).getTime();
+      const log=logMap.get(key(order.id,d,t));if(!log&&due>now)return;
+      push(order,d,t,log||null,{rescheduledFrom:normalizeMedicationTime(l.scheduled_time)});
+    });
+    // 3. past scheduled doses with no entry → "Not recorded"
+    const days=[];for(let d=from;d&&d<=to&&days.length<370;d=addDaysISODate(d,1))days.push(d);
+    (orders||[]).forEach(order=>{
+      const p=byPatient.get(order.patient_id);if(!wantGuest(p))return;
+      const w=mhGuestWindow(p);
+      const closed=order.discharge_closed_at?mhDayIndia(order.discharge_closed_at):'';
+      days.forEach(d=>{
+        if(w.first&&d<w.first)return;if(w.last&&d>w.last)return;if(closed&&d>closed)return;
+        mhTimes(order).forEach(t=>{
+          if(!medicationOrderDoseEligible(order,d,t))return;
+          if(new Date(`${d}T${t}:00+05:30`).getTime()>now)return;
+          push(order,d,t,logMap.get(key(order.id,d,t))||null);
+        });
+      });
+    });
+    const med=String(A.medicine||'').trim().toLowerCase();
+    const shown=rows.filter(r=>(A.status==='all'||mhStatusGroup(r)===A.status)&&(!med||mhMedicine(r.order).toLowerCase().includes(med)));
+    shown.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||String(a.patient.room_no||'').localeCompare(String(b.patient.room_no||''),'en',{numeric:true})||mhName(a.patient).localeCompare(mhName(b.patient))||mhMedicine(a.order).localeCompare(mhMedicine(b.order)));
+    const count=s=>shown.filter(r=>mhStatusGroup(r)===s).length;
+    const summary={total:shown.length,given:count('Given'),withheld:count('Withheld'),other:count('Refused')+count('Missed')+count('Delayed'),notRecorded:count('Not recorded')};
+    return {rows:shown,summary};
+  }
+  // Group rows: date → time → Guest
+  function mhGroups(rows){
+    const dates=[];let cur=null;
+    rows.forEach(r=>{
+      if(!cur||cur.date!==r.date){cur={date:r.date,slots:[],rows:[]};dates.push(cur)}
+      cur.rows.push(r);
+      let slot=cur.slots[cur.slots.length-1];if(!slot||slot.time!==r.time){slot={time:r.time,guests:[]};cur.slots.push(slot)}
+      let g=slot.guests[slot.guests.length-1];if(!g||g.patient.id!==r.patient.id){g={patient:r.patient,rows:[]};slot.guests.push(g)}
+      g.rows.push(r);
+    });
+    return dates;
+  }
+  const mhPeriodText=(from,to)=>from===to?`Date: ${formatDateIN(from)}`:`Period: ${formatDateIN(from)} to ${formatDateIN(to)}`;
+  const MH_HEAD=['S.No.','Date','Time','Room','Guest','Guest ID','Medicine','Route','Status','Given at','Entry recorded','Entry','Nurse','Reason / Remarks'];
+  function mhExportRows(rows,staffName){
+    return rows.map((r,i)=>[i+1,formatDateIN(r.date),medicationTimeLabel(r.time)+(r.rescheduledFrom?` (rescheduled from ${medicationTimeLabel(r.rescheduledFrom)})`:''),
+      mhRoom(r.patient).replace('Room ',''),mhName(r.patient),r.patient.patient_id||'',mhMedicine(r.order),r.order.route||'',mhStatusOf(r),
+      r.log?.administered_at?mhTimeIN(r.log.administered_at)+(mhDayIndia(r.log.administered_at)!==r.date?` (${formatDateIN(mhDayIndia(r.log.administered_at))})`:''):'',
+      r.log?(r.log.entry_recorded_at||r.log.created_at?fmt(r.log.entry_recorded_at||r.log.created_at):''):'',
+      r.log?(r.log.late_entry?`Late (${r.log.entry_delay_minutes||0} min)`:'On time'):'',
+      r.log?staffName(r.log.administered_by):'',mhReason(r.log)]);
+  }
+  function mhTitle(A,patients){
+    const p=A.guestId?(patients||[]).find(x=>x.id===A.guestId):null;
+    return p?`${mhName(p)} · ${p.patient_id||'No ID'} · ${mhRoom(p)}`:'All Guests';
+  }
+  async function downloadMedicationHistoryExcel({rows,summary,from,to,who,title,staffName}){
+    const sheet=[['SAMARA HEALTH CARE LLP'],['Medication Administration Record'],[title],[mhPeriodText(from,to)],
+      [`Downloaded on ${formatDateTimeIN(new Date().toISOString())} by ${who}`],[],
+      ['Total doses',summary.total],['Given',summary.given],['Withheld',summary.withheld],['Refused / Missed / Delayed',summary.other],['Not recorded',summary.notRecorded],[],
+      MH_HEAD,...mhExportRows(rows,staffName)];
+    if(!rows.length)sheet.push(['','No doses in this period']);
+    const base=`Samara_Medication_History_${from}_to_${to}_${freshFileStamp()}`;
+    try{
+      const X=await loadXlsxLibrary(),wb=X.utils.book_new(),ws=X.utils.aoa_to_sheet(sheet);
+      ws['!cols']=[6,11,12,8,24,16,26,10,20,12,20,12,18,40].map(w=>({wch:w}));
+      ws['!merges']=[0,1,2,3,4].map(r=>({s:{r,c:0},e:{r,c:MH_HEAD.length-1}}));
+      X.utils.book_append_sheet(wb,ws,'Medication History');
+      X.writeFile(wb,`${base}.xlsx`);return 'xlsx';
+    }catch(e){
+      console.warn(e);freshSaveBlob(new Blob(['﻿'+freshCsv(sheet)],{type:'text/csv;charset=utf-8'}),`${base}.csv`);return 'csv';
+    }
+  }
+  function openMedicationHistoryPrint({rows,summary,from,to,who,title,staffName,mode}){
+    const logo=new URL('assets/samara-logo.png',window.location.href).href;
+    const now=formatDateTimeIN(new Date().toISOString());
+    const body=mhExportRows(rows,staffName).map(r=>`<tr>${r.map((x,i)=>`<td class="c${i}">${srEsc(x)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${MH_HEAD.length}" style="text-align:center;padding:10px">No doses in this period</td></tr>`;
+    const box=(l,v,hi)=>`<div class="box${hi?' hi':''}"><span>${srEsc(l)}</span><strong>${srEsc(v)}</strong></div>`;
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>Samara_Medication_History_${srEsc(from)}_to_${srEsc(to)}</title><style>
+      @page{size:A4 landscape;margin:10mm 8mm 12mm}*{box-sizing:border-box}
+      body{font-family:Arial,Helvetica,sans-serif;color:#3b2833;margin:0;font-size:9.5px;line-height:1.35;background:#fff}
+      .top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-bottom:3px solid #b20b5d;padding:0 2px 8px;margin-bottom:10px}
+      .logo{width:120px;max-height:58px;object-fit:contain}.mid{text-align:center;color:#741041;font-weight:700;font-size:13px}
+      .org{text-align:right}.org strong{display:block;color:#b20b5d;font-size:15px}.org span{display:block;color:#6d5963;font-size:9px}
+      h1{font-size:16px;margin:2px 0;text-align:center;color:#321d28}.meta{text-align:center;color:#7b6670;margin:0 0 8px}
+      .sum{display:flex;gap:8px;margin:0 0 8px}.box{flex:1;border:1px solid #e7c3d4;border-radius:8px;padding:6px 9px;background:#fff7fb}
+      .box span{display:block;color:#6d5963;font-size:8.5px;font-weight:700;text-transform:uppercase}.box strong{display:block;font-size:15px;color:#321d28}
+      .box.hi{background:#b20b5d;border-color:#b20b5d}.box.hi span,.box.hi strong{color:#fff}
+      table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{page-break-inside:avoid}
+      th{background:#f7dce8;color:#67123d;border:1px solid #dfb4c6;padding:5px 4px;text-align:left}
+      td{border:1px solid #ead4dd;padding:4px;overflow-wrap:anywhere;vertical-align:top}tbody tr:nth-child(even) td{background:#fffafd}
+      .c0{width:30px;text-align:center}.c1{width:62px}.c2{width:58px}.c3{width:42px}.c4{width:100px;font-weight:700}.c5{width:78px}.c6{width:120px}.c7{width:52px}.c8{width:76px;font-weight:700}.c9{width:52px}.c10{width:92px}.c11{width:52px}.c12{width:80px}
+      .sign{display:flex;justify-content:space-between;margin-top:30px}.sign div{border-top:1px solid #6f5c65;padding-top:5px;width:28%;text-align:center}
+      .footer{border-top:1px solid #eccbd9;margin-top:14px;padding-top:5px;text-align:center;color:#6f5a64;font-size:8px}
+      @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    </style></head><body>
+      <div class="top"><img class="logo" src="${logo}" alt="Samara Assisted Living"><div class="mid">Nursing · Medication</div><div class="org"><strong>SAMARA HEALTH CARE LLP</strong><span>Compassion • Comfort • Dignity</span></div></div>
+      <h1>Medication Administration Record</h1>
+      <p class="meta">${srEsc(title)} · ${srEsc(mhPeriodText(from,to))}</p>
+      <div class="sum">${box('Total doses',summary.total)}${box('Given',summary.given,true)}${box('Withheld',summary.withheld)}${box('Refused / Missed / Delayed',summary.other)}${box('Not recorded',summary.notRecorded)}</div>
+      <table><thead><tr>${MH_HEAD.map((x,i)=>`<th class="c${i}">${srEsc(x)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+      <div class="sign"><div>Nurse</div><div>Nursing Manager</div><div>Treating Doctor</div></div>
+      <div class="footer">Generated from Samara Care ERP on ${srEsc(now)} by ${srEsc(who)} · Computer-generated record</div>
+      <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
+    </body></html>`;
+    const win=samaraPrintBar(window.open('','_blank'));
+    if(!win){alert(`Please allow pop-ups to ${mode==='print'?'print':'save'} the Medication History.`);return false}
+    win.document.open();win.document.write(html);win.document.close();return true;
+  }
+  async function downloadMedicationHistoryPdfFile({rows,summary,from,to,who,title,staffName}){
+    const jsPDF=await loadAstPdfLibrary();
+    const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+    const plain=x=>String(x??'').replace(/[–—]/g,'-').replace(/[•]/g,'·').replace(/[^\x00-\xFF]/g,'');
+    try{
+      const blob=await fetch(new URL('assets/samara-logo.png',window.location.href).href).then(r=>{if(!r.ok)throw 0;return r.blob()});
+      const data=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(blob)});
+      const img=await new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=data});
+      if(img){const h2=15,w2=Math.min(46,h2*img.width/img.height);doc.addImage(data,'PNG',10,7,w2,h2)}
+    }catch(_){}
+    doc.setTextColor(178,11,93);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('SAMARA HEALTH CARE LLP',W-10,13,{align:'right'});
+    doc.setTextColor(109,89,99);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text('Compassion · Comfort · Dignity',W-10,18,{align:'right'});
+    doc.setTextColor(116,16,65);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text('Nursing · Medication',W/2,16,{align:'center'});
+    doc.setDrawColor(178,11,93);doc.setLineWidth(0.8);doc.line(10,24,W-10,24);
+    doc.setTextColor(50,29,40);doc.setFontSize(13);doc.text('Medication Administration Record',W/2,31,{align:'center'});
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(123,102,112);doc.text(plain(`${title} · ${mhPeriodText(from,to)}`),W/2,36,{align:'center'});
+    const boxes=[['Total doses',summary.total],['Given',summary.given,true],['Withheld',summary.withheld],['Refused / Missed / Delayed',summary.other],['Not recorded',summary.notRecorded]];
+    const gap=4,bw=(W-20-gap*(boxes.length-1))/boxes.length,y=40;
+    boxes.forEach(([l,x,hi],i)=>{const bx=10+i*(bw+gap);
+      if(hi){doc.setFillColor(178,11,93);doc.setDrawColor(178,11,93)}else{doc.setFillColor(255,247,251);doc.setDrawColor(231,195,212)}
+      doc.roundedRect(bx,y,bw,13,2,2,'FD');
+      doc.setFont('helvetica','bold');doc.setFontSize(7);hi?doc.setTextColor(255,255,255):doc.setTextColor(109,89,99);doc.text(l.toUpperCase(),bx+3,y+4.5);
+      doc.setFontSize(12);hi?doc.setTextColor(255,255,255):doc.setTextColor(50,29,40);doc.text(String(x),bx+3,y+10.5);
+    });
+    const body=mhExportRows(rows,staffName).map(r=>r.map(plain));
+    doc.autoTable({theme:'grid',startY:y+17,margin:{left:8,right:8,bottom:15},head:[MH_HEAD],
+      body:body.length?body:[[{content:'No doses in this period',colSpan:MH_HEAD.length,styles:{halign:'center'}}]],
+      styles:{fontSize:7.5,cellPadding:1.5,lineColor:[234,212,221],textColor:[59,40,51],overflow:'linebreak'},
+      headStyles:{fillColor:[247,220,232],textColor:[103,18,61],fontStyle:'bold'},alternateRowStyles:{fillColor:[255,250,253]},
+      columnStyles:{0:{cellWidth:9,halign:'center'},1:{cellWidth:17},2:{cellWidth:17},3:{cellWidth:12},4:{cellWidth:28,fontStyle:'bold'},5:{cellWidth:22},6:{cellWidth:32},7:{cellWidth:14},8:{cellWidth:22,fontStyle:'bold'},9:{cellWidth:15},10:{cellWidth:25},11:{cellWidth:15},12:{cellWidth:22}}});
+    let yy=(doc.lastAutoTable?.finalY||60)+22;if(yy>H-20){doc.addPage();yy=30}
+    doc.setDrawColor(111,92,101);doc.setLineWidth(0.3);doc.setFontSize(8.5);doc.setTextColor(80,70,75);
+    const sw=(W-20-20)/3;[['Nurse',0],['Nursing Manager',1],['Treating Doctor',2]].forEach(([l,k])=>{const x=10+k*(sw+10);doc.line(x,yy,x+sw,yy);doc.text(l,x+sw/2,yy+4.5,{align:'center'})});
+    const pages=doc.internal.getNumberOfPages(),now=formatDateTimeIN(new Date().toISOString());
+    for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(111,90,100);
+      doc.text(plain(`Generated from Samara Care ERP on ${now} by ${who} · Computer-generated record · Page ${i} of ${pages}`),W/2,H-6,{align:'center'})}
+    doc.save(`Samara_Medication_History_${from}_to_${to}_${freshFileStamp()}.pdf`);
+  }
+
+  const MH_CSS=`.mh .mh-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0 0 10px}.mh .mh-box{border:1px solid #e7c3d4;border-radius:12px;padding:8px 12px;background:#fff7fb;color:#321d28}.mh .mh-box small{display:block;font-size:11.5px;font-weight:800;text-transform:uppercase;opacity:.75}.mh .mh-box b{font-size:21px}.mh .mh-box.hi{background:#b20b5d;border-color:#b20b5d;color:#fff}.mh .mh-box.hi small{opacity:.95}
+.mh .mh-day{border:1px solid #ecd3df;border-radius:12px;margin:0 0 8px;background:#fff;overflow:hidden}.mh .mh-day>summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:9px 12px;background:#fbeef4;font-weight:800;color:#5d1039}.mh .mh-day>summary::-webkit-details-marker{display:none}.mh .mh-day>summary .mh-chev{transition:transform .15s}.mh .mh-day[open]>summary .mh-chev{transform:rotate(90deg)}.mh .mh-day>summary span.mh-n{font-weight:600;font-size:12.5px;color:#6d5963}
+.mh .mh-slot{padding:6px 12px 2px;border-top:1px solid #f3e3ea}.mh .mh-slot-time{font-weight:800;color:#741041;font-size:13.5px;margin:2px 0 4px}.mh .mh-guest{margin:0 0 6px}.mh .mh-guest-head{font-size:13px;color:#321d28;margin:0 0 2px}.mh .mh-guest-head b{color:#b20b5d;font-size:14.5px;margin-right:6px}.mh .mh-guest-head small{color:#7b6670}
+.mh .mh-line{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:5px 8px 5px 18px;border-radius:8px;cursor:pointer;font-size:13.5px}.mh .mh-line:hover{background:#fff4f9}.mh .mh-line .mh-med{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}.mh .mh-line .mh-right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;text-align:right}
+.mh .mh-chip{font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}.mh .mh-chip.ok{background:#e8f6ee;color:#0a7a42}.mh .mh-chip.warn{background:#fff4dd;color:#8a5a00}.mh .mh-chip.held{background:#fdecec;color:#b42318}.mh .mh-chip.miss{background:#f2ecef;color:#6d5963}.mh .mh-chip.late{background:#fff4dd;color:#8a5a00}.mh .mh-when{font-size:12px;color:#6d5963;white-space:nowrap}
+@media(max-width:700px){.mh .mh-line{flex-direction:column;align-items:flex-start;padding-left:10px}.mh .mh-line .mh-right{justify-content:flex-start;text-align:left}}`;
+
+  function MedicationHistory({profile,orders,patients,onBack}){
+    const today=todayISOIndia();
+    const [guestId,setGuestId]=React.useState(''),[search,setSearch]=React.useState('');
+    const [period,setPeriod]=React.useState('today'),[date,setDate]=React.useState(today),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
+    const [status,setStatus]=React.useState('all'),[medicine,setMedicine]=React.useState('');
+    const fa=useAppliedFilters({guestId,search,period,date,month,from,to,status,medicine});const A=fa.applied;
+    const [rawFrom,rawTo]=srPeriodBounds(A);
+    const pFrom=rawFrom<MH_START?MH_START:rawFrom,pTo=rawTo<MH_START?MH_START:(rawTo>today?today:rawTo);
+    const [logs,setLogs]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(''),[reloadKey,setReloadKey]=React.useState(0);
+    const [staff,setStaff]=React.useState({}),[detail,setDetail]=React.useState(null);
+    React.useEffect(()=>{
+      let live=true;setLogs(null);setError('');
+      // the day before too: a dose rescheduled past midnight belongs to the next day
+      freshFetchAll('medication_administrations','*','id',q=>q.gte('scheduled_date',addDaysISODate(pFrom,-1)).lte('scheduled_date',pTo))
+        .then(rows=>{if(live)setLogs(rows)}).catch(e=>{if(live){setLogs([]);setError(e.message||'Could not load the medication records.')}});
+      return()=>{live=false};
+    },[pFrom,pTo,reloadKey]);
+    React.useEffect(()=>{
+      let live=true;
+      client.from('profiles').select('*').then(r=>{if(!live||r.error)return;const m={};(r.data||[]).forEach(x=>{if(x.id)m[x.id]=x;if(x.auth_user_id)m[x.auth_user_id]=x});setStaff(m)});
+      return()=>{live=false};
+    },[]);
+    const staffName=id=>{if(!id)return '';const s=staff[id];return s?(formalName(s)||s.full_name||s.login_id||''):''};
+    const data=logs?buildMedicationHistory({orders,patients,logs,from:pFrom,to:pTo,A}):null;
+    const groups=data?mhGroups(data.rows):[];
+    const title=mhTitle(A,patients);
+    const who=formalName(profile)||profile?.full_name||profile?.login_id||'Staff';
+    const q=search.trim().toLowerCase();
+    const guestOptions=[...(patients||[])]
+      .filter(p=>q.length<3||`${mhName(p)} ${p.full_name||''} ${p.patient_id||''} ${p.room_no||''}`.toLowerCase().includes(q))
+      .sort((a,b)=>(a.is_active===false)-(b.is_active===false)||String(a.room_no||'').localeCompare(String(b.room_no||''),'en',{numeric:true})||mhName(a).localeCompare(mhName(b)));
+    async function download(kind){
+      if(!data||busy||fa.dirty)return;setBusy(kind);
+      const args={rows:data.rows,summary:data.summary,from:pFrom,to:pTo,who,title,staffName,mode:kind};
+      try{
+        if(kind==='excel'){const f=await downloadMedicationHistoryExcel(args);showSamaraActionToast('success','Medication History downloaded',f==='xlsx'?'Saved to the Excel file.':'Excel library unavailable — saved as a CSV file instead (opens in Excel).')}
+        else if(kind==='pdf'){
+          try{await downloadMedicationHistoryPdfFile(args);showSamaraActionToast('success','Medication History PDF downloaded','Saved to the PDF file.')}
+          catch(e){console.warn(e);openMedicationHistoryPrint({...args,mode:'pdf'});showSamaraActionToast('warning','PDF opened for saving',`${e.message||'PDF library unavailable'} — choose "Save as PDF" in the window that opened.`)}
+        }else openMedicationHistoryPrint(args);
+        try{writeAuditEvent('Download Medication History','Medication',A.guestId||null,{format:kind,from:pFrom,to:pTo,doses:data.rows.length})}catch(_){}
+      }catch(e){showSamaraActionToast('error','Download failed',e.message||'Please try again.')}
+      finally{setBusy('')}
+    }
+    const oneDay=pFrom===pTo;
+    const line=r=>{
+      const tone=mhTone(r),log=r.log;
+      return h('div',{key:r.k,className:'mh-line',role:'button',tabIndex:0,title:'Show full details',onClick:()=>setDetail(r),onKeyDown:e=>{if(e.key==='Enter')setDetail(r)}},
+        h('div',{className:'mh-med'},mhMedicine(r.order),r.order.route&&h('small',{style:{color:'#7b6670'}},` · ${r.order.route}`),r.rescheduledFrom&&h('small',{style:{color:'#8a5a00',fontWeight:700}},` · rescheduled from ${medicationTimeLabel(r.rescheduledFrom)}`)),
+        h('div',{className:'mh-right'},
+          h('span',{className:`mh-chip ${tone}`},mhStatusOf(r)),
+          log?.administered_at&&h('span',{className:'mh-when'},`${mhTimeIN(log.administered_at)}${staffName(log.administered_by)?` · ${staffName(log.administered_by)}`:''}`),
+          log?.late_entry&&h('span',{className:'mh-chip late'},'Late entry'),
+          mhReason(log)&&h('span',{className:'mh-when',title:mhReason(log)},'📝')));
+    };
+    return h('div',{className:'sr-compact mh'},h('style',null,SR_COMPACT_CSS+MH_CSS),h(Section,{title:'Medication History',subtitle:'Every scheduled dose and what was done — choose the Guest and period, then press Apply. Tap a dose for full details.',actions:onBack?h('button',{type:'button',className:'btn btn-secondary',onClick:onBack},'‹ Back'):null},
+      h('div',{className:'sr-filters'},
+        h('div',{className:'field'},h('label',null,'Search Guest'),h('input',{type:'text',value:search,placeholder:'Name / ID / room (3 letters)',onChange:e=>setSearch(e.target.value)})),
+        h('div',{className:'field sr-wide'},h('label',null,'Guest'),h('select',{value:guestId,onChange:e=>setGuestId(e.target.value)},
+          h('option',{value:''},q.length>=3?'All matching Guests':'All Guests'),
+          guestOptions.map(p=>h('option',{key:p.id,value:p.id},`${mhName(p)} · ${p.patient_id||'No ID'} · ${p.is_active===false?'Discharged':mhRoom(p)}`)))),
+        h('div',{className:'field'},h('label',null,'Date / Period'),h('select',{value:period,onChange:e=>setPeriod(e.target.value)},SR_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
+        period==='date'&&h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:date,min:MH_START,max:today,onChange:e=>setDate(e.target.value)})),
+        period==='monthpick'&&h('div',{className:'field'},h('label',null,'Month'),h('select',{value:month,onChange:e=>setMonth(e.target.value)},srMonthOptions().filter(([v])=>v>=MH_START.slice(0,7)).map(([v,l])=>h('option',{key:v,value:v},l)))),
+        period==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:from,min:MH_START,max:today,onChange:e=>setFrom(e.target.value)})),
+        period==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:to,min:MH_START,max:today,onChange:e=>setTo(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'Status'),h('select',{value:status,onChange:e=>setStatus(e.target.value)},MH_STATUSES.map(([v,l])=>h('option',{key:v,value:v},l)))),
+        h('div',{className:'field'},h('label',null,'Medicine'),h('input',{type:'text',value:medicine,placeholder:'e.g. Actrapid',onChange:e=>setMedicine(e.target.value)})),
+        h(ApplyFilterButton,{dirty:fa.dirty,onApply:fa.apply})
+      ),
+      h('div',{className:'sr-bar'},
+        h('span',{className:'small-note'},`${title} · ${mhPeriodText(pFrom,pTo)}`),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:!data||!!busy||fa.dirty,onClick:()=>download('print')},busy==='print'?'Preparing…':'🖨 Print'),
+        h('button',{type:'button',className:'btn btn-primary',disabled:!data||!!busy||fa.dirty,onClick:()=>download('pdf')},busy==='pdf'?'Preparing PDF…':'⤓ Download PDF'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:!data||!!busy||fa.dirty,onClick:()=>download('excel')},busy==='excel'?'Preparing Excel…':'⤓ Download Excel'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:()=>setReloadKey(k=>k+1)},'Refresh'),
+        fa.dirty&&h('small',{className:'error-text',style:{alignSelf:'center'}},'Press Apply first.')
+      ),
+      error&&h('p',{role:'alert',className:'message error'},error),
+      !data&&!error&&h('p',{className:'small-note'},'Loading medication history…'),
+      data&&h('div',{className:'mh-sum'},
+        [['Total doses',data.summary.total],['Given',data.summary.given,true],['Withheld',data.summary.withheld],['Refused / Missed / Delayed',data.summary.other],['Not recorded',data.summary.notRecorded]]
+          .map(([l,v,hi])=>h('div',{key:l,className:`mh-box${hi?' hi':''}`},h('small',null,l),h('b',null,v)))),
+      data&&!data.rows.length&&h('div',{className:'message'},'No doses match this filter.'),
+      groups.map(day=>{
+        const given=day.rows.filter(r=>mhStatusGroup(r)==='Given').length,nr=day.rows.filter(r=>!r.log).length,ex=day.rows.length-given-nr;
+        return h('details',{key:`${day.date}-${oneDay}`,className:'mh-day',open:oneDay||groups.length===1},
+          h('summary',null,h('span',{className:'mh-chev','aria-hidden':'true'},'›'),formatDateWithDayIN(day.date),
+            h('span',{className:'mh-n'},`${day.rows.length} doses · ${given} given${ex?` · ${ex} withheld / not given`:''}${nr?` · ${nr} not recorded`:''}`)),
+          day.slots.map(slot=>h('div',{key:slot.time,className:'mh-slot'},
+            h('div',{className:'mh-slot-time'},medicationTimeLabel(slot.time)),
+            slot.guests.map(g=>h('div',{key:g.patient.id||'x',className:'mh-guest'},
+              h('div',{className:'mh-guest-head'},h('b',null,mhRoom(g.patient).replace('Room ','')),mhName(g.patient),h('small',null,` · ${g.patient.patient_id||'No ID'}`)),
+              g.rows.map(line))))));
+      }),
+      detail&&h(RowDetailModal,{title:`${mhMedicine(detail.order)} · ${medicationTimeLabel(detail.time)}`,subtitle:`${mhName(detail.patient)} · ${detail.patient.patient_id||'No ID'} · ${mhRoom(detail.patient)}`,onClose:()=>setDetail(null),
+        fields:[['Scheduled',`${formatDateWithDayIN(detail.date)} · ${medicationTimeLabel(detail.time)}${detail.rescheduledFrom?` (rescheduled from ${medicationTimeLabel(detail.rescheduledFrom)})`:''}`],
+          ['Status',mhStatusOf(detail)],['Route',detail.order.route],['Frequency',detail.order.frequency],['Food',detail.order.food_instruction],
+          ['Special instruction',detail.order.special_instruction||detail.order.special_instructions],
+          ['Actually given at',detail.log?.administered_at?fmt(detail.log.administered_at):''],
+          ['Entry recorded at',detail.log?(detail.log.entry_recorded_at||detail.log.created_at?fmt(detail.log.entry_recorded_at||detail.log.created_at):''):''],
+          ['Recorded by',detail.log?staffName(detail.log.administered_by):''],
+          ['Late entry',detail.log?.late_entry?`${detail.log.entry_delay_minutes||0} min late · ${detail.log.late_entry_reason||''}${detail.log.late_entry_justification?` — ${detail.log.late_entry_justification}`:''}`:''],
+          ['Withhold reason',detail.log?.withhold_reason],['Reading',detail.log?.withhold_reading],
+          ['Doctor informed',detail.log?.doctor_informed_name?`${detail.log.doctor_informed_name} · ${detail.log.doctor_informed_via||''}${detail.log.doctor_informed_at?` · ${fmt(detail.log.doctor_informed_at)}`:''}`:''],
+          ["Doctor's instruction",detail.log?.doctor_instruction?`${detail.log.doctor_instruction}${detail.log.doctor_instruction_notes?` — ${detail.log.doctor_instruction_notes}`:''}`:''],
+          ['Rescheduled to',detail.log?.rescheduled_time?medicationTimeLabel(detail.log.rescheduled_time):''],
+          ['Remarks',detail.log?.remarks],
+          ['Note',!detail.log?'No administration entry was made for this scheduled dose.':'']]})
+    ));
+  }
+  // 2.18.60: sliding-scale / sugar-based insulin (no fixed dose on the prescription). Such doses are never part of
+  // "Give checked": the nurse checks the sugar first and records the reading + units given in the MAR form.
+  function marIsVariableDose(order){
+    const text=[order?.medicine_name,order?.strength,order?.dose,order?.special_instruction,order?.special_instructions,order?.instructions,order?.remarks].filter(Boolean).join(' ');
+    return /sliding\s*scale|as\s+per\s+(the\s+)?(blood\s*)?sugar|according\s+to\s+(the\s+)?(blood\s*)?sugar|depend(s|ing)?\s+on\s+(the\s+)?(blood\s*)?sugar|\b(grbs|cbg|rbs)\b/i.test(text)
+      ||(/insulin|actrapid|lantus|novorapid|mixtard|humulin|tresiba|basalog|glargine/i.test(String(order?.medicine_name||''))&&!String(order?.strength||order?.dose||'').trim());
+  }
   function DischargeMedicationReview(){
     const [rows,setRows]=React.useState([]),[target,setTarget]=React.useState(null),[note,setNote]=React.useState(''),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
     async function load(){const r=await client.rpc('discharge_medication_review_list');if(r.error)setError(r.error.message);else setRows(r.data||[])}
@@ -33685,7 +34027,17 @@ function RoomsBeds({profile,onNavigate}){
     const [dateTo,setDateTo]=React.useState('');
     const [appliedMedicationFilter,setAppliedMedicationFilter]=React.useState({period:'All',from:'',to:''});
     const [marTarget,setMarTarget]=React.useState(null);
-    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:''});
+    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:'',sugar_reading:'',units_given:''});
+    // 2.18.60: Today's MAR grouped by dose time — open / closed rounds, rooms, "Give checked" per Guest per round
+    const [slotOpen,setSlotOpen]=React.useState({});
+    const [uncheckedDoses,setUncheckedDoses]=React.useState({});
+    const [attentionOnly,setAttentionOnly]=React.useState(false);
+    const [batchTarget,setBatchTarget]=React.useState(null);
+    const [batchBusy,setBatchBusy]=React.useState(false);
+    const [batchMessage,setBatchMessage]=React.useState('');
+    const [doseDetail,setDoseDetail]=React.useState(null);
+    const [prescriptionView,setPrescriptionView]=React.useState('all');
+    const [showHistoryMobile,setShowHistoryMobile]=React.useState(false);
     // 2.15.11: withheld dose → doctor's instruction
     const [instructionTarget,setInstructionTarget]=React.useState(null);
     const [instructionForm,setInstructionForm]=React.useState({instruction:'',notes:'',give_at:''});
@@ -34015,7 +34367,8 @@ function RoomsBeds({profile,onNavigate}){
         late_entry_justification:existing?.late_entry_justification||'',
         reschedule:false,rescheduled_time:'',
         withhold_reason:'',withhold_reading:'',
-        doctor_informed_name:String(p.treating_doctor||'').trim(),doctor_informed_via:'Phone call',doctor_informed_at:localDateTimeValue()
+        doctor_informed_name:String(p.treating_doctor||'').trim(),doctor_informed_via:'Phone call',doctor_informed_at:localDateTimeValue(),
+        sugar_reading:'',units_given:''
       });
       setMarMessage('');
     }
@@ -34033,6 +34386,11 @@ function RoomsBeds({profile,onNavigate}){
         if(need(String(marForm.withhold_reading||'').trim(),'Enter the reading / observation that led to withholding (e.g. BP 90/58 mmHg).'))return;
         if(need(String(marForm.doctor_informed_name||'').trim(),'Enter the name of the treating doctor who was / will be informed.'))return;
         if(need(marForm.doctor_informed_via,'Select how the doctor was informed.'))return;
+      }
+      // 2.18.60: sliding-scale / sugar-based insulin — the nurse records the sugar reading and the units actually given
+      const variableDose=marIsVariableDose(marTarget)&&marForm.status==='Given';
+      if(variableDose&&(!String(marForm.sugar_reading||'').trim()||!String(marForm.units_given||'').trim())){
+        const text='Enter the blood sugar reading and the units given for this sliding-scale insulin.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
@@ -34067,7 +34425,7 @@ function RoomsBeds({profile,onNavigate}){
         status:marForm.status,
         administered_at:administrationTime.toISOString(),
         administered_by:user?.id||profile?.auth_user_id||profile?.id,
-        remarks:String(marForm.remarks||'').trim(),
+        remarks:variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):String(marForm.remarks||'').trim(),
         entry_recorded_at:entryTime.toISOString(),
         late_entry:isLateEntry,
         entry_delay_minutes:entryDelayMinutes,
@@ -34180,57 +34538,19 @@ function RoomsBeds({profile,onNavigate}){
       const patient=patientFor(order);if(!patient.id||patient.is_active===false||patient.admission_status==='Discharged')return;
       todayRows.push({order,time,date:today,log:doseStatus(order,time,today),rescheduledFrom:normalizeMedicationTime(log.scheduled_time)});
     });
-    const missedRows=todayRows.filter(x=>{
-      if(x.log)return ['missed','refused','delayed','not given','withheld','unavailable'].includes(String(x.log.status||'').toLowerCase());
-      return pendingDoseState(x).minutes>=15;
-    });
     const completedOrders=state.orders.filter(o=>String(o.status||'').toLowerCase()==='completed'||(o.end_date&&o.end_date<today&&o.is_active!==false));
     const discontinuedOrders=state.orders.filter(o=>!stopIsScheduled(o)&&(o.is_active===false||['discontinued','stopped','inactive'].includes(String(o.status||'').toLowerCase())));
     const patientMatches=item=>!patientFilter||(item.order||item).patient_id===patientFilter;
     const filtered=rows=>rows.filter(patientMatches);
     const periodOrders=rows=>filtered(rows).filter(order=>dateInSelectedPeriod(orderDate(order)));
     const visibleActive=filtered(activeOrders);
-    const historicalMarFilter=Boolean(appliedMedicationFilter.from||appliedMedicationFilter.to||appliedMedicationFilter.period!=='All');
-    function appliedMarDates(){
-      if(!historicalMarFilter)return [today];
-      let from=appliedMedicationFilter.from||'',to=appliedMedicationFilter.to||'';
-      if(appliedMedicationFilter.period!=='All'){
-        to=today;const days=appliedMedicationFilter.period==='Today'?0:appliedMedicationFilter.period==='7 Days'?6:29;from=addDaysISODate(today,-days);
-      }
-      from=from||to||today;to=to||from;
-      // 2.14.68: build the day list from ISO date strings so 24-09 stays 24-09 in India (was shifted to 23-09)
-      const out=[];let d=String(from).slice(0,10);const end=String(to).slice(0,10);
-      while(d&&d<=end&&out.length<366){out.push(d);d=addDaysISODate(d,1)}
-      return out;
-    }
-    const periodMarRows=historicalMarFilter?(()=>{
-      const rows=[];
-      appliedMarDates().forEach(dateISO=>state.orders.forEach(order=>parseTimes(order.scheduled_times).forEach(time=>{
-        if(!medicationOrderDoseEligible(order,dateISO,time))return;
-        const log=doseStatus(order,time,dateISO);
-        rows.push({order,time,date:dateISO,log});
-      })));
-      // Preserve recorded historical doses even when an old order was later deactivated without a stopped_at timestamp.
-      state.mar.filter(log=>dateInSelectedPeriod(log.scheduled_date)).forEach(log=>{
-        const order=state.orders.find(item=>item.id===log.order_id);if(!order)return;
-        const date=String(log.scheduled_date||'').slice(0,10),time=normalizeMedicationTime(log.scheduled_time);
-        if(!rows.some(item=>item.order.id===order.id&&item.date===date&&normalizeMedicationTime(item.time)===time))rows.push({order,time,date,log});
-      });
-      state.mar.filter(log=>log.rescheduled_time).forEach(log=>{
-        const date=rescheduledDoseDate(log);if(!date||!dateInSelectedPeriod(date))return;
-        const order=state.orders.find(item=>item.id===log.order_id);if(!order)return;
-        const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
-        if(!rows.some(item=>item.order.id===order.id&&item.date===date&&normalizeMedicationTime(item.time)===time))rows.push({order,time,date,log:doseStatus(order,time,date),rescheduledFrom:normalizeMedicationTime(log.scheduled_time)});
-      });
-      return rows;
-    })():todayRows;
-    const visibleToday=filtered(periodMarRows);
-    const visibleMissed=filtered(historicalMarFilter?periodMarRows.filter(x=>x.log?['missed','refused','delayed','not given','withheld','unavailable'].includes(String(x.log.status||'').toLowerCase()):new Date(`${x.date}T${normalizeMedicationTime(x.time)}:00`).getTime()<Date.now()):missedRows);
+    // 2.18.60: Today's MAR is always today (grouped by dose time); past doses are in Medication History.
+    // The Period filter now applies only to the prescription lists (Prescription History tab).
     const visibleHistory=periodOrders(state.orders);
     const visibleCompleted=periodOrders(completedOrders);
     const visibleDiscontinued=periodOrders(discontinuedOrders);
     const historyCount=visibleHistory.length;
-    const tabs=[['Active Prescriptions',visibleActive.length],['Today’s MAR',visibleToday.length],['Missed Medicines',visibleMissed.length],['Prescription History',historyCount],['Completed Medicines',visibleCompleted.length],['Discontinued Medicines',visibleDiscontinued.length]];
+    const tabs=[['Today’s MAR',filtered(todayRows).length],['Active Prescriptions',visibleActive.length],['Medication History',null],['Prescription History',historyCount]];
 
     function scheduledDoseDate(time,dateISO=today){
       const raw=String(time||'').slice(0,8);
@@ -34264,29 +34584,6 @@ function RoomsBeds({profile,onNavigate}){
         orderUpcoming(order)?h('button',{type:'button',className:'btn btn-secondary',disabled:true},'Starts later'):notDueToday?h('button',{type:'button',className:'btn btn-secondary',disabled:true},nextDue?`Next due ${formatDateIN(nextDue)}`:'Not due today'):h('button',{type:'button',className:`btn ${allTodayDone?'btn-secondary clinical-action-done':'btn-primary'}`,disabled:allTodayDone,onClick:()=>openMar(order,pendingTime)},allTodayDone?'Done Today ✓':'Administer')
       ];
     });
-    const marRows=items=>filtered(items).map(item=>{
-      const dose=pendingDoseState(item);
-      const urgent=!item.log&&dose.minutes>=15;
-      const historical=Boolean(item.date&&item.date!==today);
-      return [
-        patientLabel(item.order),...(historicalMarFilter?[item.date||today]:[]),medicineLabel(item.order),medicationTimeLabel(item.time),
-        h('span',{className:'badge',style:urgent?{background:dose.minutes>=60?'#fdecec':'#fff4dd',color:dose.minutes>=60?'#b42318':'#9a6700'}:{}},dose.status),
-        item.log?.administered_at?fmt(item.log.administered_at):'—',
-        item.log?.entry_recorded_at?fmt(item.log.entry_recorded_at):(item.log?.created_at?fmt(item.log.created_at):'—'),
-        dose.audit,
-        h('div',null,item.log?.remarks||'—',
-          item.log?.rescheduled_time?h('small',{style:{display:'block',color:'#9a6700',fontWeight:700}},`Rescheduled to ${medicationTimeLabel(item.log.rescheduled_time)}${rescheduledDoseDate(item.log)!==String(item.log.scheduled_date||'').slice(0,10)?' (next day)':''}`):null,
-          item.rescheduledFrom?h('small',{style:{display:'block',color:'#9a6700',fontWeight:700}},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`):null),
-        (()=>{
-          // A not-given dose that was rescheduled: offer the rescheduled dose directly from this row.
-          const rt=item.log?.rescheduled_time?normalizeMedicationTime(item.log.rescheduled_time).slice(0,5):'';
-          if(rt&&rescheduledDoseDate(item.log)===today&&!doseStatus(item.order,rt,today))
-            return h('button',{type:'button',className:'btn btn-primary',onClick:()=>openMar(item.order,rt)},`Give Rescheduled Dose (${medicationTimeLabel(rt)})`);
-          return null;
-        })()||(historical&&!item.log?h('span',{className:'small-note'},'—'):h('button',{type:'button',className:item.log&&isFrontlineClinical?'btn btn-secondary clinical-action-done':item.log?'btn btn-secondary':urgent?'btn btn-danger':'btn btn-primary',disabled:Boolean(item.log&&isFrontlineClinical),onClick:()=>openMar(item.order,item.time)},item.log?(isFrontlineClinical?'Recorded ✓':'View / Correct'):(urgent?'Resolve Dose':'Record Dose')))
-      ];
-    });
-
     const nurseExceptionStatuses=['missed','refused','delayed','not given','withheld','unavailable'];
     const nurseActionable=filtered(todayRows).filter(item=>{
       if(item.log)return false;
@@ -34308,6 +34605,7 @@ function RoomsBeds({profile,onNavigate}){
         h('div',{className:'actions'},
           h('button',{type:'button',className:showShiftMedication?'btn btn-primary':'btn btn-secondary',onClick:()=>setShowShiftMedication(value=>!value)},showShiftMedication?'Hide Shift Medication':`Medication for This Shift (${nurseShiftUpcoming.length})`),
           canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowHistoryMobile(true)},'Medication History'),
           h('button',{type:'button',className:'btn btn-secondary nurse-refresh',onClick:load},state.loading?'…':'Refresh')
         )
       ),
@@ -34348,12 +34646,158 @@ function RoomsBeds({profile,onNavigate}){
       h('details',{className:'nurse-secondary'},h('summary',null,'Prescription / history'),h('div',{className:'nurse-history-note'},'Prescription history is kept secondary for nursing use. Managers and Administrators retain the full register view.'))
     );
 
+    // ── 2.18.60: TODAY'S MAR grouped by dose time ─────────────────────────────────────────────────────────
+    // Round (dose time) → room → Guest once → one line per medicine. Finished rounds fold to one line, rounds
+    // in the other shift fold too; overdue / due rounds stay open. "Give checked" records the ticked doses of one
+    // Guest in one round as Given now (never sliding-scale insulin or a dose with a low-vitals warning).
+    const roundKey=item=>`${item.order.id}|${normalizeMedicationTime(item.time)}`;
+    const vitalsWarning=order=>medicationWithholdSuggestion(order,(state.vitals||[]).filter(v=>v.patient_id===order.patient_id));
+    const marIsException=log=>nurseExceptionStatuses.includes(String(log?.status||'').toLowerCase());
+    const marNeedsAttention=item=>item.log?medicationWithholdOpen(item.log):pendingDoseState(item).minutes>=15;
+    const marBatchEligible=item=>!item.log&&pendingDoseState(item).minutes>=-30&&!marIsVariableDose(item.order)&&!vitalsWarning(item.order);
+    const marRoundRows=filtered(todayRows);
+    const marRooms=(()=>{const m=new Map();todayRows.forEach(x=>{const p=patientFor(x.order);if(p.id&&!m.has(p.id))m.set(p.id,p)});return [...m.values()].sort((a,b)=>String(a.room_no||'').localeCompare(String(b.room_no||''),'en',{numeric:true})||String(a.bed_no||'').localeCompare(String(b.bed_no||'')))})();
+    const marCounts={total:marRoundRows.length,given:marRoundRows.filter(x=>x.log&&!marIsException(x.log)).length,
+      attention:marRoundRows.filter(marNeedsAttention).length,
+      due:marRoundRows.filter(x=>{if(x.log)return false;const m=pendingDoseState(x).minutes;return m>=-30&&m<15}).length,
+      withheld:marRoundRows.filter(x=>x.log&&String(x.log.status)==='Withheld').length};
+    const marSlots=(()=>{
+      const rows=attentionOnly?marRoundRows.filter(marNeedsAttention):marRoundRows;
+      const map=new Map();
+      rows.forEach(x=>{const t=normalizeMedicationTime(x.time);if(!map.has(t))map.set(t,[]);map.get(t).push(x)});
+      return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([time,items])=>{
+        const attention=items.some(marNeedsAttention);
+        const due=items.some(x=>!x.log&&pendingDoseState(x).minutes>=-30);
+        const done=items.every(x=>x.log&&!medicationWithholdOpen(x.log));
+        const inShift=shiftForTime(time)===currentShift();
+        const state=attention?'attention':due?'due':done?'done':inShift?'later':'other';
+        const guests=new Map();
+        items.forEach(x=>{const p=patientFor(x.order);if(!guests.has(p.id))guests.set(p.id,{patient:p,items:[]});guests.get(p.id).items.push(x)});
+        const guestList=[...guests.values()].sort((a,b)=>String(a.patient.room_no||'').localeCompare(String(b.patient.room_no||''),'en',{numeric:true}));
+        guestList.forEach(g=>g.items.sort((a,b)=>medicineLabel(a.order).localeCompare(medicineLabel(b.order))));
+        return {time,items,guests:guestList,state,inShift,
+          given:items.filter(x=>x.log&&!marIsException(x.log)).length,
+          open:slotOpen[time]!==undefined?slotOpen[time]:['attention','due','later'].includes(state)};
+      });
+    })();
+    function jumpToNow(){
+      const target=marSlots.find(s=>s.state==='attention'||s.state==='due')||marSlots.find(s=>s.state==='later');
+      if(!target){showSamaraActionToast('success','No dose due now','All rounds so far are recorded.');return}
+      setSlotOpen(cur=>({...cur,[target.time]:true}));
+      setTimeout(()=>{try{document.getElementById(`mar-slot-${target.time.replace(':','')}`)?.scrollIntoView({behavior:'smooth',block:'start'})}catch(_){}},60);
+    }
+    function openWithhold(item){openMar(item.order,item.time);setMarForm(cur=>({...cur,status:'Withheld'}));}
+    function openBatch(guest,slot){
+      const items=guest.items.filter(x=>marBatchEligible(x)&&!uncheckedDoses[roundKey(x)]);
+      if(!items.length)return;
+      setBatchMessage('');setBatchTarget({patient:guest.patient,time:slot.time,items});
+    }
+    async function saveBatch(){
+      if(!batchTarget||batchBusy)return;
+      setBatchBusy(true);setBatchMessage('');
+      try{
+        const fresh=await client.from('patients').select('is_active,admission_status').eq('id',batchTarget.patient.id).single();
+        if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged')throw new Error('The Guest is discharged or the status could not be checked. Press Refresh and try again.');
+        const existing=await client.from('medication_administrations').select('order_id,scheduled_time').eq('scheduled_date',today).in('order_id',batchTarget.items.map(x=>x.order.id));
+        if(existing.error)throw existing.error;
+        const done=new Set((existing.data||[]).map(x=>`${x.order_id}|${normalizeMedicationTime(x.scheduled_time)}`));
+        const todo=batchTarget.items.filter(x=>!done.has(roundKey(x)));
+        const skipped=batchTarget.items.length-todo.length;
+        if(!todo.length){showSamaraActionToast('success','Already recorded','These doses were already recorded (perhaps by another nurse).');setBatchTarget(null);await load();return}
+        const {data:{user}}=await client.auth.getUser();
+        const now=new Date().toISOString();
+        const payloads=todo.map(x=>({order_id:x.order.id,patient_id:x.order.patient_id,scheduled_date:today,scheduled_time:normalizeMedicationTime(x.time),status:'Given',
+          administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
+          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null}));
+        const {error}=await client.from('medication_administrations').insert(payloads);
+        if(error)throw error;
+        try{writeAuditEvent('Medication round recorded (Give checked)','Medication',batchTarget.patient.id,{round:batchTarget.time,doses:todo.length,medicines:todo.map(x=>medicineLabel(x.order))})}catch(_){}
+        showSamaraActionToast('success',`${todo.length} dose${todo.length>1?'s':''} recorded as Given`,`${formalName(batchTarget.patient)||batchTarget.patient.full_name||'Guest'} · ${medicationTimeLabel(batchTarget.time)} round${skipped?` · ${skipped} already recorded, skipped`:''}.`);
+        setBatchTarget(null);
+        setUncheckedDoses(cur=>{const next={...cur};batchTarget.items.forEach(x=>delete next[roundKey(x)]);return next});
+        await load();
+      }catch(e){const text=e?.message||'Unable to save. Please try again.';setBatchMessage(text);showSamaraActionToast('error','Medication save failed',text)}
+      finally{setBatchBusy(false)}
+    }
+    const marDoseLine=(item,slot)=>{
+      const dose=pendingDoseState(item),log=item.log,key=roundKey(item);
+      const variable=marIsVariableDose(item.order),warn=!log&&dose.minutes>=-30?vitalsWarning(item.order):null;
+      const eligible=marBatchEligible(item);
+      const rt=log?.rescheduled_time?normalizeMedicationTime(log.rescheduled_time).slice(0,5):'';
+      const reschedulePending=rt&&rescheduledDoseDate(log)===today&&!doseStatus(item.order,rt,today);
+      const tone=log?(String(log.status)==='Given'?'ok':String(log.status)==='Withheld'?'held':'warn'):dose.minutes>=60?'held':dose.minutes>=15?'warn':dose.minutes>=-30?'due':'later';
+      const statusText=log?(String(log.status)==='Withheld'?(medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld'):(log.status||'Recorded')):dose.status;
+      return h('div',{key,className:`mar-line ${log?'recorded':''}`,onClick:log?()=>setDoseDetail(item):undefined,role:log?'button':undefined,title:log?'Show full details':undefined},
+        h('div',{className:'mar-line-left'},
+          eligible?h('input',{type:'checkbox','aria-label':`Include ${medicineLabel(item.order)}`,checked:!uncheckedDoses[key],onClick:e=>e.stopPropagation(),onChange:e=>setUncheckedDoses(cur=>({...cur,[key]:!e.target.checked}))}):h('span',{className:'mar-check-space'}),
+          h('div',{className:'mar-med'},
+            h('span',{className:'mar-med-name'},medicineLabel(item.order)),
+            h('small',null,[item.order.route,item.order.food_instruction].filter(Boolean).join(' · ')),
+            variable&&h('small',{className:'mar-flag'},'Sliding scale — check sugar first'),
+            item.rescheduledFrom&&h('small',{className:'mar-flag'},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`),
+            warn&&h('small',{className:'mar-flag danger'},`Check before giving: ${warn.reading}`))),
+        h('div',{className:'mar-line-right'},
+          h('span',{className:`mar-chip ${tone}`},statusText),
+          log?.administered_at&&h('span',{className:'mar-when'},formatTimeIN(log.administered_at)),
+          log?.late_entry&&h('span',{className:'mar-chip warn'},'Late entry'),
+          (log?.remarks||log?.withhold_reason)&&h('span',{className:'mar-when',title:[log.withhold_reason,log.withhold_reading,log.remarks].filter(Boolean).join(' · ')},'📝'),
+          reschedulePending&&h('button',{type:'button',className:'btn btn-primary mar-btn',onClick:e=>{e.stopPropagation();openMar(item.order,rt)}},`Give at ${medicationTimeLabel(rt)}`),
+          log&&medicationWithholdOpen(log)&&canReviseMedication&&h('button',{type:'button',className:'btn btn-primary mar-btn',onClick:e=>{e.stopPropagation();openInstruction(log)}},"Doctor's instruction"),
+          !log&&dose.minutes>=-30&&h('button',{type:'button',className:'btn btn-secondary mar-btn',onClick:()=>openWithhold(item)},'Withhold'),
+          !log&&h('button',{type:'button',className:`btn ${dose.minutes>=15?'btn-danger':dose.minutes>=-30?'btn-primary':'btn-secondary'} mar-btn`,onClick:()=>openMar(item.order,item.time)},variable?'Record (sugar + units)':'Record')));
+    };
+    const marGuestBlock=(guest,slot)=>{
+      const p=guest.patient;
+      const ready=guest.items.filter(x=>marBatchEligible(x)&&!uncheckedDoses[roundKey(x)]);
+      return h('div',{key:p.id||'guest',className:'mar-guest'},
+        h('div',{className:'mar-guest-head'},
+          h('span',{className:'mar-room'},p.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—'),
+          h('span',{className:'mar-guest-name'},formalName(p)||p.full_name||'Guest'),
+          h('small',null,p.patient_id||''),
+          ready.length>0&&h('button',{type:'button',className:'btn btn-primary mar-btn mar-batch',onClick:()=>openBatch(guest,slot)},`Give checked (${ready.length})`)),
+        guest.items.map(item=>marDoseLine(item,slot)));
+    };
+    const MAR_ROUND_CSS=`.mar-rounds{margin-top:4px}.mar-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}.mar-top .mar-title{font-weight:800;font-size:16px;color:#321d28;margin-right:6px}
+.mar-pill{border:1px solid #e7c3d4;background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:800;cursor:pointer;color:#5d1039}.mar-pill.on{background:#b20b5d;border-color:#b20b5d;color:#fff}.mar-pill.danger{border-color:#f0b4b4;color:#b42318;background:#fff7f7}.mar-pill.danger.on{background:#b42318;color:#fff}.mar-pill.ok{border-color:#bfe5cf;color:#0a7a42;background:#f3fbf6;cursor:default}.mar-pill.due{border-color:#f2d48b;color:#8a5a00;background:#fffaf0;cursor:default}
+.mar-rooms{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.mar-rooms .mar-pill{font-weight:700;padding:3px 10px}
+.mar-slot{border:1px solid #ecd3df;border-radius:12px;margin:0 0 8px;background:#fff;overflow:hidden;scroll-margin-top:90px}.mar-slot.attention{border:2px solid #e8a0a0}.mar-slot.due{border:2px solid #f0c75e}
+.mar-slot-head{width:100%;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;padding:9px 12px;background:#fbeef4;border:0;cursor:pointer;text-align:left;font:inherit;color:#5d1039}.mar-slot.attention .mar-slot-head{background:#fdecec;color:#8f1d1d}.mar-slot.due .mar-slot-head{background:#fff4dd;color:#7a4e00}.mar-slot.done .mar-slot-head,.mar-slot.other .mar-slot-head{background:#faf6f8;color:#6d5963}
+.mar-slot-head b{font-size:16px}.mar-slot-head .mar-chev{display:inline-block;transition:transform .15s;margin-right:6px}.mar-slot-head.open .mar-chev{transform:rotate(90deg)}.mar-slot-head small{font-weight:700;font-size:12.5px}
+.mar-guest{padding:6px 12px 4px;border-top:1px solid #f3e3ea}.mar-guest-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:2px 0 4px}.mar-room{font-size:19px;font-weight:900;color:#b20b5d}.mar-guest-name{font-weight:800;color:#321d28;font-size:14.5px}.mar-guest-head small{color:#7b6670}.mar-guest-head .mar-batch{margin-left:auto}
+.mar-line{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 6px 6px 4px;border-radius:8px}.mar-line.recorded{cursor:pointer}.mar-line.recorded:hover{background:#fff4f9}.mar-line-left{display:flex;gap:10px;align-items:center;min-width:0;flex:1 1 auto}.mar-line-left input[type=checkbox]{width:20px;height:20px;flex:0 0 20px;accent-color:#b20b5d}.mar-check-space{width:20px;flex:0 0 20px}
+.mar-med{display:flex;flex-direction:column;min-width:0}.mar-med-name{font-weight:700;color:#321d28;font-size:14px;overflow-wrap:anywhere}.mar-med small{color:#7b6670;font-size:12px}.mar-med small.mar-flag{color:#8a5a00;font-weight:800}.mar-med small.mar-flag.danger{color:#b42318}
+.mar-line-right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.mar-chip{font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}.mar-chip.ok{background:#e8f6ee;color:#0a7a42}.mar-chip.warn{background:#fff4dd;color:#8a5a00}.mar-chip.held{background:#fdecec;color:#b42318}.mar-chip.due{background:#fff4dd;color:#7a4e00}.mar-chip.later{background:#f2ecef;color:#6d5963}.mar-when{font-size:12.5px;color:#6d5963;white-space:nowrap}
+.mar-btn{min-height:32px!important;padding:4px 12px!important;font-size:13px!important}
+@media(max-width:700px){.mar-line{flex-direction:column;align-items:stretch}.mar-line-right{justify-content:flex-start;padding-left:30px}.mar-guest-head .mar-batch{margin-left:0;width:100%}}`;
+    const marTodayView=h('div',{className:'card panel mar-rounds'},h('style',null,MAR_ROUND_CSS),
+      h('div',{className:'mar-top'},
+        h('span',{className:'mar-title'},`Today · ${formatDateIN(today)} · ${currentShift()}`),
+        h('button',{type:'button',className:`mar-pill danger ${attentionOnly?'on':''}`,title:'Show only overdue doses and withheld doses awaiting the doctor',onClick:()=>setAttentionOnly(v=>!v)},`Overdue / attention ${marCounts.attention}`),
+        h('span',{className:'mar-pill due'},`Due now ${marCounts.due}`),
+        h('span',{className:'mar-pill ok'},`Given ${marCounts.given} / ${marCounts.total}`),
+        marCounts.withheld>0&&h('span',{className:'mar-pill danger'},`Withheld ${marCounts.withheld}`),
+        h('span',{style:{flex:'1 1 auto'}}),
+        h('button',{type:'button',className:'btn btn-secondary mar-btn',onClick:jumpToNow},'Jump to now'),
+        h('button',{type:'button',className:'btn btn-secondary mar-btn',onClick:()=>{const all=marSlots.every(s=>s.open);const next={};marSlots.forEach(s=>{next[s.time]=!all});setSlotOpen(next)}},marSlots.length&&marSlots.every(s=>s.open)?'Fold all':'Open all')),
+      marRooms.length>1&&h('div',{className:'mar-rooms'},
+        h('button',{type:'button',className:`mar-pill ${!patientFilter?'on':''}`,onClick:()=>setPatientFilter('')},'All rooms'),
+        marRooms.map(p=>h('button',{type:'button',key:p.id,className:`mar-pill ${patientFilter===p.id?'on':''}`,title:formalName(p)||p.full_name||'',onClick:()=>setPatientFilter(patientFilter===p.id?'':p.id)},p.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:(formalName(p)||p.full_name||'Guest')))),
+      !marSlots.length&&h('div',{className:'message'},attentionOnly?'Nothing overdue — every dose so far is recorded.':'No medicines are scheduled today.'),
+      marSlots.map(slot=>{
+        const label=slot.state==='attention'?'overdue — needs attention':slot.state==='due'?'due now':slot.state==='done'?'all recorded':slot.state==='later'?'upcoming this shift':'other shift';
+        const guestsText=`${slot.guests.length} Guest${slot.guests.length>1?'s':''} · ${slot.items.length} dose${slot.items.length>1?'s':''}`;
+        return h('div',{key:slot.time,id:`mar-slot-${slot.time.replace(':','')}`,className:`mar-slot ${slot.state}`},
+          h('button',{type:'button',className:`mar-slot-head ${slot.open?'open':''}`,'aria-expanded':slot.open,onClick:()=>setSlotOpen(cur=>({...cur,[slot.time]:!slot.open}))},
+            h('span',null,h('span',{className:'mar-chev','aria-hidden':'true'},'›'),h('b',null,medicationTimeLabel(slot.time)),h('small',null,` · ${label}`)),
+            h('small',null,slot.state==='done'?`✓ ${slot.given} of ${slot.items.length} given`:`${guestsText}${slot.given?` · ${slot.given} given`:''}`)),
+          slot.open&&slot.guests.map(g=>marGuestBlock(g,slot)));
+      }),
+      h('p',{className:'small-note',style:{margin:'8px 0 0'}},'Tap a recorded dose to see the full audit (given time, entry time, remarks). Earlier days are in Medication History.'));
+
     let table=null;
     if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleActive)});
-    if(tab==='Today’s MAR')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:historicalMarFilter?`Medication Administration · ${appliedMarDates()[0]} to ${appliedMarDates().slice(-1)[0]}`:"Today’s Medication Administration",subtitle:historicalMarFilter?'Scheduled doses and administration records for the applied date period':'Scheduled doses and current administration status',heads:historicalMarFilter?['Patient','Date','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action']:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Remarks','Action'],rows:marRows(visibleToday)});
-    if(tab==='Missed Medicines')table=h(LogTable,{className:'medication-log-table medication-mar-table',title:'Overdue / Exception Medicines',subtitle:'Unresolved overdue doses and medicine exceptions requiring clinical review',heads:['Patient','Medicine','Time','Status','Administered','Entry recorded','Entry audit','Reason / Remarks','Action'],rows:marRows(visibleMissed)});
-    if(tab==='Completed Medicines')table=h(LogTable,{className:'medication-log-table',title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleCompleted)});
-    if(tab==='Discontinued Medicines')table=h(LogTable,{className:'medication-log-table',title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(visibleDiscontinued).map(row=>row.slice(0,-1))});
+    if(tab==='Today’s MAR')table=marTodayView;
+    if(tab==='Medication History')table=h(MedicationHistory,{profile,orders:state.orders,patients:state.patients});
 
     if(tab==='Prescription History'){
       const historyOrders=visibleHistory.sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
@@ -34377,6 +34821,9 @@ function RoomsBeds({profile,onNavigate}){
           })):h('p',{className:'small-note'},'No doctor medication review has been recorded yet.')
         )
       );
+      // 2.18.60: Completed / Discontinued courses are now views inside Prescription History (were separate tabs)
+      if(prescriptionView==='completed')table=h(LogTable,{className:'medication-log-table',title:'Completed Medicine Courses',subtitle:'Prescription courses completed by status or end date',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleCompleted)});
+      if(prescriptionView==='discontinued')table=h(LogTable,{className:'medication-log-table',title:'Discontinued Medicines',subtitle:'Stopped or inactive prescriptions retained for history',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR'],rows:prescriptionRows(visibleDiscontinued).map(row=>row.slice(0,-1))});
     }
 
     // 2.15.11: warn-only suggestion from today's latest vitals; open withheld doses awaiting the doctor
@@ -34446,21 +34893,40 @@ function RoomsBeds({profile,onNavigate}){
               canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>openInstruction(log)},'Record doctor\'s instruction'));
           }))
         ),
+        // 2.18.60: Guest dropdown only on the prescription tabs (Today's MAR has room buttons; Medication History has its own filters);
+        // the Period filter only on Prescription History. Tabs: Today's MAR · Active Prescriptions · Medication History · Prescription History.
         !useFrontlinePriority&&h('div',{className:'panel-head'},
-          h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))),
+          ['Active Prescriptions','Prescription History'].includes(tab)?h('div',{className:'field',style:{minWidth:'260px',marginBottom:0}},h('label',null,'Patient filter'),h('select',{value:patientFilter,onChange:e=>setPatientFilter(e.target.value)},h('option',{value:''},'All patients'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'}`)))):h('div',null),
           h('div',{className:'actions'},canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'Loading…':'Refresh'))
         ),
-        !useFrontlinePriority&&h('div',{className:'medication-register-filters'},
+        !useFrontlinePriority&&tab==='Prescription History'&&h('div',{className:'medication-register-filters'},
+          h('div',{className:'field'},h('label',null,'Show'),h('select',{value:prescriptionView,onChange:e=>setPrescriptionView(e.target.value)},[['all','All versions + doctor reviews'],['completed',`Completed courses (${visibleCompleted.length})`],['discontinued',`Discontinued (${visibleDiscontinued.length})`]].map(([v,l])=>h('option',{key:v,value:v},l)))),
           h('div',{className:'field'},h('label',null,'Period'),h('select',{value:periodFilter,onChange:e=>{setPeriodFilter(e.target.value);if(e.target.value!=='All'){setDateFrom('');setDateTo('');}}},['All','Today','7 Days','30 Days'].map(x=>h('option',{key:x,value:x},x)))),
-          h('div',{className:'field'},h('label',null,'From date'),h('input',{type:'date',max:dateTo||today,value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setPeriodFilter('All');}})),
-          h('div',{className:'field'},h('label',null,'To date'),h('input',{type:'date',min:dateFrom||undefined,max:today,value:dateTo,onChange:e=>{setDateTo(e.target.value);setPeriodFilter('All');}})),
+          h('div',{className:'field'},h('label',null,'From date'),h(StrictDateInput,{min:'2026-08-27',max:dateTo||today,value:dateFrom,onChange:e=>{setDateFrom(e.target.value);setPeriodFilter('All');}})),
+          h('div',{className:'field'},h('label',null,'To date'),h(StrictDateInput,{min:dateFrom||'2026-08-27',max:today,value:dateTo,onChange:e=>{setDateTo(e.target.value);setPeriodFilter('All');}})),
           h('button',{type:'button',className:'btn btn-primary',onClick:()=>setAppliedMedicationFilter({period:periodFilter,from:dateFrom,to:dateTo})},'Apply Filter'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPeriodFilter('All');setDateFrom('');setDateTo('');setAppliedMedicationFilter({period:'All',from:'',to:''});}},'Clear Filter')
         ),
-        !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},`${name} (${count})`)))
+        !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},count===null?name:`${name} (${count})`)))
       ),
       !patientFilter&&h(DischargeMedicationReview),
-      state.loading?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?nurseMedicationCards:table),
+      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{profile,orders:state.orders,patients:state.patients,onBack:()=>setShowHistoryMobile(false)}):nurseMedicationCards):table),
+      batchTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!batchBusy)setBatchTarget(null)}},
+        h('div',{className:'card modal',role:'dialog','aria-modal':'true'},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,`Give checked · ${medicationTimeLabel(batchTarget.time)} round`),h('small',null,`${formalName(batchTarget.patient)||batchTarget.patient.full_name||'Guest'} · ${batchTarget.patient.room_no?`Room ${batchTarget.patient.room_no}${batchTarget.patient.bed_no?`-${batchTarget.patient.bed_no}`:''}`:''}`)),h('button',{type:'button',className:'close',disabled:batchBusy,onClick:()=>setBatchTarget(null)},'×')),
+          batchMessage&&h('div',{className:'message error'},batchMessage),
+          h('p',null,`These ${batchTarget.items.length} dose${batchTarget.items.length>1?'s':''} will be recorded as Given now (${formatTimeIN(new Date().toISOString())}):`),
+          h('ol',{style:{margin:'0 0 12px',paddingLeft:'22px',lineHeight:1.7}},batchTarget.items.map(x=>h('li',{key:roundKey(x)},h('b',null,medicineLabel(x.order)),[x.order.route,x.order.food_instruction].filter(Boolean).length?` · ${[x.order.route,x.order.food_instruction].filter(Boolean).join(' · ')}`:''))),
+          h('small',{className:'small-note',style:{display:'block',marginBottom:'10px'}},'Not giving one of them? Cancel, untick it, and use Withhold or Record for that dose. Given earlier than now? Use Record for each dose so the real time is saved.'),
+          h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:batchBusy,onClick:()=>setBatchTarget(null)},'Cancel'),h('button',{type:'button',className:'btn btn-primary',disabled:batchBusy,onClick:saveBatch},batchBusy?'Saving…':`Record ${batchTarget.items.length} as Given`)))),
+      doseDetail&&doseDetail.log&&h(RowDetailModal,{title:`${medicineLabel(doseDetail.order)} · ${medicationTimeLabel(doseDetail.time)}`,subtitle:patientLabel(doseDetail.order),onClose:()=>setDoseDetail(null),
+        fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],
+          ['Actually given at',doseDetail.log.administered_at?fmt(doseDetail.log.administered_at):''],['Entry recorded at',doseDetail.log.entry_recorded_at?fmt(doseDetail.log.entry_recorded_at):(doseDetail.log.created_at?fmt(doseDetail.log.created_at):'')],
+          ['Entry',doseDetail.log.late_entry?`Late entry · ${doseDetail.log.entry_delay_minutes||0} min · ${doseDetail.log.late_entry_reason||''}${doseDetail.log.late_entry_justification?` — ${doseDetail.log.late_entry_justification}`:''}`:'On-time entry'],
+          ['Withhold reason',doseDetail.log.withhold_reason],['Reading',doseDetail.log.withhold_reading],['Doctor informed',doseDetail.log.doctor_informed_name?`${doseDetail.log.doctor_informed_name} · ${doseDetail.log.doctor_informed_via||''}`:''],
+          ["Doctor's instruction",doseDetail.log.doctor_instruction?`${doseDetail.log.doctor_instruction}${doseDetail.log.doctor_instruction_notes?` — ${doseDetail.log.doctor_instruction_notes}`:''}`:''],
+          ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Remarks',doseDetail.log.remarks]]},
+        !isFrontlineClinical&&h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openMar(d.order,d.time)}},'View / Correct'))),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor Review / Modify Medication'),h('small',null,'Only medication-review fields are shown. Previous prescriptions and MAR entries are never overwritten.')),h('button',{type:'button',className:'close',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'×')),
@@ -34533,6 +34999,9 @@ function RoomsBeds({profile,onNavigate}){
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
             h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed','Withheld'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'message warning span-2'},'Sliding-scale insulin: check the blood sugar first, then enter the reading and the units you are giving (as per the doctor\'s scale).'),
+            marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Blood sugar reading (mg/dL)'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,required:true,value:marForm.sugar_reading,placeholder:'e.g. 186',onChange:e=>setMarForm({...marForm,sugar_reading:e.target.value})})),
+            marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Units given'),h('input',{type:'number',inputMode:'decimal',min:0,max:200,step:'0.5',required:true,value:marForm.units_given,placeholder:'e.g. 6',onChange:e=>setMarForm({...marForm,units_given:e.target.value})})),
             marForm.status==='Withheld'&&h('div',{className:'message warning span-2'},'Withholding: record the reason and the reading, inform the treating doctor, then record the doctor\'s instruction when received. Nursing Manager and Admin are alerted immediately.'),
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Reason for withholding'),h('select',{required:true,value:marForm.withhold_reason,onChange:e=>setMarForm({...marForm,withhold_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_WITHHOLD_REASONS.map(r=>h('option',{key:r,value:r},r)))),
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Reading / observation'),h('input',{required:true,value:marForm.withhold_reading,placeholder:MEDICATION_WITHHOLD_READING_HINT[marForm.withhold_reason]||'Example: BP 90/58 mmHg at 7:50 AM',onChange:e=>setMarForm({...marForm,withhold_reading:e.target.value})})),

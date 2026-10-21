@@ -1,3 +1,11 @@
+## 2.18.60 — Medicines: Today's MAR by dose time + Medication History
+- **Today's MAR** is now grouped by **dose time** (6 AM, 8 AM, 9 AM, 1 PM …) instead of one long wide table. Inside each time: **room (large) → Guest name once → one line per medicine** with a small status chip and the time given. No more horizontal scrolling.
+- Rounds that are fully recorded, and rounds in the other shift, **fold to one line** ("✓ 9 of 9 given"); overdue and due-now rounds stay open and coloured. Top bar: Overdue / attention (tap to show only those), Due now, Given x / y, **Jump to now**, Open / Fold all, and **room buttons** in place of the patient dropdown.
+- **Give checked**: per Guest per round, the doses due now are pre-ticked; untick one to Withhold or Record it separately, then confirm to record the rest as Given now. Sliding-scale insulin and any dose with a low-vitals warning are never included — they keep their own **Record** (sliding scale asks for the **blood sugar reading and units given**).
+- Tap any recorded dose for the full audit (given at, entry time, late entry, withhold / doctor's instruction, remarks).
+- New **Medication History** (tab, and a button for nurses): every scheduled dose with what happened — Given / Withheld / Refused / Missed / Delayed / **Not recorded**. Filters with Apply: Guest (search from 3 letters), Today / Selected Date / This Week / This Month / Month / Selected Period (from 27-08-2026), Status, Medicine. Shown date → time → Guest; summary boxes on top. **Print, Download PDF and Download Excel** follow the applied filter (A4 landscape, Samara logo, signature lines for Nurse / Nursing Manager / Treating Doctor).
+- Tabs simplified to **Today's MAR · Active Prescriptions · Medication History · Prescription History** (Missed → Medication History status filter; Completed and Discontinued are a "Show" choice inside Prescription History). Period filter shown only on Prescription History. No SQL.
+
 ## 2.18.59 — Statement: choose the view, summary box on top
 - **ACCOUNTS / BILLING → Statement** now starts with a **View** choice (then Apply):
   - **Collections — amount received**: Guest Name · Status · Advance Received · Payment Received · **Total Collected** (only Guests who paid in the period).

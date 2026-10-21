@@ -315,8 +315,12 @@
    "lines": 261
   },
   {
+   "file": "clinical/medication-history.js",
+   "about": "2.18.60 Medication History: dose-wise record by Guest / period / status, grouped date → time → Guest; Print, PDF, Excel"
+  },
+  {
    "file": "clinical/medicines.js",
-   "about": "Medicines (+ discharge medication review)",
+   "about": "Medicines: Today’s MAR grouped by dose time (Give checked per round), prescriptions, doctor review (+ discharge medication review)",
    "lines": 808
   },
   {
