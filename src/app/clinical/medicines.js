@@ -38,14 +38,12 @@
     const [dateTo,setDateTo]=React.useState('');
     const [appliedMedicationFilter,setAppliedMedicationFilter]=React.useState({period:'All',from:'',to:''});
     const [marTarget,setMarTarget]=React.useState(null);
-    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:'',sugar_reading:'',units_given:''});
-    // 2.18.60: Today's MAR grouped by dose time — open / closed rounds, rooms, "Give checked" per Guest per round
-    const [slotOpen,setSlotOpen]=React.useState({});
-    const [uncheckedDoses,setUncheckedDoses]=React.useState({});
-    const [attentionOnly,setAttentionOnly]=React.useState(false);
-    const [batchTarget,setBatchTarget]=React.useState(null);
-    const [batchBusy,setBatchBusy]=React.useState(false);
-    const [batchMessage,setBatchMessage]=React.useState('');
+    const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:'',sugar_reading:'',units_given:'',scheduled_date:''});
+    // 2.18.61: MAR by time buttons for the current shift — chosen time, one-tap "Administer now" with a confirm
+    const [selectedSlot,setSelectedSlot]=React.useState('');
+    const [confirmTarget,setConfirmTarget]=React.useState(null);
+    const [confirmBusy,setConfirmBusy]=React.useState(false);
+    const [confirmMessage,setConfirmMessage]=React.useState('');
     const [doseDetail,setDoseDetail]=React.useState(null);
     const [prescriptionView,setPrescriptionView]=React.useState('all');
     const [showHistoryMobile,setShowHistoryMobile]=React.useState(false);
@@ -329,11 +327,11 @@
       }
       return null;
     }
-    function doseWasBeforeAdmission(order,time){
+    function doseWasBeforeAdmission(order,time,dateISO=today){
       const boundary=admissionBoundaryForPatient(patientFor(order));
       if(!boundary)return false;
       const normalized=normalizeMedicationTime(time);
-      const due=new Date(`${today}T${normalized}:00`);
+      const due=new Date(`${dateISO}T${normalized}:00`);
       return !Number.isNaN(due.getTime())&&due.getTime()<boundary.getTime();
     }
     function patientLabel(order){
@@ -356,14 +354,15 @@
       }
       return normalizeMedicationTime(`${String(new Date().getHours()).padStart(2,'0')}:00`);
     }
-    function openMar(order,time=''){
+    // 2.18.61: dateISO — a night-shift dose (e.g. 10 PM) may be recorded after midnight; it is saved under its own date.
+    function openMar(order,time='',dateISO=today){
       const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','Current administration is unavailable. Pre-departure records are retained for management review.');return}
       const scheduled=time||firstPendingTime(order);
       if(!scheduled){
         showSamaraActionToast('success','Already recorded','All scheduled doses for this prescription have already been recorded today.');
         return;
       }
-      const existing=doseStatus(order,scheduled);
+      const existing=doseStatus(order,scheduled,dateISO);
       if(existing&&isFrontlineClinical){
         showSamaraActionToast('success','Dose already recorded',`${medicineLabel(order)} at ${medicationTimeLabel(scheduled)} is already recorded as ${existing.status||'completed'}.`);
         return;
@@ -379,7 +378,7 @@
         reschedule:false,rescheduled_time:'',
         withhold_reason:'',withhold_reading:'',
         doctor_informed_name:String(p.treating_doctor||'').trim(),doctor_informed_via:'Phone call',doctor_informed_at:localDateTimeValue(),
-        sugar_reading:'',units_given:''
+        sugar_reading:'',units_given:'',scheduled_date:dateISO
       });
       setMarMessage('');
     }
@@ -421,7 +420,7 @@
       if(isLateEntry&&!String(marForm.late_entry_justification||'').trim()){
         const text='Please enter a detailed justification for the late entry.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
-      const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time);
+      const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time,marForm.scheduled_date||today);
       if(alreadyRecorded&&isFrontlineClinical){
         const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
         setMarMessage(text);showSamaraActionToast('success','Dose already recorded',text);return;
@@ -431,7 +430,7 @@
       const payload={
         order_id:marTarget.id,
         patient_id:marTarget.patient_id,
-        scheduled_date:today,
+        scheduled_date:marForm.scheduled_date||today,
         scheduled_time:normalizeMedicationTime(marForm.scheduled_time),
         status:marForm.status,
         administered_at:administrationTime.toISOString(),
@@ -561,7 +560,7 @@
     const visibleCompleted=periodOrders(completedOrders);
     const visibleDiscontinued=periodOrders(discontinuedOrders);
     const historyCount=visibleHistory.length;
-    const tabs=[['Today’s MAR',filtered(todayRows).length],['Active Prescriptions',visibleActive.length],['Medication History',null],['Prescription History',historyCount]];
+    const tabs=[['Today’s MAR',0],['Active Prescriptions',visibleActive.length],['Medication History',null],['Prescription History',historyCount]];
 
     function scheduledDoseDate(time,dateISO=today){
       const raw=String(time||'').slice(0,8);
@@ -657,153 +656,175 @@
       h('details',{className:'nurse-secondary'},h('summary',null,'Prescription / history'),h('div',{className:'nurse-history-note'},'Prescription history is kept secondary for nursing use. Managers and Administrators retain the full register view.'))
     );
 
-    // ── 2.18.60: TODAY'S MAR grouped by dose time ─────────────────────────────────────────────────────────
-    // Round (dose time) → room → Guest once → one line per medicine. Finished rounds fold to one line, rounds
-    // in the other shift fold too; overdue / due rounds stay open. "Give checked" records the ticked doses of one
-    // Guest in one round as Given now (never sliding-scale insulin or a dose with a low-vitals warning).
-    const roundKey=item=>`${item.order.id}|${normalizeMedicationTime(item.time)}`;
+    // ── 2.18.61: MAR by TIME BUTTONS for the CURRENT SHIFT ───────────────────────────────────────────────────
+    // Day 7 AM–7 PM, Night 7 PM–7 AM (a night dose after midnight belongs to the next date). Doses are put in
+    // 30-minute time buttons (8:15 → 8:00 button); only times that have medicines get a button. Tap a time →
+    // Guest-wise (room order), medicine-wise lines. "Administer now" (green) → small confirm → saved as Given now;
+    // the button then turns grey "Given ✓ time" and cannot be pressed again. Late doses, sliding-scale insulin and
+    // doses with a low-vitals warning open the full MAR form instead. Earlier shifts are in Medication History.
     const vitalsWarning=order=>medicationWithholdSuggestion(order,(state.vitals||[]).filter(v=>v.patient_id===order.patient_id));
     const marIsException=log=>nurseExceptionStatuses.includes(String(log?.status||'').toLowerCase());
-    const marNeedsAttention=item=>item.log?medicationWithholdOpen(item.log):pendingDoseState(item).minutes>=15;
-    const marBatchEligible=item=>!item.log&&pendingDoseState(item).minutes>=-30&&!marIsVariableDose(item.order)&&!vitalsWarning(item.order);
-    const marRoundRows=filtered(todayRows);
-    const marRooms=(()=>{const m=new Map();todayRows.forEach(x=>{const p=patientFor(x.order);if(p.id&&!m.has(p.id))m.set(p.id,p)});return [...m.values()].sort((a,b)=>String(a.room_no||'').localeCompare(String(b.room_no||''),'en',{numeric:true})||String(a.bed_no||'').localeCompare(String(b.bed_no||'')))})();
-    const marCounts={total:marRoundRows.length,given:marRoundRows.filter(x=>x.log&&!marIsException(x.log)).length,
-      attention:marRoundRows.filter(marNeedsAttention).length,
-      due:marRoundRows.filter(x=>{if(x.log)return false;const m=pendingDoseState(x).minutes;return m>=-30&&m<15}).length,
-      withheld:marRoundRows.filter(x=>x.log&&String(x.log.status)==='Withheld').length};
+    function marShiftWindow(){
+      const hr=new Date().getHours();
+      if(hr>=7&&hr<19)return {label:'Day Shift (7 AM–7 PM)',segs:[{date:today,from:'07:00',to:'18:59'}]};
+      if(hr>=19)return {label:'Night Shift (7 PM–7 AM)',segs:[{date:today,from:'19:00',to:'23:59'},{date:addDaysISODate(today,1),from:'00:00',to:'06:59'}]};
+      return {label:'Night Shift (7 PM–7 AM)',segs:[{date:addDaysISODate(today,-1),from:'19:00',to:'23:59'},{date:today,from:'00:00',to:'06:59'}]};
+    }
+    function marRowsFor(seg){
+      const out=[],inRange=t=>{const x=normalizeMedicationTime(t).slice(0,5);return x>=seg.from&&x<=seg.to};
+      const activeGuest=p=>p.id&&p.is_active!==false&&p.admission_status!=='Discharged';
+      state.orders.forEach(order=>parseTimes(order.scheduled_times).forEach(raw=>{
+        const time=normalizeMedicationTime(raw).slice(0,5);
+        if(!time||!inRange(time)||!activeGuest(patientFor(order)))return;
+        if(!medicationOrderDoseEligible(order,seg.date,time))return;
+        if(doseWasBeforeAdmission(order,time,seg.date))return;
+        if(out.some(x=>x.order.id===order.id&&x.time===time))return;
+        out.push({order,time,date:seg.date,log:doseStatus(order,time,seg.date)});
+      }));
+      // a refused / delayed dose that was rescheduled appears again at its new time
+      state.mar.filter(log=>log.rescheduled_time&&rescheduledDoseDate(log)===seg.date).forEach(log=>{
+        const order=state.orders.find(o=>o.id===log.order_id);if(!order||!activeGuest(patientFor(order)))return;
+        const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
+        if(!time||!inRange(time)||out.some(x=>x.order.id===order.id&&x.time===time))return;
+        out.push({order,time,date:seg.date,log:doseStatus(order,time,seg.date),rescheduledFrom:normalizeMedicationTime(log.scheduled_time)});
+      });
+      return out;
+    }
+    const marShift=marShiftWindow();
+    const marAllShiftRows=marShift.segs.flatMap(marRowsFor);
+    const marShiftRows=filtered(marAllShiftRows);
+    tabs[0][1]=marShiftRows.length; // 2.18.61: the MAR tab counts this shift's doses
+    const marMinutes=item=>{const d=scheduledDoseDate(item.time,item.date);return d?Math.floor((Date.now()-d.getTime())/60000):0};
+    const marLate=item=>!item.log&&marMinutes(item)>=30;
+    const marDue=item=>!item.log&&marMinutes(item)>=-30;
+    const marWaitingDoctor=item=>Boolean(item.log&&medicationWithholdOpen(item.log));
+    const marSlotKey=item=>{const [hh,mm]=item.time.split(':');return `${item.date}|${hh}:${Number(mm)<30?'00':'30'}`};
     const marSlots=(()=>{
-      const rows=attentionOnly?marRoundRows.filter(marNeedsAttention):marRoundRows;
       const map=new Map();
-      rows.forEach(x=>{const t=normalizeMedicationTime(x.time);if(!map.has(t))map.set(t,[]);map.get(t).push(x)});
-      return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([time,items])=>{
-        const attention=items.some(marNeedsAttention);
-        const due=items.some(x=>!x.log&&pendingDoseState(x).minutes>=-30);
-        const done=items.every(x=>x.log&&!medicationWithholdOpen(x.log));
-        const inShift=shiftForTime(time)===currentShift();
-        const state=attention?'attention':due?'due':done?'done':inShift?'later':'other';
-        const guests=new Map();
-        items.forEach(x=>{const p=patientFor(x.order);if(!guests.has(p.id))guests.set(p.id,{patient:p,items:[]});guests.get(p.id).items.push(x)});
-        const guestList=[...guests.values()].sort((a,b)=>String(a.patient.room_no||'').localeCompare(String(b.patient.room_no||''),'en',{numeric:true}));
-        guestList.forEach(g=>g.items.sort((a,b)=>medicineLabel(a.order).localeCompare(medicineLabel(b.order))));
-        return {time,items,guests:guestList,state,inShift,
-          given:items.filter(x=>x.log&&!marIsException(x.log)).length,
-          open:slotOpen[time]!==undefined?slotOpen[time]:['attention','due','later'].includes(state)};
+      marShiftRows.forEach(x=>{const k=marSlotKey(x);if(!map.has(k))map.set(k,[]);map.get(k).push(x)});
+      return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([key,items])=>{
+        const [date,time]=key.split('|');
+        return {key,date,time,items,
+          pending:items.filter(x=>!x.log).length,given:items.filter(x=>x.log&&!marIsException(x.log)).length,
+          late:items.filter(marLate).length,due:items.filter(marDue).length,waiting:items.filter(marWaitingDoctor).length};
       });
     })();
-    function jumpToNow(){
-      const target=marSlots.find(s=>s.state==='attention'||s.state==='due')||marSlots.find(s=>s.state==='later');
-      if(!target){showSamaraActionToast('success','No dose due now','All rounds so far are recorded.');return}
-      setSlotOpen(cur=>({...cur,[target.time]:true}));
-      setTimeout(()=>{try{document.getElementById(`mar-slot-${target.time.replace(':','')}`)?.scrollIntoView({behavior:'smooth',block:'start'})}catch(_){}},60);
-    }
-    function openWithhold(item){openMar(item.order,item.time);setMarForm(cur=>({...cur,status:'Withheld'}));}
-    function openBatch(guest,slot){
-      const items=guest.items.filter(x=>marBatchEligible(x)&&!uncheckedDoses[roundKey(x)]);
-      if(!items.length)return;
-      setBatchMessage('');setBatchTarget({patient:guest.patient,time:slot.time,items});
-    }
-    async function saveBatch(){
-      if(!batchTarget||batchBusy)return;
-      setBatchBusy(true);setBatchMessage('');
+    const marDefaultSlot=marSlots.find(s=>s.late||s.due)||marSlots.find(s=>s.pending)||marSlots[marSlots.length-1];
+    const marSelected=marSlots.find(s=>s.key===selectedSlot)||marDefaultSlot||null;
+    const marTotals={total:marShiftRows.length,given:marShiftRows.filter(x=>x.log&&!marIsException(x.log)).length,
+      late:marShiftRows.filter(marLate).length,waiting:marShiftRows.filter(marWaitingDoctor).length};
+    const marRooms=(()=>{const m=new Map();marAllShiftRows.forEach(x=>{const p=patientFor(x.order);if(p.id&&!m.has(p.id))m.set(p.id,p)});return [...m.values()].sort((a,b)=>String(a.room_no||'').localeCompare(String(b.room_no||''),'en',{numeric:true})||String(a.bed_no||'').localeCompare(String(b.bed_no||'')))})();
+    const roomText=p=>p?.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—';
+    const marDateNote=date=>date!==today?` (${formatDateIN(date)})`:'';
+    function openWithhold(item){openMar(item.order,item.time,item.date);setMarForm(cur=>({...cur,status:'Withheld'}));}
+    function askAdminister(item){setConfirmMessage('');setConfirmTarget(item);}
+    async function administerNow(){
+      const item=confirmTarget;if(!item||confirmBusy)return;
+      setConfirmBusy(true);setConfirmMessage('');
       try{
-        const fresh=await client.from('patients').select('is_active,admission_status').eq('id',batchTarget.patient.id).single();
+        const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();
         if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged')throw new Error('The Guest is discharged or the status could not be checked. Press Refresh and try again.');
-        const existing=await client.from('medication_administrations').select('order_id,scheduled_time').eq('scheduled_date',today).in('order_id',batchTarget.items.map(x=>x.order.id));
+        const time=normalizeMedicationTime(item.time).slice(0,5);
+        const existing=await client.from('medication_administrations').select('order_id,scheduled_time,status').eq('order_id',item.order.id).eq('scheduled_date',item.date);
         if(existing.error)throw existing.error;
-        const done=new Set((existing.data||[]).map(x=>`${x.order_id}|${normalizeMedicationTime(x.scheduled_time)}`));
-        const todo=batchTarget.items.filter(x=>!done.has(roundKey(x)));
-        const skipped=batchTarget.items.length-todo.length;
-        if(!todo.length){showSamaraActionToast('success','Already recorded','These doses were already recorded (perhaps by another nurse).');setBatchTarget(null);await load();return}
+        const already=(existing.data||[]).find(x=>normalizeMedicationTime(x.scheduled_time).slice(0,5)===time);
+        if(already){showSamaraActionToast('success','Already recorded',`This dose was already recorded as ${already.status||'given'} (perhaps by another nurse).`);setConfirmTarget(null);await load();return}
         const {data:{user}}=await client.auth.getUser();
         const now=new Date().toISOString();
-        const payloads=todo.map(x=>({order_id:x.order.id,patient_id:x.order.patient_id,scheduled_date:today,scheduled_time:normalizeMedicationTime(x.time),status:'Given',
+        const {error}=await client.from('medication_administrations').insert({order_id:item.order.id,patient_id:item.order.patient_id,scheduled_date:item.date,scheduled_time:time,status:'Given',
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
-          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null}));
-        const {error}=await client.from('medication_administrations').insert(payloads);
+          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
         if(error)throw error;
-        try{writeAuditEvent('Medication round recorded (Give checked)','Medication',batchTarget.patient.id,{round:batchTarget.time,doses:todo.length,medicines:todo.map(x=>medicineLabel(x.order))})}catch(_){}
-        showSamaraActionToast('success',`${todo.length} dose${todo.length>1?'s':''} recorded as Given`,`${formalName(batchTarget.patient)||batchTarget.patient.full_name||'Guest'} · ${medicationTimeLabel(batchTarget.time)} round${skipped?` · ${skipped} already recorded, skipped`:''}.`);
-        setBatchTarget(null);
-        setUncheckedDoses(cur=>{const next={...cur};batchTarget.items.forEach(x=>delete next[roundKey(x)]);return next});
+        const p=patientFor(item.order);
+        showSamaraActionToast('success','Medicine given',`${medicineLabel(item.order)} · Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'} · ${formatTimeIN(now)}`);
+        setConfirmTarget(null);
         await load();
-      }catch(e){const text=e?.message||'Unable to save. Please try again.';setBatchMessage(text);showSamaraActionToast('error','Medication save failed',text)}
-      finally{setBatchBusy(false)}
+      }catch(e){const text=e?.message||'Unable to save. Please try again.';setConfirmMessage(text);showSamaraActionToast('error','Medication save failed',text)}
+      finally{setConfirmBusy(false)}
     }
     const marDoseLine=(item,slot)=>{
-      const dose=pendingDoseState(item),log=item.log,key=roundKey(item);
-      const variable=marIsVariableDose(item.order),warn=!log&&dose.minutes>=-30?vitalsWarning(item.order):null;
-      const eligible=marBatchEligible(item);
+      const log=item.log,minutes=marMinutes(item);
+      const variable=marIsVariableDose(item.order);
+      const warn=!log&&minutes>=-60?vitalsWarning(item.order):null;
       const rt=log?.rescheduled_time?normalizeMedicationTime(log.rescheduled_time).slice(0,5):'';
-      const reschedulePending=rt&&rescheduledDoseDate(log)===today&&!doseStatus(item.order,rt,today);
-      const tone=log?(String(log.status)==='Given'?'ok':String(log.status)==='Withheld'?'held':'warn'):dose.minutes>=60?'held':dose.minutes>=15?'warn':dose.minutes>=-30?'due':'later';
-      const statusText=log?(String(log.status)==='Withheld'?(medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld'):(log.status||'Recorded')):dose.status;
-      return h('div',{key,className:`mar-line ${log?'recorded':''}`,onClick:log?()=>setDoseDetail(item):undefined,role:log?'button':undefined,title:log?'Show full details':undefined},
-        h('div',{className:'mar-line-left'},
-          eligible?h('input',{type:'checkbox','aria-label':`Include ${medicineLabel(item.order)}`,checked:!uncheckedDoses[key],onClick:e=>e.stopPropagation(),onChange:e=>setUncheckedDoses(cur=>({...cur,[key]:!e.target.checked}))}):h('span',{className:'mar-check-space'}),
-          h('div',{className:'mar-med'},
-            h('span',{className:'mar-med-name'},medicineLabel(item.order)),
-            h('small',null,[item.order.route,item.order.food_instruction].filter(Boolean).join(' · ')),
-            variable&&h('small',{className:'mar-flag'},'Sliding scale — check sugar first'),
-            item.rescheduledFrom&&h('small',{className:'mar-flag'},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`),
-            warn&&h('small',{className:'mar-flag danger'},`Check before giving: ${warn.reading}`))),
-        h('div',{className:'mar-line-right'},
-          h('span',{className:`mar-chip ${tone}`},statusText),
-          log?.administered_at&&h('span',{className:'mar-when'},formatTimeIN(log.administered_at)),
-          log?.late_entry&&h('span',{className:'mar-chip warn'},'Late entry'),
-          (log?.remarks||log?.withhold_reason)&&h('span',{className:'mar-when',title:[log.withhold_reason,log.withhold_reading,log.remarks].filter(Boolean).join(' · ')},'📝'),
-          reschedulePending&&h('button',{type:'button',className:'btn btn-primary mar-btn',onClick:e=>{e.stopPropagation();openMar(item.order,rt)}},`Give at ${medicationTimeLabel(rt)}`),
-          log&&medicationWithholdOpen(log)&&canReviseMedication&&h('button',{type:'button',className:'btn btn-primary mar-btn',onClick:e=>{e.stopPropagation();openInstruction(log)}},"Doctor's instruction"),
-          !log&&dose.minutes>=-30&&h('button',{type:'button',className:'btn btn-secondary mar-btn',onClick:()=>openWithhold(item)},'Withhold'),
-          !log&&h('button',{type:'button',className:`btn ${dose.minutes>=15?'btn-danger':dose.minutes>=-30?'btn-primary':'btn-secondary'} mar-btn`,onClick:()=>openMar(item.order,item.time)},variable?'Record (sugar + units)':'Record')));
+      const reschedulePending=rt&&rescheduledDoseDate(log)&&!doseStatus(item.order,rt,rescheduledDoseDate(log));
+      const given=log&&String(log.status)==='Given';
+      const statusText=log?(String(log.status)==='Withheld'?(medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld'):(log.status||'Recorded')):'';
+      const stop=fn=>e=>{e.stopPropagation();fn()};
+      let action=null;
+      if(given)action=h('button',{type:'button',className:'mar-act done',disabled:true},`Given ✓ ${formatTimeIN(log.administered_at||log.entry_recorded_at||log.created_at)}`);
+      else if(log)action=h('span',{className:`mar-chip ${String(log.status)==='Withheld'?'held':'warn'}`},statusText);
+      else if(variable)action=h('button',{type:'button',className:'mar-act go',onClick:()=>openMar(item.order,item.time,item.date)},'Sugar + units');
+      else if(warn)action=h('button',{type:'button',className:'mar-act check',onClick:()=>openMar(item.order,item.time,item.date)},`Check ${warn.reason&&/sugar|glucose/i.test(warn.reason)?'sugar':'BP'} first`);
+      else if(minutes>=30)action=h('button',{type:'button',className:'mar-act late',onClick:()=>openMar(item.order,item.time,item.date)},'Administer (late)');
+      else action=h('button',{type:'button',className:'mar-act go',onClick:()=>askAdminister(item)},'Administer now');
+      const details=[item.order.route,item.order.food_instruction].filter(Boolean).join(' · ');
+      return h('div',{key:`${item.order.id}|${item.date}|${item.time}`,className:`mar-line ${log?'recorded':''}`,onClick:log?()=>setDoseDetail(item):undefined,role:log?'button':undefined},
+        h('div',{className:'mar-med'},
+          h('span',{className:'mar-med-name'},medicineLabel(item.order)),
+          h('small',null,[item.time!==slot.time?medicationTimeLabel(item.time):'',details].filter(Boolean).join(' · ')),
+          variable&&h('small',{className:'mar-flag'},'Sliding scale — check sugar, then enter units'),
+          item.rescheduledFrom&&h('small',{className:'mar-flag'},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`),
+          warn&&h('small',{className:'mar-flag danger'},`Check before giving: ${warn.reading}`),
+          !log&&minutes>=30&&h('small',{className:'mar-flag danger'},`${minutes} min late`),
+          log?.late_entry&&h('small',{className:'mar-flag'},'Late entry')),
+        h('div',{className:'mar-actions'},
+          action,
+          !log&&h('button',{type:'button',className:'mar-act ghost',onClick:()=>openWithhold(item)},'Withhold'),
+          reschedulePending&&h('button',{type:'button',className:'mar-act go',onClick:stop(()=>openMar(item.order,rt,rescheduledDoseDate(log)))},`Give at ${medicationTimeLabel(rt)}`),
+          log&&medicationWithholdOpen(log)&&canReviseMedication&&h('button',{type:'button',className:'mar-act ghost',onClick:stop(()=>openInstruction(log))},"Doctor's instruction")));
     };
-    const marGuestBlock=(guest,slot)=>{
-      const p=guest.patient;
-      const ready=guest.items.filter(x=>marBatchEligible(x)&&!uncheckedDoses[roundKey(x)]);
-      return h('div',{key:p.id||'guest',className:'mar-guest'},
-        h('div',{className:'mar-guest-head'},
-          h('span',{className:'mar-room'},p.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—'),
-          h('span',{className:'mar-guest-name'},formalName(p)||p.full_name||'Guest'),
-          h('small',null,p.patient_id||''),
-          ready.length>0&&h('button',{type:'button',className:'btn btn-primary mar-btn mar-batch',onClick:()=>openBatch(guest,slot)},`Give checked (${ready.length})`)),
-        guest.items.map(item=>marDoseLine(item,slot)));
-    };
-    const MAR_ROUND_CSS=`.mar-rounds{margin-top:4px}.mar-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}.mar-top .mar-title{font-weight:800;font-size:16px;color:#321d28;margin-right:6px}
-.mar-pill{border:1px solid #e7c3d4;background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:800;cursor:pointer;color:#5d1039}.mar-pill.on{background:#b20b5d;border-color:#b20b5d;color:#fff}.mar-pill.danger{border-color:#f0b4b4;color:#b42318;background:#fff7f7}.mar-pill.danger.on{background:#b42318;color:#fff}.mar-pill.ok{border-color:#bfe5cf;color:#0a7a42;background:#f3fbf6;cursor:default}.mar-pill.due{border-color:#f2d48b;color:#8a5a00;background:#fffaf0;cursor:default}
+    const MAR_SHIFT_CSS=`.mar-shift{margin-top:4px}.mar-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}.mar-top .mar-title{font-weight:800;font-size:16px;color:#321d28;margin-right:4px}
+.mar-pill{border:1px solid #e7c3d4;background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:800;color:#5d1039;cursor:pointer}.mar-pill.on{background:#b20b5d;border-color:#b20b5d;color:#fff}.mar-pill.static{cursor:default}.mar-pill.ok{border-color:#bfe5cf;color:#0a7a42;background:#f3fbf6}.mar-pill.bad{border-color:#f0b4b4;color:#b42318;background:#fff7f7}
 .mar-rooms{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.mar-rooms .mar-pill{font-weight:700;padding:3px 10px}
-.mar-slot{border:1px solid #ecd3df;border-radius:12px;margin:0 0 8px;background:#fff;overflow:hidden;scroll-margin-top:90px}.mar-slot.attention{border:2px solid #e8a0a0}.mar-slot.due{border:2px solid #f0c75e}
-.mar-slot-head{width:100%;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;padding:9px 12px;background:#fbeef4;border:0;cursor:pointer;text-align:left;font:inherit;color:#5d1039}.mar-slot.attention .mar-slot-head{background:#fdecec;color:#8f1d1d}.mar-slot.due .mar-slot-head{background:#fff4dd;color:#7a4e00}.mar-slot.done .mar-slot-head,.mar-slot.other .mar-slot-head{background:#faf6f8;color:#6d5963}
-.mar-slot-head b{font-size:16px}.mar-slot-head .mar-chev{display:inline-block;transition:transform .15s;margin-right:6px}.mar-slot-head.open .mar-chev{transform:rotate(90deg)}.mar-slot-head small{font-weight:700;font-size:12.5px}
-.mar-guest{padding:6px 12px 4px;border-top:1px solid #f3e3ea}.mar-guest-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:2px 0 4px}.mar-room{font-size:19px;font-weight:900;color:#b20b5d}.mar-guest-name{font-weight:800;color:#321d28;font-size:14.5px}.mar-guest-head small{color:#7b6670}.mar-guest-head .mar-batch{margin-left:auto}
-.mar-line{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:6px 6px 6px 4px;border-radius:8px}.mar-line.recorded{cursor:pointer}.mar-line.recorded:hover{background:#fff4f9}.mar-line-left{display:flex;gap:10px;align-items:center;min-width:0;flex:1 1 auto}.mar-line-left input[type=checkbox]{width:20px;height:20px;flex:0 0 20px;accent-color:#b20b5d}.mar-check-space{width:20px;flex:0 0 20px}
-.mar-med{display:flex;flex-direction:column;min-width:0}.mar-med-name{font-weight:700;color:#321d28;font-size:14px;overflow-wrap:anywhere}.mar-med small{color:#7b6670;font-size:12px}.mar-med small.mar-flag{color:#8a5a00;font-weight:800}.mar-med small.mar-flag.danger{color:#b42318}
-.mar-line-right{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.mar-chip{font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}.mar-chip.ok{background:#e8f6ee;color:#0a7a42}.mar-chip.warn{background:#fff4dd;color:#8a5a00}.mar-chip.held{background:#fdecec;color:#b42318}.mar-chip.due{background:#fff4dd;color:#7a4e00}.mar-chip.later{background:#f2ecef;color:#6d5963}.mar-when{font-size:12.5px;color:#6d5963;white-space:nowrap}
-.mar-btn{min-height:32px!important;padding:4px 12px!important;font-size:13px!important}
-@media(max-width:700px){.mar-line{flex-direction:column;align-items:stretch}.mar-line-right{justify-content:flex-start;padding-left:30px}.mar-guest-head .mar-batch{margin-left:0;width:100%}}`;
-    const marTodayView=h('div',{className:'card panel mar-rounds'},h('style',null,MAR_ROUND_CSS),
+.mar-times{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}.mar-time{display:flex;flex-direction:column;align-items:center;min-width:86px;padding:7px 10px;border-radius:12px;border:1px solid #e2c9d5;background:#fff;color:#5d1039;font:inherit;cursor:pointer;line-height:1.2}
+.mar-time b{font-size:15px}.mar-time small{font-size:11.5px;font-weight:800;margin-top:2px}.mar-time.done{background:#e8f6ee;border-color:#bfe5cf;color:#0a7a42}.mar-time.due{background:#fff4dd;border-color:#f0c75e;color:#7a4e00}.mar-time.late{background:#fdecec;border-color:#e8a0a0;color:#b42318}
+.mar-time.sel{outline:3px solid #b20b5d;outline-offset:1px}.mar-time .mar-day{font-size:10.5px;font-weight:700;opacity:.8}
+.mar-slot{border:1px solid #ecd3df;border-radius:12px;background:#fff;overflow:hidden}.mar-slot-head{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;align-items:center;padding:9px 14px;background:#fbeef4;color:#5d1039}.mar-slot-head b{font-size:16px}.mar-slot-head small{font-weight:700}
+.mar-guest{padding:6px 14px 6px;border-top:1px solid #f3e3ea}.mar-guest-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:4px 0}.mar-room{font-size:19px;font-weight:900;color:#b20b5d}.mar-guest-name{font-weight:800;color:#321d28;font-size:14.5px}.mar-guest-head small{color:#7b6670}
+.mar-line{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:7px 4px 7px 22px;border-top:1px dashed #f3e3ea}.mar-line.recorded{cursor:pointer}.mar-line.recorded:hover{background:#fff7fb}
+.mar-med{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}.mar-med-name{font-weight:700;color:#321d28;font-size:14px;overflow-wrap:anywhere}.mar-med small{color:#7b6670;font-size:12px}.mar-med small.mar-flag{color:#8a5a00;font-weight:800}.mar-med small.mar-flag.danger{color:#b42318}
+.mar-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.mar-act{min-height:36px;padding:6px 14px;border-radius:10px;font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;border:1px solid transparent;white-space:nowrap}
+.mar-act.go{background:#0a8a4a;border-color:#0a8a4a;color:#fff}.mar-act.go:hover{background:#08703c}.mar-act.late{background:#c62828;border-color:#c62828;color:#fff}.mar-act.check{background:#fff4dd;border-color:#f0c75e;color:#7a4e00}
+.mar-act.ghost{background:#fff;border-color:#e2c9d5;color:#5d1039;font-weight:700}.mar-act.done,.mar-act.done:disabled{background:#eceaeb;border-color:#e0dcde;color:#6d6468;cursor:not-allowed;opacity:1}
+.mar-chip{font-size:12px;font-weight:800;padding:4px 10px;border-radius:10px;white-space:nowrap}.mar-chip.warn{background:#fff4dd;color:#8a5a00}.mar-chip.held{background:#fdecec;color:#b42318}
+.mar-confirm h3{margin:0 0 4px}.mar-confirm .mar-confirm-med{font-size:18px;font-weight:800;color:#321d28;margin:8px 0 2px}.mar-confirm .mar-confirm-guest{font-size:15px;color:#5d1039;font-weight:700}
+@media(max-width:700px){.mar-line{flex-direction:column;align-items:stretch;padding-left:8px}.mar-actions{justify-content:flex-start}.mar-act{flex:1 1 auto}.mar-time{min-width:74px}}`;
+    const marTodayView=h('div',{className:'card panel mar-shift','data-no-hover':'true'},h('style',null,MAR_SHIFT_CSS),
       h('div',{className:'mar-top'},
-        h('span',{className:'mar-title'},`Today · ${formatDateIN(today)} · ${currentShift()}`),
-        h('button',{type:'button',className:`mar-pill danger ${attentionOnly?'on':''}`,title:'Show only overdue doses and withheld doses awaiting the doctor',onClick:()=>setAttentionOnly(v=>!v)},`Overdue / attention ${marCounts.attention}`),
-        h('span',{className:'mar-pill due'},`Due now ${marCounts.due}`),
-        h('span',{className:'mar-pill ok'},`Given ${marCounts.given} / ${marCounts.total}`),
-        marCounts.withheld>0&&h('span',{className:'mar-pill danger'},`Withheld ${marCounts.withheld}`),
+        h('span',{className:'mar-title'},marShift.label),
+        h('span',{className:'mar-pill static ok'},`Given ${marTotals.given} / ${marTotals.total}`),
+        marTotals.late>0&&h('span',{className:'mar-pill static bad'},`Late ${marTotals.late}`),
+        marTotals.waiting>0&&h('span',{className:'mar-pill static bad'},`Awaiting doctor ${marTotals.waiting}`),
         h('span',{style:{flex:'1 1 auto'}}),
-        h('button',{type:'button',className:'btn btn-secondary mar-btn',onClick:jumpToNow},'Jump to now'),
-        h('button',{type:'button',className:'btn btn-secondary mar-btn',onClick:()=>{const all=marSlots.every(s=>s.open);const next={};marSlots.forEach(s=>{next[s.time]=!all});setSlotOpen(next)}},marSlots.length&&marSlots.every(s=>s.open)?'Fold all':'Open all')),
+        useFrontlinePriority&&canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),
+        useFrontlinePriority&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowHistoryMobile(true)},'Medication History'),
+        useFrontlinePriority&&h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'…':'Refresh')),
       marRooms.length>1&&h('div',{className:'mar-rooms'},
         h('button',{type:'button',className:`mar-pill ${!patientFilter?'on':''}`,onClick:()=>setPatientFilter('')},'All rooms'),
-        marRooms.map(p=>h('button',{type:'button',key:p.id,className:`mar-pill ${patientFilter===p.id?'on':''}`,title:formalName(p)||p.full_name||'',onClick:()=>setPatientFilter(patientFilter===p.id?'':p.id)},p.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:(formalName(p)||p.full_name||'Guest')))),
-      !marSlots.length&&h('div',{className:'message'},attentionOnly?'Nothing overdue — every dose so far is recorded.':'No medicines are scheduled today.'),
-      marSlots.map(slot=>{
-        const label=slot.state==='attention'?'overdue — needs attention':slot.state==='due'?'due now':slot.state==='done'?'all recorded':slot.state==='later'?'upcoming this shift':'other shift';
-        const guestsText=`${slot.guests.length} Guest${slot.guests.length>1?'s':''} · ${slot.items.length} dose${slot.items.length>1?'s':''}`;
-        return h('div',{key:slot.time,id:`mar-slot-${slot.time.replace(':','')}`,className:`mar-slot ${slot.state}`},
-          h('button',{type:'button',className:`mar-slot-head ${slot.open?'open':''}`,'aria-expanded':slot.open,onClick:()=>setSlotOpen(cur=>({...cur,[slot.time]:!slot.open}))},
-            h('span',null,h('span',{className:'mar-chev','aria-hidden':'true'},'›'),h('b',null,medicationTimeLabel(slot.time)),h('small',null,` · ${label}`)),
-            h('small',null,slot.state==='done'?`✓ ${slot.given} of ${slot.items.length} given`:`${guestsText}${slot.given?` · ${slot.given} given`:''}`)),
-          slot.open&&slot.guests.map(g=>marGuestBlock(g,slot)));
-      }),
-      h('p',{className:'small-note',style:{margin:'8px 0 0'}},'Tap a recorded dose to see the full audit (given time, entry time, remarks). Earlier days are in Medication History.'));
+        marRooms.map(p=>h('button',{type:'button',key:p.id,className:`mar-pill ${patientFilter===p.id?'on':''}`,onClick:()=>setPatientFilter(patientFilter===p.id?'':p.id)},roomText(p)))),
+      !marSlots.length&&h('div',{className:'message'},'No medicines are scheduled in this shift.'),
+      marSlots.length>0&&h('div',{className:'mar-times',role:'group','aria-label':'Medicine times in this shift'},
+        marSlots.map(slot=>{
+          const tone=slot.late||slot.waiting?'late':slot.due?'due':!slot.pending?'done':'';
+          const sub=slot.late?`${slot.late} late`:slot.waiting?'awaiting doctor':slot.due?`${slot.due} due now`:!slot.pending?`✓ ${slot.given} given`:`${slot.pending} to give`;
+          return h('button',{type:'button',key:slot.key,className:`mar-time ${tone} ${marSelected&&marSelected.key===slot.key?'sel':''}`,'aria-pressed':marSelected&&marSelected.key===slot.key,onClick:()=>setSelectedSlot(slot.key)},
+            h('b',null,medicationTimeLabel(slot.time)),slot.date!==today&&h('span',{className:'mar-day'},formatDateIN(slot.date)),h('small',null,sub));
+        })),
+      marSelected&&(()=>{
+        const guests=new Map();
+        marSelected.items.forEach(x=>{const p=patientFor(x.order);if(!guests.has(p.id))guests.set(p.id,{patient:p,items:[]});guests.get(p.id).items.push(x)});
+        const list=[...guests.values()].sort((a,b)=>String(a.patient.room_no||'').localeCompare(String(b.patient.room_no||''),'en',{numeric:true})||String(a.patient.bed_no||'').localeCompare(String(b.patient.bed_no||'')));
+        list.forEach(g=>g.items.sort((a,b)=>a.time.localeCompare(b.time)||medicineLabel(a.order).localeCompare(medicineLabel(b.order))));
+        return h('div',{className:'mar-slot'},
+          h('div',{className:'mar-slot-head'},h('b',null,`${medicationTimeLabel(marSelected.time)}${marDateNote(marSelected.date)}`),
+            h('small',null,`${list.length} Guest${list.length>1?'s':''} · ${marSelected.items.length} medicine${marSelected.items.length>1?'s':''} · ${marSelected.given} given`)),
+          list.map(g=>h('div',{key:g.patient.id||'guest',className:'mar-guest'},
+            h('div',{className:'mar-guest-head'},h('span',{className:'mar-room'},roomText(g.patient)),h('span',{className:'mar-guest-name'},formalName(g.patient)||g.patient.full_name||'Guest'),h('small',null,g.patient.patient_id||'')),
+            g.items.map(item=>marDoseLine(item,marSelected)))));
+      })(),
+      h('p',{className:'small-note',style:{margin:'8px 0 0'}},'Shows the current shift only. Tap a recorded medicine for full details. Earlier shifts and days are in Medication History.'));
 
     let table=null;
     if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleActive)});
@@ -921,15 +942,23 @@
         !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},count===null?name:`${name} (${count})`)))
       ),
       !patientFilter&&h(DischargeMedicationReview),
-      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{profile,orders:state.orders,patients:state.patients,onBack:()=>setShowHistoryMobile(false)}):nurseMedicationCards):table),
-      batchTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!batchBusy)setBatchTarget(null)}},
-        h('div',{className:'card modal',role:'dialog','aria-modal':'true'},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,`Give checked · ${medicationTimeLabel(batchTarget.time)} round`),h('small',null,`${formalName(batchTarget.patient)||batchTarget.patient.full_name||'Guest'} · ${batchTarget.patient.room_no?`Room ${batchTarget.patient.room_no}${batchTarget.patient.bed_no?`-${batchTarget.patient.bed_no}`:''}`:''}`)),h('button',{type:'button',className:'close',disabled:batchBusy,onClick:()=>setBatchTarget(null)},'×')),
-          batchMessage&&h('div',{className:'message error'},batchMessage),
-          h('p',null,`These ${batchTarget.items.length} dose${batchTarget.items.length>1?'s':''} will be recorded as Given now (${formatTimeIN(new Date().toISOString())}):`),
-          h('ol',{style:{margin:'0 0 12px',paddingLeft:'22px',lineHeight:1.7}},batchTarget.items.map(x=>h('li',{key:roundKey(x)},h('b',null,medicineLabel(x.order)),[x.order.route,x.order.food_instruction].filter(Boolean).length?` · ${[x.order.route,x.order.food_instruction].filter(Boolean).join(' · ')}`:''))),
-          h('small',{className:'small-note',style:{display:'block',marginBottom:'10px'}},'Not giving one of them? Cancel, untick it, and use Withhold or Record for that dose. Given earlier than now? Use Record for each dose so the real time is saved.'),
-          h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:batchBusy,onClick:()=>setBatchTarget(null)},'Cancel'),h('button',{type:'button',className:'btn btn-primary',disabled:batchBusy,onClick:saveBatch},batchBusy?'Saving…':`Record ${batchTarget.items.length} as Given`)))),
+      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{profile,orders:state.orders,patients:state.patients,onBack:()=>setShowHistoryMobile(false)}):marTodayView):table),
+      confirmTarget&&(()=>{
+        const item=confirmTarget,p=patientFor(item.order),minutes=marMinutes(item);
+        return h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!confirmBusy)setConfirmTarget(null)}},
+          h('div',{className:'card modal mar-confirm',role:'dialog','aria-modal':'true','data-no-hover':'true',style:{maxWidth:'460px'}},
+            h('div',{className:'panel-head'},h('h3',null,'Administer now?'),h('button',{type:'button',className:'close',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'×')),
+            confirmMessage&&h('div',{className:'message error'},confirmMessage),
+            h('div',{className:'mar-confirm-med'},medicineLabel(item.order)),
+            h('div',{className:'small-note'},[item.order.route,item.order.food_instruction].filter(Boolean).join(' · ')),
+            h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
+            h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
+            minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
+            h('div',{className:'modal-actions',style:{marginTop:'14px'}},
+              h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
+              h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),
+              h('button',{type:'button',className:'mar-act go',disabled:confirmBusy,onClick:administerNow},confirmBusy?'Saving…':'Yes, given now'))));
+      })(),
       doseDetail&&doseDetail.log&&h(RowDetailModal,{title:`${medicineLabel(doseDetail.order)} · ${medicationTimeLabel(doseDetail.time)}`,subtitle:patientLabel(doseDetail.order),onClose:()=>setDoseDetail(null),
         fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],
           ['Actually given at',doseDetail.log.administered_at?fmt(doseDetail.log.administered_at):''],['Entry recorded at',doseDetail.log.entry_recorded_at?fmt(doseDetail.log.entry_recorded_at):(doseDetail.log.created_at?fmt(doseDetail.log.created_at):'')],
@@ -937,7 +966,7 @@
           ['Withhold reason',doseDetail.log.withhold_reason],['Reading',doseDetail.log.withhold_reading],['Doctor informed',doseDetail.log.doctor_informed_name?`${doseDetail.log.doctor_informed_name} · ${doseDetail.log.doctor_informed_via||''}`:''],
           ["Doctor's instruction",doseDetail.log.doctor_instruction?`${doseDetail.log.doctor_instruction}${doseDetail.log.doctor_instruction_notes?` — ${doseDetail.log.doctor_instruction_notes}`:''}`:''],
           ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Remarks',doseDetail.log.remarks]]},
-        !isFrontlineClinical&&h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openMar(d.order,d.time)}},'View / Correct'))),
+        !isFrontlineClinical&&h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openMar(d.order,d.time,d.date)}},'View / Correct'))),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor Review / Modify Medication'),h('small',null,'Only medication-review fields are shown. Previous prescriptions and MAR entries are never overwritten.')),h('button',{type:'button',className:'close',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'×')),
@@ -998,7 +1027,7 @@
       ),
       marTarget&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)closeMar()}},
         h('form',{className:'card modal',onSubmit:saveMar},
-          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Medication Administration'),h('small',null,'Record each dose without overwriting prescription history')),h('button',{type:'button',className:'close',onClick:closeMar},'×')),
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Medication Administration'),h('small',null,marForm.scheduled_date&&marForm.scheduled_date!==today?`Dose of ${formatDateIN(marForm.scheduled_date)} (night shift) · saved under that date`:'Record each dose without overwriting prescription history')),h('button',{type:'button',className:'close',onClick:closeMar},'×')),
           marMessage&&h('div',{className:'message error'},marMessage),
           h('div',{className:'modal-grid'},
             h('div',{className:'field'},h('label',null,'Patient'),h('input',{value:patientLabel(marTarget),readOnly:true})),

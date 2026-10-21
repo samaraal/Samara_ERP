@@ -1,3 +1,12 @@
+## 2.18.61 — Medicines: MAR time buttons for the current shift + Administer now
+- **Today's MAR** now shows **only the current shift** (Day 7 AM–7 PM / Night 7 PM–7 AM) as a row of **time buttons** (30-minute steps; only times that have medicines; 8:15 goes under 8:00). Each button shows its state: green ✓ all given, amber due now, red late / awaiting doctor, plain "n to give". The page opens on the late or due-now time automatically.
+- Tap a time → **Guest-wise (room order), medicine-wise** list. **Administer now** (green) → small confirm (medicine, room, Guest, scheduled time) → saved as Given now; the button turns **grey "Given ✓ time"** and cannot be pressed again. Confirm also offers **Other…** (full MAR form for a different time / Refused / Missed).
+- Not one-tap, by design: **Administer (late)** (red, 30+ min late) and **Sugar + units** (sliding-scale insulin) open the full MAR form; **Check BP / sugar first** (amber) appears when recent vitals warn. **Withhold** beside every dose not yet given. "Give checked" removed — every medicine is given one at a time.
+- **Night shift after midnight**: a 10 PM dose recorded at 1:30 AM is now saved under its own date (was saved under the new day). The full MAR form shows "Dose of DD-MM-YYYY (night shift)".
+- Nurses on phones get the same time-button screen (Doctor Review / Medication History / Refresh on top).
+- **Fix (Medication History, 2.18.60):** a given dose also appeared as a second "Not recorded" line (database time 09:00:00 vs prescription 09:00). Now matched correctly.
+- The pink hover popup no longer appears over the MAR time buttons (new `data-no-hover` switch in the global hover helper). No SQL.
+
 ## 2.18.60 — Medicines: Today's MAR by dose time + Medication History
 - **Today's MAR** is now grouped by **dose time** (6 AM, 8 AM, 9 AM, 1 PM …) instead of one long wide table. Inside each time: **room (large) → Guest name once → one line per medicine** with a small status chip and the time given. No more horizontal scrolling.
 - Rounds that are fully recorded, and rounds in the other shift, **fold to one line** ("✓ 9 of 9 given"); overdue and due-now rounds stay open and coloured. Top bar: Overdue / attention (tap to show only those), Due now, Given x / y, **Jump to now**, Open / Fold all, and **room buttons** in place of the patient dropdown.

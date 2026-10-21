@@ -320,7 +320,7 @@
   },
   {
    "file": "clinical/medicines.js",
-   "about": "Medicines: Today’s MAR grouped by dose time (Give checked per round), prescriptions, doctor review (+ discharge medication review)",
+   "about": "Medicines: MAR time buttons for the current shift (Administer now + confirm), prescriptions, doctor review (+ discharge medication review)",
    "lines": 808
   },
   {

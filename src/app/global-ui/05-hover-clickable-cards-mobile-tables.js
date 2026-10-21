@@ -9,6 +9,8 @@
       const clean=text=>String(text||'').replace(/\s+/g,' ').trim();
       const detailsFor=el=>{
         if(!el||el.classList?.contains('topbar-clinical-alert-badge'))return '';
+        // 2.18.61: areas marked data-no-hover (e.g. the MAR time buttons) show no hover popup
+        if(el.closest?.('[data-no-hover]'))return '';
         const explicitRaw=String(el.getAttribute?.('data-hover-info')||'').trim();
         if(explicitRaw)return explicitRaw;
         const aria=clean(el.getAttribute?.('aria-label'));

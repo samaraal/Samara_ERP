@@ -11,12 +11,14 @@
   // loadAstPdfLibrary (accounts/11-accounts-statement.js), samaraPrintBar / RowDetailModal / useAppliedFilters.
   // Read only — no SQL, nothing is written.
   const MH_START='2026-08-27';
+  // 2.18.61: the database returns times as HH:MM:SS, prescriptions as HH:MM — always compare HH:MM
+  const mhT=t=>normalizeMedicationTime(t).slice(0,5);
   const MH_STATUSES=[['all','All statuses'],['Given','Given'],['Withheld','Withheld'],['Refused','Refused'],['Missed','Missed'],['Delayed','Delayed'],['Not recorded','Not recorded']];
   const MH_EXCEPTION=['missed','refused','delayed','not given','withheld','unavailable'];
   const mhName=p=>formalName(p)||p?.full_name||'Guest';
   const mhRoom=p=>p?.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'Room —';
   const mhMedicine=o=>[o?.medicine_name,o?.strength||o?.dose].filter(Boolean).join(' ')||'Medicine';
-  const mhTimes=o=>(Array.isArray(o?.scheduled_times)?o.scheduled_times:String(o?.scheduled_times||'').split(',')).map(normalizeMedicationTime).filter(Boolean);
+  const mhTimes=o=>(Array.isArray(o?.scheduled_times)?o.scheduled_times:String(o?.scheduled_times||'').split(',')).map(mhT).filter(Boolean);
   const mhDayIndia=v=>{if(!v)return '';const d=new Date(v);if(!Number.isFinite(d.getTime()))return '';try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}).slice(0,10)}catch(_){return String(v).slice(0,10)}};
   const mhTimeIN=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase():''};
   function mhStatusOf(row){
@@ -54,14 +56,14 @@
       if(q.length>=3)return `${mhName(p)} ${p.full_name||''} ${p.patient_id||''} ${p.room_no||''}`.toLowerCase().includes(q);
       return true;
     };
-    const key=(o,d,t)=>`${o}|${d}|${normalizeMedicationTime(t)}`;
+    const key=(o,d,t)=>`${o}|${d}|${mhT(t)}`;
     const logMap=new Map();
     (logs||[]).forEach(l=>{const k=key(l.order_id,String(l.scheduled_date||'').slice(0,10),l.scheduled_time);const prev=logMap.get(k);
       if(!prev||String(l.entry_recorded_at||l.created_at||'')>String(prev.entry_recorded_at||prev.created_at||''))logMap.set(k,l)});
     const rows=[],seen=new Set(),now=Date.now();
     const push=(order,date,time,log,extra={})=>{
       const k=key(order.id,date,time);if(seen.has(k))return;seen.add(k);
-      rows.push({k,order,patient:byPatient.get(order.patient_id)||{},date,time:normalizeMedicationTime(time),log,...extra});
+      rows.push({k,order,patient:byPatient.get(order.patient_id)||{},date,time:mhT(time),log,...extra});
     };
     // 1. every entry recorded in the period
     logMap.forEach(l=>{const d=String(l.scheduled_date||'').slice(0,10);if(d<from||d>to)return;
@@ -70,9 +72,9 @@
     (logs||[]).filter(l=>l.rescheduled_time).forEach(l=>{
       const d=rescheduledDoseDate(l);if(!d||d<from||d>to)return;
       const order=byOrder.get(l.order_id);if(!order||!wantGuest(byPatient.get(order.patient_id)))return;
-      const t=normalizeMedicationTime(l.rescheduled_time);const due=new Date(`${d}T${t}:00+05:30`).getTime();
+      const t=mhT(l.rescheduled_time);const due=new Date(`${d}T${t}:00+05:30`).getTime();
       const log=logMap.get(key(order.id,d,t));if(!log&&due>now)return;
-      push(order,d,t,log||null,{rescheduledFrom:normalizeMedicationTime(l.scheduled_time)});
+      push(order,d,t,log||null,{rescheduledFrom:mhT(l.scheduled_time)});
     });
     // 3. past scheduled doses with no entry → "Not recorded"
     const days=[];for(let d=from;d&&d<=to&&days.length<370;d=addDaysISODate(d,1))days.push(d);
