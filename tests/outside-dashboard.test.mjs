@@ -63,7 +63,7 @@ test('each authorized role gets one dedicated menu, with no new access for unrel
 test('rendered nurse and manager dashboards contain no financial cards; drilldowns preserve filters',()=>{
  for(const role of ['Admin','Accounts','Nurse','Manager','Caregiver']){
   let state=0,target='',stored='';
-  const states=[{...data,patients:[{id:'p',full_name:'Demo patient'}]},'',false,'2026-10-01','2026-10-16','p'];
+  const states=[{...data,patients:[{id:'p',full_name:'Demo patient'}]},'',false,'2026-10-01','2026-10-16','p',{rows:[],missing:true},false]; // 2.18.63: + started procedures, start form
   const ctx={isNursingManagerProfile:p=>p.role==='Manager',todayISOIndia:()=> '2026-10-16',allowedPagesForProfile:()=>[],sessionStorage:{setItem:(key,value)=>stored=value},
    React:{Fragment:'fragment',useState:()=>[states[state++],()=>{}],useRef:()=>({current:0}),useEffect:()=>{}},
    h:(type,props,...children)=>({type,props:props||{},children})};

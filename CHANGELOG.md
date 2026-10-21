@@ -1,3 +1,10 @@
+## 2.18.63 — Outside Samara Nursing: Start a New Procedure (needs SQL 267)
+- Big green **+ Start a New Procedure** button on the Outside Nursing Dashboard and the procedure register (nurses, and the Nursing Manager in Nurse mode). One form: patient (search, or **+ New patient** in the same form), procedure, where, **Source** (Doctor's prescription / Family request / Hospital referral / Director / Admin, with name), **Approved by** + **how** (Phone call / WhatsApp / Written / In person), optional **proof photo** (prescription / message), notes. Not blocked — Admin still checks the charge before any invoice.
+- **To finish** list (dashboard and register): **Finish** opens the usual completed-procedure form already filled (used items as before) and saves + links it in one step → goes to Admin as before. **Cancel** (nurse who started it, Nursing Manager or Admin) keeps the record with the reason.
+- Nurse dashboard simplified: Start button + three boxes — **To finish**, **Returned to me**, **With Admin** (no date filter). Admin / Accounts / Manager dashboards unchanged plus a "Started — to finish" box and list.
+- Each procedure's details show **Source / approved by** (and the proof photo). Hover pop-up over the dashboard boxes removed.
+- Run supabase/sql/267_outside_nursing_start_procedure.sql once (after SQL 266). Until then the old "Add outside patient / Submit completed procedure" buttons stay.
+
 ## 2.18.62 — MAR: a button for every half-hour of the shift
 - **Today's MAR** time buttons now cover the **whole shift every 30 minutes** (Day 7:00 AM … 6:30 PM, Night 7:00 PM … 6:30 AM), whether or not medicines fall at that time. Empty times are greyed with "—"; the current half-hour is marked **NOW**. Tapping an empty time shows "No medicines at this time". Compact 4-per-row grid on phones.
 - Fixed: insulin with a **fixed dose** (e.g. "Inj. Human Actrapid 10 units") was wrongly flagged "Sliding scale" when its note mentioned GRBS / RBS. Now only insulin without a fixed strength, or a prescription saying sliding scale / as per sugar without a dose, gets "Sugar + units"; fixed doses get the normal green Administer now. No SQL.

@@ -344,6 +344,10 @@
    "lines": 1
   },
   {
+   "file": "nursing/outside-nursing-start.js",
+   "about": "2.18.63 Outside nursing: Start a New Procedure (source + approval), To finish list — SQL 267"
+  },
+  {
    "file": "nursing/outside-nursing.js",
    "about": "Outside nursing register, Admin approval, invoices and statements"
   },
