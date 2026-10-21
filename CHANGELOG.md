@@ -1,3 +1,7 @@
+## 2.18.55 — Statement: simpler filters
+- **ACCOUNTS / BILLING → Statement** now has only **Search Guest**, **Guest** (All Guests, or pick one or more — each picked Guest shows with × to remove; "All Guests" in the list clears them), **Date / Period** and **Apply**. The Status, Trial and Hide options are gone: the statement always covers Active + Discharged Guests, leaves out Trial Guests (unless you pick one) and hides Guests with no entries and ₹0.
+- The Guest entries window (tap a row) now fits without sideways scrolling, so Debit and Credit are always visible. No SQL.
+
 ## 2.18.54 — Accounts: new "Statement" page
 - New **ACCOUNTS / BILLING → Statement** (right under Accounts Dashboard), for Admin / Director and Accounts. One table of Guests with **Opening Balance, Charges, Received (payments + advances), Discount, Refund and Balance**, plus a TOTAL row.
 - **Guests:** All Guests (Active + Discharged, Active only, or Discharged / Inactive) or **Selected Guests** (search by name / ID from 3 letters, add one or more). Trial Guests are left out unless "Include Trial Guests" is ticked; Guests with no entries and ₹0 balance are hidden unless unticked.

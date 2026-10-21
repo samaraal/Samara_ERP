@@ -50,8 +50,7 @@
     return st.rows.map((r,i)=>[i+1,astGuestName(r.patient),r.patient.patient_id||'—',astRoom(r.patient),r.opening,r.charges,r.received,r.discount,r.refund,r.balance]);
   }
   const astPeriodText=(from,to)=>from===to?`Date: ${formatDateIN(from)}`:`Period: ${formatDateIN(from)} to ${formatDateIN(to)}`;
-  const astScopeText=A=>A.guestMode==='selected'?`Selected Guests (${(A.selectedIds||[]).length})`:
-    `${A.scope==='all'?'All Guests':A.scope==='inactive'?'Discharged / Inactive Guests':'Active Guests'}${A.includeTrial?' · incl. Trial':''}`;
+  const astScopeText=A=>A.guestMode==='selected'?`Selected Guests (${(A.selectedIds||[]).length})`:'All Guests';
 
   async function downloadAccountsStatementExcel({st,from,to,A,profile}){
     const who=formalName(profile)||profile?.full_name||profile?.login_id||'Staff';
@@ -171,9 +170,11 @@
   function AccountsStatement({profile}){
     const [patients]=usePatients(true);
     const today=todayISOIndia();
-    const [scope,setScope]=React.useState('all'),[guestMode,setGuestMode]=React.useState('all');
+    // 2.18.55: kept simple — Guest (All, or the Guests picked) + Date / Period + Apply. Fixed defaults:
+    // Active + Discharged Guests, Trial Guests left out (unless picked), Guests with no entries & ₹0 hidden.
+    const scope='all',includeTrial=false,hideNil=true;
     const [selectedIds,setSelectedIds]=React.useState([]),[query,setQuery]=React.useState('');
-    const [includeTrial,setIncludeTrial]=React.useState(false),[hideNil,setHideNil]=React.useState(true);
+    const guestMode=selectedIds.length?'selected':'all';
     const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(''),[to,setTo]=React.useState(''),[date,setDate]=React.useState(today),[month,setMonth]=React.useState(today.slice(0,7));
     const fa=useAppliedFilters({scope,guestMode,selectedIds,includeTrial,hideNil,period,from,to,date,month});const A=fa.applied;
     const [transactions,setTransactions]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(''),[reloadKey,setReloadKey]=React.useState(0);
@@ -187,7 +188,7 @@
     const st=transactions?buildAccountsStatement({patients,transactions,from:pFrom,to:pTo,...A}):null;
     const byId=new Map((patients||[]).map(p=>[p.id,p]));
     const q=String(query||'').trim().toLowerCase();
-    const pickList=(patients||[]).filter(p=>!selectedIds.includes(p.id)&&(scope==='all'||(scope==='inactive'?p.is_active===false:p.is_active!==false))&&(includeTrial||!p.is_trial))
+    const pickList=(patients||[]).filter(p=>!selectedIds.includes(p.id))
       .filter(p=>q.length<3||[astGuestName(p),p.full_name,p.patient_id,p.room_no].filter(Boolean).join(' ').toLowerCase().includes(q))
       .sort((a,b)=>astGuestName(a).localeCompare(astGuestName(b),'en',{sensitivity:'base',numeric:true}));
 
@@ -206,36 +207,25 @@
       finally{setBusy('')}
     }
     const numCell=(v,key,bold,bal)=>h('td',{key,'data-label':key,style:{textAlign:'right',whiteSpace:'nowrap',fontWeight:bold?700:400,color:bal&&v>0.005?'#b42336':bal&&v<-0.005?'#16814d':undefined}},bal?astBal(v):astMoney(v));
-    const fieldRow={display:'flex',gap:'8px',alignItems:'center',fontWeight:400,minHeight:'36px',cursor:'pointer',fontSize:'13px'};
-    const box={width:'20px',height:'20px',minWidth:'20px',margin:0};
 
-    return h('div',{className:'sr-compact'},h('style',null,SR_COMPACT_CSS),h(Section,{title:'Statement',subtitle:'Guest-wise Opening balance, Charges, Received, Discount, Refund and Balance for a Date, Week, Month or Period.'},
+    return h('div',{className:'sr-compact'},h('style',null,SR_COMPACT_CSS),h(Section,{title:'Statement',subtitle:'Guest-wise balance for a date, month or period.'},
       h('div',{className:'sr-filters'},
-        h('div',{className:'field'},h('label',null,'Guests'),h('select',{value:guestMode,onChange:e=>setGuestMode(e.target.value)},h('option',{value:'all'},'All Guests'),h('option',{value:'selected'},'Selected Guests'))),
-        h('div',{className:'field'},h('label',null,'Status'),h('select',{value:scope,onChange:e=>setScope(e.target.value)},h('option',{value:'all'},'Active + Discharged'),h('option',{value:'active'},'Active Guests'),h('option',{value:'inactive'},'Discharged / Inactive'))),
+        h('div',{className:'field'},h('label',null,'Search Guest'),h('input',{type:'search',value:query,placeholder:'Name / ID (3 letters)',onChange:e=>setQuery(e.target.value)})),
+        h('div',{className:'field sr-wide'},h('label',null,'Guest'),h('select',{value:'',onChange:e=>{const id=e.target.value;if(id==='__all')setSelectedIds([]);else if(id)setSelectedIds([...selectedIds,id]);setQuery('')}},
+          h('option',{value:''},selectedIds.length?'＋ Add another Guest…':'All Guests'),
+          selectedIds.length>0&&h('option',{value:'__all'},'All Guests'),
+          pickList.map(p=>h('option',{key:p.id,value:p.id},`${astGuestName(p)} · ${p.patient_id||'No ID'} · ${astRoom(p)}${p.is_trial?' · Trial':''}`)))),
         h('div',{className:'field'},h('label',null,'Date / Period'),h('select',{value:period,onChange:e=>setPeriod(e.target.value)},SR_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
         period==='date'&&h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:date,max:today,onChange:e=>setDate(e.target.value)})),
         period==='monthpick'&&h('div',{className:'field'},h('label',null,'Month'),h('select',{value:month,onChange:e=>setMonth(e.target.value)},srMonthOptions().map(([v,l])=>h('option',{key:v,value:v},l)))),
         period==='custom'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{value:from,max:today,onChange:e=>setFrom(e.target.value)})),
         period==='custom'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{value:to,max:today,onChange:e=>setTo(e.target.value)})),
-        h('div',{className:'field'},h('label',null,'Show'),
-          h('label',{style:fieldRow},h('input',{type:'checkbox',checked:includeTrial,onChange:e=>setIncludeTrial(e.target.checked),style:box}),h('span',null,'Include Trial Guests')),
-          guestMode==='all'&&h('label',{style:fieldRow},h('input',{type:'checkbox',checked:hideNil,onChange:e=>setHideNil(e.target.checked),style:box}),h('span',null,'Hide Guests with no entries & ₹0'))),
         h(ApplyFilterButton,{dirty:fa.dirty,onApply:fa.apply})
       ),
-      guestMode==='selected'&&h('div',{className:'card',style:{padding:'10px 12px',margin:'0 0 10px',border:'1px solid #f0c9da'}},
-        h('div',{className:'sr-filters',style:{marginBottom:'6px'}},
-          h('div',{className:'field sr-wide'},h('label',null,'Search Guest name / ID'),h('input',{type:'search',value:query,placeholder:'Type at least 3 characters',onChange:e=>setQuery(e.target.value)})),
-          h('div',{className:'field sr-wide'},h('label',null,'Add Guest'),h('select',{value:'',onChange:e=>{const id=e.target.value;if(id){setSelectedIds([...selectedIds,id]);setQuery('')}}},
-            h('option',{value:''},pickList.length?`Choose a Guest (${pickList.length})…`:'No Guests match'),
-            pickList.map(p=>h('option',{key:p.id,value:p.id},`${astGuestName(p)} · ${p.patient_id||'No ID'} · ${astRoom(p)}${p.is_trial?' · 🧪 Trial':''}`))))),
-        h('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px'}},
-          selectedIds.length?selectedIds.map(id=>{const p=byId.get(id);return h('span',{key:id,className:'status-pill',style:{display:'inline-flex',gap:'6px',alignItems:'center',background:'#fbe9f1',color:'#741041',borderRadius:'14px',padding:'4px 10px',fontWeight:700}},
-            `${p?astGuestName(p):'Guest'} · ${p?.patient_id||''}`,
-            h('button',{type:'button','aria-label':'Remove',onClick:()=>setSelectedIds(selectedIds.filter(x=>x!==id)),style:{border:0,background:'transparent',color:'#b42336',fontWeight:800,cursor:'pointer',padding:0}},'×'))})
-          :h('small',{className:'small-note'},'No Guest selected yet — add one or more Guests, then press Apply.'),
-          selectedIds.length>1&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSelectedIds([])},'Clear all'))
-      ),
+      selectedIds.length>0&&h('div',{style:{display:'flex',flexWrap:'wrap',gap:'6px',margin:'-2px 0 8px'}},
+        selectedIds.map(id=>{const p=byId.get(id);return h('span',{key:id,style:{display:'inline-flex',gap:'6px',alignItems:'center',background:'#fbe9f1',color:'#741041',borderRadius:'14px',padding:'3px 10px',fontWeight:700,fontSize:'13px'}},
+          `${p?astGuestName(p):'Guest'} · ${p?.patient_id||''}`,
+          h('button',{type:'button','aria-label':'Remove',onClick:()=>setSelectedIds(selectedIds.filter(x=>x!==id)),style:{border:0,background:'transparent',color:'#b42336',fontWeight:800,cursor:'pointer',padding:0,fontSize:'15px'}},'×'))})),
       h('div',{className:'sr-bar'},
         h('span',{className:'small-note'},`${astScopeText(A)} · ${astPeriodText(pFrom,pTo)}${st?` · ${st.rows.length} Guest(s)`:''}`),
         h('button',{type:'button',className:'btn btn-primary',disabled:!st||!!busy||fa.dirty,onClick:()=>download('excel')},busy==='excel'?'Preparing Excel…':'⤓ Download Excel'),
@@ -255,7 +245,7 @@
             h('td',{'data-label':'Guest ID'},r.patient.patient_id||'—'),
             h('td',{'data-label':'Room / Status'},astRoom(r.patient)),
             numCell(r.opening,'Opening Balance'),numCell(r.charges,'Charges'),numCell(r.received,'Received'),numCell(r.discount,'Discount'),numCell(r.refund,'Refund'),numCell(r.balance,'Balance',true,true)))
-          :h('tr',null,h('td',{colSpan:AST_HEAD.length,style:{textAlign:'center'}},A.guestMode==='selected'&&!(A.selectedIds||[]).length?'Add Guests and press Apply.':'No Guests to show for this filter.')),
+          :h('tr',null,h('td',{colSpan:AST_HEAD.length,style:{textAlign:'center'}},'No Guests with entries for this period.')),
           st.rows.length>0&&h('tr',{style:{background:'#fbe9f1',fontWeight:700}},
             h('td',null,''),h('td',{'data-label':'Total'},h('b',null,'TOTAL')),h('td',null,''),h('td',null,''),
             numCell(st.total.opening,'Opening Balance',true),numCell(st.total.charges,'Charges',true),numCell(st.total.received,'Received',true),numCell(st.total.discount,'Discount',true),numCell(st.total.refund,'Refund',true),numCell(st.total.balance,'Balance',true,true))
@@ -263,8 +253,8 @@
       st&&h('p',{className:'small-note',style:{marginTop:'8px'}},'Balance = Opening Balance + Charges − Received − Discount + Refund. Red = due from the family; green "Cr" = advance held. Received = payments and advances. Tap a Guest to see the entries.'),
       detail&&h(RowDetailModal,{title:astGuestName(detail.patient),subtitle:`${detail.patient.patient_id||''} · ${astRoom(detail.patient)} · ${astPeriodText(pFrom,pTo)}`,onClose:()=>setDetail(null),
         fields:[['Opening Balance',astBal(detail.opening)],['Charges',astMoney(detail.charges)],['Received',astMoney(detail.received)],['Discount',astMoney(detail.discount)],['Refund',astMoney(detail.refund)],['Balance',astBal(detail.balance)]]},
-        h('div',{className:'table-wrap',style:{marginTop:'10px',maxHeight:'50vh',overflow:'auto'}},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Date','Particulars','Debit','Credit'].map((x,i)=>h('th',{key:x,style:i>=2?{textAlign:'right'}:undefined},x)))),
+        h('div',{style:{marginTop:'10px',maxHeight:'50vh',overflowY:'auto',overflowX:'hidden'}},h('table',{className:'table',style:{width:'100%',minWidth:0,tableLayout:'fixed'}},
+          h('thead',null,h('tr',null,['Date','Particulars','Debit','Credit'].map((x,i)=>h('th',{key:x,style:{width:i===1?'auto':i===0?'92px':'96px',textAlign:i>=2?'right':'left'}},x)))),
           h('tbody',null,detail.lines.length?detail.lines.map(t=>{const s=astSign(t),a=Number(t.amount||0);return h('tr',{key:t.id},
             h('td',{'data-label':'Date'},formatDateIN(t._day)),h('td',{'data-label':'Particulars'},billLineLabel(t)),
             h('td',{'data-label':'Debit',style:{textAlign:'right'}},s>0?astMoney(a):'—'),h('td',{'data-label':'Credit',style:{textAlign:'right'}},s<0?astMoney(a):'—'))})
