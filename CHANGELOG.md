@@ -1,3 +1,10 @@
+## 2.18.54 — Accounts: new "Statement" page
+- New **ACCOUNTS / BILLING → Statement** (right under Accounts Dashboard), for Admin / Director and Accounts. One table of Guests with **Opening Balance, Charges, Received (payments + advances), Discount, Refund and Balance**, plus a TOTAL row.
+- **Guests:** All Guests (Active + Discharged, Active only, or Discharged / Inactive) or **Selected Guests** (search by name / ID from 3 letters, add one or more). Trial Guests are left out unless "Include Trial Guests" is ticked; Guests with no entries and ₹0 balance are hidden unless unticked.
+- **Date / Period:** Today, Selected Date, This Week, This Month, Month (choose), Selected Period (From – To), with the **Apply** button. Opening Balance = everything before the start date.
+- **Print** (A4 landscape, opens the print dialog), **Download PDF** (saves a real .pdf file; amounts show as "Rs." because PDF fonts have no ₹ sign) and **Download Excel**, all following the applied filter. Tap a Guest row to see that Guest's entries for the period.
+- Same figures as the Guest Ledger: room-tariff adjustments are folded into the room charge (not shown as discounts), dates are DD-MM-YYYY, names A → Z. No SQL.
+
 ## 2.18.53 — Discount no longer shows as "Cash"
 - In **Accounts → Billing & Payments**, a **Discount** entered right after a Cash payment was saved with that payment's mode and voucher number, so the Guest Ledger showed it as "Cash · CV-…". A Discount (and a manual Charge) is not money received: it is now always saved as **Not applicable** with no voucher / reference, and the Payment Mode and Reference boxes are hidden for these two types. Changing the Transaction type also clears any leftover voucher number. Cash totals and reports were never affected (they count only Payment / Advance / Refund).
 - **SQL onetime_265_fix_discount_shown_as_cash.sql** (run once): corrects the ₹6,587 Final Settlement discount of 21-10-2026 that was saved as Cash · CV-2026-000012. Amount and balance unchanged.

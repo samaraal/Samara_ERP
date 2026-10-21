@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.53';
-const CACHE = 'samara-erp-2.18.53-discount-not-cash';
+const APP_VERSION = '2.18.54';
+const CACHE = 'samara-erp-2.18.54-accounts-statement';
 const SHELL = [
   './',
   './index.html',

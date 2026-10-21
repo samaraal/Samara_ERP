@@ -11,7 +11,7 @@
     }
     return React.createElement(type,props,...children);
   }
-  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Accounts Reports']; // 2.15.58: same order as the side menu
+  const ACCOUNTS_WORKFLOW_PAGES = ['Accounts Dashboard','Accounts Statement','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Accounts Reports']; // 2.15.58: same order as the side menu
   function AccountsWorkflowNavigation({page,allowed,onNavigate}){
     if(!ACCOUNTS_WORKFLOW_PAGES.includes(page))return null;
     return h('nav',{className:'accounts-workflow-nav','aria-label':'Accounts workflow'},

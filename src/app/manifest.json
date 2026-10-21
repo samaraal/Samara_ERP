@@ -489,6 +489,11 @@
    "about": "Charge Master Rate Change History (old → new rate, who, when) (2.17.2)"
   },
   {
+   "file": "accounts/11-accounts-statement.js",
+   "about": "ACCOUNTS / BILLING → Statement: Guest-wise opening, charges, received, discount, refund, balance for a date / month / period; Print, PDF, Excel",
+   "lines": 273
+  },
+  {
    "file": "reports/whatsapp-delivery-logs.js",
    "about": "WhatsApp delivery logs",
    "lines": 51
