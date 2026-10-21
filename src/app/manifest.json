@@ -490,7 +490,7 @@
   },
   {
    "file": "accounts/11-accounts-statement.js",
-   "about": "ACCOUNTS / BILLING → Statement: Guest-wise opening, charges, received, discount, refund, balance for a date / month / period; Print, PDF, Excel",
+   "about": "ACCOUNTS / BILLING → Statement: amount received per Guest (Advance, Amount Received, Total) for a date / month / period; Print, PDF, Excel",
    "lines": 273
   },
   {

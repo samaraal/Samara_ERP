@@ -1,3 +1,8 @@
+## 2.18.56 — Statement: amount received only
+- **ACCOUNTS / BILLING → Statement** is now a simple statement of money received from Samara Guests for a chosen Date / Month / Period: **Sl. · Guest Name · Advance Received · Amount Received · Total**, with a TOTAL row. Only Guests who paid in the period are listed (A → Z); Trial Guests are left out.
+- Filters: **Guest** (All Guests or one Guest), **Date / Period** and **Apply**. Buttons: **Print**, **Download PDF** (real .pdf file, A4) and **Download Excel**. Tap a Guest to see each receipt (date, Advance / Payment with voucher / reference, mode, amount).
+- Advance Received = Advance entries (and payments in the Advance category); Amount Received = all other payments. Charges, discounts and refunds are not part of this statement. No SQL.
+
 ## 2.18.55 — Statement: simpler filters
 - **ACCOUNTS / BILLING → Statement** now has only **Search Guest**, **Guest** (All Guests, or pick one or more — each picked Guest shows with × to remove; "All Guests" in the list clears them), **Date / Period** and **Apply**. The Status, Trial and Hide options are gone: the statement always covers Active + Discharged Guests, leaves out Trial Guests (unless you pick one) and hides Guests with no entries and ₹0.
 - The Guest entries window (tap a row) now fits without sideways scrolling, so Debit and Credit are always visible. No SQL.
