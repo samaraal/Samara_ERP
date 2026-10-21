@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.64';
+  const APP_VERSION = '2.18.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '22-Oct-2026 Outside nursing: pink theme + auto WhatsApp receipt';
+  const APP_BUILD_DATE = '22-Oct-2026 Outside nursing: receipt PDF on WhatsApp';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -36775,7 +36775,7 @@ function RoomsBeds({profile,onNavigate}){
       request&&h('div',null,h('p',null,'Status: '+request.status+' · Request amount INR '+Number(request.amount).toFixed(2)),
         (active||request.status==='Paid')&&request.payment_url&&h('div',{className:'form-grid'},h('label',null,'Recipient name / relationship',h('input',{value:name,disabled:busy||!!direct?.ready,onChange:e=>setName(e.target.value)})),h('label',null,'Patient / family WhatsApp number (with country code)',h('input',{type:'tel',value:phone,disabled:busy||!!direct?.ready,onChange:e=>setPhone(e.target.value)}))),
         request.status==='Paid'&&request.receipt_status&&request.receipt_status!=='Before auto receipt'&&h('p',{role:'status',style:{padding:'8px 10px',borderRadius:8,fontWeight:700,background:request.receipt_status==='Sent'?'#e8f6ee':'#fff4dd',color:request.receipt_status==='Sent'?'#0a7a42':'#8a5a00'}},
-          request.receipt_status==='Sent'?'✓ Receipt sent automatically on WhatsApp to '+(request.receipt_phone||'')+(request.receipt_sent_at?' · '+new Date(request.receipt_sent_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit'}):''):
+          request.receipt_status==='Sent'?'✓ Receipt sent automatically on WhatsApp to '+(request.receipt_phone||'')+(request.receipt_sent_at?' · '+new Date(request.receipt_sent_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit'}):'')+(request.receipt_error?' · '+request.receipt_error:' · receipt PDF attached'):
           request.receipt_status==='Sending'?'Sending the WhatsApp receipt…':'Automatic WhatsApp receipt not sent'+(request.receipt_error?' — '+request.receipt_error:'')+'. It is retried automatically; you can also send it below.'),
         request.status==='Paid'&&h('p',{role:'status'},receiptPreparing?'Preparing verified receipt PDF…':receiptFile?'Payment verified. Samara receipt PDF is ready.':'Refreshing verified receipt entries…'),
         active&&invoicePreparing&&h('p',{role:'status'},'Preparing Samara invoice PDF…'),

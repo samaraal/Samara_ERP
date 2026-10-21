@@ -1,3 +1,9 @@
+## 2.18.65 — Outside nursing: receipt PDF attached to the automatic WhatsApp receipt (Edge Function + new template)
+- The automatic Razorpay receipt now carries a **PDF receipt** (Samara logo, receipt no. SNR-…, patient, invoice, amount in figures and words, Razorpay payment id, invoice total / received / balance), made on the server — same content as the ERP receipt.
+- Uses the new WhatsApp template **samara_payment_receipt_pdf** (Utility, Document header, same 6 values as samara_payment_receipt). Until Meta approves it: the approved receipt message is sent as now, and the PDF goes as a direct document when the family has written to Samara in the last 24 hours; otherwise the payment panel says "PDF not attached yet".
+- Also fixed: samara_payment_receipt needs its Samara logo image header (Meta 132012).
+- Update the Edge Function outside-nursing-payment; create the template in WhatsApp Manager (text in the backup's TEMPLATE-samara_payment_receipt_pdf.txt).
+
 ## 2.18.64 — Outside nursing: baby-pink dashboard + AUTOMATIC WhatsApp receipt for Razorpay payments (needs SQL 268 + Edge Function)
 - Outside Nursing Dashboard uses the screensaver baby-pink gradient (no dark maroon header); boxes in soft pink.
 - **Automatic receipt:** as soon as a Razorpay payment is recorded, the family gets the WhatsApp receipt (approved template samara_payment_receipt: amount, patient, date, Receipt No. = invoice / Razorpay payment id, mode Razorpay (Online)) — sent ONCE, logged in WhatsApp Inbox. Sent to the number the payment link went to, else the patient's number.

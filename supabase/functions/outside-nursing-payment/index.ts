@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 const env=n=>Deno.env.get(n)||'';
 const url=env('SUPABASE_URL'),secret=env('SUPABASE_SERVICE_ROLE_KEY');
 const admin=createClient(url,secret,{auth:{persistSession:false}});
@@ -42,6 +43,48 @@ async function reconcile(r){
 // 2.18.65: the template has the Samara logo IMAGE header — it must be sent (Meta error 132012 without it).
 const RECEIPT_TEMPLATE='samara_payment_receipt';
 const dmy=d=>{const x=String(d||'').slice(0,10).split('-');return x.length===3?x[2]+'-'+x[1]+'-'+x[0]:String(d||'');};
+// 2.18.65: receipt PDF (same content as the ERP receipt) attached to the WhatsApp receipt.
+// Template samara_payment_receipt_pdf (DOCUMENT header, same 6 body values). Until Meta approves it, the approved
+// text receipt (logo header) is sent and the PDF goes as a direct document (works inside WhatsApp's 24-hour window).
+const RECEIPT_PDF_TEMPLATE='samara_payment_receipt_pdf';
+const TEMPLATE_NOT_READY=[132000,132001,132005,132007,132012,132015,132016];
+function inWords(n){
+ const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+ const two=x=>x<20?a[x]:b[Math.floor(x/10)]+(x%10?' '+a[x%10]:''),three=x=>(x>=100?a[Math.floor(x/100)]+' Hundred'+(x%100?' ':''):'')+(x%100?two(x%100):'');
+ const w=x=>{if(!x)return 'Zero';let o='';const cr=Math.floor(x/1e7),l=Math.floor(x/1e5)%100,t=Math.floor(x/1e3)%100,h=x%1000;if(cr)o+=w(cr)+' Crore ';if(l)o+=two(l)+' Lakh ';if(t)o+=two(t)+' Thousand ';if(h)o+=three(h);return o.trim();};
+ const r=Math.floor(Math.round(n*100)/100),p=Math.round(n*100)%100;return 'Rupees '+w(r)+(p?' and '+two(p)+' Paise':'')+' Only';
+}
+async function receiptPdf(d){
+ const pdf=await PDFDocument.create(),page=pdf.addPage([595.28,841.89]),R=await pdf.embedFont(StandardFonts.Helvetica),B=await pdf.embedFont(StandardFonts.HelveticaBold);
+ const W=595.28,M=48,mag=rgb(0.698,0.043,0.365),ink=rgb(0.2,0.11,0.16),grey=rgb(0.43,0.35,0.39),line=rgb(0.93,0.8,0.86),pink=rgb(1,0.965,0.98);
+ const clean=t=>String(t??'').replace(/[–—]/g,'-').replace(/₹/g,'INR ').replace(/[^\x20-\xFF]/g,'');
+ const T=(t,x,y,size=10,f=R,c=ink)=>page.drawText(clean(t),{x,y,size,font:f,color:c});
+ const right=(t,y,size=10,f=R,c=ink)=>T(t,W-M-f.widthOfTextAtSize(clean(t),size),y,size,f,c);
+ let y=800;
+ try{const res=await fetch('https://app.samaraassistedliving.com/assets/samara-logo.png');if(res.ok){const img=await pdf.embedPng(new Uint8Array(await res.arrayBuffer()));const s=Math.min(110/img.width,58/img.height);page.drawImage(img,{x:M,y:y-50,width:img.width*s,height:img.height*s});}else throw 0;}catch{T('Samara',M,y-30,22,B,mag);}
+ right('SAMARA HEALTH CARE LLP',y-18,13,B,mag);right('Compassion - Comfort - Dignity',y-32,8.5,R,grey);
+ y-=66;page.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1.6,color:mag});
+ y-=34;T('PAYMENT RECEIPT',W/2-B.widthOfTextAtSize('PAYMENT RECEIPT',17)/2,y,17,B,ink);
+ y-=26;T('Receipt No.: '+d.receiptNo,M,y,10,B);right('Date: '+d.date,y,10,B);
+ y-=14;T('Outside Samara Nursing Services',M,y,9,R,grey);
+ y-=24;page.drawRectangle({x:M,y:y-112,width:W-2*M,height:122,color:pink,borderColor:line,borderWidth:1});
+ const rows=[['Received from',d.from],['Patient',d.patient],['Invoice',d.invoice+'  -  '+d.procedure],['Payment mode','Razorpay (Online) - verified'],['Razorpay payment ID',d.gatewayIds]];
+ rows.forEach(([k,v],i)=>{const yy=y-8-i*22;T(k,M+14,yy,9.5,R,grey);T(v,M+150,yy,10,B);});
+ y-=140;page.drawRectangle({x:M,y:y-46,width:W-2*M,height:56,color:mag});
+ T('Amount received',M+14,y-14,10,R,rgb(1,1,1));T('INR '+d.amount,M+14,y-36,20,B,rgb(1,1,1));
+ y-=68;T(d.words,M,y,10,B);
+ if(d.hasTotal){y-=30;[['Invoice total','INR '+d.total],['Total received to date','INR '+d.paid],['Balance','INR '+d.balance]].forEach(([k,v],i)=>{T(k,M,y-i*18,10,R,grey);T(v,M+170,y-i*18,10,B);});y-=72;}else y-=34;
+ T(!d.hasTotal?'Payment received. Thank you for your payment.':d.fully?'Invoice fully paid. Thank you for your payment.':'Part payment received; the balance remains payable.',M,y,10,B,mag);
+ y-=40;T('This is a computer-generated receipt and needs no signature.',M,y,8.5,R,grey);
+ page.drawLine({start:{x:M,y:62},end:{x:W-M,y:62},thickness:.6,color:line});
+ T('RBK VILLA, 23-A, Reddipalayam Road, Jeswant Nagar Phase 1, Mogappair West, Chennai 600037',M,48,7.6,R,grey);
+ T('9976735577 / 7395961616  -  care@samaraassistedliving.com  -  Samara Assisted Living',M,36,7.6,B,mag);
+ return await pdf.save();
+}
+async function waSend(token,sender,payload){
+ const r=await fetch('https://graph.facebook.com/v25.0/'+sender+'/messages',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ const j=await r.json().catch(()=>({}));return {ok:r.ok&&!!j?.messages?.[0]?.id,id:j?.messages?.[0]?.id,code:Number(j?.error?.code||0),error:j?.error?.message||''};
+}
 async function sendReceipt(req){
  if(!req||req.status!=='Paid')return null;
  // claim once (a second run or a second device finds it already claimed)
@@ -53,7 +96,7 @@ async function sendReceipt(req){
  try{
   const v=await admin.from('outside_nursing_visits').select('id,invoice_number,procedure_name,patient_id,snapshot').eq('id',r.visit_id).single();if(v.error)throw Error(v.error.message);
   const p=await admin.from('outside_nursing_patients').select('full_name,phone').eq('id',v.data.patient_id).maybeSingle();
-  const pays=await admin.from('outside_nursing_payments').select('amount,payment_date,gateway_payment_id').eq('online_request_id',r.id).order('payment_date',{ascending:false});if(pays.error)throw Error(pays.error.message);
+  const pays=await admin.from('outside_nursing_payments').select('id,amount,payment_date,gateway_payment_id').eq('online_request_id',r.id).order('payment_date',{ascending:false});if(pays.error)throw Error(pays.error.message);
   const rows=pays.data||[];if(!rows.length)throw Error('Payment entry not found yet.');
   const amount=rows.reduce((n,x)=>n+Number(x.amount||0),0);
   const patientName=String(v.data.snapshot?.full_name||p.data?.full_name||'Patient').trim();
@@ -63,17 +106,44 @@ async function sendReceipt(req){
   const reference=invoice+' / '+rows.map(x=>x.gateway_payment_id).filter(Boolean).join(', ');
   const values=[name,amount.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),patientName,dmy(rows[0].payment_date),reference,'Razorpay (Online)'];
   const token=env('WHATSAPP_ACCESS_TOKEN'),sender=env('WHATSAPP_PHONE_NUMBER_ID');if(!token||!sender)throw Error('Samara WhatsApp service is not configured.');
+  // receipt PDF (never blocks the receipt message if it cannot be made)
+  let mediaId=null,filename='',bytes=null,storedPath=null,pdfNote='';
+  try{
+   const vt=await admin.from('outside_nursing_visits').select('total').eq('id',v.data.id).single();
+   const allPaid=await admin.from('outside_nursing_payments').select('amount').eq('visit_id',v.data.id);
+   const total=Number(vt.data?.total||0),paidAll=(allPaid.data||[]).reduce((n,x)=>n+Number(x.amount||0),0),money=n=>Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const receiptNo=rows[0].id?'SNR-'+String(rows[0].id).slice(0,8).toUpperCase():'SNR-'+String(rows[0].gateway_payment_id||r.id).replace(/^pay_/,'').slice(0,10).toUpperCase();
+   bytes=await receiptPdf({receiptNo,date:dmy(rows[0].payment_date),from:name,patient:patientName,invoice,procedure:String(v.data.procedure_name||''),gatewayIds:rows.map(x=>x.gateway_payment_id).filter(Boolean).join(', '),
+    amount:money(amount),words:inWords(amount),hasTotal:total>0,total:money(total),paid:money(paidAll),balance:money(Math.max(0,total-paidAll)),fully:total>0&&paidAll>=total});
+   filename='Samara-Receipt-'+invoice+'-'+receiptNo+'.pdf';
+   const form=new FormData();form.append('messaging_product','whatsapp');form.append('type','application/pdf');form.append('file',new Blob([bytes],{type:'application/pdf'}),filename);
+   const up=await fetch('https://graph.facebook.com/v25.0/'+sender+'/media',{method:'POST',headers:{Authorization:'Bearer '+token},body:form});const uj=await up.json().catch(()=>({}));
+   if(up.ok&&uj.id)mediaId=uj.id;else pdfNote='Receipt PDF upload to WhatsApp failed.';
+   try{const path='outgoing/outside-nursing/receipts/'+r.id+'/'+filename;const st=await admin.storage.from('whatsapp-media').upload(path,bytes,{contentType:'application/pdf',upsert:true});if(!st.error)storedPath=path;}catch{}
+  }catch(e){pdfNote='Receipt PDF could not be prepared: '+String(e?.message||e).slice(0,120);}
   submitted=true;
-  const response=await fetch('https://graph.facebook.com/v25.0/'+sender+'/messages',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-   body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:env('WHATSAPP_HEADER_IMAGE_URL')||'https://samaraassistedliving.com/assets/samara-whatsapp-logo.png'}}]},{type:'body',parameters:values.map(text=>({type:'text',text}))}]}})});
-  const result=await response.json().catch(()=>({}));
-  const id=result?.messages?.[0]?.id;
-  if(!response.ok||!id){await done({receipt_status:'Failed',receipt_error:String(result?.error?.message||'WhatsApp did not accept the receipt.').slice(0,300),receipt_phone:to});return null;}
-  await done({receipt_status:'Sent',receipt_sent_at:new Date().toISOString(),receipt_phone:to,receipt_message_id:id,receipt_error:null});
+  let sent=null,route='';
+  const body={type:'body',parameters:values.map(text=>({type:'text',text}))};
+  if(mediaId){
+   const t=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_PDF_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'document',document:{id:mediaId,filename}}]},body]}});
+   if(t.ok){sent=t;route='Receipt with PDF (template)';}
+   else if(!TEMPLATE_NOT_READY.includes(t.code)){await done({receipt_status:'Failed',receipt_error:String(t.error||'WhatsApp did not accept the receipt.').slice(0,300),receipt_phone:to});return null;}
+  }
+  if(!sent){
+   const t=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:env('WHATSAPP_HEADER_IMAGE_URL')||'https://samaraassistedliving.com/assets/samara-whatsapp-logo.png'}}]},body]}});
+   if(!t.ok){await done({receipt_status:'Failed',receipt_error:String(t.error||'WhatsApp did not accept the receipt.').slice(0,300),receipt_phone:to});return null;}
+   sent=t;route='Receipt message';
+   if(mediaId){
+    const d2=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'document',document:{id:mediaId,filename,caption:'Samara payment receipt '+invoice}});
+    if(d2.ok)route='Receipt message + PDF';else pdfNote='PDF not attached yet: the receipt-with-PDF template is awaiting WhatsApp approval and the family has not written to Samara in the last 24 hours.';
+   }
+  }
+  const id=sent.id;
+  await done({receipt_status:'Sent',receipt_sent_at:new Date().toISOString(),receipt_phone:to,receipt_message_id:id,receipt_error:pdfNote||null});
   const now=new Date().toISOString();
-  await admin.from('hr_whatsapp_communications').upsert({recipient_number:to,template_name:RECEIPT_TEMPLATE,communication_type:'Outside Nursing Payment Receipt (automatic)',direction:'outbound',message_type:'template',status:'Accepted',provider_message_id:id,
+  await admin.from('hr_whatsapp_communications').upsert({recipient_number:to,template_name:route==='Receipt with PDF (template)'?RECEIPT_PDF_TEMPLATE:RECEIPT_TEMPLATE,communication_type:'Outside Nursing Payment Receipt (automatic)',direction:'outbound',message_type:'template',status:'Accepted',provider_message_id:id,
    message_content:`Dear ${values[0]},\n\nThank you. We confirm receipt of ₹${values[1]} towards the account of ${values[2]} on ${values[3]}.\n\nReceipt No.: ${values[4]}\nPayment Mode: ${values[5]}`,
-   message_payload:{outside_visit_id:v.data.id,request_id:r.id,body_params:values,automatic:true},contact_name:name,source_type:'Outside Nursing',sent_by:r.created_by,sent_at:now,created_at:now,updated_at:now},{onConflict:'provider_message_id',ignoreDuplicates:true});
+   message_payload:{outside_visit_id:v.data.id,request_id:r.id,body_params:values,automatic:true,route,pdf_note:pdfNote||null,...(storedPath?{_samara_media:{bucket:'whatsapp-media',path:storedPath,filename,mime_type:'application/pdf',size:bytes?.length||0,meta_media_id:mediaId}}:{})},contact_name:name,source_type:'Outside Nursing',sent_by:r.created_by,sent_at:now,created_at:now,updated_at:now},{onConflict:'provider_message_id',ignoreDuplicates:true});
   return id;
  }catch(e){
   await done({receipt_status:submitted?'Unknown':'Failed',receipt_error:String(e?.message||e).slice(0,300)});

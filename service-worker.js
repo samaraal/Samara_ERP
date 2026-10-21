@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.64';
-const CACHE = 'samara-erp-2.18.64-outside-receipt';
+const APP_VERSION = '2.18.65';
+const CACHE = 'samara-erp-2.18.65-receipt-pdf';
 const SHELL = [
   './',
   './index.html',
