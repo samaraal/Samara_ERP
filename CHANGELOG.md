@@ -1,3 +1,7 @@
+## 2.18.57 — Statement: Samara + Outside Nursing sections
+- **ACCOUNTS / BILLING → Statement** now has two sections for the chosen Date / Month / Period: **1. Samara** (Guests: Advance Received, Amount Received, Total) and **2. Outside Samara Nursing Procedures** (amount received per person, all their invoices together), each with its own TOTAL, then **GRAND TOTAL (1 + 2)**. Same in Print, Download PDF and Download Excel.
+- The Guest list has "All (Samara + Outside Nursing)", then Samara Guests and Outside Nursing patients, so one person can be chosen from either. Outside nursing has no advances (shown as ₹0). No SQL.
+
 ## 2.18.56 — Statement: amount received only
 - **ACCOUNTS / BILLING → Statement** is now a simple statement of money received from Samara Guests for a chosen Date / Month / Period: **Sl. · Guest Name · Advance Received · Amount Received · Total**, with a TOTAL row. Only Guests who paid in the period are listed (A → Z); Trial Guests are left out.
 - Filters: **Guest** (All Guests or one Guest), **Date / Period** and **Apply**. Buttons: **Print**, **Download PDF** (real .pdf file, A4) and **Download Excel**. Tap a Guest to see each receipt (date, Advance / Payment with voucher / reference, mode, amount).

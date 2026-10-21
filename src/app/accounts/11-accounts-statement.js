@@ -10,35 +10,57 @@
   const AST_HEAD=['Sl.','Guest Name','Advance Received','Amount Received','Total'];
   const astSort=(a,b)=>astGuestName(a).localeCompare(astGuestName(b),'en',{sensitivity:'base',numeric:true});
 
-  function buildAccountsStatement({patients,transactions,from,to,guestId}){
-    const byId=new Map((patients||[]).map(p=>[p.id,p]));
-    const map=new Map();
-    (transactions||[]).forEach(t=>{
-      const type=String(t.transaction_type||'');
-      if(type!=='Payment'&&type!=='Advance')return;
-      const p=byId.get(t.patient_id);if(!p)return;
-      if(guestId?p.id!==guestId:p.is_trial)return;
-      const day=billRowDayISO(t);if(!day||day<from||day>to)return;
-      if(!map.has(p.id))map.set(p.id,{patient:p,advance:0,received:0,lines:[]});
-      const r=map.get(p.id),amount=Number(t.amount||0),adv=billIsAdvance(t);
-      if(adv)r.advance+=amount;else r.received+=amount;
-      r.lines.push({...t,_day:day,_adv:adv});
-    });
+  // Section 1 = Samara Guests (billing_transactions). Section 2 = Outside Samara Nursing Procedures
+  // (outside_nursing payments, see loadOutsideNursingFinance) grouped per person by name + phone; outside
+  // nursing has no advances. guestId: '' = everyone, 'g:<id>' = one Samara Guest, 'o:<key>' = one outside person.
+  const astOutsideKey=p=>`${String(p?.full_name||'').trim().toLowerCase()}|${String(p?.phone||p?.mobile||'').replace(/\D/g,'').slice(-10)}`;
+  function astSection(title,map){
     const rows=[...map.values()].map(r=>({...r,total:r.advance+r.received,lines:r.lines.sort((a,b)=>String(a._day).localeCompare(String(b._day))||String(a.transaction_date||'').localeCompare(String(b.transaction_date||'')))}))
       .sort((a,b)=>astSort(a.patient,b.patient));
     const total=rows.reduce((s,r)=>({advance:s.advance+r.advance,received:s.received+r.received,total:s.total+r.total}),{advance:0,received:0,total:0});
-    return {rows,total};
+    return {title,rows,total};
   }
-  const astTableRows=st=>st.rows.map((r,i)=>[i+1,astGuestName(r.patient),r.advance,r.received,r.total]);
+  function buildAccountsStatement({patients,transactions,outsideRows,from,to,guestId}){
+    const byId=new Map((patients||[]).map(p=>[p.id,p]));
+    const want=guestId||'';
+    const samara=new Map(),outside=new Map();
+    const add=(map,key,patient,t,adv)=>{
+      const day=billRowDayISO(t);if(!day||day<from||day>to)return;
+      if(!map.has(key))map.set(key,{key,patient,advance:0,received:0,lines:[]});
+      const r=map.get(key),amount=Number(t.amount||0);
+      if(adv)r.advance+=amount;else r.received+=amount;
+      r.lines.push({...t,_day:day,_adv:adv});
+    };
+    if(!want.startsWith('o:'))(transactions||[]).forEach(t=>{
+      const type=String(t.transaction_type||'');if(type!=='Payment'&&type!=='Advance')return;
+      const p=byId.get(t.patient_id);if(!p)return;
+      if(want?`g:${p.id}`!==want:p.is_trial)return;
+      add(samara,`g:${p.id}`,p,t,billIsAdvance(t));
+    });
+    if(!want.startsWith('g:'))(outsideRows||[]).forEach(t=>{
+      if(t.transaction_type!=='Payment')return;
+      const key=`o:${astOutsideKey(t.patients)}`;if(want&&key!==want)return;
+      add(outside,key,t.patients||{full_name:'Outside patient'},t,false);
+    });
+    const sections=[astSection('1. Samara',samara),astSection('2. Outside Samara Nursing Procedures',outside)];
+    const grand=sections.reduce((s,x)=>({advance:s.advance+x.total.advance,received:s.received+x.total.received,total:s.total+x.total.total}),{advance:0,received:0,total:0});
+    return {sections,grand};
+  }
+  const astTableRows=sec=>sec.rows.map((r,i)=>[i+1,astGuestName(r.patient),r.advance,r.received,r.total]);
   const astPeriodText=(from,to)=>from===to?`Date: ${formatDateIN(from)}`:`Period: ${formatDateIN(from)} to ${formatDateIN(to)}`;
-  const astScopeText=A=>A.guestId?'One Guest':'All Guests';
 
   async function downloadAccountsStatementExcel({st,from,to,A,profile}){
     const who=formalName(profile)||profile?.full_name||profile?.login_id||'Staff';
     const top=[['SAMARA HEALTH CARE LLP'],['Statement of Amount Received'],[astPeriodText(from,to)],
       [`Downloaded on ${formatDateTimeIN(new Date().toISOString())} by ${who}`],[]];
     const m2=v=>Math.round((Number(v)||0)*100)/100;
-    const sheet=[...top,AST_HEAD,...astTableRows(st).map(r=>r.map((v,i)=>i>=2?m2(v):v)),['','TOTAL',m2(st.total.advance),m2(st.total.received),m2(st.total.total)]];
+    const sheet=[...top];
+    st.sections.forEach(sec=>{
+      sheet.push([sec.title],AST_HEAD,...astTableRows(sec).map(r=>r.map((v,i)=>i>=2?m2(v):v)));
+      if(!sec.rows.length)sheet.push(['','No amount received in this period']);
+      sheet.push(['',`TOTAL (${sec.title.replace(/^\d\.\s*/,'')})`,m2(sec.total.advance),m2(sec.total.received),m2(sec.total.total)],[]);
+    });
+    sheet.push(['','GRAND TOTAL (1 + 2)',m2(st.grand.advance),m2(st.grand.received),m2(st.grand.total)]);
     const base=`Samara_Statement_${from}_to_${to}_${freshFileStamp()}`;
     try{
       const X=await loadXlsxLibrary(),wb=X.utils.book_new(),ws=X.utils.aoa_to_sheet(sheet);
@@ -56,10 +78,15 @@
     const who=formalName(profile)||profile?.full_name||profile?.login_id||'Staff';
     const now=formatDateTimeIN(new Date().toISOString());
     const logo=new URL('assets/samara-logo.png',window.location.href).href;
-    const rows=astTableRows(st).map(r=>`<tr><td class="sn">${r[0]}</td><td>${srEsc(r[1])}</td><td class="num">${srEsc(astMoney(r[2]))}</td><td class="num">${srEsc(astMoney(r[3]))}</td><td class="num bal">${srEsc(astMoney(r[4]))}</td></tr>`).join('')
-      ||`<tr><td colspan="5" style="text-align:center;padding:14px">No amount received in this period</td></tr>`;
-    const t=st.total;
-    const totalRow=st.rows.length?`<tr class="tot"><td></td><td>TOTAL</td><td class="num">${srEsc(astMoney(t.advance))}</td><td class="num">${srEsc(astMoney(t.received))}</td><td class="num bal">${srEsc(astMoney(t.total))}</td></tr>`:'';
+    const money=v=>srEsc(astMoney(v));
+    const secHtml=sec=>{
+      const rows=astTableRows(sec).map(r=>`<tr><td class="sn">${r[0]}</td><td>${srEsc(r[1])}</td><td class="num">${money(r[2])}</td><td class="num">${money(r[3])}</td><td class="num bal">${money(r[4])}</td></tr>`).join('')
+        ||`<tr><td colspan="5" style="text-align:center;padding:10px">No amount received in this period</td></tr>`;
+      return `<h2>${srEsc(sec.title)}</h2><table><thead><tr>${AST_HEAD.map((x,i)=>`<th${i>=2?' class="n"':''}>${srEsc(x)}</th>`).join('')}</tr></thead><tbody>${rows}
+        <tr class="tot"><td></td><td>TOTAL</td><td class="num">${money(sec.total.advance)}</td><td class="num">${money(sec.total.received)}</td><td class="num bal">${money(sec.total.total)}</td></tr></tbody></table>`;
+    };
+    const g=st.grand;
+    const body=st.sections.map(secHtml).join('')+`<table class="grand"><tbody><tr><td class="sn"></td><td>GRAND TOTAL (1 + 2)</td><td class="num">${money(g.advance)}</td><td class="num">${money(g.received)}</td><td class="num">${money(g.total)}</td></tr></tbody></table>`;
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>Samara_Statement_${srEsc(from)}_to_${srEsc(to)}</title><style>
       @page{size:A4 portrait;margin:12mm 10mm 14mm}*{box-sizing:border-box}
       body{font-family:Arial,Helvetica,sans-serif;color:#3b2833;margin:0;font-size:11px;line-height:1.4;background:#fff}
@@ -71,6 +98,9 @@
       td{border:1px solid #ead4dd;padding:6px}tbody tr:nth-child(even) td{background:#fffafd}
       .num{text-align:right;white-space:nowrap}.sn{text-align:center;width:40px}.bal{font-weight:700;color:#741041}
       tr.tot td{font-weight:700;background:#fbe9f1!important;border-top:2px solid #b20b5d}
+      h2{font-size:13px;color:#741041;margin:14px 0 6px}
+      table.grand{margin-top:14px}table.grand td{font-weight:800;font-size:12px;background:#b20b5d!important;color:#fff;border:1px solid #b20b5d;padding:8px 6px}
+      table td:nth-child(3),table td:nth-child(4),table th:nth-child(3),table th:nth-child(4){width:22%}table td:nth-child(5),table th:nth-child(5){width:18%}
       .sign{display:flex;justify-content:space-between;margin-top:40px}.sign div{border-top:1px solid #6f5c65;padding-top:6px;width:30%;text-align:center}
       .footer{border-top:1px solid #eccbd9;margin-top:18px;padding-top:6px;text-align:center;color:#6f5a64;font-size:8.5px}
       @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -78,7 +108,7 @@
       <div class="top"><img class="logo" src="${logo}" alt="Samara Assisted Living"><div class="org"><strong>SAMARA HEALTH CARE LLP</strong><span>Accounts / Billing</span><span>Compassion • Comfort • Dignity</span></div></div>
       <h1>Statement of Amount Received</h1>
       <p class="meta">${srEsc(astPeriodText(from,to))}</p>
-      <table><thead><tr>${AST_HEAD.map((x,i)=>`<th${i>=2?' class="n"':''}>${srEsc(x)}</th>`).join('')}</tr></thead><tbody>${rows}${totalRow}</tbody></table>
+      ${body}
       <div class="sign"><div>Prepared By</div><div>Accounts</div><div>Admin / Director</div></div>
       <div class="footer">Generated from Samara Care ERP on ${srEsc(now)} by ${srEsc(who)} · Computer-generated statement</div>
       <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
@@ -117,21 +147,29 @@
     doc.setDrawColor(178,11,93);doc.setLineWidth(0.8);doc.line(10,26,W-10,26);
     doc.setTextColor(50,29,40);doc.setFont('helvetica','bold');doc.setFontSize(13);doc.text('Statement of Amount Received',W/2,34,{align:'center'});
     doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(123,102,112);doc.text(astPeriodText(from,to),W/2,40,{align:'center'});
-    const body=astTableRows(st).map(r=>[String(r[0]),r[1],rs(r[2]),rs(r[3]),rs(r[4])]);
-    const t=st.total;
-    doc.autoTable({startY:45,head:[AST_HEAD],body:body.length?body:[[{content:'No amount received in this period',colSpan:5,styles:{halign:'center'}}]],
-      foot:st.rows.length?[['','TOTAL',rs(t.advance),rs(t.received),rs(t.total)]]:[],showFoot:'lastPage',
-      theme:'grid',margin:{left:10,right:10,bottom:16},
+    const common={theme:'grid',margin:{left:10,right:10,bottom:16},
       styles:{fontSize:9.5,cellPadding:2.2,lineColor:[234,212,221],textColor:[59,40,51]},
       headStyles:{fillColor:[247,220,232],textColor:[103,18,61],fontStyle:'bold'},
       footStyles:{fillColor:[251,233,241],textColor:[116,16,65],fontStyle:'bold'},
       alternateRowStyles:{fillColor:[255,250,253]},
       columnStyles:{0:{halign:'center',cellWidth:12},2:{halign:'right',cellWidth:38},3:{halign:'right',cellWidth:38},4:{halign:'right',cellWidth:36,fontStyle:'bold',textColor:[116,16,65]}},
-      didParseCell:d=>{if((d.section==='head'||d.section==='foot')&&d.column.index>=2)d.cell.styles.halign='right'}
+      didParseCell:d=>{if((d.section==='head'||d.section==='foot')&&d.column.index>=2)d.cell.styles.halign='right'}};
+    let y=46;
+    st.sections.forEach(sec=>{
+      if(y>H-40){doc.addPage();y=20}
+      doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(116,16,65);doc.text(sec.title,10,y);
+      const body=astTableRows(sec).map(r=>[String(r[0]),r[1],rs(r[2]),rs(r[3]),rs(r[4])]);
+      doc.autoTable({...common,startY:y+2,head:[AST_HEAD],body:body.length?body:[[{content:'No amount received in this period',colSpan:5,styles:{halign:'center'}}]],
+        foot:[['','TOTAL',rs(sec.total.advance),rs(sec.total.received),rs(sec.total.total)]],showFoot:'lastPage'});
+      y=(doc.lastAutoTable?.finalY||y)+10;
     });
-    let y=(doc.lastAutoTable?.finalY||50)+28;
+    const g=st.grand;
+    doc.autoTable({...common,startY:y-4,body:[['','GRAND TOTAL (1 + 2)',rs(g.advance),rs(g.received),rs(g.total)]],
+      bodyStyles:{fillColor:[178,11,93],textColor:[255,255,255],fontStyle:'bold',fontSize:10.5},alternateRowStyles:{},
+      columnStyles:{...common.columnStyles,4:{halign:'right',cellWidth:36,fontStyle:'bold',textColor:[255,255,255]}}});
+    y=(doc.lastAutoTable?.finalY||50)+28;
     if(y>H-24){doc.addPage();y=30}
-    doc.setDrawColor(111,92,101);doc.setLineWidth(0.3);doc.setFontSize(8.5);doc.setTextColor(107,89,97);
+    doc.setFont('helvetica','normal');doc.setDrawColor(111,92,101);doc.setLineWidth(0.3);doc.setFontSize(8.5);doc.setTextColor(107,89,97);
     [['Prepared By',10],['Accounts',W/2-28],['Admin / Director',W-66]].forEach(([l,x])=>{doc.line(x,y,x+56,y);doc.text(l,x+28,y+4.5,{align:'center'})});
     const pages=doc.internal.getNumberOfPages(),now=formatDateTimeIN(new Date().toISOString());
     for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(111,90,100);
@@ -145,16 +183,18 @@
     const [guestId,setGuestId]=React.useState('');
     const [period,setPeriod]=React.useState('month'),[from,setFrom]=React.useState(''),[to,setTo]=React.useState(''),[date,setDate]=React.useState(today),[month,setMonth]=React.useState(today.slice(0,7));
     const fa=useAppliedFilters({guestId,period,from,to,date,month});const A=fa.applied;
-    const [transactions,setTransactions]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(''),[reloadKey,setReloadKey]=React.useState(0);
+    const [transactions,setTransactions]=React.useState(null),[outside,setOutside]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(''),[reloadKey,setReloadKey]=React.useState(0);
     const [detail,setDetail]=React.useState(null);
     React.useEffect(()=>{
       let live=true;setError('');
       freshFetchAll('billing_transactions','*','transaction_date',q=>q.in('transaction_type',['Payment','Advance'])).then(rows=>{if(live)setTransactions(rows)}).catch(e=>{if(live)setError(e.message||'Could not load the receipts.')});
+      loadOutsideNursingFinance().then(r=>{if(live)setOutside(r)}).catch(e=>{if(live)setOutside({rows:[],error:e.message||'Outside nursing receipts could not be loaded.'})});
       return()=>{live=false};
     },[reloadKey]);
     const [pFrom,pTo]=srPeriodBounds(A);
-    const st=transactions?buildAccountsStatement({patients,transactions,from:pFrom,to:pTo,guestId:A.guestId}):null;
+    const st=transactions&&outside?buildAccountsStatement({patients,transactions,outsideRows:outside.rows,from:pFrom,to:pTo,guestId:A.guestId}):null;
     const guests=[...(patients||[])].sort(astSort);
+    const outsidePeople=(()=>{const m=new Map();(outside?.rows||[]).forEach(r=>{if(r.transaction_type!=='Payment')return;const k=astOutsideKey(r.patients);if(!m.has(k))m.set(k,r.patients||{})});return [...m.entries()].sort((a,b)=>astSort(a[1],b[1]))})();
 
     async function download(fmt){
       if(!st||busy||fa.dirty)return;setBusy(fmt);
@@ -166,7 +206,7 @@
           catch(e){console.warn(e);openAccountsStatementPdf({...args,mode:'pdf'});showSamaraActionToast('warning','PDF opened for saving',`${e.message||'PDF library unavailable'} — choose "Save as PDF" in the window that opened.`)}
         }
         else openAccountsStatementPdf({...args,mode:'print'});
-        try{writeAuditEvent('Download Accounts Statement','Billing',null,{format:fmt,from:pFrom,to:pTo,guests:st.rows.length})}catch(_){}
+        try{writeAuditEvent('Download Accounts Statement','Billing',null,{format:fmt,from:pFrom,to:pTo,guests:st.sections.reduce((n,x)=>n+x.rows.length,0)})}catch(_){}
       }catch(e){showSamaraActionToast('error','Download failed',e.message||'Please try again.')}
       finally{setBusy('')}
     }
@@ -175,8 +215,9 @@
     return h('div',{className:'sr-compact'},h('style',null,SR_COMPACT_CSS),h(Section,{title:'Statement',subtitle:'Amount received from Samara Guests for a date, month or period.'},
       h('div',{className:'sr-filters'},
         h('div',{className:'field sr-wide'},h('label',null,'Guest'),h('select',{value:guestId,onChange:e=>setGuestId(e.target.value)},
-          h('option',{value:''},'All Guests'),
-          guests.map(p=>h('option',{key:p.id,value:p.id},`${astGuestName(p)} · ${p.patient_id||'No ID'} · ${astRoom(p)}`)))),
+          h('option',{value:''},'All (Samara + Outside Nursing)'),
+          h('optgroup',{label:'Samara Guests'},guests.map(p=>h('option',{key:p.id,value:`g:${p.id}`},`${astGuestName(p)} · ${p.patient_id||'No ID'} · ${astRoom(p)}`))),
+          outsidePeople.length>0&&h('optgroup',{label:'Outside Samara Nursing Procedures'},outsidePeople.map(([k,p])=>h('option',{key:k,value:`o:${k}`},`${astGuestName(p)}${p.phone?` · ${p.phone}`:''}`))))),
         h('div',{className:'field'},h('label',null,'Date / Period'),h('select',{value:period,onChange:e=>setPeriod(e.target.value)},SR_PERIODS.map(([v,l])=>h('option',{key:v,value:v},l)))),
         period==='date'&&h('div',{className:'field'},h('label',null,'Date'),h(StrictDateInput,{value:date,max:today,onChange:e=>setDate(e.target.value)})),
         period==='monthpick'&&h('div',{className:'field'},h('label',null,'Month'),h('select',{value:month,onChange:e=>setMonth(e.target.value)},srMonthOptions().map(([v,l])=>h('option',{key:v,value:v},l)))),
@@ -193,24 +234,30 @@
         fa.dirty&&h('small',{className:'error-text',style:{alignSelf:'center'}},'Press Apply first.')
       ),
       error&&h('p',{role:'alert',className:'message error'},error),
-      !transactions&&!error&&h('p',{className:'small-note'},'Loading statement…'),
-      st&&h('div',{className:'table-wrap'},h('table',{className:'table'},
-        h('thead',null,h('tr',null,AST_HEAD.map((x,i)=>h('th',{key:x,style:i>=2?{textAlign:'right'}:i===0?{width:'50px'}:undefined},x)))),
-        h('tbody',null,
-          st.rows.length?st.rows.map((r,i)=>h('tr',{key:r.patient.id,style:{cursor:'pointer'},title:'Show the receipts',onClick:()=>setDetail(r)},
-            h('td',{style:{textAlign:'center'}},i+1),
-            h('td',null,h('b',null,astGuestName(r.patient))),
-            num(r.advance),num(r.received),num(r.total,true)))
-          :h('tr',null,h('td',{colSpan:5,style:{textAlign:'center'}},'No amount received in this period.')),
-          st.rows.length>0&&h('tr',{style:{background:'#fbe9f1'}},h('td',null,''),h('td',null,h('b',null,'TOTAL')),num(st.total.advance,true),num(st.total.received,true),num(st.total.total,true))
-        ))),
-      detail&&h(RowDetailModal,{title:astGuestName(detail.patient),subtitle:`${detail.patient.patient_id||''} · ${astPeriodText(pFrom,pTo)}`,onClose:()=>setDetail(null),
+      !st&&!error&&h('p',{className:'small-note'},'Loading statement…'),
+      outside?.error&&h('p',{role:'alert',className:'message warning'},outside.error),
+      st&&st.sections.map(sec=>h('div',{key:sec.title,style:{marginBottom:'14px'}},
+        h('h4',{style:{margin:'6px 0',color:'#741041'}},sec.title),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,AST_HEAD.map((x,i)=>h('th',{key:x,style:i>=2?{textAlign:'right',width:'20%'}:i===0?{width:'50px'}:undefined},x)))),
+          h('tbody',null,
+            sec.rows.length?sec.rows.map((r,i)=>h('tr',{key:r.key,style:{cursor:'pointer'},title:'Show the receipts',onClick:()=>setDetail(r)},
+              h('td',{style:{textAlign:'center'}},i+1),
+              h('td',null,h('b',null,astGuestName(r.patient))),
+              num(r.advance),num(r.received),num(r.total,true)))
+            :h('tr',null,h('td',{colSpan:5,style:{textAlign:'center'}},'No amount received in this period.')),
+            h('tr',{style:{background:'#fbe9f1'}},h('td',null,''),h('td',null,h('b',null,'TOTAL')),num(sec.total.advance,true),num(sec.total.received,true),num(sec.total.total,true))
+          ))))),
+      st&&h('div',{className:'table-wrap'},h('table',{className:'table'},h('tbody',null,
+        h('tr',{style:{background:'#b20b5d',color:'#fff'}},h('td',{style:{width:'50px',color:'#fff'}},''),h('td',{style:{color:'#fff'}},h('b',null,'GRAND TOTAL (1 + 2)')),
+          ...['advance','received','total'].map(k=>h('td',{key:k,style:{textAlign:'right',whiteSpace:'nowrap',fontWeight:800,color:'#fff',width:'20%'}},astMoney(st.grand[k]))))))),
+      detail&&h(RowDetailModal,{title:astGuestName(detail.patient),subtitle:`${detail.key.startsWith('o:')?'Outside Samara Nursing Procedures':(detail.patient.patient_id||'')} · ${astPeriodText(pFrom,pTo)}`,onClose:()=>setDetail(null),
         fields:[['Advance Received',astMoney(detail.advance)],['Amount Received',astMoney(detail.received)],['Total',astMoney(detail.total)]]},
         h('div',{style:{marginTop:'10px',maxHeight:'50vh',overflowY:'auto',overflowX:'hidden'}},h('table',{className:'table',style:{width:'100%',minWidth:0,tableLayout:'fixed'}},
           h('thead',null,h('tr',null,[['Date','92px'],['Receipt','auto'],['Mode','90px'],['Amount','100px']].map(([x,w],i)=>h('th',{key:x,style:{width:w,textAlign:i===3?'right':'left'}},x)))),
           h('tbody',null,detail.lines.map(t=>h('tr',{key:t.id},
             h('td',null,formatDateIN(t._day)),
-            h('td',{style:{overflowWrap:'anywhere'}},`${t._adv?'Advance':'Payment'}${t.payment_reference?` · ${t.payment_reference}`:''}`),
+            h('td',{style:{overflowWrap:'anywhere'}},`${t.source==='Outside Nursing'?(t.invoice_number||'Outside nursing'):t._adv?'Advance':'Payment'}${t.payment_reference?` · ${t.payment_reference}`:''}`),
             h('td',null,/not applicable/i.test(t.payment_mode||'')?'—':(t.payment_mode||'—')),
             h('td',{style:{textAlign:'right'}},astMoney(t.amount))))))))
     ));
