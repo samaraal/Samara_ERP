@@ -1,3 +1,8 @@
+## 2.18.58 — Statement: Status, Total Bill, Discount, Balance Due
+- **ACCOUNTS / BILLING → Statement** columns are now **Sl. · Guest Name · Status (Active / Discharged; "Outside visit" in section 2) · Total Bill · Advance Received · Payment Received · Discount · Balance Due**, for both sections, their TOTALs and the GRAND TOTAL (1 + 2). All figures are for the chosen Date / Month / Period. Balance Due = Total Bill − Advance − Payment − Discount (+ any refund paid back); a negative balance shows as "Cr" (advance held).
+- Guests listed **A → Z by name, ignoring the title** (Mr. / Mrs. / Dr. …) — earlier "Mr." names came before all "Mrs." names. A Guest appears when there is any bill, payment or discount in the period. Tap a Guest to see every entry (Date, Particulars, Debit, Credit).
+- Print / PDF: "Accounts / Billing" now sits in the centre of the header; A4 landscape so all 8 columns fit. Room-tariff adjustments are folded into the bill (never shown as discounts). No SQL.
+
 ## 2.18.57 — Statement: Samara + Outside Nursing sections
 - **ACCOUNTS / BILLING → Statement** now has two sections for the chosen Date / Month / Period: **1. Samara** (Guests: Advance Received, Amount Received, Total) and **2. Outside Samara Nursing Procedures** (amount received per person, all their invoices together), each with its own TOTAL, then **GRAND TOTAL (1 + 2)**. Same in Print, Download PDF and Download Excel.
 - The Guest list has "All (Samara + Outside Nursing)", then Samara Guests and Outside Nursing patients, so one person can be chosen from either. Outside nursing has no advances (shown as ₹0). No SQL.
