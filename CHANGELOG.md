@@ -1,3 +1,10 @@
+## 2.18.59 — Statement: choose the view, summary box on top
+- **ACCOUNTS / BILLING → Statement** now starts with a **View** choice (then Apply):
+  - **Collections — amount received**: Guest Name · Status · Advance Received · Payment Received · **Total Collected** (only Guests who paid in the period).
+  - **Full statement**: Guest Name · Status · Total Bill · Discount · Advance Received · Payment Received · **Total Collected** · Balance Due — reads left to right like a bill.
+- A **summary box** at the top shows the key totals in large figures, with **Total Collected** highlighted and split as Samara + Outside Nursing (Collections: Advance, Payment, Total Collected; Full: Total Billed, Discount Given, Total Collected, Balance Due). The Total Collected column is shaded in the tables. Print, Download PDF and Download Excel follow the chosen view (Collections A4 portrait, Full statement A4 landscape).
+- Samara was inaugurated on **27-08-2026**: the Date / From / To pickers and the Month list start there, and no earlier date is counted. No SQL.
+
 ## 2.18.58 — Statement: Status, Total Bill, Discount, Balance Due
 - **ACCOUNTS / BILLING → Statement** columns are now **Sl. · Guest Name · Status (Active / Discharged; "Outside visit" in section 2) · Total Bill · Advance Received · Payment Received · Discount · Balance Due**, for both sections, their TOTALs and the GRAND TOTAL (1 + 2). All figures are for the chosen Date / Month / Period. Balance Due = Total Bill − Advance − Payment − Discount (+ any refund paid back); a negative balance shows as "Cr" (advance held).
 - Guests listed **A → Z by name, ignoring the title** (Mr. / Mrs. / Dr. …) — earlier "Mr." names came before all "Mrs." names. A Guest appears when there is any bill, payment or discount in the period. Tap a Guest to see every entry (Date, Particulars, Debit, Credit).

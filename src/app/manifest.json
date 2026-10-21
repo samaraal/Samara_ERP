@@ -490,7 +490,7 @@
   },
   {
    "file": "accounts/11-accounts-statement.js",
-   "about": "ACCOUNTS / BILLING → Statement: per Guest Status, Total Bill, Advance, Payment, Discount, Balance Due (Samara + Outside Nursing) for a date / month / period; Print, PDF, Excel",
+   "about": "ACCOUNTS / BILLING → Statement: two views (Collections / Full statement), summary box, Samara + Outside Nursing sections, from 27-08-2026; Print, PDF, Excel",
    "lines": 273
   },
   {
