@@ -1,3 +1,8 @@
+## SQL 266 — Nursing Manager Nurse mode: full Nurse access on the server (no app change)
+- With **Switch to Nurse ON**, the Nursing Manager is now accepted by **every** server check that allows only Nurses (SQL 259 covered only 8 named functions). Fixes e.g. **Outside Samara Nursing Procedures** ("Only nurses can enter procedures and indents"), requesting a nursing procedure, confirming indent receipt, and the nursing discharge steps.
+- How: the shared role helper accepts Nurse mode wherever Nurse is allowed (duty-swap logic kept); nurse-only checks on the signed-in person's role are patched in every live function; two discharge checks patched by exact text. Checks that look up OTHER staff (e.g. lists of nurses to notify) are never changed. Switch OFF = exactly as before; her Manager rights are unchanged.
+- Run supabase/sql/266_nurse_mode_full_nurse_access.sql once in the Supabase SQL Editor (needs SQL 259). Safe to run again; the result lists every change.
+
 ## 2.18.61 — Medicines: MAR time buttons for the current shift + Administer now
 - **Today's MAR** now shows **only the current shift** (Day 7 AM–7 PM / Night 7 PM–7 AM) as a row of **time buttons** (30-minute steps; only times that have medicines; 8:15 goes under 8:00). Each button shows its state: green ✓ all given, amber due now, red late / awaiting doctor, plain "n to give". The page opens on the late or due-now time automatically.
 - Tap a time → **Guest-wise (room order), medicine-wise** list. **Administer now** (green) → small confirm (medicine, room, Guest, scheduled time) → saved as Given now; the button turns **grey "Given ✓ time"** and cannot be pressed again. Confirm also offers **Other…** (full MAR form for a different time / Refused / Missed).
