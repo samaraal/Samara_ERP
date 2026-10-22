@@ -1,3 +1,8 @@
+## 2.18.73 — Daily Intelligent Report can optionally include the doctor
+- Authorized staff can opt in a doctor by name and WhatsApp number from the resident's daily report settings; doctor delivery is off by default.
+- Scheduled report logs and retry checks track family and doctor delivery separately.
+- Adds optional doctor-recipient fields (SQL 273). No report is sent unless a recipient is explicitly enabled.
+
 ## 2.18.72 — Read reviewed prescriptions into Doctor Review medication changes
 - Doctor Review / Modify can read the selected written prescription and prefill proposed medication changes using the existing prescription reader.
 - Current medicines matched by name are marked Modify; unmatched current medicines stay unchanged; newly read medicines are marked Add. Staff must verify and complete fields before applying.
