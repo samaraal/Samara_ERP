@@ -137,7 +137,7 @@ async function guestReceiptPdf(d:any){
   y-=26;T('Receipt No.: '+d.receiptNo,M,y,10,B);right('Date: '+d.date,y,10,B);
   y-=14;T('Samara Assisted Living - Guest account',M,y,9,R,grey);
   y-=24;page.drawRectangle({x:M,y:y-112,width:W-2*M,height:122,color:pink,borderColor:line,borderWidth:1});
-  const rows=[['Received from',d.from],['Guest',d.guest],['Towards',d.towards],['Payment mode',d.mode],['Razorpay payment ID',d.paymentId]];
+  const rows=[['Received from',d.from],['Guest',d.guest],['Towards',d.towards],['Payment mode',d.mode],[d.idLabel||'Razorpay payment ID',d.paymentId]];
   rows.forEach(([k,v],i)=>{const yy=y-8-i*22;T(k,M+14,yy,9.5,R,grey);T(v,M+150,yy,10,B);});
   y-=140;page.drawRectangle({x:M,y:y-46,width:W-2*M,height:56,color:mag});
   T('Amount received',M+14,y-14,10,R,rgb(1,1,1));T('INR '+d.amount,M+14,y-36,20,B,rgb(1,1,1));
@@ -217,6 +217,79 @@ async function sendGuestReceipt(requestId:string){
     return null;
   }
 }
+// ── 2.18.67: HDFC swipe machine (Mosambee POS) payment — automatic WhatsApp receipt (+ PDF) to every active family contact ──
+// The slip is saved with the ledger entry by record_pos_card_payment() (SQL 270). Sent ONCE per slip (claimed), logged in WhatsApp Inbox
+// exactly like the Accounts payment receipts ("Payment Receipt · <category>"). Never blocks the payment itself.
+async function sendPosReceipt(slipId:string){
+  const {data:cur}=await admin.from('pos_card_slips').select('receipt_tries').eq('id',slipId).maybeSingle();
+  const claim=await admin.from('pos_card_slips').update({receipt_status:'Sending',receipt_claimed_at:new Date().toISOString(),receipt_tries:(Number(cur?.receipt_tries)||0)+1})
+    .eq('id',slipId).lt('receipt_tries',3).or('receipt_status.is.null,receipt_status.eq.Failed').select('*').maybeSingle();
+  if(claim.error||!claim.data)return {sent:0,skipped:true};
+  const s:any=claim.data;let accepted=0;const failures:string[]=[];let pdfNote='';const phones:string[]=[];
+  const done=async(patch:any)=>{await admin.from('pos_card_slips').update(patch).eq('id',s.id);};
+  try{
+    const {data:tx,error:txErr}=await admin.from('billing_transactions').select('id,transaction_type,category,amount,transaction_date,entered_by').eq('id',s.billing_transaction_id).single();if(txErr)throw txErr;
+    const {data:patient,error:pErr}=await admin.from('patients').select('id,full_name,title,patient_id').eq('id',s.patient_id).single();if(pErr)throw pErr;
+    const guest=[patient.title,patient.full_name].filter(Boolean).join(' ').trim()||'Guest';
+    // same recipients as the Accounts receipt: every active family contact (primary first); else the best number on file
+    const {data:fam}=await admin.from('family_portal_access').select('mobile,relative_name,primary_contact,created_at').eq('patient_id',s.patient_id).eq('is_active',true).order('primary_contact',{ascending:false}).order('created_at',{ascending:true});
+    let targets=(fam||[]).map((r:any)=>({mobile:normalizePhone(r.mobile),name:String(r.relative_name||'').trim()||'Family Member'})).filter((r:any)=>validPhone(r.mobile));
+    if(!targets.length){const c=await findPayerContact(s.patient_id);if(c)targets=[{mobile:c.mobile,name:c.name||('Family of '+guest)}];}
+    targets=targets.filter((t:any,i:number,a:any[])=>a.findIndex(x=>x.mobile===t.mobile)===i);
+    if(!targets.length){await done({receipt_status:'Failed',receipt_tries:3,receipt_error:'No valid family WhatsApp number for this Guest.'});return {sent:0,error:'No valid family WhatsApp number for this Guest.'};}
+    const amount=Number(s.amount);
+    const mode=s.paid_by==='UPI on machine'?'UPI (HDFC swipe machine)':'Card (HDFC swipe machine)';
+    const reference=`${s.voucher_no} / Appr. ${s.approval_code}`;
+    const token=env('WHATSAPP_ACCESS_TOKEN'),sender=env('WHATSAPP_PHONE_NUMBER_ID');if(!token||!sender)throw new Error('Samara WhatsApp service is not configured.');
+    const category=String(tx.category||tx.transaction_type||'Payment');
+    // one PDF for the slip
+    let mediaId:string|null=null,filename='',bytes:Uint8Array|null=null,storedPath:string|null=null;
+    try{
+      const {data:all}=await admin.from('billing_transactions').select('transaction_type,amount').eq('patient_id',s.patient_id);
+      const bal=Math.round((all||[]).reduce((v:number,x:any)=>v+(x.transaction_type==='Charge'?Number(x.amount||0):x.transaction_type==='Refund'?Number(x.amount||0):['Payment','Advance','Discount'].includes(x.transaction_type)?-Number(x.amount||0):0),0)*100)/100;
+      const balanceLine=bal>0?'Balance due INR '+inr(bal):bal<0?'Advance held INR '+inr(-bal):'Account settled - no balance due';
+      bytes=await guestReceiptPdf({receiptNo:s.voucher_no,date:istDate(tx.transaction_date||s.created_at),from:targets[0].name,guest:`${guest}${patient.patient_id?' ('+patient.patient_id+')':''}`,
+        towards:tx.transaction_type==='Advance'?'Advance':category,mode:mode+' - slip verified by Accounts',idLabel:s.paid_by==='UPI on machine'?'RRN (on the slip)':'Approval code',
+        paymentId:s.approval_code+(s.card_last4?'   (card ending '+s.card_last4+')':''),amount:inr(amount),words:inWords(amount),balanceLine});
+      filename=`Samara-Receipt-${s.voucher_no}.pdf`;
+      const form=new FormData();form.append('messaging_product','whatsapp');form.append('type','application/pdf');form.append('file',new Blob([bytes as any],{type:'application/pdf'}),filename);
+      const up=await fetch(`https://graph.facebook.com/v25.0/${sender}/media`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:form});const uj:any=await up.json().catch(()=>({}));
+      if(up.ok&&uj.id)mediaId=uj.id;else pdfNote='Receipt PDF upload to WhatsApp failed.';
+      try{const path=`outgoing/pos-payments/receipts/${s.id}/${filename}`;const st=await admin.storage.from('whatsapp-media').upload(path,bytes,{contentType:'application/pdf',upsert:true});if(!st.error)storedPath=path;}catch{}
+    }catch(e){pdfNote='Receipt PDF could not be prepared: '+String((e as any)?.message||e).slice(0,120);}
+    for(const t of targets){
+      const to=t.mobile.replace(/\D/g,'');
+      const values=[t.name.slice(0,80),inr(amount),guest,istDate(tx.transaction_date||s.created_at),reference,mode];
+      const bodyCmp={type:'body',parameters:values.map(text=>({type:'text',text}))};
+      let sent:any=null,route='';
+      if(mediaId){
+        const r=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_PDF_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'document',document:{id:mediaId,filename}}]},bodyCmp]}});
+        if(r.ok){sent=r;route='Receipt with PDF (template)';}else if(!TEMPLATE_NOT_READY.includes(r.code)){failures.push(`${t.name}: ${r.error||'WhatsApp did not accept the receipt.'}`);continue;}
+      }
+      if(!sent){
+        const r=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:env('WHATSAPP_HEADER_IMAGE_URL')||'https://samaraassistedliving.com/assets/samara-whatsapp-logo.png'}}]},bodyCmp]}});
+        if(!r.ok){failures.push(`${t.name}: ${r.error||'WhatsApp did not accept the receipt.'}`);continue;}
+        sent=r;route='Receipt message';
+        if(mediaId){const d2=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'document',document:{id:mediaId,filename,caption:`Samara payment receipt ${s.voucher_no}`}});
+          if(d2.ok)route='Receipt message + PDF';else pdfNote='PDF not attached yet: the receipt-with-PDF template is awaiting WhatsApp approval and the family has not written to Samara in the last 24 hours.';}
+      }
+      accepted++;phones.push(to);
+      const now=new Date().toISOString();
+      await admin.from('hr_whatsapp_communications').upsert({recipient_number:to,template_name:route==='Receipt with PDF (template)'?RECEIPT_PDF_TEMPLATE:RECEIPT_TEMPLATE,communication_type:`Payment Receipt · ${category}`,direction:'outbound',message_type:'template',status:'Accepted',provider_message_id:sent.id,
+        message_content:`Dear ${values[0]},\n\nThank you. We confirm receipt of ₹${values[1]} towards the account of ${values[2]} on ${values[3]}.\n\nReceipt No.: ${values[4]}\nPayment Mode: ${values[5]}`,
+        message_payload:{patient_id:s.patient_id,patient_name:guest,category,amount,payment_mode:'Card Payment',pos_slip_id:s.id,reference,body_params:values,automatic:true,route,pdf_note:pdfNote||null,...(storedPath?{_samara_media:{bucket:'whatsapp-media',path:storedPath,filename,mime_type:'application/pdf',size:bytes?.length||0,meta_media_id:mediaId}}:{})},
+        contact_name:values[0],source_type:'Patient / Family · Accounts',sent_by:s.entered_by||tx.entered_by,sent_by_name:'Accounts · Automated',sent_at:now,created_at:now,updated_at:now},{onConflict:'provider_message_id',ignoreDuplicates:true});
+    }
+    if(!accepted){await done({receipt_status:'Failed',receipt_error:(failures.join(' | ')||'WhatsApp did not accept the receipt.').slice(0,300)});return {sent:0,error:failures.join(' | ')};}
+    const note=[pdfNote,failures.length?`${failures.length} contact(s) failed: ${failures.join(' | ')}`:''].filter(Boolean).join(' ');
+    await done({receipt_status:'Sent',receipt_sent_at:new Date().toISOString(),receipt_phone:phones.join(', '),receipt_error:note.slice(0,300)||null});
+    return {sent:accepted,failures,pdf_note:pdfNote||null};
+  }catch(e){
+    const msg=String((e as any)?.message||e).slice(0,300);
+    await done({receipt_status:accepted?'Sent':'Unknown',receipt_error:msg});
+    return {sent:accepted,error:msg};
+  }
+}
 async function autoReceipt(requestId:string){try{await sendGuestReceipt(requestId);}catch(e){console.error('auto receipt',e);}}
 // Every 2 minutes (SQL 269): record Guest payments of pending links / QRs (even if nobody has the ERP open) + send any receipt not yet sent.
 async function cronSweep(){
@@ -236,7 +309,16 @@ async function cronSweep(){
     if(u.receipt_status==='Failed'&&u.receipt_claimed_at&&Date.now()-new Date(u.receipt_claimed_at).getTime()<10*60*1000)continue; // retry failed sends after 10 minutes
     if(await sendGuestReceipt(u.id))sent++;
   }
-  return {checked,posted,failures,receipts_sent:sent};
+  // 2.18.67: swipe machine receipts not sent yet (e.g. the Accounts screen was closed) — retried after 10 minutes, 3 tries
+  const twoDays=new Date(Date.now()-2*24*60*60*1000).toISOString();
+  const {data:slips}=await admin.from('pos_card_slips').select('id,receipt_status,receipt_claimed_at,created_at').gte('created_at',twoDays).lt('receipt_tries',3).or('receipt_status.is.null,receipt_status.eq.Failed').limit(20);
+  let posSent=0;
+  for(const u of slips||[]){
+    if(!u.receipt_status&&Date.now()-new Date(u.created_at).getTime()<60*1000)continue; // the Accounts screen sends it first
+    if(u.receipt_status==='Failed'&&u.receipt_claimed_at&&Date.now()-new Date(u.receipt_claimed_at).getTime()<10*60*1000)continue;
+    if((await sendPosReceipt(u.id)).sent)posSent++;
+  }
+  return {checked,posted,failures,receipts_sent:sent,pos_receipts_sent:posSent};
 }
 
 Deno.serve(async req=>{
@@ -269,6 +351,15 @@ Deno.serve(async req=>{
       if(error)throw error;
       const clean=(contacts||[]).map((row:any)=>({mobile:normalizePhone(row.mobile),relative_name:row.relative_name||'Family Member',relationship:row.relationship||'',primary_contact:!!row.primary_contact})).filter((row:any)=>row.mobile);
       return json({success:true,contacts:clean});
+    }
+
+    if(action==='pos_receipt'){
+      // 2.18.67: called by the Accounts screen right after a swipe machine payment is saved
+      await requireStaff(req);
+      const slipId=String(body.slip_id||'');if(!slipId)return json({success:false,error:'Slip ID is required.'},400);
+      const result:any=await sendPosReceipt(slipId);
+      if(result.skipped){const {data:slip}=await admin.from('pos_card_slips').select('receipt_status,receipt_phone,receipt_error').eq('id',slipId).maybeSingle();return json({success:slip?.receipt_status==='Sent',already:true,...(slip||{})});}
+      return json({success:result.sent>0,...result});
     }
 
     if(action==='send_whatsapp'){

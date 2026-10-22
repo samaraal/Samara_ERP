@@ -76,6 +76,7 @@
       amount:'',
       payment_mode:'Cash',
       payment_reference:'',
+      pos_paid_by:'Card',pos_approval:'',pos_last4:'',
       description:'',
       closure_remarks:'All payments received and final account settled.'
     });
@@ -110,6 +111,9 @@
     React.useEffect(()=>{
       if(!isAutoVoucherTransaction)setLastVoucherNo('');
     },[form.payment_mode,form.transaction_type]);
+    // 2.18.67: Card Payment = the HDFC swipe machine (Mosambee POS). Payment / Advance carry the slip's approval code / RRN.
+    const isPosEntry=form.payment_mode==='Card Payment'&&['Payment','Advance'].includes(form.transaction_type);
+    const posApprovalClean=String(form.pos_approval||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 
 
 
@@ -855,6 +859,18 @@ Please access the Samara Family Portal for detailed account information.`;
         setMessage(text);notify('error','Reference required',text);return;
       }
 
+      if(isPosEntry){
+        if(!/^[A-Z0-9]{4,12}$/.test(posApprovalClean)){
+          const text=form.pos_paid_by==='UPI on machine'?'Enter the RRN printed on the swipe machine slip.':'Enter the Approval Code printed on the swipe machine slip.';
+          setMessage(text);notify('error','Slip details required',text);return;
+        }
+        const last4=String(form.pos_last4||'').replace(/\D/g,'');
+        if(form.pos_paid_by==='Card'&&last4&&last4.length!==4){
+          const text='Card last 4 digits must be exactly 4 numbers (or leave it empty).';
+          setMessage(text);notify('error','Check card digits',text);return;
+        }
+      }
+
       if(
         dischargeTarget &&
         form.transaction_type==='Payment' &&
@@ -894,7 +910,29 @@ Please access the Samara Family Portal for detailed account information.`;
       const isNonMoneyTransaction=['Charge','Discount'].includes(form.transaction_type);
       let actualReference=isNonMoneyTransaction?'':String(form.payment_reference||'').trim();
 
-      if(isAutoVoucherTransaction){
+      let posSlipId='';
+      if(isPosEntry){
+        // 2.18.67: ledger entry + CARDV voucher + slip saved together on the server (SQL 270); a slip can never be entered twice.
+        const posResult=await client.rpc('record_pos_card_payment',{
+          p_patient_id:form.patient_id,
+          p_transaction_type:form.transaction_type,
+          p_category:form.category,
+          p_amount:amount,
+          p_description:form.description||null,
+          p_approval_code:posApprovalClean,
+          p_card_last4:form.pos_paid_by==='Card'?(String(form.pos_last4||'').replace(/\D/g,'')||null):null,
+          p_paid_by:form.pos_paid_by==='UPI on machine'?'UPI on machine':'Card'
+        });
+        error=posResult.error;
+        const posRow=Array.isArray(posResult.data)?posResult.data[0]:posResult.data;
+        if(!error&&posRow){
+          data={id:posRow.transaction_id};
+          posSlipId=String(posRow.slip_id||'');
+          actualReference=String(posRow.voucher_no||'').trim();
+          setLastVoucherNo(actualReference);
+          setForm(current=>({...current,payment_reference:actualReference,pos_approval:'',pos_last4:''}));
+        }
+      }else if(isAutoVoucherTransaction){
         const voucherResult=await client.rpc('record_voucher_transaction',{
           p_patient_id:form.patient_id,
           p_transaction_type:form.transaction_type,
@@ -963,7 +1001,8 @@ Please access the Samara Family Portal for detailed account information.`;
           category:form.category,
           amount,
           payment_mode:form.payment_mode,
-          payment_reference:actualReference||null
+          payment_reference:actualReference||null,
+          ...(isPosEntry?{pos_slip_id:posSlipId,pos_approval_code:posApprovalClean,pos_paid_by:form.pos_paid_by}:{})
         },
         'Success'
       );
@@ -980,8 +1019,31 @@ Please access the Samara Family Portal for detailed account information.`;
           category:form.category||form.transaction_type,
           description:String(form.description||'').trim()
         };
+        if(isPosEntry){
+          savedPaymentReceipt.payment_mode=form.pos_paid_by==='UPI on machine'?'UPI (HDFC swipe machine)':'Card (HDFC swipe machine)';
+          savedPaymentReceipt.reference=`${actualReference} / Appr. ${posApprovalClean}`;
+        }
         setLastPaymentReceipt(savedPaymentReceipt);
-        await sendPaymentReceiptWhatsAppApi(savedPaymentReceipt,{automatic:true});
+        if(isPosEntry&&posSlipId){
+          // receipt + PDF sent by the server to every family contact; if it cannot go now, the server retries by itself every few minutes
+          try{
+            const {data:{session}}=await client.auth.getSession();
+            const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session?.access_token||''}`},body:JSON.stringify({action:'pos_receipt',slip_id:posSlipId})});
+            const result=await response.json().catch(()=>({}));
+            if(response.ok&&result.success){
+              notify('success','Payment saved · WhatsApp receipt sent',`${money(amount)} by swipe machine (Voucher ${actualReference}). Receipt${result.pdf_note?'':' with PDF'} sent to ${result.sent||1} family contact(s); recorded in WhatsApp Inbox.`);
+              if(result.pdf_note)setMessage(result.pdf_note);
+            }else{
+              const t=result.error||result.receipt_error||'WhatsApp receipt could not be sent yet.';
+              setMessage(`Payment was saved successfully (Voucher ${actualReference}). WhatsApp receipt not sent yet: ${t}. The system will retry automatically.`);
+              notify('warning','Payment saved · receipt will retry',t);
+            }
+          }catch(receiptError){
+            setMessage(`Payment was saved successfully (Voucher ${actualReference}). The WhatsApp receipt will be sent automatically within a few minutes.`);
+          }
+        }else{
+          await sendPaymentReceiptWhatsAppApi(savedPaymentReceipt,{automatic:true});
+        }
       }
 
       const expectedBalance=
@@ -1307,7 +1369,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('label',null,'Payment Mode'),
             h('select',{value:form.payment_mode,onChange:e=>{const mode=e.target.value;setLastVoucherNo('');setForm({...form,payment_mode:mode,payment_reference:''})}},
               ['Cash','UPI','RTGS','Card Payment']
-                .map(option=>h('option',{key:option,value:option},option))
+                .map(option=>h('option',{key:option,value:option},option==='Card Payment'?'Card / UPI – HDFC swipe machine':option))
             )
           ),
           !['Charge','Discount'].includes(form.transaction_type)&&h('div',{className:'field'},
@@ -1330,6 +1392,23 @@ Please access the Samara Family Portal for detailed account information.`;
                 ?`${form.payment_mode==='Cash'?'Cash':'Card'} Voucher created: ${lastVoucherNo}`
                 :`${form.payment_mode} transaction will be posted only after the system creates its voucher number.`
             )
+          ),
+          isPosEntry&&h('div',{className:'field'},
+            h('label',null,'Paid on the swipe machine by'),
+            h('select',{value:form.pos_paid_by,onChange:e=>setForm({...form,pos_paid_by:e.target.value,pos_last4:''})},
+              h('option',{value:'Card'},'Card (tap / swipe / insert)'),
+              h('option',{value:'UPI on machine'},'UPI QR shown on the machine'))
+          ),
+          isPosEntry&&h('div',{className:'field'},
+            h('label',null,form.pos_paid_by==='UPI on machine'?'RRN on the slip *':'Approval Code on the slip *'),
+            h('input',{value:form.pos_approval,required:true,maxLength:16,autoComplete:'off',style:{textTransform:'uppercase'},
+              placeholder:form.pos_paid_by==='UPI on machine'?'e.g. 429512345678':'e.g. 123456 or A1B2C3',
+              onChange:e=>setForm({...form,pos_approval:e.target.value})}),
+            h('small',{className:'muted'},'Check the amount on the slip matches. The same slip cannot be entered twice. The WhatsApp receipt with PDF goes to the family automatically.')
+          ),
+          isPosEntry&&form.pos_paid_by==='Card'&&h('div',{className:'field'},
+            h('label',null,'Card last 4 digits (optional)'),
+            h('input',{value:form.pos_last4,inputMode:'numeric',maxLength:4,placeholder:'e.g. 4417',onChange:e=>setForm({...form,pos_last4:e.target.value.replace(/\D/g,'').slice(0,4)})})
           ),
           h('div',{className:'field span-2'},
             h('label',null,'Description'),
