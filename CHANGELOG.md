@@ -1,3 +1,11 @@
+## 2.18.66 — AUTOMATIC WhatsApp receipt for ALL Razorpay payments (Guest advance / outstanding too) (needs SQL 269 + Edge Function)
+- Until now only Outside Samara Nursing payments got the automatic receipt. Now **every Guest Razorpay payment** (Advance or Outstanding, by payment link or UPI QR) sends the family the WhatsApp receipt automatically — sent ONCE, logged in WhatsApp Inbox ("Payment Receipt · Online (automatic)").
+- Same message as the Accounts receipt (approved template samara_payment_receipt with Samara logo): amount, Guest, date (DD-MM-YYYY), Receipt No. = payment request no. / Razorpay payment id, mode Razorpay (Online). Receipt **PDF** attached (Samara logo, amount in figures and words, Advance / Outstanding, Razorpay payment id, Guest account after this payment: balance due / advance held) — via template samara_payment_receipt_pdf once Meta approves it, otherwise as a direct document inside WhatsApp's 24-hour window.
+- Sent to the family number used for the payment link (Family Portal primary contact first).
+- **Every 2 minutes** the server records Guest payments by itself (even if no one has the ERP open) and sends the receipt; failed sends retried after 10 minutes (3 tries).
+- Payments made before this version are marked "Before auto receipt" and never messaged — except PAY-EF9B336B55 (₹10,000 advance, 22-10-2026), whose missed receipt is sent once.
+- The GitHub copy of staff-payment-request is now the live code (the repo copy was out of date). Run supabase/sql/269_guest_payment_auto_receipt.sql, then deploy the Edge Function staff-payment-request. No app.js change.
+
 ## 2.18.65 — Outside nursing: receipt PDF attached to the automatic WhatsApp receipt (Edge Function + new template)
 - The automatic Razorpay receipt now carries a **PDF receipt** (Samara logo, receipt no. SNR-…, patient, invoice, amount in figures and words, Razorpay payment id, invoice total / received / balance), made on the server — same content as the ERP receipt.
 - Uses the new WhatsApp template **samara_payment_receipt_pdf** (Utility, Document header, same 6 values as samara_payment_receipt). Until Meta approves it: the approved receipt message is sent as now, and the PDF goes as a direct document when the family has written to Samara in the last 24 hours; otherwise the payment panel says "PDF not attached yet".
