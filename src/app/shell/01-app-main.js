@@ -11,6 +11,8 @@
       }
     };
     const [session,setSession]=React.useState(null);
+    // 2.18.69: phone opened from the laptop's "Scan with phone" QR (?pos_scan=…) — kept through sign-in.
+    const [posScanToken,setPosScanToken]=React.useState(()=>{try{return new URLSearchParams(window.location.search).get('pos_scan')||''}catch(_){return ''}});
     const [profile,setProfile]=React.useState(null);
     // 2.18.43: Nursing Manager "Switch to Nurse" — same login and employee record, nurse screens; manager alerts stay on.
     const NURSE_MODE_KEY='samara_nurse_mode_v1';
@@ -642,6 +644,7 @@
     if(recoveryMode&&session) return h(RecoveryPasswordChange,{onComplete:async()=>{setRecoveryMode(false);await client.auth.signOut();setAuthMessage('Password changed successfully. Please sign in with your new password.')}});
     if(!session) return h(Login,{externalMessage:authMessage,onClearMessage:()=>setAuthMessage('')});
     if(!profile) return h('div',{className:'loading'},'Loading your employee profile…');
+    if(posScanToken) return h(PosPhoneScanPage,{token:posScanToken,onExit:()=>{try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}setPosScanToken('');}});
     if(!dutyContext.ready)return h('div',{className:'loading'},
       dutyContext.error||'Verifying your current department duties…',
       dutyContext.error&&h('button',{className:'btn btn-primary',onClick:dutyContext.refresh},'Retry duty check'));

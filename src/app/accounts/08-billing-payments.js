@@ -116,7 +116,9 @@
     const posApprovalClean=String(form.pos_approval||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
     // 2.18.68: the payment comes from a live scan of the machine screen; typed slip details are Admin only.
     const [posScannerOpen,setPosScannerOpen]=React.useState(false);
+    const [posPhoneOpen,setPosPhoneOpen]=React.useState(false); // 2.18.69: Scan with phone (laptop shows QR)
     const posUseScan=isPosEntry&&!form.pos_typed;
+    function applyPosScan(res){setLastVoucherNo('');setForm(f=>({...f,pos_scan:res,amount:String(res.amount)}));notify('success','Machine screen verified',`₹${Number(res.amount).toLocaleString('en-IN',{minimumFractionDigits:2})} · ${res.paid_by==='UPI on machine'?'UPI':'Card'} · RRN ${res.rrn}. Select Payment / Advance and Save.`);}
 
 
 
@@ -1351,7 +1353,8 @@ Please access the Samara Family Portal for detailed account information.`;
           :'Accounts, Admin and Manager only'
       },
         h('form',{className:'payment-entry-grid',onSubmit:savePaymentAndPossiblyClose},
-          posScannerOpen&&h(PosScreenScanner,{onClose:()=>setPosScannerOpen(false),onVerified:res=>{setLastVoucherNo('');setForm(f=>({...f,pos_scan:res,amount:String(res.amount)}));notify('success','Machine screen verified',`₹${Number(res.amount).toLocaleString('en-IN',{minimumFractionDigits:2})} · ${res.paid_by==='UPI on machine'?'UPI':'Card'} · RRN ${res.rrn}. Select Payment / Advance and Save.`);}}),
+          posScannerOpen&&h(PosScreenScanner,{onClose:()=>setPosScannerOpen(false),onVerified:applyPosScan}),
+          posPhoneOpen&&h(PosPhoneHandoff,{onClose:()=>setPosPhoneOpen(false),onVerified:applyPosScan}),
           patientSearchFields('payment-entry'),
           h('div',{className:'field'},
             h('label',null,'Patient'),
@@ -1438,10 +1441,12 @@ Please access the Samara Family Portal for detailed account information.`;
               ?h('div',{style:{background:'linear-gradient(135deg,#fff5fa,#ffe3ef)',border:'1px solid #f3c4d9',borderRadius:'12px',padding:'10px 12px',color:'#5d1740'}},
                   h('div',{style:{fontWeight:800,color:'#16814d'}},`✓ Verified from the machine screen · ₹${Number(form.pos_scan.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}`),
                   h('div',{style:{fontSize:'13px'}},`${form.pos_scan.paid_by==='UPI on machine'?'UPI (QR on the machine)':'Card'+(form.pos_scan.card_last4?' ending '+form.pos_scan.card_last4:'')} · RRN ${form.pos_scan.rrn||'—'} · Txn ID ${form.pos_scan.transaction_id||'—'}`),
-                  h('button',{type:'button',className:'btn secondary',style:{marginTop:'6px'},onClick:()=>{setForm(f=>({...f,pos_scan:null,amount:''}));setPosScannerOpen(true);}},'Scan again'))
+                  h('button',{type:'button',className:'btn secondary',style:{marginTop:'6px'},onClick:()=>{setForm(f=>({...f,pos_scan:null,amount:''}));}},'Scan again'))
               :h('div',null,
-                  h('button',{type:'button',className:'btn',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>setPosScannerOpen(true)},'📷 Scan machine screen'),
-                  h('small',{className:'muted',style:{display:'block',marginTop:'4px'}},'After the machine shows TRANSACTION APPROVED, scan its screen. The amount and payment details are filled from the machine and checked; the WhatsApp receipt with PDF goes to the family automatically.')),
+                  h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+                    h('button',{type:'button',className:'btn',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>setPosScannerOpen(true)},'📷 Scan machine screen'),
+                    h('button',{type:'button',className:'btn secondary',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>setPosPhoneOpen(true)},'📱 Scan with phone')),
+                  h('small',{className:'muted',style:{display:'block',marginTop:'4px'}},'After the machine shows TRANSACTION APPROVED, scan its screen — with this device (📷), or from a laptop with your phone (📱 shows a QR to scan). The amount and payment details are filled from the machine and checked; the WhatsApp receipt with PDF goes to the family automatically.')),
             profile?.role==='Admin'&&h('button',{type:'button',className:'login-link-button',style:{marginTop:'6px',fontSize:'12px'},onClick:()=>setForm(f=>({...f,pos_typed:true,pos_scan:null}))},'Screen not available? Type slip details (Admin only)')
           ),
           isPosEntry&&form.pos_typed&&h('div',{className:'field span-2'},

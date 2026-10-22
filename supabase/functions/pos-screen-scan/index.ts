@@ -1,4 +1,6 @@
-// Samara Care ERP — Edge Function: pos-screen-scan · 1.0.0 · 22-10-2026 (ERP 2.18.68)
+// Samara Care ERP — Edge Function: pos-screen-scan · 1.1.0 · 22-10-2026 (ERP 2.18.69)
+// 1.1.0: "Scan with phone" — optional handoff_token (SQL 272): the laptop's one-time link; only its creator may use it,
+//        within 10 minutes, once. A VERIFIED scan is linked to it so it appears on the laptop.
 // Reads the HDFC swipe machine (Mosambee) screen captured live in the ERP camera and VERIFIES it on the server:
 //   screen 1 = "TRANSACTION APPROVED" (amount, merchant, date-time, RRN, Transaction ID, type, Processed by)
 //   screen 2 = "VIEW FULL SUMMARY"    (Sale Amount, UTR No, MID, TID)
@@ -117,6 +119,14 @@ Deno.serve(async (req) => {
     const imgs = (Array.isArray(body?.images) ? body.images : []).map((x: unknown) => String(x || "").replace(/^data:image\/jpeg;base64,/, ""));
     if (imgs.length !== 2 || imgs.some((x: string) => x.length < 2000)) return out({ error: "Both machine screens are needed: the APPROVED screen and the FULL SUMMARY screen." }, 400);
     if (imgs.reduce((n: number, x: string) => n + x.length, 0) > 8_000_000) return out({ error: "The pictures are too large. Please scan again." }, 413);
+    const handoffToken = s(body?.handoff_token, 80);
+    if (handoffToken) {
+      const { data: hf } = await admin.from("pos_scan_handoffs").select("id,created_by,expires_at,scan_id").eq("token", handoffToken).maybeSingle();
+      if (!hf) return out({ error: "This scan link is not valid. Click Scan with phone on the laptop again." }, 409);
+      if (hf.created_by !== prof.id) return out({ error: "This scan link belongs to another staff login. Sign in on the phone with the same ERP login as the laptop." }, 409);
+      if (hf.scan_id) return out({ error: "This scan link has already been used." }, 409);
+      if (new Date(hf.expires_at).getTime() < Date.now()) return out({ error: "This scan link has expired (10 minutes). Click Scan with phone on the laptop again." }, 409);
+    }
     const key = env("GEMINI_API_KEY"); if (!key) return out({ error: "The scan service is not configured." }, 503);
     const now = new Date();
     const parts = [{ text: "Photo 1:" }, { inlineData: { mimeType: "image/jpeg", data: imgs[0] } }, { text: "Photo 2:" }, { inlineData: { mimeType: "image/jpeg", data: imgs[1] } }];
@@ -181,9 +191,15 @@ Deno.serve(async (req) => {
     };
     const ins = await admin.from("pos_screen_scans").insert(row);
     if (ins.error) { console.error("pos-screen-scan insert", ins.error.message); return out({ error: "The scan could not be saved. Please try again." }, 500); }
+    let handedOff = false;
+    if (passed && handoffToken) {
+      const { data: linked } = await admin.from("pos_scan_handoffs").update({ scan_id: id, linked_at: new Date().toISOString() })
+        .eq("token", handoffToken).eq("created_by", prof.id).is("scan_id", null).gt("expires_at", new Date().toISOString()).select("id");
+      handedOff = !!linked?.length;
+    }
     console.log("pos-screen-scan", passed ? "verified" : "rejected", checks.filter((c) => !c.ok).map((c) => c.key).join(","), usedModel);
     return out({
-      success: true, verified: passed, scan_id: id, checks,
+      success: true, verified: passed, scan_id: id, checks, handed_off: handedOff,
       result: { amount: row.amount, paid_by: paidBy, rrn, transaction_id: txnId, approval_code: approval, card_last4: last4, utr, mid: row.mid, tid: row.tid,
         txn_time: row.txn_time, txn_text: s(p1.txn_datetime, 40), transaction_type: type },
     });

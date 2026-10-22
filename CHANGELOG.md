@@ -1,3 +1,9 @@
+## 2.18.69 — HDFC swipe machine: "Scan with phone" from the laptop (needs SQL 272 + Edge Function pos-screen-scan 1.1.0)
+- Beside **📷 Scan machine screen** there is now **📱 Scan with phone**. On the laptop it shows a QR; the staff member scans it with their phone, signs in there with the SAME ERP login if asked, and the phone opens straight into the machine-screen camera.
+- After the two machine screens are scanned and verified on the phone, the payment (amount, Card / UPI, RRN, Txn ID) appears **on the laptop by itself** within 2 seconds; Save there as usual. The phone shows "✓ Sent to the laptop".
+- The QR is one-time: only for the login that made it, valid 10 minutes, carries one verified scan. Opened by another login, expired or used → a clear message, nothing happens. All 2.18.68 checks apply unchanged.
+- Run supabase/sql/272_pos_scan_handoff.sql, deploy Edge Function pos-screen-scan (1.1.0), then publish the app.
+
 ## 2.18.68 — HDFC swipe machine: SCAN THE MACHINE SCREEN (no typing, no made-up codes) (needs SQL 271 + 2 Edge Functions)
 - **Payments → Card / UPI – HDFC swipe machine** now has a big **📷 Scan machine screen** button. The phone camera opens INSIDE the ERP (no gallery / no uploads, so old photos, screenshots or WhatsApp-forwarded pictures cannot be used) and captures by itself when the picture is steady:
   1. **TRANSACTION APPROVED** screen (amount, SAMARA, date-time, RRN, Transaction ID, BQR / card, Processed by HDFC)

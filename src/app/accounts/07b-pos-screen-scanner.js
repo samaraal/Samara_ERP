@@ -1,7 +1,7 @@
   // 2.18.68: HDFC swipe machine — scan the machine SCREEN live in the ERP camera (like QR reading; no uploads).
   // Step 1: TRANSACTION APPROVED screen · Step 2: VIEW FULL SUMMARY (MID / TID). Captures automatically when the
   // picture is steady; the server (pos-screen-scan) reads and checks everything. Only a passed scan can be saved.
-  function PosScreenScanner({onClose,onVerified}){
+  function PosScreenScanner({onClose,onVerified,handoffToken}){
     const videoRef=React.useRef(null),streamRef=React.useRef(null),smallRef=React.useRef(null),bigRef=React.useRef(null);
     const loopRef=React.useRef(null),stateRef=React.useRef({prev:null,stable:0,needChange:false,lastShot:0,step:1,shots:[]});
     const [error,setError]=React.useState(''),[ready,setReady]=React.useState(false);
@@ -57,7 +57,7 @@
       try{
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
-        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/pos-screen-scan`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({images})});
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/pos-screen-scan`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify(handoffToken?{images,handoff_token:handoffToken}:{images})});
         const j=await response.json().catch(()=>({}));
         if(!response.ok||j.success===false)throw new Error(j.error||'The machine screen could not be read. Please scan again.');
         setResult(j);setPhase('result');
@@ -109,8 +109,83 @@
             (result.checks||[]).map(c=>h('li',{key:c.key,style:{color:c.ok?'#16814d':'#b3261e',fontWeight:c.ok?400:700}},(c.ok?'✓ ':'✗ ')+c.text)))),
         h('div',{style:{display:'flex',gap:'8px',marginTop:'12px',justifyContent:'flex-end'}},
           h('button',{type:'button',className:'btn secondary',onClick:again},'Scan again'),
-          result?.verified&&h('button',{type:'button',className:'btn',onClick:()=>{onVerified({scan_id:result.scan_id,...r});onClose();}},'Use this payment')))
+          result?.verified&&h('button',{type:'button',className:'btn',onClick:()=>{onVerified({scan_id:result.scan_id,...r});onClose();}},handoffToken?'Done':'Use this payment')),
+        result?.verified&&handoffToken&&h('div',{className:'message success',style:{marginTop:'10px',fontSize:'15px'}},result.handed_off?'✓ Sent to the laptop. The amount now appears there — finish and Save on the laptop.':'Verified, but the laptop link had expired. Click Scan with phone on the laptop again.'))
       ,
       h('canvas',{ref:smallRef,style:{display:'none'}}),h('canvas',{ref:bigRef,style:{display:'none'}})
     ));
+  }
+
+  // 2.18.69: "Scan with phone" — the laptop shows a one-time QR (SQL 272); the same staff member scans it with the phone,
+  // scans the machine screen there, and the verified payment appears on the laptop by itself.
+  async function loadSamaraQr(){
+    if(window.SamaraQRCode)return window.SamaraQRCode;
+    await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.src='./vendor/qrcode.bundle.js';sc.onload=resolve;sc.onerror=()=>reject(new Error('QR generator could not be loaded.'));document.head.appendChild(sc)});
+    if(!window.SamaraQRCode)throw new Error('QR generator is unavailable.');
+    return window.SamaraQRCode;
+  }
+  function PosPhoneHandoff({onClose,onVerified}){
+    const [qr,setQr]=React.useState(''),[error,setError]=React.useState(''),[left,setLeft]=React.useState(600),[status,setStatus]=React.useState('Preparing…');
+    const handoffRef=React.useRef(null),timerRef=React.useRef(null),doneRef=React.useRef(false);
+    React.useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        try{
+          const {data,error:e}=await client.rpc('create_pos_scan_handoff');
+          if(e)throw new Error(e.message);
+          const row=Array.isArray(data)?data[0]:data;if(!row?.token)throw new Error('Scan link could not be created.');
+          handoffRef.current=row;
+          const link=`${location.origin}${location.pathname}?pos_scan=${row.token}`;
+          const lib=await loadSamaraQr();
+          if(cancelled)return;
+          setQr(lib.toDataURL(link,{errorCorrectionLevel:'M',size:300,margin:3}));setStatus('Waiting for the phone…');
+          const expires=new Date(row.expires_at).getTime();
+          timerRef.current=setInterval(async()=>{
+            const sec=Math.max(0,Math.round((expires-Date.now())/1000));setLeft(sec);
+            if(sec<=0){clearInterval(timerRef.current);setStatus('This QR has expired. Close and click Scan with phone again.');return;}
+            if(doneRef.current)return;
+            const {data:hf}=await client.from('pos_scan_handoffs').select('scan_id').eq('id',row.id).maybeSingle();
+            if(hf?.scan_id&&!doneRef.current){
+              doneRef.current=true;clearInterval(timerRef.current);
+              const {data:sc,error:se}=await client.from('pos_screen_scans').select('id,status,amount,paid_by,rrn,transaction_id,approval_code,card_last4,utr,mid,tid,txn_time').eq('id',hf.scan_id).maybeSingle();
+              if(se||!sc||sc.status!=='Verified'){setError(se?.message||'The scan could not be loaded. Close and try again.');return;}
+              onVerified({scan_id:sc.id,amount:Number(sc.amount),paid_by:sc.paid_by,rrn:sc.rrn,transaction_id:sc.transaction_id,approval_code:sc.approval_code,card_last4:sc.card_last4,utr:sc.utr,mid:sc.mid,tid:sc.tid,txn_time:sc.txn_time});
+              onClose();
+            }
+          },2000);
+        }catch(e){setError(e.message||String(e));}
+      })();
+      return()=>{cancelled=true;if(timerRef.current)clearInterval(timerRef.current);};
+    },[]);
+    const mm=String(Math.floor(left/60)),ss=String(left%60).padStart(2,'0');
+    return h('div',{className:'modal-backdrop'},h('div',{className:'card modal',style:{maxWidth:'460px',textAlign:'center'}},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Scan with phone'),h('small',null,'The phone is used only as the camera')),h('button',{type:'button',className:'close',onClick:onClose},'×')),
+      error&&h('div',{className:'message error'},error),
+      h('ol',{style:{textAlign:'left',fontSize:'14px',color:'#5d1740',lineHeight:1.6,margin:'0 0 10px 18px',padding:0}},
+        h('li',null,'Open the phone camera (or Google Lens) and scan this QR.'),
+        h('li',null,'Sign in on the phone with your OWN ERP login (the same as this laptop), if asked.'),
+        h('li',null,'Scan the machine: TRANSACTION APPROVED, then VIEW FULL SUMMARY.'),
+        h('li',null,'The verified amount appears here by itself — then Save here.')),
+      qr?h('img',{src:qr,alt:'Scan with phone QR',style:{width:'260px',height:'260px',border:'1px solid #f3c4d9',borderRadius:'12px'}}):h('div',{style:{padding:'40px'}},'Preparing QR…'),
+      h('div',{style:{marginTop:'8px',fontWeight:700,color:'#b01867'}},status),
+      qr&&left>0&&h('small',{className:'muted'},`QR works for ${mm}:${ss} more · one scan only · only for your login`)
+    ));
+  }
+  // Phone side: opened from the laptop's QR (?pos_scan=…). Shows only the scanner, then "Sent to the laptop".
+  function PosPhoneScanPage({token,onExit}){
+    const [state,setState]=React.useState('checking'),[done,setDone]=React.useState(false);
+    React.useEffect(()=>{(async()=>{
+      try{const {data,error}=await client.rpc('check_pos_scan_handoff',{p_token:token});setState(error?'error':String(data||'error'));}catch(_){setState('error');}
+    })();},[token]);
+    const msg={not_found:'This scan link is not valid. Click Scan with phone on the laptop again.',other_user:'This QR was made on the laptop by another staff login. Sign out here and sign in with the same ERP login as the laptop.',used:'This QR has already been used. Click Scan with phone on the laptop again for a new payment.',expired:'This QR has expired (10 minutes). Click Scan with phone on the laptop again.',error:'The scan link could not be checked. Check the internet and open the QR again.'};
+    const page={minHeight:'100vh',background:'linear-gradient(160deg,#fff5fa,#ffd6e7)',padding:'16px',boxSizing:'border-box'};
+    if(done)return h('div',{style:page},h('div',{className:'card',style:{textAlign:'center',padding:'28px'}},
+      h('div',{style:{fontSize:'40px'}},'✓'),h('h2',{style:{color:'#16814d'}},'Sent to the laptop'),
+      h('p',null,'The verified payment is now on the laptop. Finish and Save there. You can close this page.'),
+      h('button',{type:'button',className:'btn secondary',onClick:onExit},'Open the ERP on this phone')));
+    if(state==='ok')return h('div',{style:page},h(PosScreenScanner,{handoffToken:token,onClose:()=>{},onVerified:()=>setDone(true)}));
+    return h('div',{style:page},h('div',{className:'card',style:{textAlign:'center',padding:'24px'}},
+      h('h3',{style:{color:'#b01867'}},'Scan with phone'),
+      h('p',null,state==='checking'?'Checking the scan link…':(msg[state]||msg.error)),
+      state!=='checking'&&h('button',{type:'button',className:'btn secondary',onClick:onExit},'Open the ERP')));
   }

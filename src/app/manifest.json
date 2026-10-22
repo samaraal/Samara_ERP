@@ -164,7 +164,7 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 788
+   "lines": 873
   },
   {
    "file": "shell/02-login-password.js",
@@ -428,12 +428,12 @@
   {
    "file": "accounts/07b-pos-screen-scanner.js",
    "about": "HDFC swipe machine screen scanner (live camera, auto-capture)",
-   "lines": 116
+   "lines": 191
   },
   {
    "file": "accounts/08-billing-payments.js",
    "about": "Billing & payments",
-   "lines": 1555
+   "lines": 1560
   },
   {
    "file": "stores/store-authority-items.js",
