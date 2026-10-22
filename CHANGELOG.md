@@ -1,3 +1,11 @@
+## 2.18.70 — Swipe machine scan reads like a QR scanner, closes and enters by itself (Edge Function pos-screen-scan 1.2.0)
+- Fix: the camera kept waiting ("scan keeps continuing") because it captured only when the picture was perfectly still. Now the live picture is read every 1–2 seconds; the **TRANSACTION APPROVED** and **FULL SUMMARY** screens are recognised by themselves (any order), each ticks ✓ with a short vibration.
+- When both are read the full check runs; if verified the scanner **closes by itself** and the payment is filled in — no buttons. If the Guest is already selected (Payment / Advance), the payment is **saved automatically** (ledger + WhatsApp receipt with PDF). With Scan with phone, the phone shows "Sent to the laptop" and the laptop saves.
+- A declined screen is shown as "cannot be recorded"; after 25 s a tip appears (distance, glare). Failed checks still show ✗ with Scan again.
+- Fix: the × (close) on the phone scan page did nothing visible — now it closes the camera and offers Scan again / Open the ERP.
+- The **உதவி / Help** button can be **dragged** anywhere (tap still opens Help; the place is remembered on each device), and it hides while the swipe-machine camera is open, so it no longer covers buttons.
+- Deploy Edge Function pos-screen-scan (1.2.0), then publish the app. No SQL.
+
 ## 2.18.69 — HDFC swipe machine: "Scan with phone" from the laptop (needs SQL 272 + Edge Function pos-screen-scan 1.1.0)
 - Beside **📷 Scan machine screen** there is now **📱 Scan with phone**. On the laptop it shows a QR; the staff member scans it with their phone, signs in there with the SAME ERP login if asked, and the phone opens straight into the machine-screen camera.
 - After the two machine screens are scanned and verified on the phone, the payment (amount, Card / UPI, RRN, Txn ID) appears **on the laptop by itself** within 2 seconds; Save there as usual. The phone shows "✓ Sent to the laptop".

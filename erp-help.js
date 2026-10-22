@@ -54,7 +54,21 @@ var root,btn,panel,msgs,input,shotBox,micBtn,pageChip,logBtn;
 function build(){
  root=el('div','sh-root');
  btn=el('button','sh-launch');btn.type='button';btn.setAttribute('aria-label','Samara Help — உதவி');btn.innerHTML='<span class="sh-launch-ic" aria-hidden="true">💬</span><span class="sh-launch-tx">'+esc(T.open)+'</span><span class="sh-launch-short">உதவி</span>';
- btn.onclick=toggle;
+ // 2.18.70: the Help button can be dragged anywhere (it was hiding buttons); a tap still opens Help; the place is remembered per device.
+ (function(){
+  var KEY='samara_help_btn_pos',sx=0,sy=0,ox=0,oy=0,dragging=false,moved=false,pid=null;
+  function clamp(x,y){var w=btn.offsetWidth||120,h=btn.offsetHeight||50;return [Math.max(4,Math.min(window.innerWidth-w-4,x)),Math.max(4,Math.min(window.innerHeight-h-4,y))];}
+  function place(x,y){var c=clamp(x,y);btn.style.left=c[0]+'px';btn.style.top=c[1]+'px';btn.style.right='auto';btn.style.bottom='auto';return c;}
+  try{var saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved&&isFinite(saved.x)&&isFinite(saved.y))setTimeout(function(){place(saved.x,saved.y);},0);}catch(_){}
+  btn.style.touchAction='none';
+  btn.addEventListener('pointerdown',function(e){if(e.button!==undefined&&e.button!==0)return;var r=btn.getBoundingClientRect();sx=e.clientX;sy=e.clientY;ox=r.left;oy=r.top;dragging=true;moved=false;pid=e.pointerId;try{btn.setPointerCapture(pid);}catch(_){}});
+  btn.addEventListener('pointermove',function(e){if(!dragging)return;var dx=e.clientX-sx,dy=e.clientY-sy;if(!moved&&Math.abs(dx)+Math.abs(dy)<8)return;moved=true;btn.style.cursor='grabbing';place(ox+dx,oy+dy);e.preventDefault();});
+  function end(){if(!dragging)return;dragging=false;btn.style.cursor='';try{btn.releasePointerCapture(pid);}catch(_){}if(moved){var r=btn.getBoundingClientRect();try{localStorage.setItem(KEY,JSON.stringify({x:r.left,y:r.top}));}catch(_){}}}
+  btn.addEventListener('pointerup',end);btn.addEventListener('pointercancel',end);
+  btn.addEventListener('click',function(e){if(moved){e.preventDefault();e.stopPropagation();moved=false;return;}toggle();});
+  window.addEventListener('resize',function(){if(btn.style.left){var r=btn.getBoundingClientRect();place(r.left,r.top);}});
+  btn.title='உதவி / Help — tap to open, drag to move';
+ })();
  panel=el('section','sh-panel');panel.setAttribute('role','dialog');panel.setAttribute('aria-label',T.title);panel.hidden=true;
  panel.innerHTML='<header class="sh-head"><img class="sh-logo" src="./assets/samara-help-logo.png?v=2.14.84" alt="Samara" width="92" height="48"><div class="sh-title"><strong>'+esc(T.title)+'</strong><small>'+esc(T.sub)+'</small></div><button type="button" class="sh-log-btn" hidden title="Staff questions" aria-label="Staff questions"><span class="sh-log-ic">📋</span><span class="sh-log-tx">Staff questions</span></button><button type="button" class="sh-size" aria-label="'+esc(T.bigger)+'" title="'+esc(T.bigger)+'">⤢</button><button type="button" class="sh-x" aria-label="Close">×</button></header>'+
   '<div class="sh-page"></div><div class="sh-msgs" aria-live="polite"></div><div class="sh-shot" hidden></div>'+

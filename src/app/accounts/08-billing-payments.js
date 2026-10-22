@@ -118,7 +118,23 @@
     const [posScannerOpen,setPosScannerOpen]=React.useState(false);
     const [posPhoneOpen,setPosPhoneOpen]=React.useState(false); // 2.18.69: Scan with phone (laptop shows QR)
     const posUseScan=isPosEntry&&!form.pos_typed;
-    function applyPosScan(res){setLastVoucherNo('');setForm(f=>({...f,pos_scan:res,amount:String(res.amount)}));notify('success','Machine screen verified',`₹${Number(res.amount).toLocaleString('en-IN',{minimumFractionDigits:2})} · ${res.paid_by==='UPI on machine'?'UPI':'Card'} · RRN ${res.rrn}. Select Payment / Advance and Save.`);}
+    // 2.18.70: verified scan → amount filled; if the Guest is already selected the payment is SAVED automatically.
+    const posAutoSaveRef=React.useRef(false);
+    const posFormRef=React.useRef(form);posFormRef.current=form; // latest form even inside the phone-scan waiting window
+    function applyPosScan(res){
+      setLastVoucherNo('');
+      const cur=posFormRef.current;
+      const autoSave=!!cur.patient_id&&['Payment','Advance'].includes(cur.transaction_type)&&cur.payment_mode==='Card Payment';
+      posAutoSaveRef.current=autoSave;
+      setForm(f=>({...f,pos_scan:res,amount:String(res.amount)}));
+      notify('success','Machine screen verified',`₹${Number(res.amount).toLocaleString('en-IN',{minimumFractionDigits:2})} · ${res.paid_by==='UPI on machine'?'UPI':'Card'} · RRN ${res.rrn}. ${autoSave?'Saving the payment automatically…':'Select the Guest and Save.'}`);
+    }
+    React.useEffect(()=>{
+      if(posAutoSaveRef.current&&form.pos_scan?.scan_id&&Number(form.amount)===Number(form.pos_scan.amount)&&!saving){
+        posAutoSaveRef.current=false;
+        savePaymentAndPossiblyClose({preventDefault(){}});
+      }
+    },[form.pos_scan,form.amount]);
 
 
 
