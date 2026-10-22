@@ -71,7 +71,7 @@
     const [editTarget,setEditTarget]=React.useState(null),[editForm,setEditForm]=React.useState(null),[editBusy,setEditBusy]=React.useState(false),[editMsg,setEditMsg]=React.useState('');
     const [editFamilyAccess,setEditFamilyAccess]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',country_code:'+91',mobile:'',email:'',primary_contact:true,is_active:true});
     const [editFamilyAccess2,setEditFamilyAccess2]=React.useState({enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',country_code:'+91',mobile:'',email:'',primary_contact:false,is_active:true});
-    const [editDailyWhatsApp,setEditDailyWhatsApp]=React.useState({enabled:false,recipient_name:'',relationship:'',mobile:'',email:'',daily_report_time:'20:00'});
+    const [editDailyWhatsApp,setEditDailyWhatsApp]=React.useState({enabled:false,recipient_name:'',relationship:'',mobile:'',email:'',daily_report_time:'20:00',doctor_enabled:false,doctor_name:'',doctor_mobile:''});
     const [editFamilyCredential,setEditFamilyCredential]=React.useState(null);
     const [editFamilyCredential2,setEditFamilyCredential2]=React.useState(null);
     const [familyResetBusy,setFamilyResetBusy]=React.useState(null);
@@ -628,7 +628,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       const secondaryPhone=splitGlobalPhone(secondaryFamily?.mobile||row.attendant_alternative_phone||'');
       setEditFamilyAccess(primaryFamily?{enabled:true,...primaryFamily,...primaryPhone}:{enabled:false,id:null,family_user_id:'',relative_name:row.attendant_name||'',relationship:'',...primaryPhone,email:'',primary_contact:true,is_active:true});
       setEditFamilyAccess2(secondaryFamily?{enabled:true,...secondaryFamily,...secondaryPhone,primary_contact:false}:{enabled:false,id:null,family_user_id:'',relative_name:'',relationship:'',...secondaryPhone,email:'',primary_contact:false,is_active:true});
-      setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:keepFamilyMobile(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||''),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5)});
+      setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:keepFamilyMobile(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||''),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5),doctor_enabled:!!existingComm?.doctor_report_enabled,doctor_name:existingComm?.doctor_recipient_name||row.treating_doctor||row.referring_doctor||'',doctor_mobile:keepFamilyMobile(existingComm?.doctor_recipient_mobile||row.doctor_phone||'')});
       setEditFamilyCredential(null);setEditFamilyCredential2(null);
       setEditMeds(currentUpcomingMedicineOrders(existingMeds||[]).map(m=>({...blankMedicine(),...m,times:Array.isArray(m.scheduled_times)?m.scheduled_times.join(', '):(m.times||''),custom_duration_days:m.duration_days||''})));
       setEditCare((existingCare||[]).filter(isCareOnlyOrder).map(c=>({...blankCare(),...c}))); // 2.18.26: planned Nursing Procedures are edited in the patient file → Nursing, not here
@@ -774,7 +774,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       if(active&&!recipientName)throw new Error('Enter the authorised family member name for family communication.');
       if(active&&!mobile)throw new Error('Enter a valid family WhatsApp number.');
       if(dailyEnabled&&!String(editDailyWhatsApp.daily_report_time||'').trim())throw new Error('Select the Daily Patient Report WhatsApp time.');
-      const payload={patient_id:editTarget.id,delivery_mode:mode,family_portal_enabled:portalEnabled,daily_whatsapp_enabled:dailyEnabled,recipient_name:recipientName||'Family Member',relationship:relationship||null,recipient_mobile:mobile,recipient_email:String(editDailyWhatsApp.email||editFamilyAccess.email||'').trim()||null,daily_report_time:dailyEnabled?(editDailyWhatsApp.daily_report_time||'20:00'):null,timezone:'Asia/Kolkata',is_active:active,updated_at:new Date().toISOString()};
+      if(editDailyWhatsApp.doctor_enabled){const doctorName=String(editDailyWhatsApp.doctor_name||'').trim(),doctorMobile=keepFamilyMobile(editDailyWhatsApp.doctor_mobile);if(!doctorName)throw new Error('Enter the doctor name to enable doctor delivery.');const issue=!doctorMobile?'Enter the doctor WhatsApp number.':(window.SamaraGuestAddress?window.SamaraGuestAddress.phoneProblem(editDailyWhatsApp.doctor_mobile,'Doctor WhatsApp number'):(doctorMobile.length===10?'':'Enter a valid 10-digit doctor WhatsApp number.'));if(issue)throw new Error(issue)}
+      const payload={patient_id:editTarget.id,delivery_mode:mode,family_portal_enabled:portalEnabled,daily_whatsapp_enabled:dailyEnabled,recipient_name:recipientName||'Family Member',relationship:relationship||null,recipient_mobile:mobile,recipient_email:String(editDailyWhatsApp.email||editFamilyAccess.email||'').trim()||null,daily_report_time:dailyEnabled?(editDailyWhatsApp.daily_report_time||'20:00'):null,doctor_report_enabled:!!editDailyWhatsApp.doctor_enabled,doctor_recipient_name:String(editDailyWhatsApp.doctor_name||'').trim()||null,doctor_recipient_mobile:editDailyWhatsApp.doctor_enabled?keepFamilyMobile(editDailyWhatsApp.doctor_mobile)||null:null,timezone:'Asia/Kolkata',is_active:active,updated_at:new Date().toISOString()};
       const {data,error}=await client.from('patient_family_communication_preferences').upsert(payload,{onConflict:'patient_id'}).select().single();if(error)throw error;return data;
     }
 
@@ -816,13 +817,23 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         recipient_name:pref.recipient_name||family?.relative_name||row?.attendant_name||'',
         relationship:pref.relationship||family?.relationship||'',
         mobile:keepFamilyMobile(pref.recipient_mobile||family?.mobile||row?.attendant_phone||''),
-        daily_report_time:String(pref.daily_report_time||'20:00').slice(0,5)
+        daily_report_time:String(pref.daily_report_time||'20:00').slice(0,5),
+        doctor_enabled:!!pref.doctor_report_enabled,
+        doctor_name:pref.doctor_recipient_name||row?.treating_doctor||row?.referring_doctor||'',
+        doctor_mobile:keepFamilyMobile(pref.doctor_recipient_mobile||row?.doctor_phone||'')
       });
     }
 
     async function saveDailyReportQuickEdit(e){
       e.preventDefault();
       if(!selected?.id||!dailyQuickEdit)return;
+      const doctorName=String(dailyQuickEdit.doctor_name||'').trim();
+      const doctorMobile=keepFamilyMobile(dailyQuickEdit.doctor_mobile);
+      if(dailyQuickEdit.doctor_enabled){
+        if(!doctorName){setDailyQuickEditMsg('Enter the doctor name to enable doctor delivery.');return;}
+        const issue=!doctorMobile?'Enter the doctor WhatsApp number.':(window.SamaraGuestAddress?window.SamaraGuestAddress.phoneProblem(dailyQuickEdit.doctor_mobile,'Doctor WhatsApp number'):(doctorMobile.length===10?'':'Enter a valid 10-digit doctor WhatsApp number.'));
+        if(issue){setDailyQuickEditMsg(issue);return;}
+      }
       const recipientName=String(dailyQuickEdit.recipient_name||'').trim();
       const mobile=keepFamilyMobile(dailyQuickEdit.mobile);
       const time=String(dailyQuickEdit.daily_report_time||'').trim();
@@ -844,6 +855,9 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           recipient_mobile:mobile,
           recipient_email:pref.recipient_email||null,
           daily_report_time:dailyEnabled?time:null,
+          doctor_report_enabled:!!dailyQuickEdit.doctor_enabled,
+          doctor_recipient_name:dailyQuickEdit.doctor_enabled?doctorName:null,
+          doctor_recipient_mobile:dailyQuickEdit.doctor_enabled?doctorMobile:null,
           timezone:pref.timezone||'Asia/Kolkata',
           is_active:portalEnabled||dailyEnabled,
           updated_at:new Date().toISOString()
@@ -2783,7 +2797,12 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
             h('div',{className:'field'},h('label',null,'Authorised Recipient Name'),h('input',{required:true,value:dailyQuickEdit.recipient_name||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,recipient_name:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Relationship'),h('input',{value:dailyQuickEdit.relationship||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,relationship:e.target.value})})),
             familyWhatsAppInput(dailyQuickEdit.mobile,v=>setDailyQuickEdit({...dailyQuickEdit,mobile:v})),
-            h('div',{className:'field'},h('label',null,'Daily Report Time'),h('input',{type:'time',step:'300',required:true,value:dailyQuickEdit.daily_report_time||'20:00',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,daily_report_time:e.target.value})}))
+            h('div',{className:'field'},h('label',null,'Daily Report Time'),h('input',{type:'time',step:'300',required:true,value:dailyQuickEdit.daily_report_time||'20:00',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,daily_report_time:e.target.value})})),
+            h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!dailyQuickEdit.doctor_enabled,onChange:e=>setDailyQuickEdit({...dailyQuickEdit,doctor_enabled:e.target.checked})}),h('span',null,'Also send the full daily report PDF to the resident’s doctor by WhatsApp (optional; off by default).')),
+            dailyQuickEdit.doctor_enabled&&h('div',{className:'form-grid span-2'},
+              h('div',{className:'field'},h('label',null,'Doctor Name'),h('input',{required:true,value:dailyQuickEdit.doctor_name||'',onChange:e=>setDailyQuickEdit({...dailyQuickEdit,doctor_name:e.target.value})})),
+              familyWhatsAppInput(dailyQuickEdit.doctor_mobile,v=>setDailyQuickEdit({...dailyQuickEdit,doctor_mobile:v}))
+            )
           ),
           h('div',{className:'modal-bottom-actions'},
             h('button',{type:'button',className:'btn btn-secondary',disabled:dailyQuickEditBusy,onClick:()=>setDailyQuickEdit(null)},'Close'),
@@ -2855,7 +2874,12 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
             h('div',{className:'field'},h('label',null,'Relationship'),h('input',{value:editDailyWhatsApp.relationship||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,relationship:e.target.value})})),
             familyWhatsAppInput(editDailyWhatsApp.mobile,v=>setEditDailyWhatsApp({...editDailyWhatsApp,mobile:v})),
             h('div',{className:'field'},h('label',null,'Daily Report Time'),h('input',{type:'time',step:'300',required:true,value:editDailyWhatsApp.daily_report_time||'20:00',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,daily_report_time:e.target.value})})),
-            h('div',{className:'field span-2'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editDailyWhatsApp.email||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,email:e.target.value})}))
+            h('div',{className:'field span-2'},h('label',null,'Email (optional)'),h('input',{type:'email',value:editDailyWhatsApp.email||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,email:e.target.value})})),
+            h('label',{className:'check-card span-2'},h('input',{type:'checkbox',checked:!!editDailyWhatsApp.doctor_enabled,onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,doctor_enabled:e.target.checked})}),h('span',null,'Also send the full daily report PDF to the resident’s doctor by WhatsApp (optional; off by default).')),
+            editDailyWhatsApp.doctor_enabled&&h('div',{className:'form-grid span-2'},
+              h('div',{className:'field'},h('label',null,'Doctor Name'),h('input',{required:true,value:editDailyWhatsApp.doctor_name||'',onChange:e=>setEditDailyWhatsApp({...editDailyWhatsApp,doctor_name:e.target.value})})),
+              familyWhatsAppInput(editDailyWhatsApp.doctor_mobile,v=>setEditDailyWhatsApp({...editDailyWhatsApp,doctor_mobile:v}))
+            )
           )
         ),
         h('div',{className:'section-card medication-history-lock'},
