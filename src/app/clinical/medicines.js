@@ -71,6 +71,7 @@
     const [reviewBusy,setReviewBusy]=React.useState(false);
     const [reviewMessage,setReviewMessage]=React.useState('');
     const [reviewFile,setReviewFile]=React.useState(null);
+    const [reviewScan,setReviewScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
     const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
     const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
@@ -125,7 +126,7 @@
     function openMedicationReview(patientId=''){
       if(!canReviseMedication)return;
       const nowValue=localDateTimeValue();
-      setReviewMessage('');setReviewFile(null);
+      setReviewMessage('');setReviewFile(null);setReviewScan({busy:false,status:'',tone:'',metas:[],notes:[]});
       setReviewForm({patient_id:patientId,reviewed_at:nowValue,doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:nowValue,clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
       setReviewOpen(true);
       if(patientId)setTimeout(()=>initializeReviewPatient(patientId),0);
@@ -179,6 +180,33 @@
       const uploaded=await client.storage.from('patient-documents').upload(path,reviewFile,{contentType:reviewFile.type||undefined});
       if(uploaded.error)throw uploaded.error;
       return {path,name:reviewFile.name};
+    }
+    async function scanReviewPrescription(){
+      if(!reviewForm.patient_id)return setReviewScan(s=>({...s,tone:'error',status:'Select the patient before reading the prescription.'}));
+      if(!reviewFile)return setReviewScan(s=>({...s,tone:'error',status:'Choose the doctor’s prescription first.'}));
+      setReviewScan({busy:true,status:'Opening the prescription…',tone:'',metas:[],notes:[]});
+      try{
+        const reading=await SAMARA_SCAN.withTimer(t=>setReviewScan(s=>({...s,status:t})), 'Reading doctor’s prescription…',()=>SAMARA_SCAN.readPrescription([reviewFile]));
+        const {rows,metas,notes}=SAMARA_SCAN.prescriptionToMedicines(reading,[]);
+        if(!rows.length)throw new Error('No medicines could be read. Use a clearer image or enter the changes manually.');
+        setReviewForm(current=>{
+          const prior=current.changes||[],used=new Set(),mapped=rows.map(scanned=>{
+            const clean=SAMARA_SCAN.baseName(scanned.medicine_name);
+            const matchIndex=prior.findIndex((row,index)=>!used.has(index)&&clean&&SAMARA_SCAN.baseName(row.medicine_name)===clean);
+            const match=matchIndex>=0?prior[matchIndex]:null;if(match)used.add(matchIndex);
+            return {...(match||blankReviewMedicine('Add')),...scanned,client_id:match?.client_id||`scan-${Date.now()}-${Math.random()}`,
+              route:scanned.route==='Subcutaneous'?'SC':scanned.route,
+              action:match?.original_order_id?'Modify':'Add',original_order_id:match?.original_order_id||null,
+              change_note:match?.change_note||'',effective_from:match?.effective_from||''};
+          });
+          const remaining=prior.filter((_,index)=>!used.has(index));
+          return {...current,changes:[...mapped,...remaining]};
+        });
+        const failed=reading.failed.length?` Page ${reading.failed.join(', ')} could not be read (${reading.failReason}).`:'';
+        const missing=rows.reduce((n,row)=>n+(row.scan?.flags?.length||0),0);
+        setReviewScan({busy:false,tone:failed?'error':'ok',metas,notes,
+          status:`${rows.length} medicine(s) read into Medication Changes. Matching current medicines are marked Modify; unmatched current medicines stay unchanged, and new medicines are marked Add. Verify every field against the prescription${missing?` — ${missing} field warning(s) need attention`:''}.${failed}`});
+      }catch(error){setReviewScan(s=>({...s,busy:false,tone:'error',status:error.message||'Could not read the prescription.'}))}
     }
     // Editable fields of a new / modified medicine (used in the review list and in the Add New Medicine popup).
     function reviewMedicineFields(row,patch){
@@ -980,7 +1008,7 @@
           reviewMessage&&h('div',{className:'message error'},reviewMessage),
           h('div',{className:'message',style:{marginBottom:'12px'}},'Effective-time safety: doses scheduled before the new order takes effect remain under the previous prescription. Doses at or after the effective time follow the revised prescription.'),
           h('div',{className:'modal-grid'},
-            h('div',{className:'field span-2'},h('label',null,'Patient'),h('select',{required:true,value:reviewForm.patient_id,onChange:e=>initializeReviewPatient(e.target.value)},h('option',{value:''},'Select patient'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'} · Room ${p.room_no||'—'}`)))),
+            h('div',{className:'field span-2'},h('label',null,'Patient'),h('select',{required:true,value:reviewForm.patient_id,onChange:e=>{setReviewFile(null);setReviewScan({busy:false,status:'',tone:'',metas:[],notes:[]});initializeReviewPatient(e.target.value)}},h('option',{value:''},'Select patient'),state.patients.filter(p=>p.is_active!==false).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)||p.full_name} · ${p.patient_id||'No ID'} · Room ${p.room_no||'—'}`)))),
             h('div',{className:'field'},h('label',null,'Doctor Review Date & Time'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(),value:reviewForm.reviewed_at,onChange:e=>setReviewForm({...reviewForm,reviewed_at:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Effective From Date & Time (default for all changes)'),h('input',{type:'datetime-local',required:true,max:localDateTimeValue(new Date(Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)),value:reviewForm.effective_from,onChange:e=>setReviewForm({...reviewForm,effective_from:e.target.value})}),
               (()=>{const t=new Date(reviewForm.effective_from).getTime();return Number.isFinite(t)&&t>Date.now()+60000?h('small',{style:{display:'block',marginTop:'4px',color:'#7a1247',fontWeight:700}},`Future start: the new order begins ${fmt(new Date(t).toISOString())}. The current prescription continues until then.`):null})()),
@@ -988,7 +1016,12 @@
             h('div',{className:'field'},h('label',null,'Doctor Contact'),h('input',{value:reviewForm.doctor_contact,onChange:e=>setReviewForm({...reviewForm,doctor_contact:e.target.value})})),
             h('div',{className:'field'},h('label',null,'Review Type'),h('select',{value:reviewForm.review_type,onChange:e=>setReviewForm({...reviewForm,review_type:e.target.value})},['Routine Doctor Review','Specialist Review','Hospital Review / Discharge Advice','Emergency Review','Other'].map(x=>h('option',{key:x,value:x},x)))),
             h('div',{className:'field'},h('label',null,'Order Source'),h('select',{value:reviewForm.order_mode,onChange:e=>setReviewForm({...reviewForm,order_mode:e.target.value})},['Written Prescription','Telephone Order','Verbal Order'].map(x=>h('option',{key:x,value:x},x)))),
-            reviewForm.order_mode==='Written Prescription'?h('div',{className:'field span-2'},h('label',null,'Upload Doctor Prescription / Order (mandatory)'),h('input',{type:'file',accept:'image/*,.pdf',required:true,onChange:e=>setReviewFile(e.target.files?.[0]||null)}),reviewFile&&h('small',null,reviewFile.name)):h(React.Fragment,null,
+            reviewForm.order_mode==='Written Prescription'?h('div',{className:'field span-2'},h('label',null,'Upload Doctor Prescription / Order (mandatory)'),h('input',{type:'file',accept:'image/*,.pdf',required:true,onChange:e=>{setReviewFile(e.target.files?.[0]||null);setReviewScan({busy:false,status:'',tone:'',metas:[],notes:[]})}}),reviewFile&&h('small',null,reviewFile.name),
+              h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap',marginTop:'8px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:reviewScan.busy||!reviewFile||!reviewForm.patient_id,onClick:scanReviewPrescription},reviewScan.busy?'Reading…':'✨ Read & Fill Medication Changes'),h('small',{className:'small-note'},'AI suggestions must be checked against the doctor’s prescription before applying.')),
+              reviewScan.status&&h('div',{role:'status',style:{...SAMARA_SCAN.noteStyle(reviewScan.tone),marginTop:'8px'}},reviewScan.status),
+              reviewScan.metas.filter(x=>x.doctor||x.hospital||x.date||x.patient||x.poor).map((x,i)=>h('small',{key:`review-scan-meta-${i}`,className:'small-note',style:{display:'block',marginTop:'4px'}},`Prescription details${x.page?` · page ${x.page}`:''}: ${[x.patient&&`Patient: ${x.patient}`,x.doctor&&`Doctor: ${x.doctor}`,x.hospital&&`Hospital: ${x.hospital}`,x.date&&`Date: ${x.date}`,x.poor&&'Image quality: poor'].filter(Boolean).join(' · ')}`)),
+              reviewScan.notes.length&&h('small',{className:'small-note',style:{display:'block',marginTop:'4px'}},`Other prescription notes to review: ${reviewScan.notes.join('; ')}`)
+            ):h(React.Fragment,null,
               h('div',{className:'field'},h('label',null,'Order Received By'),h('input',{required:true,value:reviewForm.received_by_name,onChange:e=>setReviewForm({...reviewForm,received_by_name:e.target.value}),placeholder:'Staff name / designation'})),
               h('div',{className:'field'},h('label',null,'Written Confirmation Due'),h('input',{type:'datetime-local',required:true,value:reviewForm.confirmation_due_at,onChange:e=>setReviewForm({...reviewForm,confirmation_due_at:e.target.value})}))
             ),
