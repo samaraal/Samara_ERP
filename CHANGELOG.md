@@ -1,3 +1,7 @@
+## 2.18.72 — Read reviewed prescriptions into Doctor Review medication changes
+- Doctor Review / Modify can read the selected written prescription and prefill proposed medication changes using the existing prescription reader.
+- Current medicines matched by name are marked Modify; unmatched current medicines stay unchanged; newly read medicines are marked Add. Staff must verify and complete fields before applying.
+
 ## 2.18.71 — Bills & Charges opens on Pending items; history stays available
 - Bills & Charges now opens with Pending requests only, so completed approvals and historical charges do not crowd the action queue.
 - Use the Status filter’s All option to view the full retained history. No records are deleted or changed.

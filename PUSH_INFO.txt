@@ -1,0 +1,9 @@
+Samara ERP manual push bundle
+Local commit: 4c118bf5202d7b620cf6654778a88879fd413747
+Commit message: Read prescriptions into doctor medication reviews
+Branch: codex/doctor-review-prescription-scan
+Repository: https://github.com/samaraal/Samara_ERP
+
+Upload/replace each file below at the same repository-relative path, then commit the changes.
+Files:
+System.Object[]
