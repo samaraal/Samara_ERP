@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.72';
-const CACHE = 'samara-erp-2.18.72-doctor-rx-scan';
+const APP_VERSION = '2.18.73';
+const CACHE = 'samara-erp-2.18.73-doctor-rx-scan';
 const SHELL = [
   './',
   './index.html',
