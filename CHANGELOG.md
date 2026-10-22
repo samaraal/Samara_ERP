@@ -1,3 +1,7 @@
+## 2.18.71 — Bills & Charges opens on Pending items; history stays available
+- Bills & Charges now opens with Pending requests only, so completed approvals and historical charges do not crowd the action queue.
+- Use the Status filter’s All option to view the full retained history. No records are deleted or changed.
+
 ## 2.18.70 — Swipe machine scan reads like a QR scanner, closes and enters by itself (Edge Function pos-screen-scan 1.2.0)
 - Fix: the camera kept waiting ("scan keeps continuing") because it captured only when the picture was perfectly still. Now the live picture is read every 1–2 seconds; the **TRANSACTION APPROVED** and **FULL SUMMARY** screens are recognised by themselves (any order), each ticks ✓ with a short vibration.
 - When both are read the full check runs; if verified the scanner **closes by itself** and the payment is filled in — no buttons. If the Guest is already selected (Payment / Advance), the payment is **saved automatically** (ledger + WhatsApp receipt with PDF). With Scan with phone, the phone shows "Sent to the laptop" and the laptop saves.
