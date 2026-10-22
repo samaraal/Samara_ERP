@@ -5,3 +5,6 @@ verify_jwt = false
 [functions.outside-nursing-payment]
 # Staff routes validate JWT and Admin/Accounts role in the handler; public return rechecks Razorpay.
 verify_jwt = false
+
+[functions.daily-patient-report]
+verify_jwt = false
