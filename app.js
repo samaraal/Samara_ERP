@@ -41729,6 +41729,18 @@ function ShiftHandover({profile,onNavigate}){
     const [posScannerOpen,setPosScannerOpen]=React.useState(false);
     const [posPhoneOpen,setPosPhoneOpen]=React.useState(false); // 2.18.69: Scan with phone (laptop shows QR)
     const posUseScan=isPosEntry&&!form.pos_typed;
+    function openPosScanner(mode='camera'){
+      if(!form.patient_id){
+        const text='Select a patient before scanning the swipe machine.';
+        setMessage(text);notify('error','Patient required',text);return;
+      }
+      if(!['Payment','Advance'].includes(form.transaction_type)){
+        const text='Select Payment or Advance before scanning the swipe machine.';
+        setMessage(text);notify('error','Transaction type required',text);return;
+      }
+      setMessage('');
+      if(mode==='phone')setPosPhoneOpen(true);else setPosScannerOpen(true);
+    }
     // 2.18.70: verified scan → amount filled; if the Guest is already selected the payment is SAVED automatically.
     const posAutoSaveRef=React.useRef(false);
     const posFormRef=React.useRef(form);posFormRef.current=form; // latest form even inside the phone-scan waiting window
@@ -43071,8 +43083,8 @@ Please access the Samara Family Portal for detailed account information.`;
                   h('button',{type:'button',className:'btn secondary',style:{marginTop:'6px'},onClick:()=>{setForm(f=>({...f,pos_scan:null,amount:''}));}},'Scan again'))
               :h('div',null,
                   h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-                    h('button',{type:'button',className:'btn',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>setPosScannerOpen(true)},'📷 Scan machine screen'),
-                    h('button',{type:'button',className:'btn secondary',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>setPosPhoneOpen(true)},'📱 Scan with phone')),
+                    h('button',{type:'button',className:'btn',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>openPosScanner('camera')},'📷 Scan machine screen'),
+                    h('button',{type:'button',className:'btn secondary',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>openPosScanner('phone')},'📱 Scan with phone')),
                   h('small',{className:'muted',style:{display:'block',marginTop:'4px'}},'After the machine shows TRANSACTION APPROVED, scan its screen — with this device (📷), or from a laptop with your phone (📱 shows a QR to scan). The amount and payment details are filled from the machine and checked; the WhatsApp receipt with PDF goes to the family automatically.')),
             profile?.role==='Admin'&&h('button',{type:'button',className:'login-link-button',style:{marginTop:'6px',fontSize:'12px'},onClick:()=>setForm(f=>({...f,pos_typed:true,pos_scan:null}))},'Screen not available? Type slip details (Admin only)')
           ),
@@ -43184,7 +43196,6 @@ Please access the Samara Family Portal for detailed account information.`;
       )
     );
   }
-
   function useStoreAuthority(profile){
     const [assignments,setAssignments]=React.useState([]),[ready,setReady]=React.useState(false),[canApprove,setCanApprove]=React.useState(false);
     const reload=React.useCallback(async()=>{
