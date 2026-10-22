@@ -276,7 +276,7 @@
       outside_paid_by:'',outside_bill_amount:'',outside_route:''
     });
     const [form,setForm]=React.useState(fresh());
-    const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:initialPatientId?'Pending':'All',category:'All'});
+    const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All'});
     const [period,setPeriod]=React.useState({mode:'All dates',date:todayISOIndia(),month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia()});
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
@@ -298,7 +298,7 @@
       const onTarget=event=>apply(event.detail);
       window.addEventListener('samara-workflow-target',onTarget);
       // Tapping "Charge Approvals" in the menu or the Accounts tab bar while here = show all requests again.
-      const onMenu=event=>{const el=event.target&&event.target.closest?event.target.closest('[data-nav="Charge Approvals"],.accounts-workflow-nav button[aria-current="page"]'):null;if(el){setWorkflowRequestId('');setQuickView('All');setFilter(current=>({...current,status:'All',category:'All'}))}};
+      const onMenu=event=>{const el=event.target&&event.target.closest?event.target.closest('[data-nav="Charge Approvals"],.accounts-workflow-nav button[aria-current="page"]'):null;if(el){setWorkflowRequestId('');setQuickView('All');setFilter(current=>({...current,status:'Pending',category:'All'}))}};
       document.addEventListener('click',onMenu,true);
       return()=>{window.removeEventListener('samara-workflow-target',onTarget);document.removeEventListener('click',onMenu,true)};
     },[profile?.id,profile?.role]);
