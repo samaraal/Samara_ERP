@@ -74,7 +74,7 @@ async function makeReport(sb:any,patient:any,date:string){
   const physioDone=dayPhysio.filter((x:any)=>text(x.status).toLowerCase()==="completed").length;
   const activeOrders=orders.filter((x:any)=>x.is_active!==false&&!x.stopped_at);
   const meds=activeOrders.map((x:any)=>`${text(x.medicine_name)||"Medicine"}${text(x.strength||x.dose)?` - ${text(x.strength||x.dose)}`:""}${text(x.route)?` (${text(x.route)})`:""}${text(x.timing||x.scheduled_times)?` at ${text(x.timing||x.scheduled_times)}`:""}`).join("; ");
-  const admission=new Date(patient.admission_date||date),asOn=new Date(`${date}T12:00:00+05:30`);const stay=Math.max(1,Math.floor((+asOn-+admission)/86400000)+1);
+  const admission=new Date(patient.admission_date||date),asOn=new Date(`${date}T12:00:00+05:30`);const stay=Math.max(0,Math.floor((+asOn-+admission)/86400000));
   const pronoun=text(patient.gender).toLowerCase()==="female"?"She":text(patient.gender).toLowerCase()==="male"?"He":"The patient";
   const hospital=text(patient.hospital_name)||"the referring hospital / care centre";
   const intro=`Admission Summary: ${patientName(patient)} (${text(patient.patient_id)||"patient ID not assigned"}) was admitted following discharge from ${hospital} on ${displayDate(text(patient.admission_date).slice(0,10)||date)} with ${text(patient.diagnosis)?`a diagnosis of ${text(patient.diagnosis)}`:"the recorded assisted-living care requirement"}. ${pronoun} has completed ${stay} day${stay===1?"":"s"} of stay as on ${displayDate(date)}. Known allergies: ${text(patient.allergies)||"none recorded"}.`;
