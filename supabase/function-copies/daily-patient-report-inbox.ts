@@ -207,7 +207,7 @@ async function sendWhatsApp(to:string,recipient:string,patient:string,date:strin
  const response=await samaraInboxFetch(`https://graph.facebook.com/v25.0/${phone}/messages`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok)throw new Error(JSON.stringify(result));return result;
 }
 
-async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile,date,providerId,storagePath,scheduled}:{patient:any,recipientName:string,recipientMobile:string,date:string,providerId:string|null,storagePath:string,scheduled:boolean}){
+async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile,date,providerId,storagePath,scheduled,recipientType="Relative"}:{patient:any,recipientName:string,recipientMobile:string,date:string,providerId:string|null,storagePath:string,scheduled:boolean,recipientType?:"Relative"|"Doctor"}){
  const now=new Date().toISOString();
  const message=`Dear ${recipientName}, the Daily Intelligent Patient Report for ${patientName(patient)} dated ${displayDate(date)} is attached.`;
   const payload={patient_id:patient.id,patient_code:patient.patient_id||null,patient_name:patientName(patient),report_date:date,report_storage_path:storagePath,report_storage_bucket:"patient-reports",report_file_name:`${patientName(patient)} - Intelligent Patient Report - ${displayDate(date)}.pdf`,automated:scheduled};
@@ -216,7 +216,7 @@ async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile
   communication_type:"Daily Intelligent Patient Report",template_name:DAILY_PATIENT_REPORT_TEMPLATE,status:"Accepted",
   provider_message_id:providerId,error_message:null,sent_by:null,sent_by_name:scheduled?"Samara Automatic Report":"Samara ERP",
   direction:"outbound",message_type:"template",message_content:message,message_payload:payload,
-  contact_name:recipientName,source_type:"Patient / Family",sent_at:now,created_at:now,updated_at:now
+  contact_name:recipientName,source_type:recipientType==="Doctor"?"Patient / Doctor":"Patient / Family",sent_at:now,created_at:now,updated_at:now
  });
  if(log.error)console.error("WhatsApp Inbox history insert failed",log.error);
  return log.error;
@@ -274,19 +274,39 @@ Deno.serve(async req=>{
    const duePrefs=(prefs.data||[]).filter((pref:any)=>{const scheduledTime=text(pref.daily_report_time).slice(0,5);return Boolean(scheduledTime&&scheduledTime<=time)});
    console.log("DAILY_REPORT_RUN",JSON.stringify({date,time,enabled:(prefs.data||[]).length,due:duePrefs.length,due_patients:duePrefs.map((x:any)=>x.patient_id)}));
    const results:any[]=[];for(const pref of duePrefs){
-    const already=await sb.from("patient_communications").select("id,status,provider_message_id").eq("patient_id",pref.patient_id).eq("report_date",date).ilike("communication_type","%Intelligent%Report%").ilike("message_preview","%Detailed%Report%pdf%").limit(1);
-    if(already.error)console.error("DAILY_REPORT duplicate check failed",pref.patient_id,already.error);
-    if(already.data?.length){console.log("DAILY_REPORT_SKIP_ALREADY_SENT",JSON.stringify({patient_id:pref.patient_id,date,record:already.data[0]}));results.push({patient_id:pref.patient_id,status:"skipped_already_sent"});continue}
     try{
      const pr=await sb.from("patients").select("*").eq("id",pref.patient_id).single();
      if(pr.error)throw pr.error;if(pr.data.is_active===false){results.push({patient_id:pref.patient_id,status:"skipped_inactive"});continue}
-     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes),wa=await sendWhatsApp(pref.recipient_mobile,pref.recipient_name||"Family Member",patientName(pr.data),date,file.url),provider=wa?.messages?.[0]?.id||null;
-     const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:pref.recipient_name||"Family Member",recipientMobile:pref.recipient_mobile,date,providerId:provider,storagePath:file.path,scheduled:true});
-	     const patientLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:"Relative",recipient_name:pref.recipient_name||"Family Member",recipient_number:digits(pref.recipient_mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});
-	     if(patientLog.error)console.error("DAILY_REPORT patient history insert failed",pref.patient_id,patientLog.error);
-	     const preferenceUpdate=await sb.from("patient_family_communication_preferences").update({last_report_sent_at:new Date().toISOString(),last_report_status:"Accepted by Meta",updated_at:new Date().toISOString()}).eq("patient_id",pref.patient_id);
-	     if(preferenceUpdate.error)console.error("DAILY_REPORT preference timestamp update failed",pref.patient_id,preferenceUpdate.error);
-	     results.push({patient_id:pr.data.id,status:"sent",provider_message_id:provider,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error,preference_updated:!preferenceUpdate.error});
+     const recipients:any[]=[{type:"Relative",name:pref.recipient_name||"Family Member",mobile:pref.recipient_mobile}];
+     if(pref.doctor_report_enabled===true){
+      const doctorMobile=text(pref.doctor_recipient_mobile),doctorName=text(pref.doctor_recipient_name)||text(pr.data.treating_doctor)||text(pr.data.referring_doctor)||"Doctor";
+      if(doctorMobile&&digits(doctorMobile).length>=10)recipients.push({type:"Doctor",name:doctorName,mobile:doctorMobile});
+      else console.error("DAILY_REPORT_DOCTOR_RECIPIENT_INVALID",JSON.stringify({patient_id:pref.patient_id}));
+     }
+     const uniqueRecipients=recipients.filter((r,i,all)=>r.mobile&&digits(r.mobile).length>=10&&all.findIndex(x=>digits(x.mobile)===digits(r.mobile))===i);
+     if(!uniqueRecipients.length){results.push({patient_id:pref.patient_id,status:"failed",error:"No valid WhatsApp recipient"});continue}
+     const already=await sb.from("patient_communications").select("recipient_number,status,provider_message_id").eq("patient_id",pref.patient_id).eq("report_date",date).ilike("communication_type","%Intelligent%Report%").ilike("message_preview","%Detailed%Report%pdf%");
+     if(already.error)console.error("DAILY_REPORT duplicate check failed",pref.patient_id,already.error);
+     const sentNumbers=new Set((already.data||[]).filter((row:any)=>["accepted","sent","delivered","read"].includes(text(row.status).toLowerCase())).map((row:any)=>digits(row.recipient_number)));
+     const pending=uniqueRecipients.filter(r=>!sentNumbers.has(digits(r.mobile)));
+     if(!pending.length){console.log("DAILY_REPORT_SKIP_ALREADY_SENT",JSON.stringify({patient_id:pref.patient_id,date,recipients:uniqueRecipients.map(r=>r.type)}));results.push({patient_id:pref.patient_id,status:"skipped_already_sent"});continue}
+     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes);
+     const deliveries:any[]=[];
+     if(pref.doctor_report_enabled===true&&!uniqueRecipients.some(r=>r.type==="Doctor"))deliveries.push({recipient_type:"Doctor",status:"failed",error:"Doctor WhatsApp number is missing or invalid"});
+     for(const recipient of pending){
+      try{
+       const wa=await sendWhatsApp(recipient.mobile,recipient.name,patientName(pr.data),date,file.url),provider=wa?.messages?.[0]?.id||null;
+       const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:recipient.name,recipientMobile:recipient.mobile,date,providerId:provider,storagePath:file.path,scheduled:true,recipientType:recipient.type});
+       const patientLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:recipient.type,recipient_name:recipient.name,recipient_number:digits(recipient.mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});
+       if(patientLog.error)console.error("DAILY_REPORT patient history insert failed",pref.patient_id,recipient.type,patientLog.error);
+       deliveries.push({recipient_type:recipient.type,status:"sent",provider_message_id:provider,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error});
+      }catch(e){const error=e instanceof Error?e.message:String(e);console.error("DAILY_REPORT_RECIPIENT_FAILED",JSON.stringify({patient_id:pref.patient_id,recipient_type:recipient.type,error}));deliveries.push({recipient_type:recipient.type,status:"failed",error})}
+     }
+     const sent=deliveries.filter(x=>x.status==="sent").length,failed=deliveries.filter(x=>x.status==="failed").length;
+     const reportStatus=failed?(sent?"Partial delivery":"Failed"):"Accepted by Meta";
+     const preferenceUpdate=await sb.from("patient_family_communication_preferences").update({...(sent?{last_report_sent_at:new Date().toISOString()}:{}),last_report_status:reportStatus,updated_at:new Date().toISOString()}).eq("patient_id",pref.patient_id);
+     if(preferenceUpdate.error)console.error("DAILY_REPORT preference timestamp update failed",pref.patient_id,preferenceUpdate.error);
+     results.push({patient_id:pr.data.id,status:failed?(sent?"partial":"failed"):"sent",deliveries,preference_updated:!preferenceUpdate.error});
      console.log("DAILY_REPORT_SENT",JSON.stringify(results[results.length-1]));
     }catch(e){const error=e instanceof Error?e.message:String(e);console.error("DAILY_REPORT_FAILED",JSON.stringify({patient_id:pref.patient_id,error}));results.push({patient_id:pref.patient_id,status:"failed",error})}
    }
