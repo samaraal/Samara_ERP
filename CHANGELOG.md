@@ -1,3 +1,13 @@
+## 2.18.68 — HDFC swipe machine: SCAN THE MACHINE SCREEN (no typing, no made-up codes) (needs SQL 271 + 2 Edge Functions)
+- **Payments → Card / UPI – HDFC swipe machine** now has a big **📷 Scan machine screen** button. The phone camera opens INSIDE the ERP (no gallery / no uploads, so old photos, screenshots or WhatsApp-forwarded pictures cannot be used) and captures by itself when the picture is steady:
+  1. **TRANSACTION APPROVED** screen (amount, SAMARA, date-time, RRN, Transaction ID, BQR / card, Processed by HDFC)
+  2. then tap **VIEW FULL SUMMARY** on the machine → Sale Amount, UTR No, **MID, TID**.
+- The server (new Edge Function **pos-screen-scan**) reads both and checks: Approved · merchant SAMARA · processed by HDFC · Samara's own machine **MID KSA098 / TID 68357686** · same amount on both screens · payment **today, within the last 15 minutes** · machine clock at the top matches the time now (live screen, not an old photo) · **UTR time** matches the payment time · live photo of the machine (not a screenshot / another display) · **RRN / Transaction ID never used before**. The result shows ✓ / ✗ for each check.
+- Only a passed scan can be saved: amount, RRN, Transaction ID, Card / UPI and approval code are taken from the scan on the server (SQL 271 record_pos_card_payment_scan) — staff cannot type or change them. A scan can be used once, within 30 minutes. Then ledger credit + CARDV voucher + automatic WhatsApp receipt with PDF as in 2.18.67 (receipt says "verified from the machine screen"; UPI shows RRN).
+- Every scan attempt (passed or not) is kept with both pictures in pos_screen_scans (private bucket pos-screen-scans) — proof for Admin.
+- **Typed slip entry is now Admin only** ("Screen not available? Type slip details (Admin only)"), for when a screen cannot be scanned.
+- Run supabase/sql/271_pos_screen_scan.sql, deploy the NEW Edge Function pos-screen-scan and the updated staff-payment-request, then publish the app.
+
 ## 2.18.67 — HDFC swipe machine (Mosambee POS): one-step entry, ledger credit + automatic WhatsApp receipt with PDF (needs SQL 270 + Edge Function)
 - **Payments → Payment Mode** "Card Payment" is now shown as **Card / UPI – HDFC swipe machine**. For a Payment or Advance, Accounts picks **Card** or **UPI QR shown on the machine**, types the **Approval Code** (card) or **RRN** (UPI) from the slip, and optionally the card's last 4 digits.
 - On Save the ledger is credited with its CARDV voucher and the slip is recorded together (never half). The **same slip cannot be entered twice** (same day + approval code is blocked, showing the voucher it was already entered under).

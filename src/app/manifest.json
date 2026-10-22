@@ -426,9 +426,14 @@
    "lines": 55
   },
   {
+   "file": "accounts/07b-pos-screen-scanner.js",
+   "about": "HDFC swipe machine screen scanner (live camera, auto-capture)",
+   "lines": 116
+  },
+  {
    "file": "accounts/08-billing-payments.js",
    "about": "Billing & payments",
-   "lines": 1390
+   "lines": 1555
   },
   {
    "file": "stores/store-authority-items.js",

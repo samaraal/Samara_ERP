@@ -76,7 +76,7 @@
       amount:'',
       payment_mode:'Cash',
       payment_reference:'',
-      pos_paid_by:'Card',pos_approval:'',pos_last4:'',
+      pos_paid_by:'Card',pos_approval:'',pos_last4:'',pos_scan:null,pos_typed:false,
       description:'',
       closure_remarks:'All payments received and final account settled.'
     });
@@ -114,6 +114,9 @@
     // 2.18.67: Card Payment = the HDFC swipe machine (Mosambee POS). Payment / Advance carry the slip's approval code / RRN.
     const isPosEntry=form.payment_mode==='Card Payment'&&['Payment','Advance'].includes(form.transaction_type);
     const posApprovalClean=String(form.pos_approval||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    // 2.18.68: the payment comes from a live scan of the machine screen; typed slip details are Admin only.
+    const [posScannerOpen,setPosScannerOpen]=React.useState(false);
+    const posUseScan=isPosEntry&&!form.pos_typed;
 
 
 
@@ -859,7 +862,20 @@ Please access the Samara Family Portal for detailed account information.`;
         setMessage(text);notify('error','Reference required',text);return;
       }
 
-      if(isPosEntry){
+      if(posUseScan){
+        if(!form.pos_scan?.scan_id){
+          const text='Scan the HDFC swipe machine screen first (button "Scan machine screen").';
+          setMessage(text);notify('error','Scan the machine screen',text);return;
+        }
+        if(Math.round(Number(form.amount)*100)!==Math.round(Number(form.pos_scan.amount)*100)){
+          const text=`The amount must be the scanned amount ₹${Number(form.pos_scan.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}.`;
+          setMessage(text);notify('error','Amount differs from the machine',text);return;
+        }
+      }else if(isPosEntry){
+        if(profile?.role!=='Admin'){
+          const text='Typed swipe machine entry is Admin only. Please use Scan machine screen.';
+          setMessage(text);notify('error','Scan the machine screen',text);return;
+        }
         if(!/^[A-Z0-9]{4,12}$/.test(posApprovalClean)){
           const text=form.pos_paid_by==='UPI on machine'?'Enter the RRN printed on the swipe machine slip.':'Enter the Approval Code printed on the swipe machine slip.';
           setMessage(text);notify('error','Slip details required',text);return;
@@ -910,8 +926,27 @@ Please access the Samara Family Portal for detailed account information.`;
       const isNonMoneyTransaction=['Charge','Discount'].includes(form.transaction_type);
       let actualReference=isNonMoneyTransaction?'':String(form.payment_reference||'').trim();
 
-      let posSlipId='';
-      if(isPosEntry){
+      let posSlipId='',posReference='';
+      if(posUseScan){
+        // 2.18.68: amount, RRN, Transaction ID, Card / UPI come from the verified scan on the server (SQL 271), never from typing.
+        const posResult=await client.rpc('record_pos_card_payment_scan',{
+          p_patient_id:form.patient_id,
+          p_transaction_type:form.transaction_type,
+          p_category:form.category,
+          p_description:form.description||null,
+          p_scan_id:form.pos_scan.scan_id
+        });
+        error=posResult.error;
+        const posRow=Array.isArray(posResult.data)?posResult.data[0]:posResult.data;
+        if(!error&&posRow){
+          data={id:posRow.transaction_id};
+          posSlipId=String(posRow.slip_id||'');
+          posReference=String(posRow.reference||'');
+          actualReference=String(posRow.voucher_no||'').trim();
+          setLastVoucherNo(actualReference);
+          setForm(current=>({...current,payment_reference:actualReference,pos_scan:null}));
+        }
+      }else if(isPosEntry){
         // 2.18.67: ledger entry + CARDV voucher + slip saved together on the server (SQL 270); a slip can never be entered twice.
         const posResult=await client.rpc('record_pos_card_payment',{
           p_patient_id:form.patient_id,
@@ -1002,7 +1037,7 @@ Please access the Samara Family Portal for detailed account information.`;
           amount,
           payment_mode:form.payment_mode,
           payment_reference:actualReference||null,
-          ...(isPosEntry?{pos_slip_id:posSlipId,pos_approval_code:posApprovalClean,pos_paid_by:form.pos_paid_by}:{})
+          ...(isPosEntry?{pos_slip_id:posSlipId,pos_approval_code:posUseScan?posReference:posApprovalClean,pos_paid_by:posUseScan?form.pos_scan?.paid_by:form.pos_paid_by,pos_entry:posUseScan?'Screen scan':'Typed (Admin)'}:{})
         },
         'Success'
       );
@@ -1020,8 +1055,9 @@ Please access the Samara Family Portal for detailed account information.`;
           description:String(form.description||'').trim()
         };
         if(isPosEntry){
-          savedPaymentReceipt.payment_mode=form.pos_paid_by==='UPI on machine'?'UPI (HDFC swipe machine)':'Card (HDFC swipe machine)';
-          savedPaymentReceipt.reference=`${actualReference} / Appr. ${posApprovalClean}`;
+          const paidBy=posUseScan?form.pos_scan?.paid_by:form.pos_paid_by;
+          savedPaymentReceipt.payment_mode=paidBy==='UPI on machine'?'UPI (HDFC swipe machine)':'Card (HDFC swipe machine)';
+          savedPaymentReceipt.reference=`${actualReference} / ${posUseScan?posReference:'Appr. '+posApprovalClean}`;
         }
         setLastPaymentReceipt(savedPaymentReceipt);
         if(isPosEntry&&posSlipId){
@@ -1315,6 +1351,7 @@ Please access the Samara Family Portal for detailed account information.`;
           :'Accounts, Admin and Manager only'
       },
         h('form',{className:'payment-entry-grid',onSubmit:savePaymentAndPossiblyClose},
+          posScannerOpen&&h(PosScreenScanner,{onClose:()=>setPosScannerOpen(false),onVerified:res=>{setLastVoucherNo('');setForm(f=>({...f,pos_scan:res,amount:String(res.amount)}));notify('success','Machine screen verified',`₹${Number(res.amount).toLocaleString('en-IN',{minimumFractionDigits:2})} · ${res.paid_by==='UPI on machine'?'UPI':'Card'} · RRN ${res.rrn}. Select Payment / Advance and Save.`);}}),
           patientSearchFields('payment-entry'),
           h('div',{className:'field'},
             h('label',null,'Patient'),
@@ -1362,6 +1399,8 @@ Please access the Samara Family Portal for detailed account information.`;
               step:'0.01',
               required:true,
               value:form.amount,
+              readOnly:posUseScan&&!!form.pos_scan,
+              title:posUseScan&&form.pos_scan?'Amount taken from the swipe machine screen':'',
               onChange:e=>{if(isAutoVoucherTransaction)setLastVoucherNo('');setForm({...form,amount:e.target.value,payment_reference:isAutoVoucherTransaction?'':form.payment_reference})}
             })
           ),
@@ -1393,20 +1432,34 @@ Please access the Samara Family Portal for detailed account information.`;
                 :`${form.payment_mode} transaction will be posted only after the system creates its voucher number.`
             )
           ),
-          isPosEntry&&h('div',{className:'field'},
+          posUseScan&&h('div',{className:'field span-2'},
+            h('label',null,'HDFC swipe machine payment *'),
+            form.pos_scan
+              ?h('div',{style:{background:'linear-gradient(135deg,#fff5fa,#ffe3ef)',border:'1px solid #f3c4d9',borderRadius:'12px',padding:'10px 12px',color:'#5d1740'}},
+                  h('div',{style:{fontWeight:800,color:'#16814d'}},`✓ Verified from the machine screen · ₹${Number(form.pos_scan.amount).toLocaleString('en-IN',{minimumFractionDigits:2})}`),
+                  h('div',{style:{fontSize:'13px'}},`${form.pos_scan.paid_by==='UPI on machine'?'UPI (QR on the machine)':'Card'+(form.pos_scan.card_last4?' ending '+form.pos_scan.card_last4:'')} · RRN ${form.pos_scan.rrn||'—'} · Txn ID ${form.pos_scan.transaction_id||'—'}`),
+                  h('button',{type:'button',className:'btn secondary',style:{marginTop:'6px'},onClick:()=>{setForm(f=>({...f,pos_scan:null,amount:''}));setPosScannerOpen(true);}},'Scan again'))
+              :h('div',null,
+                  h('button',{type:'button',className:'btn',style:{fontSize:'16px',padding:'12px 18px'},onClick:()=>setPosScannerOpen(true)},'📷 Scan machine screen'),
+                  h('small',{className:'muted',style:{display:'block',marginTop:'4px'}},'After the machine shows TRANSACTION APPROVED, scan its screen. The amount and payment details are filled from the machine and checked; the WhatsApp receipt with PDF goes to the family automatically.')),
+            profile?.role==='Admin'&&h('button',{type:'button',className:'login-link-button',style:{marginTop:'6px',fontSize:'12px'},onClick:()=>setForm(f=>({...f,pos_typed:true,pos_scan:null}))},'Screen not available? Type slip details (Admin only)')
+          ),
+          isPosEntry&&form.pos_typed&&h('div',{className:'field span-2'},
+            h('small',{className:'muted'},'Admin typed entry (fallback). ',h('button',{type:'button',className:'login-link-button',onClick:()=>setForm(f=>({...f,pos_typed:false}))},'Back to Scan machine screen'))),
+          isPosEntry&&form.pos_typed&&h('div',{className:'field'},
             h('label',null,'Paid on the swipe machine by'),
             h('select',{value:form.pos_paid_by,onChange:e=>setForm({...form,pos_paid_by:e.target.value,pos_last4:''})},
               h('option',{value:'Card'},'Card (tap / swipe / insert)'),
               h('option',{value:'UPI on machine'},'UPI QR shown on the machine'))
           ),
-          isPosEntry&&h('div',{className:'field'},
+          isPosEntry&&form.pos_typed&&h('div',{className:'field'},
             h('label',null,form.pos_paid_by==='UPI on machine'?'RRN on the slip *':'Approval Code on the slip *'),
             h('input',{value:form.pos_approval,required:true,maxLength:16,autoComplete:'off',style:{textTransform:'uppercase'},
               placeholder:form.pos_paid_by==='UPI on machine'?'e.g. 429512345678':'e.g. 123456 or A1B2C3',
               onChange:e=>setForm({...form,pos_approval:e.target.value})}),
             h('small',{className:'muted'},'Check the amount on the slip matches. The same slip cannot be entered twice. The WhatsApp receipt with PDF goes to the family automatically.')
           ),
-          isPosEntry&&form.pos_paid_by==='Card'&&h('div',{className:'field'},
+          isPosEntry&&form.pos_typed&&form.pos_paid_by==='Card'&&h('div',{className:'field'},
             h('label',null,'Card last 4 digits (optional)'),
             h('input',{value:form.pos_last4,inputMode:'numeric',maxLength:4,placeholder:'e.g. 4417',onChange:e=>setForm({...form,pos_last4:e.target.value.replace(/\D/g,'').slice(0,4)})})
           ),

@@ -239,7 +239,7 @@ async function sendPosReceipt(slipId:string){
     if(!targets.length){await done({receipt_status:'Failed',receipt_tries:3,receipt_error:'No valid family WhatsApp number for this Guest.'});return {sent:0,error:'No valid family WhatsApp number for this Guest.'};}
     const amount=Number(s.amount);
     const mode=s.paid_by==='UPI on machine'?'UPI (HDFC swipe machine)':'Card (HDFC swipe machine)';
-    const reference=`${s.voucher_no} / Appr. ${s.approval_code}`;
+    const reference=`${s.voucher_no} / ${s.paid_by==='UPI on machine'?'RRN':'Appr.'} ${s.approval_code}`; // 2.18.68: UPI shows RRN
     const token=env('WHATSAPP_ACCESS_TOKEN'),sender=env('WHATSAPP_PHONE_NUMBER_ID');if(!token||!sender)throw new Error('Samara WhatsApp service is not configured.');
     const category=String(tx.category||tx.transaction_type||'Payment');
     // one PDF for the slip
@@ -249,7 +249,7 @@ async function sendPosReceipt(slipId:string){
       const bal=Math.round((all||[]).reduce((v:number,x:any)=>v+(x.transaction_type==='Charge'?Number(x.amount||0):x.transaction_type==='Refund'?Number(x.amount||0):['Payment','Advance','Discount'].includes(x.transaction_type)?-Number(x.amount||0):0),0)*100)/100;
       const balanceLine=bal>0?'Balance due INR '+inr(bal):bal<0?'Advance held INR '+inr(-bal):'Account settled - no balance due';
       bytes=await guestReceiptPdf({receiptNo:s.voucher_no,date:istDate(tx.transaction_date||s.created_at),from:targets[0].name,guest:`${guest}${patient.patient_id?' ('+patient.patient_id+')':''}`,
-        towards:tx.transaction_type==='Advance'?'Advance':category,mode:mode+' - slip verified by Accounts',idLabel:s.paid_by==='UPI on machine'?'RRN (on the slip)':'Approval code',
+        towards:tx.transaction_type==='Advance'?'Advance':category,mode:mode+(s.entry_method==='Screen scan'?' - verified from the machine screen':' - slip verified by Accounts'),idLabel:s.paid_by==='UPI on machine'?'RRN (on the slip)':'Approval code',
         paymentId:s.approval_code+(s.card_last4?'   (card ending '+s.card_last4+')':''),amount:inr(amount),words:inWords(amount),balanceLine});
       filename=`Samara-Receipt-${s.voucher_no}.pdf`;
       const form=new FormData();form.append('messaging_product','whatsapp');form.append('type','application/pdf');form.append('file',new Blob([bytes as any],{type:'application/pdf'}),filename);
