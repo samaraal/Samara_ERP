@@ -1,4 +1,6 @@
   function h(type,props,...children){
+    if(type==='input'&&props?.type==='time')return React.createElement(ManualTimeInput,props,...children);
+    if(type==='input'&&props?.type==='datetime-local'&&props?.['data-samara-native']!=='1')return React.createElement(StrictDateTimeInput,props,...children);
     // Shared semantic button colours; selected controls always remain pink.
     if(type==='button'&&props){
       const text=children.flat(Infinity).filter(x=>typeof x==='string').join(' ').replace(/^[^A-Za-z]+/,'').trim();
