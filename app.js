@@ -13772,7 +13772,13 @@ https://samaraassistedliving.com/`;
     const [clinicalPopupSnooze,setClinicalPopupSnooze]=React.useState({key:'',until:0});
     const alertEngine=useClinicalAlertEngine(engineProfile,next=>anyRoleNavRef.current(next));
     const physioNotifications=usePhysiotherapyApprovalNotifications(engineProfile);
-    const topClinicalAlert=alertEngine.alerts[0]||null;
+    // 2.18.88: information-only alerts (Medicine Given Late, Poor Meal Intake — already recorded) show on this
+    // card ONCE per device (same "seen" list as the alert pop-up), with a "Noted" button instead of repeating.
+    const [infoSeenTick,setInfoSeenTick]=React.useState(0);
+    const isInfoAlert=a=>['medicine late','meal intake'].includes(String(a?.alert_type||'').toLowerCase());
+    const infoSeenMap=(()=>{void infoSeenTick;try{return JSON.parse(localStorage.getItem('samara_info_alerts_seen')||'{}')||{}}catch(_e){return {}}})();
+    const markInfoSeen=a=>{if(!a||!isInfoAlert(a))return;try{const now=Date.now(),m=Object.fromEntries(Object.entries(infoSeenMap).filter(([,t])=>now-Number(t)<3*86400000));m[a.key]=now;localStorage.setItem('samara_info_alerts_seen',JSON.stringify(m))}catch(_e){}setInfoSeenTick(t=>t+1)};
+    const topClinicalAlert=alertEngine.alerts.find(a=>!(isInfoAlert(a)&&infoSeenMap[a.key]))||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
     const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
       clinicalPopupSnooze.key===topClinicalAlertKey&&clinicalPopupSnooze.until>Date.now()
@@ -13795,6 +13801,7 @@ https://samaraassistedliving.com/`;
       if(!key)return;
       if(clinicalPopupSnooze.key===key&&clinicalPopupSnooze.until>Date.now())return;
       const timer=window.setTimeout(()=>{
+        if(isInfoAlert(topClinicalAlert)){markInfoSeen(topClinicalAlert);return;}
         const repeatMinutes=Math.max(1,Number(alertEngine.settings?.repeat_minutes||5));
         setClinicalPopupSnooze({key,until:Date.now()+repeatMinutes*60000});
       },8000);
@@ -14519,13 +14526,16 @@ https://samaraassistedliving.com/`;
           h('strong',null,topClinicalAlert.patient_name||'Patient'),
           h('span',null,topClinicalAlert.room_label||''),
           h('p',null,topClinicalAlert.description||''),
+          isInfoAlert(topClinicalAlert)&&h('small',{style:{display:'block',margin:'-4px 0 8px',color:'#6d5963'}},'For information — already recorded. Close it in Clinical Escalations after review.'),
           h('div',{className:'clinical-alert-popup-actions'},
+            isInfoAlert(topClinicalAlert)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>markInfoSeen(topClinicalAlert)},'Noted'):
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{
               setClinicalPopupSnooze({key:topClinicalAlertKey,until:Date.now()+5*60*1000});
             }},page==='Admissions'?'Continue Admission · Remind in 5 min':'Remind in 5 min'),
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>{
               const liveAlert=topClinicalAlert;
               if(!liveAlert)return;
+              markInfoSeen(liveAlert);
               // Hide the popup before navigating on mobile/frontline screens so it cannot
               // cover the task form and make the tap appear unresponsive. This does NOT
               // resolve or acknowledge the alert; it only suppresses the popup temporarily.
