@@ -24,7 +24,7 @@ const out = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
 // ---- ERP option lists (must match the Admission form exactly) ----
-const FREQUENCIES = ["Once Daily (OD)", "Twice Daily (BD)", "Three Times Daily (TDS)", "Four Times Daily (QID)", "HS", "STAT", "SOS / PRN", "Weekly", "Monthly"];
+const FREQUENCIES = ["Once Daily (OD)", "Twice Daily (BD)", "Three Times Daily (TDS)", "Four Times Daily (QID)", "HS", "STAT", "SOS / PRN", "Alternate Days", "Weekly", "Monthly"];
 const ROUTES = ["Oral", "IV", "IM", "Subcutaneous", "Topical", "Inhalation", "Nasal", "Other"];
 const FOODS = ["Before food", "After food", "With food", "No restriction"];
 const DURATIONS = ["Single Dose", "1 Day", "3 Days", "5 Days", "7 Days", "10 Days", "14 Days", "21 Days", "30 Days", "Until Doctor Review", "Long Term", "Custom"];
@@ -45,7 +45,7 @@ HOW TO MAP (use exactly these option values):
 - dose_pattern: write the slots as Morning-Afternoon-Night using numbers, e.g. "1-0-1", "1-1-1", "0-0-1", "½-0-½", "1-1-1-1" (4 slots = QID). Use "" if the prescription uses words only.
   OD/once daily = "1-0-0" unless night/HS is written ("0-0-1"). BD = "1-0-1". TDS = "1-1-1". QID = "1-1-1-1".
   frequency "HS" ONLY when the words HS / bedtime / at bed time are written. A pattern "0-0-1" (or "night", "after dinner") WITHOUT those words is frequency "Once Daily (OD)" with dose_pattern "0-0-1" (given after dinner, not at bedtime).
-- frequency: one of ${JSON.stringify(FREQUENCIES)}. SOS / PRN / "if needed" / "when required" → "SOS / PRN". Once a week → "Weekly". Once a month → "Monthly". STAT/immediately once → "STAT".
+- frequency: one of ${JSON.stringify(FREQUENCIES)}. SOS / PRN / "if needed" / "when required" → "SOS / PRN". Alternate days / every other day / EOD / "A/D" → "Alternate Days". Once a week → "Weekly". Once a month → "Monthly". STAT/immediately once → "STAT".
 - dose_per_time: amount given each time as written, e.g. "1 tablet", "½ tablet", "2 puffs", "10 ml", "1 capsule", "5 units". "" if not written.
 - route: one of ${JSON.stringify(ROUTES)}. Tab/Cap/Syrup/Susp/Drops-by-mouth = Oral. Ointment/cream/gel/eye or ear drops = Topical. Inhaler/rotacap/nebulisation = Inhalation. Nasal spray / nasal drops / route written as "Nasal" = Nasal. Inj: IV, IM or SC (Subcutaneous) when written, else "Other" and mark route unclear. Insulin = Subcutaneous.
 - food_instruction: one of ${JSON.stringify(FOODS)}. AC / before food / empty stomach = "Before food". PC / after food = "After food". With food = "With food". Not written → "" and add "food_instruction" to unclear_fields.

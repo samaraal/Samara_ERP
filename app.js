@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.95';
+  const APP_VERSION = '2.18.96';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '22-Oct-2026 Outside nursing: receipt PDF on WhatsApp';
+  const APP_BUILD_DATE = '23-Oct-2026 Alternate-day medicines';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -3400,7 +3400,7 @@ https://samaraassistedliving.com/`;
   const SAMARA_SCAN = (()=>{
     const MEAL_TIMES={'Before food':['07:00','12:00','19:00'],'After food':['09:00','14:00','21:00'],'With food':['08:00','13:00','20:00'],'No restriction':['09:00','14:00','21:00']};
     const BEDTIME='22:00';
-    const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+    const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Alternate Days','Weekly','Monthly'];
     const ROUTES=['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
     const FOODS=['Before food','After food','With food','No restriction'];
     const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
@@ -3468,7 +3468,7 @@ https://samaraassistedliving.com/`;
       const slots=parseSlots(pattern);
       if(slots){const t=slots.map((n,i)=>n>0?(i<3?meal[i]:BEDTIME):null).filter(Boolean);if(t.length)return [...new Set(t)].sort()}
       switch(frequency){
-        case 'Once Daily (OD)':case 'Weekly':case 'Monthly':return [meal[0]];
+        case 'Once Daily (OD)':case 'Alternate Days':case 'Weekly':case 'Monthly':return [meal[0]];
         case 'Twice Daily (BD)':return [meal[0],meal[2]];
         case 'Three Times Daily (TDS)':return meal.slice();
         case 'Four Times Daily (QID)':return [...meal,BEDTIME];
@@ -22226,11 +22226,12 @@ Thank you.`;
     'Three Times Daily (TDS)':['06:00','14:00','22:00'],
     'Four Times Daily (QID)':['06:00','12:00','18:00','22:00'],
     'HS':['22:00'],
-    'STAT':[]
+    'STAT':[],
+    'Alternate Days':['08:00']
   };
   const MEDICATION_FREQUENCY_MAX_TIMES={
     'Once Daily (OD)':1,'Twice Daily (BD)':2,'Three Times Daily (TDS)':3,'Four Times Daily (QID)':4,
-    'HS':1,'STAT':1,'SOS / PRN':24,'Weekly':1,'Monthly':1
+    'HS':1,'STAT':1,'SOS / PRN':24,'Weekly':1,'Monthly':1,'Alternate Days':4
   };
   function medicationTimeSelectionLimit(frequency){return MEDICATION_FREQUENCY_MAX_TIMES[String(frequency||'')]||1}
   function medicationTimesForFrequency(frequency,current){
@@ -22397,6 +22398,26 @@ Thank you.`;
     let t=String(text||'').replace(/\b(every month on )?day\s*\d{1,2}\b/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
     return t?`Every month on day ${dayNo} · ${t}`:`Every month on day ${dayNo}`;
   }
+  // 2.18.96: Alternate Days medicines (every other day). The cycle is fixed by one "dose day" written into the
+  // instruction ("Alternate days from 23-10-2026") and saved as medication_orders.dose_anchor_date (SQL 283), so it
+  // travels with every prescription version (Doctor Review keeps it) — never re-counted from a new version's start.
+  function medicationIsAlternateDays(frequency){return /^alternate\s*days?$|^alternate\s*day\b|every\s*other\s*day|^eod$|^a\/?d$/i.test(String(frequency||'').trim())}
+  function medicationAlternateStartFromText(text){
+    const m=String(text||'').match(/alternate\s+days?\s+(?:from|starting|start)\s*:?\s*(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/i);
+    if(!m)return '';
+    const iso=`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+    return Number.isNaN(new Date(`${iso}T12:00:00Z`).getTime())?'':iso;
+  }
+  function medicationOrderAlternateAnchor(order){
+    const v=String(order?.dose_anchor_date||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+    return medicationAlternateStartFromText(order?.special_instruction)||medicationOrderAnchorDate(order);
+  }
+  function medicationInstructionWithAlternateStart(text,iso){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||'')))return text||'';
+    const t=String(text||'').replace(/alternate\s+days?\s+(?:from|starting|start)\s*:?\s*\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
+    const label=`Alternate days from ${iso.slice(8,10)}-${iso.slice(5,7)}-${iso.slice(0,4)}`;
+    return t?`${label} · ${t}`:label;
+  }
   // Dates on which a Weekly / Monthly medicine falls from start to end (for the preview under the form fields).
   function medicationPeriodicPreview(order,startISO,endISO,max=8){
     const out=[];let d=String(startISO||'').slice(0,10);const end=String(endISO||'').slice(0,10)||addDaysISODate(d,62);
@@ -22405,6 +22426,13 @@ Thank you.`;
   }
   function medicationOrderDueOnDate(order,dateISO){
     const freq=String(order?.frequency||'').trim().toLowerCase();
+    if(medicationIsAlternateDays(freq)){
+      // 2.18.96: Alternate Days = every 2nd day counted from the order's own dose day (kept across doctor reviews).
+      const ad=medicationOrderAlternateAnchor(order);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(ad)||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO||'')))return true;
+      const ua=Date.UTC(+ad.slice(0,4),+ad.slice(5,7)-1,+ad.slice(8,10)),ud=Date.UTC(+dateISO.slice(0,4),+dateISO.slice(5,7)-1,+dateISO.slice(8,10));
+      return Math.abs(Math.round((ud-ua)/86400000))%2===0;
+    }
     if(freq!=='weekly'&&freq!=='monthly')return true;
     const anchor=medicationOrderAnchorDate(order);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor)||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO||'')))return true;
@@ -22506,10 +22534,12 @@ Thank you.`;
   function medicationPeriodicDayProblem(frequency,instruction,name){
     const f=String(frequency||'').trim().toLowerCase();
     if(f==='weekly'&&medicationWeekdayFromText(instruction)===null)return `Choose the Day of week for the weekly medicine ${name||''}`.trim()+'.';
+    if(medicationIsAlternateDays(f)&&!medicationAlternateStartFromText(instruction))return `Choose the Dose day for the alternate-day medicine ${name||''}`.trim()+'.';
     return '';
   }
   function MedicationPeriodicDayField({frequency,instruction,onInstruction,startISO,endISO}){
     const f=String(frequency||'').trim().toLowerCase();
+    if(medicationIsAlternateDays(f))return h(MedicationAlternateDayField,{instruction,onInstruction,startISO,endISO});
     if(f!=='weekly'&&f!=='monthly')return null;
     const start=String(startISO||'').slice(0,10);
     const order={frequency,special_instruction:instruction};
@@ -22526,6 +22556,23 @@ Thank you.`;
             h('option',{value:''},'Choose the day'),MEDICATION_WEEKDAYS.map((d,i)=>h('option',{key:d,value:String(i)},d))))
         :h(React.Fragment,null,h('label',null,'Day of month'),h('input',{type:'number',min:1,max:31,value:md||'',placeholder:'e.g. 5',onChange:e=>{const n=Number(e.target.value);if(n>=1&&n<=31)onInstruction(medicationInstructionWithMonthDay(instruction,n))}})),
       note);
+  }
+  // 2.18.96: "Dose day" for an Alternate Days medicine — any one day the medicine is (or was) given; the ERP then
+  // shows it every 2nd day from there (MAR, Shift Tasks, screensaver, alerts). Shows the coming dose dates.
+  function MedicationAlternateDayField({instruction,onInstruction,startISO,endISO}){
+    const start=String(startISO||'').slice(0,10);
+    const chosen=medicationAlternateStartFromText(instruction);
+    const order={frequency:'Alternate Days',special_instruction:instruction};
+    const dates=chosen&&start?medicationPeriodicPreview(order,start,endISO||'',8):[];
+    const fmtD=d=>`${MEDICATION_WEEKDAYS[new Date(`${d}T12:00:00Z`).getUTCDay()].slice(0,3)} ${formatDateIN(d)}`;
+    const quick=start?[[start,'Start day'],[addDaysISODate(start,1),'Next day']]:[];
+    return h('div',{className:'field'},
+      h('label',null,'Dose day *'),
+      h(StrictDateInput,{required:true,value:chosen,'aria-label':'Dose day',onChange:e=>{const v=String(e.target.value||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(v))onInstruction(medicationInstructionWithAlternateStart(instruction,v))}}),
+      quick.length?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'4px'}},quick.map(([d,l])=>h('button',{type:'button',key:d,className:`btn btn-secondary${chosen===d?' active':''}`,style:{padding:'3px 8px',fontSize:'12px'},onClick:()=>onInstruction(medicationInstructionWithAlternateStart(instruction,d))},`${l} (${formatDateIN(d)})`))):null,
+      !chosen?h('small',{style:{display:'block'}},'Any day this medicine is given (first dose, or the last dose taken before) — doses then follow every 2nd day.')
+        :dates.length===0?h('small',{style:{display:'block',color:'#b42318',fontWeight:700}},'No dose falls between the start and the end date — check the Start and the Duration.')
+        :h('small',{style:{display:'block',color:'#0a7a42',fontWeight:700}},`Doses: ${dates.map(fmtD).join(', ')}${dates.length>=8?' …':''}`));
   }
   function MedicationTimeSelector({label,value,onChange,required=false,frequency='Once Daily (OD)'}){
     const limit=medicationTimeSelectionLimit(frequency);
@@ -25829,7 +25876,7 @@ Please keep these login details confidential.`;
               h('small',null,`Effective from: ${(()=>{const v=medicationEffectiveValue(m);return `${formatDateIN(v.slice(0,10))} ${medicationTimeLabel(v.slice(11,16))}`})()}`),
               m.special_instruction&&h('small',null,`Instruction: ${m.special_instruction}`),
               m.scan&&!m.scan.verified&&(m.scan.flags||[]).length?h('small',{style:{color:'#8a5a00'}},'Check: '+(m.scan.flags||[]).map(k=>`${SAMARA_SCAN.LABEL[k]||k}${m.scan.notes&&m.scan.notes[k]?` (${m.scan.notes[k]})`:''}`).join(' · ')):null,
-              m.scan&&!m.scan.verified&&!medicineRowComplete(m)?h('small',{className:'error-text'},'Still needed: '+[!String(m.prescribed_by_doctor||'').trim()&&'Prescribed Doctor',!String(m.medicine_name||'').trim()&&'Medicine',!medicationStrengthValid(m.strength)&&'Strength (number and unit)',!String(m.times||'').trim()&&'Time',medicationPeriodicDayProblem(m.frequency,m.special_instruction)&&'Day of week'].filter(Boolean).join(', ')+' — use Edit'):null
+              m.scan&&!m.scan.verified&&!medicineRowComplete(m)?h('small',{className:'error-text'},'Still needed: '+[!String(m.prescribed_by_doctor||'').trim()&&'Prescribed Doctor',!String(m.medicine_name||'').trim()&&'Medicine',!medicationStrengthValid(m.strength)&&'Strength (number and unit)',!String(m.times||'').trim()&&'Time',medicationPeriodicDayProblem(m.frequency,m.special_instruction)&&(String(m.frequency).toLowerCase()==='weekly'?'Day of week':'Dose day')].filter(Boolean).join(', ')+' — use Edit'):null
             ),
             h('div',{className:'admission-row-actions'},
               m.scan&&!m.scan.verified&&h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),title:medicineRowComplete(m)?'I have checked this medicine against the prescription':'Complete the missing details first (Edit)',onClick:()=>verifyScannedMedicine(i)},'✓ Verified'),
@@ -25842,7 +25889,7 @@ Please keep these login details confidential.`;
             miniInput('Prescribed Doctor',m.prescribed_by_doctor,v=>updateRow(setMeds,meds,i,'prescribed_by_doctor',v),true),
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
             h(MedicationStrengthInput,{label:'Strength',value:m.strength,onChange:v=>updateRow(setMeds,meds,i,'strength',v),required:true}),
-            miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:medicationTimesForFrequency(v,row.times)}:row);setMeds(next)}),
+            miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Alternate Days','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:medicationTimesForFrequency(v,row.times)}:row);setMeds(next)}),
             miniSelect('Route',m.route,['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
             h(MedicationTimeSelector,{label:'Time',value:m.times,frequency:m.frequency,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
             miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateRow(setMeds,meds,i,'food_instruction',v)),
@@ -34720,7 +34767,7 @@ function RoomsBeds({profile,onNavigate}){
     const [reviewScan,setReviewScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
     const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
     const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
-    const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+    const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Alternate Days','Weekly','Monthly'];
     const medicationRoutes=['Oral','NG / Ryles Tube','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
     const medicationFood=['Before food','After food','With food','No restriction'];
 

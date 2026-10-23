@@ -160,7 +160,7 @@
   }
   const visible=(field,data)=>!field.show||field.show(data);
   // 2.16.29: medicines in the same parts as the Admission form (shared Strength / Time pickers)
-  const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+  const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Alternate Days','Weekly','Monthly'];
   const ROUTES=['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
   const FOOD=['Before food','After food','With food','No restriction'];
   const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];

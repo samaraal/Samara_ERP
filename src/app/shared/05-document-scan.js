@@ -6,7 +6,7 @@
   const SAMARA_SCAN = (()=>{
     const MEAL_TIMES={'Before food':['07:00','12:00','19:00'],'After food':['09:00','14:00','21:00'],'With food':['08:00','13:00','20:00'],'No restriction':['09:00','14:00','21:00']};
     const BEDTIME='22:00';
-    const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
+    const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Alternate Days','Weekly','Monthly'];
     const ROUTES=['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
     const FOODS=['Before food','After food','With food','No restriction'];
     const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
@@ -74,7 +74,7 @@
       const slots=parseSlots(pattern);
       if(slots){const t=slots.map((n,i)=>n>0?(i<3?meal[i]:BEDTIME):null).filter(Boolean);if(t.length)return [...new Set(t)].sort()}
       switch(frequency){
-        case 'Once Daily (OD)':case 'Weekly':case 'Monthly':return [meal[0]];
+        case 'Once Daily (OD)':case 'Alternate Days':case 'Weekly':case 'Monthly':return [meal[0]];
         case 'Twice Daily (BD)':return [meal[0],meal[2]];
         case 'Three Times Daily (TDS)':return meal.slice();
         case 'Four Times Daily (QID)':return [...meal,BEDTIME];

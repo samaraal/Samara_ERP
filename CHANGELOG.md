@@ -1,3 +1,9 @@
+## 2.18.96 — "Alternate Days" medicines (every other day) (needs SQL 283)
+- New Frequency **Alternate Days** in Admission (Section 3), Doctor Review / Modify / Add New Medicine and Spot Assessment; the prescription scan also reads "alternate days / EOD / A/D".
+- Choosing it asks for a compulsory **Dose day** (any day the medicine is given — first dose, or the last dose taken before admission; quick buttons Start day / Next day) and shows the coming dose dates. It is written into the instruction ("Alternate days from 23-10-2026") and saved as medication_orders.dose_anchor_date, so a later Doctor Review keeps the same cycle.
+- MAR, Shift Tasks, screensaver and Medicines list show the dose only on its days ("Next due …" on the off day). Server alerts / escalations skip the off days after SQL 283.
+- Run supabase/sql/283_alternate_day_medicines.sql (after 279), then publish the app. Optional: redeploy the prescription-scan Edge Function so the scanner suggests Alternate Days.
+
 ## 2.18.95 — Payment receipts go to the FAMILY, never to the Guest's own mobile
 - Fix: Mr. S. Swaminathan's advance receipts (23-10-2026) went to the Guest's own mobile (labelled "Family Member") instead of Mrs. Vijayalakshmi (wife, primary) and Mr. Bharath Ram (son). The Accounts login could not read the family contact list directly, so it came back empty and the screen fell back to the patient's own mobile.
 - Accounts payment receipts and the outstanding-bill reminder now load the registered family contacts through the secure server lookup (the same one the payment link already uses), send to every active family contact (primary first), and never use the Guest's own mobile. With no family contact registered, a clear message asks to add one in Patients → Edit. No SQL.

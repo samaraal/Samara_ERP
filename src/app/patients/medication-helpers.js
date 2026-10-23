@@ -8,11 +8,12 @@
     'Three Times Daily (TDS)':['06:00','14:00','22:00'],
     'Four Times Daily (QID)':['06:00','12:00','18:00','22:00'],
     'HS':['22:00'],
-    'STAT':[]
+    'STAT':[],
+    'Alternate Days':['08:00']
   };
   const MEDICATION_FREQUENCY_MAX_TIMES={
     'Once Daily (OD)':1,'Twice Daily (BD)':2,'Three Times Daily (TDS)':3,'Four Times Daily (QID)':4,
-    'HS':1,'STAT':1,'SOS / PRN':24,'Weekly':1,'Monthly':1
+    'HS':1,'STAT':1,'SOS / PRN':24,'Weekly':1,'Monthly':1,'Alternate Days':4
   };
   function medicationTimeSelectionLimit(frequency){return MEDICATION_FREQUENCY_MAX_TIMES[String(frequency||'')]||1}
   function medicationTimesForFrequency(frequency,current){
@@ -179,6 +180,26 @@
     let t=String(text||'').replace(/\b(every month on )?day\s*\d{1,2}\b/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
     return t?`Every month on day ${dayNo} · ${t}`:`Every month on day ${dayNo}`;
   }
+  // 2.18.96: Alternate Days medicines (every other day). The cycle is fixed by one "dose day" written into the
+  // instruction ("Alternate days from 23-10-2026") and saved as medication_orders.dose_anchor_date (SQL 283), so it
+  // travels with every prescription version (Doctor Review keeps it) — never re-counted from a new version's start.
+  function medicationIsAlternateDays(frequency){return /^alternate\s*days?$|^alternate\s*day\b|every\s*other\s*day|^eod$|^a\/?d$/i.test(String(frequency||'').trim())}
+  function medicationAlternateStartFromText(text){
+    const m=String(text||'').match(/alternate\s+days?\s+(?:from|starting|start)\s*:?\s*(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/i);
+    if(!m)return '';
+    const iso=`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+    return Number.isNaN(new Date(`${iso}T12:00:00Z`).getTime())?'':iso;
+  }
+  function medicationOrderAlternateAnchor(order){
+    const v=String(order?.dose_anchor_date||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+    return medicationAlternateStartFromText(order?.special_instruction)||medicationOrderAnchorDate(order);
+  }
+  function medicationInstructionWithAlternateStart(text,iso){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||'')))return text||'';
+    const t=String(text||'').replace(/alternate\s+days?\s+(?:from|starting|start)\s*:?\s*\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
+    const label=`Alternate days from ${iso.slice(8,10)}-${iso.slice(5,7)}-${iso.slice(0,4)}`;
+    return t?`${label} · ${t}`:label;
+  }
   // Dates on which a Weekly / Monthly medicine falls from start to end (for the preview under the form fields).
   function medicationPeriodicPreview(order,startISO,endISO,max=8){
     const out=[];let d=String(startISO||'').slice(0,10);const end=String(endISO||'').slice(0,10)||addDaysISODate(d,62);
@@ -187,6 +208,13 @@
   }
   function medicationOrderDueOnDate(order,dateISO){
     const freq=String(order?.frequency||'').trim().toLowerCase();
+    if(medicationIsAlternateDays(freq)){
+      // 2.18.96: Alternate Days = every 2nd day counted from the order's own dose day (kept across doctor reviews).
+      const ad=medicationOrderAlternateAnchor(order);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(ad)||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO||'')))return true;
+      const ua=Date.UTC(+ad.slice(0,4),+ad.slice(5,7)-1,+ad.slice(8,10)),ud=Date.UTC(+dateISO.slice(0,4),+dateISO.slice(5,7)-1,+dateISO.slice(8,10));
+      return Math.abs(Math.round((ud-ua)/86400000))%2===0;
+    }
     if(freq!=='weekly'&&freq!=='monthly')return true;
     const anchor=medicationOrderAnchorDate(order);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor)||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateISO||'')))return true;
@@ -288,10 +316,12 @@
   function medicationPeriodicDayProblem(frequency,instruction,name){
     const f=String(frequency||'').trim().toLowerCase();
     if(f==='weekly'&&medicationWeekdayFromText(instruction)===null)return `Choose the Day of week for the weekly medicine ${name||''}`.trim()+'.';
+    if(medicationIsAlternateDays(f)&&!medicationAlternateStartFromText(instruction))return `Choose the Dose day for the alternate-day medicine ${name||''}`.trim()+'.';
     return '';
   }
   function MedicationPeriodicDayField({frequency,instruction,onInstruction,startISO,endISO}){
     const f=String(frequency||'').trim().toLowerCase();
+    if(medicationIsAlternateDays(f))return h(MedicationAlternateDayField,{instruction,onInstruction,startISO,endISO});
     if(f!=='weekly'&&f!=='monthly')return null;
     const start=String(startISO||'').slice(0,10);
     const order={frequency,special_instruction:instruction};
@@ -308,6 +338,23 @@
             h('option',{value:''},'Choose the day'),MEDICATION_WEEKDAYS.map((d,i)=>h('option',{key:d,value:String(i)},d))))
         :h(React.Fragment,null,h('label',null,'Day of month'),h('input',{type:'number',min:1,max:31,value:md||'',placeholder:'e.g. 5',onChange:e=>{const n=Number(e.target.value);if(n>=1&&n<=31)onInstruction(medicationInstructionWithMonthDay(instruction,n))}})),
       note);
+  }
+  // 2.18.96: "Dose day" for an Alternate Days medicine — any one day the medicine is (or was) given; the ERP then
+  // shows it every 2nd day from there (MAR, Shift Tasks, screensaver, alerts). Shows the coming dose dates.
+  function MedicationAlternateDayField({instruction,onInstruction,startISO,endISO}){
+    const start=String(startISO||'').slice(0,10);
+    const chosen=medicationAlternateStartFromText(instruction);
+    const order={frequency:'Alternate Days',special_instruction:instruction};
+    const dates=chosen&&start?medicationPeriodicPreview(order,start,endISO||'',8):[];
+    const fmtD=d=>`${MEDICATION_WEEKDAYS[new Date(`${d}T12:00:00Z`).getUTCDay()].slice(0,3)} ${formatDateIN(d)}`;
+    const quick=start?[[start,'Start day'],[addDaysISODate(start,1),'Next day']]:[];
+    return h('div',{className:'field'},
+      h('label',null,'Dose day *'),
+      h(StrictDateInput,{required:true,value:chosen,'aria-label':'Dose day',onChange:e=>{const v=String(e.target.value||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(v))onInstruction(medicationInstructionWithAlternateStart(instruction,v))}}),
+      quick.length?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'4px'}},quick.map(([d,l])=>h('button',{type:'button',key:d,className:`btn btn-secondary${chosen===d?' active':''}`,style:{padding:'3px 8px',fontSize:'12px'},onClick:()=>onInstruction(medicationInstructionWithAlternateStart(instruction,d))},`${l} (${formatDateIN(d)})`))):null,
+      !chosen?h('small',{style:{display:'block'}},'Any day this medicine is given (first dose, or the last dose taken before) — doses then follow every 2nd day.')
+        :dates.length===0?h('small',{style:{display:'block',color:'#b42318',fontWeight:700}},'No dose falls between the start and the end date — check the Start and the Duration.')
+        :h('small',{style:{display:'block',color:'#0a7a42',fontWeight:700}},`Doses: ${dates.map(fmtD).join(', ')}${dates.length>=8?' …':''}`));
   }
   function MedicationTimeSelector({label,value,onChange,required=false,frequency='Once Daily (OD)'}){
     const limit=medicationTimeSelectionLimit(frequency);
