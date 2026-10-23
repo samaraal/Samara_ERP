@@ -145,6 +145,46 @@
     }
     return String(order?.start_date||'').slice(0,10);
   }
+  // 2.18.91: a Weekly medicine is due on its OWN weekday (e.g. "Every Friday"), not every 7 days from whatever date
+  // the latest prescription version happened to start (Inj. Anfoe, 23-10-2026: started Sunday 18-10 after a doctor
+  // review, note said Friday → the ERP counted Sundays and the Friday dose never appeared anywhere).
+  // The day comes from: the order's dose_weekday (SQL 279) → the weekday written in the instruction → old 7-day rule.
+  const MEDICATION_WEEKDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  function medicationWeekdayFromText(text){
+    const found=new Set();const re=/\b(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?s?\b/gi;let m;
+    const map={sun:0,mon:1,tue:2,tues:2,wed:3,wednes:3,thu:4,thur:4,thurs:4,fri:5,sat:6,satur:6};
+    while((m=re.exec(String(text||''))))found.add(map[m[1].toLowerCase()]);
+    return found.size===1?[...found][0]:null; // none or more than one day → not decided from the text
+  }
+  function medicationMonthDayFromText(text){
+    const m=String(text||'').match(/\bday\s*(\d{1,2})\b/i)||String(text||'').match(/\b(\d{1,2})(?:st|nd|rd|th)\s+(?:of\s+)?(?:every|each)\s+month\b/i);
+    const n=m?Number(m[1]):NaN;return n>=1&&n<=31?n:null;
+  }
+  function medicationOrderWeekday(order){
+    const v=order?.dose_weekday;if(v!==null&&v!==undefined&&v!==''&&Number.isInteger(Number(v))&&Number(v)>=0&&Number(v)<=6)return Number(v);
+    return medicationWeekdayFromText(order?.special_instruction);
+  }
+  function medicationOrderMonthDay(order){
+    const v=Number(order?.dose_month_day);if(Number.isInteger(v)&&v>=1&&v<=31)return v;
+    return medicationMonthDayFromText(order?.special_instruction);
+  }
+  // Puts the chosen weekday into the instruction text ("Every Friday · …"), replacing any other weekday written there.
+  function medicationInstructionWithWeekday(text,weekday){
+    const day=MEDICATION_WEEKDAYS[weekday];if(!day)return text||'';
+    let t=String(text||'').replace(/\b(every|each|on)\s+(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?s?\b/gi,'').replace(/\b(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?s?\b/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
+    return t?`Every ${day} · ${t}`:`Every ${day}`;
+  }
+  function medicationInstructionWithMonthDay(text,dayNo){
+    if(!(dayNo>=1&&dayNo<=31))return text||'';
+    let t=String(text||'').replace(/\b(every month on )?day\s*\d{1,2}\b/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
+    return t?`Every month on day ${dayNo} · ${t}`:`Every month on day ${dayNo}`;
+  }
+  // Dates on which a Weekly / Monthly medicine falls from start to end (for the preview under the form fields).
+  function medicationPeriodicPreview(order,startISO,endISO,max=8){
+    const out=[];let d=String(startISO||'').slice(0,10);const end=String(endISO||'').slice(0,10)||addDaysISODate(d,62);
+    for(let i=0;i<93&&d&&d<=end&&out.length<max;i++){if(medicationOrderDueOnDate({...order,start_date:startISO,effective_from:null},d))out.push(d);d=addDaysISODate(d,1);}
+    return out;
+  }
   function medicationOrderDueOnDate(order,dateISO){
     const freq=String(order?.frequency||'').trim().toLowerCase();
     if(freq!=='weekly'&&freq!=='monthly')return true;
@@ -153,8 +193,9 @@
     const a=Date.UTC(+anchor.slice(0,4),+anchor.slice(5,7)-1,+anchor.slice(8,10));
     const d=Date.UTC(+dateISO.slice(0,4),+dateISO.slice(5,7)-1,+dateISO.slice(8,10));
     if(d<a)return false;
-    if(freq==='weekly')return Math.round((d-a)/86400000)%7===0;
-    const anchorDay=+anchor.slice(8,10),y=+dateISO.slice(0,4),m=+dateISO.slice(5,7),day=+dateISO.slice(8,10);
+    if(freq==='weekly'){const wd=medicationOrderWeekday(order);if(wd!==null)return new Date(d).getUTCDay()===wd;return Math.round((d-a)/86400000)%7===0;}
+    const fixedDay=medicationOrderMonthDay(order);
+    const anchorDay=fixedDay||+anchor.slice(8,10),y=+dateISO.slice(0,4),m=+dateISO.slice(5,7),day=+dateISO.slice(8,10);
     const lastDay=new Date(Date.UTC(y,m,0)).getUTCDate();
     return day===Math.min(anchorDay,lastDay);
   }
@@ -208,6 +249,32 @@
       oldText?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},`Previously entered as "${oldText}" — enter the number and choose the unit.`)
         :required&&amount&&!unit?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},'Choose the unit'):null
     );
+  }
+  // 2.18.91: "Day of week" (Weekly, compulsory) / "Day of month" (Monthly) for a medicine, saved into the instruction
+  // ("Every Friday · …") so it travels with every prescription version and every save path; shows the dose dates.
+  function medicationPeriodicDayProblem(frequency,instruction,name){
+    const f=String(frequency||'').trim().toLowerCase();
+    if(f==='weekly'&&medicationWeekdayFromText(instruction)===null)return `Choose the Day of week for the weekly medicine ${name||''}`.trim()+'.';
+    return '';
+  }
+  function MedicationPeriodicDayField({frequency,instruction,onInstruction,startISO,endISO}){
+    const f=String(frequency||'').trim().toLowerCase();
+    if(f!=='weekly'&&f!=='monthly')return null;
+    const start=String(startISO||'').slice(0,10);
+    const order={frequency,special_instruction:instruction};
+    const dates=start?medicationPeriodicPreview(order,start,endISO||'',8):[];
+    const fmtD=d=>`${MEDICATION_WEEKDAYS[new Date(`${d}T12:00:00Z`).getUTCDay()].slice(0,3)} ${formatDateIN(d)}`;
+    const wd=medicationWeekdayFromText(instruction),md=medicationMonthDayFromText(instruction);
+    const chosen=f==='weekly'?wd!==null:true;
+    const note=!chosen?null:dates.length===0?h('small',{style:{display:'block',color:'#b42318',fontWeight:700}},'No dose falls between the start and the end date — check the Start and the Duration.')
+      :h('small',{style:{display:'block',color:dates.length===1&&endISO?'#b42318':'#0a7a42',fontWeight:700}},
+        `${dates.length===1&&endISO?'Only ONE dose in this Duration: ':'Doses: '}${dates.map(fmtD).join(', ')}${dates.length>=8?' …':''}${dates.length===1&&endISO?' — for 4 weeks choose Duration "28 Days".':''}`);
+    return h('div',{className:'field'},
+      f==='weekly'
+        ?h(React.Fragment,null,h('label',null,'Day of week *'),h('select',{required:true,value:wd===null?'':String(wd),onChange:e=>{if(e.target.value!=='')onInstruction(medicationInstructionWithWeekday(instruction,Number(e.target.value)))}},
+            h('option',{value:''},'Choose the day'),MEDICATION_WEEKDAYS.map((d,i)=>h('option',{key:d,value:String(i)},d))))
+        :h(React.Fragment,null,h('label',null,'Day of month'),h('input',{type:'number',min:1,max:31,value:md||'',placeholder:'e.g. 5',onChange:e=>{const n=Number(e.target.value);if(n>=1&&n<=31)onInstruction(medicationInstructionWithMonthDay(instruction,n))}})),
+      note);
   }
   function MedicationTimeSelector({label,value,onChange,required=false,frequency='Once Daily (OD)'}){
     const limit=medicationTimeSelectionLimit(frequency);

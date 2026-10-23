@@ -9,7 +9,7 @@
     const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
     const ROUTES=['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
     const FOODS=['Before food','After food','With food','No restriction'];
-    const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+    const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
     const VARIABLE_DOSE_RE=/sliding\s*scale|depend(ing|s)?\s+on\s+(the\s+)?(blood\s*)?sugar|(as\s+per|according\s+to)\s+(the\s+)?(blood\s*)?sugar|\b(grbs|cbg|rbs)\b|blood\s*sugar|sugar\s*level|as\s+directed\s+by\s+(the\s+)?doctor/i;
     const INSULIN_RE=/insulin|actrapid|mixtard|lantus|novorapid|novomix|humalog|huminsulin|insugen|basalog|tresiba|ryzodeg|levemir|apidra|glargine|aspart|lispro|degludec|detemir|wosulin/i;

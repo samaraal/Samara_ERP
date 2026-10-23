@@ -77,7 +77,7 @@
     const [reviewFile,setReviewFile]=React.useState(null);
     const [reviewScan,setReviewScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
     const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
-    const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+    const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
     const medicationRoutes=['Oral','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
     const medicationFood=['Before food','After food','With food','No restriction'];
@@ -150,6 +150,7 @@
       if(!medicationStrengthValid(row.strength))return `Enter the Strength (number and unit) for ${name}.`;
       if(!row.frequency||!row.route||!parseTimes(row.times).length)return `Complete Frequency, Route and Time for ${name}.`;
       if(row.duration==='Custom'&&Number(row.custom_duration_days||0)<=0)return `Enter valid custom duration days for ${name}.`;
+      {const dp=medicationPeriodicDayProblem(row.frequency,row.special_instruction,name);if(dp)return dp;}
       const t=new Date(String(row.effective_from||'').trim()||reviewForm.effective_from).getTime();
       if(!Number.isFinite(t))return `Enter a valid start date & time for ${name}.`;
       if(t>Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)return `Start date & time for ${name} can be at most ${REVIEW_EFFECTIVE_MAX_DAYS} days ahead.`;
@@ -172,7 +173,7 @@
     const REVIEW_EFFECTIVE_MAX_DAYS=30; // 2.14.73: a doctor's change may be ordered to start up to 30 days ahead
     function durationEndDate(change,effectiveAt){
       const start=String(effectiveAt||'').slice(0,10)||today;
-      const days=change.duration==='Custom'?Number(change.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[change.duration]??null);
+      const days=change.duration==='Custom'?Number(change.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'28 Days':28,'30 Days':30}[change.duration]??null);
       if(days===null)return null;
       const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+Math.max(days-1,0));return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     }
@@ -225,7 +226,9 @@
                 miniSelect('Food',row.food_instruction,medicationFood,v=>patch({food_instruction:v})),
                 miniSelect('Duration',row.duration,medicationDurations,v=>patch({duration:v})),
                 row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>patch({custom_duration_days:v}),true,'number'),
-                miniInput('Special instruction',row.special_instruction,v=>patch({special_instruction:v}))
+                miniInput('Special instruction',row.special_instruction,v=>patch({special_instruction:v})),
+                (()=>{const own=String(row.effective_from||'').trim();const v=own||reviewForm.effective_from;const st=String(v||'').slice(0,10)||today;
+                  return h(MedicationPeriodicDayField,{frequency:row.frequency,instruction:row.special_instruction,onInstruction:t=>patch({special_instruction:t}),startISO:st,endISO:durationEndDate(row,v||st)||''});})()
         ),
 (()=>{
                 // 2.14.74: start / stop date & time for this medicine only (defaults to the review's Effective From).
@@ -278,6 +281,7 @@
         if(!['Modify','Add'].includes(row.action))continue;
         if(!String(row.medicine_name||'').trim()||!medicationStrengthValid(row.strength)||!row.frequency||!row.route||!parseTimes(row.times).length)return setReviewMessage('Complete Medicine, Strength (number and unit), Frequency, Route and Time for every modified/new medicine.');
         if(row.duration==='Custom'&&Number(row.custom_duration_days||0)<=0)return setReviewMessage('Enter valid custom duration days.');
+        {const dp=medicationPeriodicDayProblem(row.frequency,row.special_instruction,row.medicine_name);if(dp)return setReviewMessage(dp);}
       }
       setReviewBusy(true);let uploaded=null;
       try{

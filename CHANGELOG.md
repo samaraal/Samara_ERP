@@ -1,3 +1,9 @@
+## 2.18.91 — Weekly / Monthly medicines are due on their OWN day (missed Inj. Anfoe, 23-10-2026) (needs SQL 279)
+- ROOT CAUSE: a Weekly medicine had no "day of week". The ERP counted every 7 days from the date the current prescription version started. Mrs. Shanthi T's Inj. Anfoe 4000 IU started on Sunday 18-10 (admission note "every Sunday"); the Doctor Review on 18-10 changed the note to "EVERY FRIDAY FOR 4 WEEKS" but the start date stayed Sunday 18-10, so the MAR, Shift Tasks, nurse screensaver, Clinical Dashboard and the Medicine Due alerts / escalations all expected Sundays — the Friday 23-10 dose appeared nowhere.
+- FIX: Weekly medicines now need a compulsory **Day of week** (Admission, Doctor Review Add / Modify, prescription scan); Monthly ones may have a **Day of month**. The day is written into the instruction ("Every Friday · …"), saved as dose_weekday / dose_month_day (SQL 279) and carried to every new version by Doctor Review. Every screen and the server alerts use that fixed day. The form shows the actual dose dates for the chosen Duration and warns when only one dose falls in it (e.g. "for 4 weeks" → choose 28 Days, now in the Duration list).
+- Existing Weekly / Monthly prescriptions take the day from their instruction (Anfoe → Friday), else from the previous version, else from the first dose date.
+- Run supabase/sql/279_weekly_medicine_fixed_weekday.sql, then publish the app.
+
 ## 2.18.90 — Intake / Output PDF: clear colour key
 - The chart key on the Intake / Output PDF now reads "Pink bar = Intake (fluids taken in)" and "Blue bar = Output (fluids passed out)", matching Family Portal 1.0.50. No SQL.
 

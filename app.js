@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.90';
+  const APP_VERSION = '2.18.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3403,7 +3403,7 @@ https://samaraassistedliving.com/`;
     const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
     const ROUTES=['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
     const FOODS=['Before food','After food','With food','No restriction'];
-    const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+    const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
     const VARIABLE_DOSE_RE=/sliding\s*scale|depend(ing|s)?\s+on\s+(the\s+)?(blood\s*)?sugar|(as\s+per|according\s+to)\s+(the\s+)?(blood\s*)?sugar|\b(grbs|cbg|rbs)\b|blood\s*sugar|sugar\s*level|as\s+directed\s+by\s+(the\s+)?doctor/i;
     const INSULIN_RE=/insulin|actrapid|mixtard|lantus|novorapid|novomix|humalog|huminsulin|insugen|basalog|tresiba|ryzodeg|levemir|apidra|glargine|aspart|lispro|degludec|detemir|wosulin/i;
@@ -22363,6 +22363,46 @@ Thank you.`;
     }
     return String(order?.start_date||'').slice(0,10);
   }
+  // 2.18.91: a Weekly medicine is due on its OWN weekday (e.g. "Every Friday"), not every 7 days from whatever date
+  // the latest prescription version happened to start (Inj. Anfoe, 23-10-2026: started Sunday 18-10 after a doctor
+  // review, note said Friday → the ERP counted Sundays and the Friday dose never appeared anywhere).
+  // The day comes from: the order's dose_weekday (SQL 279) → the weekday written in the instruction → old 7-day rule.
+  const MEDICATION_WEEKDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  function medicationWeekdayFromText(text){
+    const found=new Set();const re=/\b(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?s?\b/gi;let m;
+    const map={sun:0,mon:1,tue:2,tues:2,wed:3,wednes:3,thu:4,thur:4,thurs:4,fri:5,sat:6,satur:6};
+    while((m=re.exec(String(text||''))))found.add(map[m[1].toLowerCase()]);
+    return found.size===1?[...found][0]:null; // none or more than one day → not decided from the text
+  }
+  function medicationMonthDayFromText(text){
+    const m=String(text||'').match(/\bday\s*(\d{1,2})\b/i)||String(text||'').match(/\b(\d{1,2})(?:st|nd|rd|th)\s+(?:of\s+)?(?:every|each)\s+month\b/i);
+    const n=m?Number(m[1]):NaN;return n>=1&&n<=31?n:null;
+  }
+  function medicationOrderWeekday(order){
+    const v=order?.dose_weekday;if(v!==null&&v!==undefined&&v!==''&&Number.isInteger(Number(v))&&Number(v)>=0&&Number(v)<=6)return Number(v);
+    return medicationWeekdayFromText(order?.special_instruction);
+  }
+  function medicationOrderMonthDay(order){
+    const v=Number(order?.dose_month_day);if(Number.isInteger(v)&&v>=1&&v<=31)return v;
+    return medicationMonthDayFromText(order?.special_instruction);
+  }
+  // Puts the chosen weekday into the instruction text ("Every Friday · …"), replacing any other weekday written there.
+  function medicationInstructionWithWeekday(text,weekday){
+    const day=MEDICATION_WEEKDAYS[weekday];if(!day)return text||'';
+    let t=String(text||'').replace(/\b(every|each|on)\s+(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?s?\b/gi,'').replace(/\b(sun|mon|tue|tues|wed|wednes|thu|thur|thurs|fri|sat|satur)(?:day)?s?\b/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
+    return t?`Every ${day} · ${t}`:`Every ${day}`;
+  }
+  function medicationInstructionWithMonthDay(text,dayNo){
+    if(!(dayNo>=1&&dayNo<=31))return text||'';
+    let t=String(text||'').replace(/\b(every month on )?day\s*\d{1,2}\b/gi,'').replace(/\s{2,}/g,' ').replace(/^[\s·,;-]+|[\s·,;-]+$/g,'');
+    return t?`Every month on day ${dayNo} · ${t}`:`Every month on day ${dayNo}`;
+  }
+  // Dates on which a Weekly / Monthly medicine falls from start to end (for the preview under the form fields).
+  function medicationPeriodicPreview(order,startISO,endISO,max=8){
+    const out=[];let d=String(startISO||'').slice(0,10);const end=String(endISO||'').slice(0,10)||addDaysISODate(d,62);
+    for(let i=0;i<93&&d&&d<=end&&out.length<max;i++){if(medicationOrderDueOnDate({...order,start_date:startISO,effective_from:null},d))out.push(d);d=addDaysISODate(d,1);}
+    return out;
+  }
   function medicationOrderDueOnDate(order,dateISO){
     const freq=String(order?.frequency||'').trim().toLowerCase();
     if(freq!=='weekly'&&freq!=='monthly')return true;
@@ -22371,8 +22411,9 @@ Thank you.`;
     const a=Date.UTC(+anchor.slice(0,4),+anchor.slice(5,7)-1,+anchor.slice(8,10));
     const d=Date.UTC(+dateISO.slice(0,4),+dateISO.slice(5,7)-1,+dateISO.slice(8,10));
     if(d<a)return false;
-    if(freq==='weekly')return Math.round((d-a)/86400000)%7===0;
-    const anchorDay=+anchor.slice(8,10),y=+dateISO.slice(0,4),m=+dateISO.slice(5,7),day=+dateISO.slice(8,10);
+    if(freq==='weekly'){const wd=medicationOrderWeekday(order);if(wd!==null)return new Date(d).getUTCDay()===wd;return Math.round((d-a)/86400000)%7===0;}
+    const fixedDay=medicationOrderMonthDay(order);
+    const anchorDay=fixedDay||+anchor.slice(8,10),y=+dateISO.slice(0,4),m=+dateISO.slice(5,7),day=+dateISO.slice(8,10);
     const lastDay=new Date(Date.UTC(y,m,0)).getUTCDate();
     return day===Math.min(anchorDay,lastDay);
   }
@@ -22426,6 +22467,32 @@ Thank you.`;
       oldText?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},`Previously entered as "${oldText}" — enter the number and choose the unit.`)
         :required&&amount&&!unit?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},'Choose the unit'):null
     );
+  }
+  // 2.18.91: "Day of week" (Weekly, compulsory) / "Day of month" (Monthly) for a medicine, saved into the instruction
+  // ("Every Friday · …") so it travels with every prescription version and every save path; shows the dose dates.
+  function medicationPeriodicDayProblem(frequency,instruction,name){
+    const f=String(frequency||'').trim().toLowerCase();
+    if(f==='weekly'&&medicationWeekdayFromText(instruction)===null)return `Choose the Day of week for the weekly medicine ${name||''}`.trim()+'.';
+    return '';
+  }
+  function MedicationPeriodicDayField({frequency,instruction,onInstruction,startISO,endISO}){
+    const f=String(frequency||'').trim().toLowerCase();
+    if(f!=='weekly'&&f!=='monthly')return null;
+    const start=String(startISO||'').slice(0,10);
+    const order={frequency,special_instruction:instruction};
+    const dates=start?medicationPeriodicPreview(order,start,endISO||'',8):[];
+    const fmtD=d=>`${MEDICATION_WEEKDAYS[new Date(`${d}T12:00:00Z`).getUTCDay()].slice(0,3)} ${formatDateIN(d)}`;
+    const wd=medicationWeekdayFromText(instruction),md=medicationMonthDayFromText(instruction);
+    const chosen=f==='weekly'?wd!==null:true;
+    const note=!chosen?null:dates.length===0?h('small',{style:{display:'block',color:'#b42318',fontWeight:700}},'No dose falls between the start and the end date — check the Start and the Duration.')
+      :h('small',{style:{display:'block',color:dates.length===1&&endISO?'#b42318':'#0a7a42',fontWeight:700}},
+        `${dates.length===1&&endISO?'Only ONE dose in this Duration: ':'Doses: '}${dates.map(fmtD).join(', ')}${dates.length>=8?' …':''}${dates.length===1&&endISO?' — for 4 weeks choose Duration "28 Days".':''}`);
+    return h('div',{className:'field'},
+      f==='weekly'
+        ?h(React.Fragment,null,h('label',null,'Day of week *'),h('select',{required:true,value:wd===null?'':String(wd),onChange:e=>{if(e.target.value!=='')onInstruction(medicationInstructionWithWeekday(instruction,Number(e.target.value)))}},
+            h('option',{value:''},'Choose the day'),MEDICATION_WEEKDAYS.map((d,i)=>h('option',{key:d,value:String(i)},d))))
+        :h(React.Fragment,null,h('label',null,'Day of month'),h('input',{type:'number',min:1,max:31,value:md||'',placeholder:'e.g. 5',onChange:e=>{const n=Number(e.target.value);if(n>=1&&n<=31)onInstruction(medicationInstructionWithMonthDay(instruction,n))}})),
+      note);
   }
   function MedicationTimeSelector({label,value,onChange,required=false,frequency='Once Daily (OD)'}){
     const limit=medicationTimeSelectionLimit(frequency);
@@ -23742,7 +23809,8 @@ Thank you.`;
         String(row.prescribed_by_doctor||'').trim()&&
         String(row.medicine_name||'').trim()&&
         medicationStrengthValid(row.strength)&&
-        String(row.times||'').trim()
+        String(row.times||'').trim()&&
+        !medicationPeriodicDayProblem(row.frequency,row.special_instruction) // 2.18.91: Weekly needs its Day of week
       );
     }
     function careRowComplete(row){
@@ -23823,7 +23891,7 @@ Thank you.`;
     }
     function verifyScannedMedicine(index){
       const row=meds[index];
-      if(!medicineRowComplete(row)){setMsg('Complete Prescribed Doctor, Medicine, Strength (number and unit) and Time for this medicine first (use Edit).');return}
+      if(!medicineRowComplete(row)){setMsg('Complete Prescribed Doctor, Medicine, Strength (number and unit), Time and (for weekly medicines) the Day of week first (use Edit).');return}
       setMeds(meds.map((m,i)=>i===index?{...m,is_locked:true,scan:{...m.scan,verified:true}}:m));setMsg('');
     }
     function applyScanDoctor(){
@@ -25056,7 +25124,7 @@ Please keep these login details confidential.`;
       {const badProc=(procs||[]).findIndex(r=>String(r.care_type||'').trim()&&!nursingProcedureRowComplete(r));if(badProc>=0){setMsg(`Section 5, Nursing procedure ${badProc+1}: ${nursingProcedureRowProblem(procs[badProc])}`);setBusy(false);return}}
       if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
-        setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit) and Time.');
+        setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit), Time, and the Day of week for weekly medicines.');
         setBusy(false);
         return;
       }
@@ -25217,7 +25285,7 @@ Please keep these login details confidential.`;
           if(packageChargeError)throw packageChargeError;
         }
         if(effectiveMeds.length&&!(await alreadySaved('medication_orders',q=>q.eq('is_active',true)))){
-          const medRows=effectiveMeds.map(m=>{const effectiveLocal=medicationEffectiveValue(m);const effectiveAt=new Date(effectiveLocal);const start=effectiveLocal.slice(0,10)||todayISOIndia();const durationDays=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[m.duration]??null);let endDate=null;if(durationDays!==null)endDate=addDaysISODate(start,Math.max(durationDays-1,0));return {effective_from:Number.isNaN(effectiveAt.getTime())?null:effectiveAt.toISOString(),patient_id:patient.id,prescribed_by_doctor:m.prescribed_by_doctor,medicine_name:m.medicine_name,strength:m.strength,dose:m.strength,route:m.route,food_instruction:m.food_instruction,special_instruction:m.special_instruction,scheduled_times:m.times.split(',').map(x=>x.trim()).filter(Boolean),frequency:m.frequency,duration:m.duration,duration_days:m.duration==='Custom'?Number(m.custom_duration_days||0):durationDays,start_date:start,end_date:endDate,is_active:true,version_no:1,change_action:'Admission Prescription',status:'Active',entered_by:user.id,verified_by:user.id}});
+          const medRows=effectiveMeds.map(m=>{const effectiveLocal=medicationEffectiveValue(m);const effectiveAt=new Date(effectiveLocal);const start=effectiveLocal.slice(0,10)||todayISOIndia();const durationDays=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'28 Days':28,'30 Days':30}[m.duration]??null);let endDate=null;if(durationDays!==null)endDate=addDaysISODate(start,Math.max(durationDays-1,0));return {effective_from:Number.isNaN(effectiveAt.getTime())?null:effectiveAt.toISOString(),patient_id:patient.id,prescribed_by_doctor:m.prescribed_by_doctor,medicine_name:m.medicine_name,strength:m.strength,dose:m.strength,route:m.route,food_instruction:m.food_instruction,special_instruction:m.special_instruction,scheduled_times:m.times.split(',').map(x=>x.trim()).filter(Boolean),frequency:m.frequency,duration:m.duration,duration_days:m.duration==='Custom'?Number(m.custom_duration_days||0):durationDays,start_date:start,end_date:endDate,is_active:true,version_no:1,change_action:'Admission Prescription',status:'Active',entered_by:user.id,verified_by:user.id}});
           const {error:medicationInsertError}=await client.from('medication_orders').insert(medRows);
           if(medicationInsertError)throw medicationInsertError;
         }
@@ -25721,7 +25789,7 @@ Please keep these login details confidential.`;
               h('small',null,`Effective from: ${(()=>{const v=medicationEffectiveValue(m);return `${formatDateIN(v.slice(0,10))} ${medicationTimeLabel(v.slice(11,16))}`})()}`),
               m.special_instruction&&h('small',null,`Instruction: ${m.special_instruction}`),
               m.scan&&!m.scan.verified&&(m.scan.flags||[]).length?h('small',{style:{color:'#8a5a00'}},'Check: '+(m.scan.flags||[]).map(k=>`${SAMARA_SCAN.LABEL[k]||k}${m.scan.notes&&m.scan.notes[k]?` (${m.scan.notes[k]})`:''}`).join(' · ')):null,
-              m.scan&&!m.scan.verified&&!medicineRowComplete(m)?h('small',{className:'error-text'},'Still needed: '+[!String(m.prescribed_by_doctor||'').trim()&&'Prescribed Doctor',!String(m.medicine_name||'').trim()&&'Medicine',!medicationStrengthValid(m.strength)&&'Strength (number and unit)',!String(m.times||'').trim()&&'Time'].filter(Boolean).join(', ')+' — use Edit'):null
+              m.scan&&!m.scan.verified&&!medicineRowComplete(m)?h('small',{className:'error-text'},'Still needed: '+[!String(m.prescribed_by_doctor||'').trim()&&'Prescribed Doctor',!String(m.medicine_name||'').trim()&&'Medicine',!medicationStrengthValid(m.strength)&&'Strength (number and unit)',!String(m.times||'').trim()&&'Time',medicationPeriodicDayProblem(m.frequency,m.special_instruction)&&'Day of week'].filter(Boolean).join(', ')+' — use Edit'):null
             ),
             h('div',{className:'admission-row-actions'},
               m.scan&&!m.scan.verified&&h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),title:medicineRowComplete(m)?'I have checked this medicine against the prescription':'Complete the missing details first (Edit)',onClick:()=>verifyScannedMedicine(i)},'✓ Verified'),
@@ -25738,7 +25806,7 @@ Please keep these login details confidential.`;
             miniSelect('Route',m.route,['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
             h(MedicationTimeSelector,{label:'Time',value:m.times,frequency:m.frequency,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
             miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateRow(setMeds,meds,i,'food_instruction',v)),
-            miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateRow(setMeds,meds,i,'duration',v)),
+            miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateRow(setMeds,meds,i,'duration',v)),
             m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateRow(setMeds,meds,i,'custom_duration_days',v),true,'number'),
             (()=>{
               // 2.14.74: per-medicine start (e.g. a weekly tablet already taken before admission starts on its next due date).
@@ -25754,6 +25822,8 @@ Please keep these login details confidential.`;
               );
             })(),
             miniInput('Special instruction',m.special_instruction,v=>updateRow(setMeds,meds,i,'special_instruction',v)),
+            (()=>{const v=medicationEffectiveValue(m);const st=String(v||'').slice(0,10)||todayISOIndia();const dd=m.duration==='Custom'?Number(m.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'28 Days':28,'30 Days':30}[m.duration]??null);
+              return h(MedicationPeriodicDayField,{frequency:m.frequency,instruction:m.special_instruction,onInstruction:t=>updateRow(setMeds,meds,i,'special_instruction',t),startISO:st,endISO:dd===null?'':addDaysISODate(st,Math.max(dd-1,0))});})(),
             m.scan&&m.scan.raw?h('small',{className:'small-note',style:{fontFamily:'monospace'}},`As written: ${m.scan.raw}`):null,
             m.scan?h('button',{type:'button',className:'btn btn-primary',disabled:!medicineRowComplete(m),onClick:()=>verifyScannedMedicine(i)},'✓ Done & verified'):null,
             h('button',{type:'button',className:'btn btn-danger',onClick:()=>removeMedicineEntry(i),disabled:meds.length===1&&!m.medicine_name},'Remove')
@@ -34587,7 +34657,7 @@ function RoomsBeds({profile,onNavigate}){
     const [reviewFile,setReviewFile]=React.useState(null);
     const [reviewScan,setReviewScan]=React.useState({busy:false,status:'',tone:'',metas:[],notes:[]});
     const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
-    const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'];
+    const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
     const medicationRoutes=['Oral','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
     const medicationFood=['Before food','After food','With food','No restriction'];
@@ -34660,6 +34730,7 @@ function RoomsBeds({profile,onNavigate}){
       if(!medicationStrengthValid(row.strength))return `Enter the Strength (number and unit) for ${name}.`;
       if(!row.frequency||!row.route||!parseTimes(row.times).length)return `Complete Frequency, Route and Time for ${name}.`;
       if(row.duration==='Custom'&&Number(row.custom_duration_days||0)<=0)return `Enter valid custom duration days for ${name}.`;
+      {const dp=medicationPeriodicDayProblem(row.frequency,row.special_instruction,name);if(dp)return dp;}
       const t=new Date(String(row.effective_from||'').trim()||reviewForm.effective_from).getTime();
       if(!Number.isFinite(t))return `Enter a valid start date & time for ${name}.`;
       if(t>Date.now()+REVIEW_EFFECTIVE_MAX_DAYS*86400000)return `Start date & time for ${name} can be at most ${REVIEW_EFFECTIVE_MAX_DAYS} days ahead.`;
@@ -34682,7 +34753,7 @@ function RoomsBeds({profile,onNavigate}){
     const REVIEW_EFFECTIVE_MAX_DAYS=30; // 2.14.73: a doctor's change may be ordered to start up to 30 days ahead
     function durationEndDate(change,effectiveAt){
       const start=String(effectiveAt||'').slice(0,10)||today;
-      const days=change.duration==='Custom'?Number(change.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'30 Days':30}[change.duration]??null);
+      const days=change.duration==='Custom'?Number(change.custom_duration_days||0):({'Single Dose':0,'1 Day':1,'3 Days':3,'5 Days':5,'7 Days':7,'10 Days':10,'14 Days':14,'21 Days':21,'28 Days':28,'30 Days':30}[change.duration]??null);
       if(days===null)return null;
       const d=new Date(`${start}T00:00:00`);d.setDate(d.getDate()+Math.max(days-1,0));return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     }
@@ -34735,7 +34806,9 @@ function RoomsBeds({profile,onNavigate}){
                 miniSelect('Food',row.food_instruction,medicationFood,v=>patch({food_instruction:v})),
                 miniSelect('Duration',row.duration,medicationDurations,v=>patch({duration:v})),
                 row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>patch({custom_duration_days:v}),true,'number'),
-                miniInput('Special instruction',row.special_instruction,v=>patch({special_instruction:v}))
+                miniInput('Special instruction',row.special_instruction,v=>patch({special_instruction:v})),
+                (()=>{const own=String(row.effective_from||'').trim();const v=own||reviewForm.effective_from;const st=String(v||'').slice(0,10)||today;
+                  return h(MedicationPeriodicDayField,{frequency:row.frequency,instruction:row.special_instruction,onInstruction:t=>patch({special_instruction:t}),startISO:st,endISO:durationEndDate(row,v||st)||''});})()
         ),
 (()=>{
                 // 2.14.74: start / stop date & time for this medicine only (defaults to the review's Effective From).
@@ -34788,6 +34861,7 @@ function RoomsBeds({profile,onNavigate}){
         if(!['Modify','Add'].includes(row.action))continue;
         if(!String(row.medicine_name||'').trim()||!medicationStrengthValid(row.strength)||!row.frequency||!row.route||!parseTimes(row.times).length)return setReviewMessage('Complete Medicine, Strength (number and unit), Frequency, Route and Time for every modified/new medicine.');
         if(row.duration==='Custom'&&Number(row.custom_duration_days||0)<=0)return setReviewMessage('Enter valid custom duration days.');
+        {const dp=medicationPeriodicDayProblem(row.frequency,row.special_instruction,row.medicine_name);if(dp)return setReviewMessage(dp);}
       }
       setReviewBusy(true);let uploaded=null;
       try{
