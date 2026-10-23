@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.73';
+  const APP_VERSION = '2.18.74';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22011,6 +22011,34 @@ Thank you.`;
     if(Number.isNaN(hour))return String(value||'');
     return `${hour===0?12:hour>12?hour-12:hour}:${normalized.slice(3,5)||'00'} ${hour<12?'AM':'PM'}`;
   }
+  // Clinical tasks scheduled before a same-day admission do not belong to the new stay.
+  // Compare in Samara's local timezone so the rule is consistent on every device.
+  function clinicalDateTimeInIndia(value){
+    const stamp=new Date(value);if(Number.isNaN(stamp.getTime()))return null;
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(stamp).map(x=>[x.type,x.value]));
+    return {date:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`};
+  }
+  function clinicalSlotAfterAdmission(patient,dateISO,time){
+    const slotDate=String(dateISO||'').slice(0,10);
+    const admissionDate=String(patient?.admission_date||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)||!/^\d{4}-\d{2}-\d{2}$/.test(admissionDate))return true;
+    if(slotDate!==admissionDate)return slotDate>admissionDate;
+    const normalized=normalizeMedicationTime(time);
+    if(!/^\d{2}:\d{2}$/.test(normalized))return true;
+    const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at].filter(Boolean);
+    const clock=String(patient.admission_time||'').slice(0,5);
+    let boundary='';
+    if(clock)boundary=clock;
+    for(const value of explicit){
+      const stamp=clinicalDateTimeInIndia(value);
+      if(stamp?.date===admissionDate){boundary=stamp.time;break;}
+    }
+    const created=clinicalDateTimeInIndia(patient.created_at);
+    const updated=clinicalDateTimeInIndia(patient.updated_at);
+    if(!boundary&&created?.date===admissionDate)boundary=created.time;
+    if(!boundary&&updated?.date===admissionDate)boundary=updated.time;
+    return !boundary||normalized>=boundary;
+  }
   // Doses that were not given (refused, patient sleeping, missed, delayed) can be rescheduled.
   const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed'];
   function addDaysISODate(dateISO,days){
@@ -25600,7 +25628,7 @@ Please keep these login details confidential.`;
       saveTaskNavigationContext({page,return_page:'Shift Tasks',...context});
       onNavigate?.(page);
     }
-    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required,is_active,admission_status';
+    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required,is_active,admission_status,admission_date,admission_time,created_at,updated_at';
 
     async function load(){
       setLoading(true);
@@ -25707,6 +25735,7 @@ Please keep these login details confidential.`;
     meds.forEach(order=>(order.scheduled_times||[]).forEach(raw=>{
       const time=String(raw).slice(0,5);
       if(!medicationOrderDoseEligible(order,today,time))return;
+      if(!clinicalSlotAfterAdmission(order.patients,today,time))return;
       if(shiftForTime(time)!==shift)return;
       medTasks.push({
         type:'Medicine',
@@ -25722,6 +25751,7 @@ Please keep these login details confidential.`;
     medLogs.filter(log=>log.rescheduled_time&&rescheduledDoseDate(log)===today).forEach(log=>{
       const order=meds.find(o=>o.id===log.order_id);if(!order)return;
       const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
+      if(!clinicalSlotAfterAdmission(order.patients,today,time))return;
       if(!time||shiftForTime(time)!==shift)return;
       if(medTasks.some(t=>t.order.id===order.id&&t.time===time))return;
       medTasks.push({
@@ -25740,12 +25770,13 @@ Please keep these login details confidential.`;
     // 2.18.27: Nursing Procedures with fixed times (like medicines) → one task per time.
     const procFixedTimes=order=>isNursingProcedureOrder(order)?nursingProcedureTimes(order):[];
     const procTimeLog=(order,t)=>careLogs.find(x=>x.care_order_id===order.id&&(x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:false));
+    const upcomingShiftDate=shift==='Day Shift (7 AM–7 PM)'?today:addDaysISODate(today,1);
     const fixedProcTasks=(type,wantCurrent)=>care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
-      procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent).map(t=>({
+      procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent&&clinicalSlotAfterAdmission(order.patients,wantCurrent?today:upcomingShiftDate,t)).map(t=>({
         type,patient_id:order.patient_id,patient:order.patients,order,taskShift:shiftForTime(t),time:t,
         label:order.care_type||'Nursing procedure',log:procTimeLog(order,t)}))).filter(x=>wantCurrent||!x.log);
 
-    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
+    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -25767,7 +25798,7 @@ Please keep these login details confidential.`;
         }));
     })];
 
-    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
+    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,upcomingShiftDate,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -25791,7 +25822,7 @@ Please keep these login details confidential.`;
     })];
 
     const physioTasks=physio
-      .filter(order=>!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)
+      .filter(order=>(!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)&&(!order.preferred_time||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_time).slice(0,5))))
       .map(order=>({
         type:'Physiotherapy',
         patient_id:order.patient_id,
@@ -26371,7 +26402,7 @@ Please keep these login details confidential.`;
   async function loadNurseSaverTasks(){
     const now=new Date();
     const win=nssShiftWindow(now);
-    const fields='id,title,full_name,room_no,bed_no,is_active,admission_status,admission_date,vitals_schedule,diet_plan';
+    const fields='id,title,full_name,room_no,bed_no,is_active,admission_status,admission_date,admission_time,created_at,updated_at,vitals_schedule,diet_plan';
     const dayBefore=addDaysISODate(win.dates[0],-1);
     const [m,ml,c,cl,pr,pts,vs,mr]=await Promise.all([
       // 2.18.14: plain reads (no embedded Guest lookup) with a fallback; Guests are joined here from the Guest list.
@@ -26411,11 +26442,13 @@ Please keep these login details confidential.`;
       const time=normalizeMedicationTime(raw).slice(0,5);if(!/^\d{2}:\d{2}$/.test(time))return;
       const slot=nssTimeAhead(win,time,now);if(!slot)return;
       if(!medicationOrderDoseEligible(order,slot.date,time))return;
+      if(!clinicalSlotAfterAdmission(order.patients,slot.date,time))return;
       addDose(order,slot.date,time,slot.at,!!slot.next);
     }));
     medLogs.filter(x=>x.rescheduled_time).forEach(log=>{
       const order=(m.data||[]).find(o=>o.id===log.order_id);if(!order)return;
       const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);const date=rescheduledDoseDate(log);
+      if(!clinicalSlotAfterAdmission(order.patients,date,time))return;
       const at=nssAt(date,time);if(!at||at<win.start||at>=win.end)return;
       addDose(order,date,time,at);
     });
@@ -26439,7 +26472,7 @@ Please keep these login details confidential.`;
       const times=(Array.isArray(p.vitals_schedule)&&p.vitals_schedule.length?p.vitals_schedule:['06:00','14:00','22:00']).map(t=>String(t).slice(0,5));
       times.forEach(t=>{
         const slot=nssTimeAhead(win,t,now);if(!slot)return;
-        if(p.admission_date&&String(p.admission_date).slice(0,10)>slot.date)return;
+        if(!clinicalSlotAfterAdmission(p,slot.date,t))return;
         const done=vit.some(v=>{if(v.patient_id!==p.id)return false;const r=new Date(v.recorded_at).getTime();return r>=slot.at.getTime()-90*60000&&r<slot.at.getTime()+4*3600000});
         tasks.push({kind:'care',group:'vitals',at:slot.at,grace:60,patient:p,done,title:'Vital signs',note:'',nextShift:!!slot.next});
       });
@@ -26458,6 +26491,7 @@ Please keep these login details confidential.`;
         fixedTimes.forEach(t=>{
           const slot=nssTimeAhead(win,t,now);if(!slot)return;
           if(order.start_date&&String(order.start_date).slice(0,10)>slot.date)return;
+          if(!clinicalSlotAfterAdmission(p,slot.date,t))return;
           const done=careLogs.some(x=>x.care_order_id===order.id&&String(x.care_date).slice(0,10)===slot.date&&(
             x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:(x.completed_at&&Math.abs(new Date(x.completed_at).getTime()-slot.at.getTime())<=3*3600000)));
           tasks.push({kind:'proc',group:'proc',at:slot.at,grace:60,patient:p,done,title:label,planned:true,fixedTime:t,nextShift:!!slot.next,
@@ -26480,6 +26514,9 @@ Please keep these login details confidential.`;
       const from=careTimeValue(order.preferred_from),to=careTimeValue(order.preferred_to);
       const fromAt=from?nssTimeInShift(win,from)?.at:null,toAt=to?nssTimeInShift(win,to)?.at:null;
       if(fromAt||toAt){
+        const scheduledAt=fromAt||toAt;
+        const scheduledParts=clinicalDateTimeInIndia(scheduledAt);
+        if(scheduledParts&&!clinicalSlotAfterAdmission(p,scheduledParts.date,scheduledParts.time))return;
         tasks.push({kind:isProc?'proc':'care',group:grp,at:fromAt||toAt,deadline:toAt||null,grace:0,patient:p,done,title:label,planned:isProc,
           windowText:fromAt&&toAt?`${nssTime12(fromAt).t}–${nssTime12(toAt).t}`:'',
           note:[isProc&&order.procedure_code?order.procedure_code:'',toAt?`ends ${nssTime12(toAt).t} ${nssTime12(toAt).ap}`:''].filter(Boolean).join(' · ')});
@@ -26514,6 +26551,8 @@ Please keep these login details confidential.`;
       const p=guestMap.get(r.patient_id);if(!p)return;
       const at=r.scheduled_at?new Date(r.scheduled_at):null;
       if(at&&(Number.isNaN(at.getTime())||at>=win.end))return;
+      const scheduledParts=at?clinicalDateTimeInIndia(at):null;
+      if(scheduledParts&&!clinicalSlotAfterAdmission(p,scheduledParts.date,scheduledParts.time))return;
       const pending=r.status==='Requested';
       const cat=r.category&&r.category!=='Nursing Procedures'?r.category:'';
       tasks.push({kind:'proc',group:'proc',at:at&&at>win.start?at:now,atScheduled:!!at,ready:!at&&!pending,awaiting:pending,grace:pending?100000:30,patient:p,done:false,
@@ -26526,7 +26565,7 @@ Please keep these login details confidential.`;
     const meals=mr.data||[];
     [['08:00','Breakfast'],['13:00','Lunch'],['20:00','Dinner']].forEach(([t,label])=>{
       const slot=nssTimeAhead(win,t,now);if(!slot)return;
-      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&!(p.admission_date&&String(p.admission_date).slice(0,10)>slot.date));
+      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&clinicalSlotAfterAdmission(p,slot.date,t));
       const pending=eligible.filter(p=>!meals.some(r=>r.patient_id===p.id&&String(r.meal_date).slice(0,10)===slot.date&&nssMealKind(r.meal_type)===label));
       if(!eligible.length)return;
       tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,grace:30,patient:null,done:pending.length===0,nextShift:!!slot.next,
