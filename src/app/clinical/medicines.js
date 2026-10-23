@@ -215,9 +215,9 @@
 
                 miniInput('Medicine',row.medicine_name,v=>patch({medicine_name:v}),true),
                 h(MedicationStrengthInput,{label:'Strength',value:row.strength,onChange:v=>patch({strength:v}),required:true}),
-                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>patch({frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||parseTimes(row.times)).join(', ') })),
+                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>patch({frequency:v,times:medicationTimesForFrequency(v,row.times)})),
                 miniSelect('Route',row.route,medicationRoutes,v=>patch({route:v})),
-                h(MedicationTimeSelector,{label:'Time',value:row.times,onChange:v=>patch({times:v}),required:true}),
+                h(MedicationTimeSelector,{label:'Time',value:row.times,frequency:row.frequency,onChange:v=>patch({times:v}),required:true}),
                 miniSelect('Food',row.food_instruction,medicationFood,v=>patch({food_instruction:v})),
                 miniSelect('Duration',row.duration,medicationDurations,v=>patch({duration:v})),
                 row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>patch({custom_duration_days:v}),true,'number'),
