@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.93';
+  const APP_VERSION = '2.18.94';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22422,6 +22422,39 @@ Thank you.`;
     for(let i=0;i<62&&d;i++){if(medicationOrderDueOnDate(order,d))return d;d=addDaysISODate(d,1);}
     return '';
   }
+  // 2.18.94: Physiotherapy plans — one session time per session of the day (Twice daily = 2 times, Three times daily = 3).
+  // Saved in physiotherapy_plans.session_times (SQL 282); preferred_time keeps the first time for older screens.
+  const PHYSIO_FREQUENCIES=['Once daily','Twice daily','Three times daily','Alternate days','Weekly','As advised'];
+  function physioSessionsPerDayFor(frequency){
+    const f=String(frequency||'').toLowerCase();
+    if(/four|4\s*times|qid/.test(f))return 4;
+    if(/thrice|three|3\s*times|tds|tid/.test(f))return 3;
+    if(/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f))return 2;
+    return 1;
+  }
+  function physioPlanTimes(plan){
+    const list=(Array.isArray(plan?.session_times)?plan.session_times:[]).map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t));
+    if(list.length)return [...new Set(list)].sort();
+    const one=String(plan?.preferred_time||plan?.session_time||'').slice(0,5);
+    return /^\d{2}:\d{2}$/.test(one)?[one]:[];
+  }
+  // Session time boxes for a plan form: n boxes for the frequency; returns the times array via onChange.
+  function PhysioSessionTimesFields({frequency,times,onChange}){
+    const n=physioSessionsPerDayFor(frequency);
+    const list=Array.from({length:n},(_,i)=>String((times||[])[i]||'').slice(0,5));
+    const label=i=>n===1?'Preferred time':`Session ${i+1} time`;
+    return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
+      h('label',null,label(i),n>1?' *':''),
+      h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
+      n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));
+  }
+  function physioTimesProblem(frequency,times){
+    const n=physioSessionsPerDayFor(frequency);if(n<2)return '';
+    const list=(times||[]).slice(0,n).map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t));
+    if(list.length<n)return `Enter all ${n} session times for the ${frequency} physiotherapy plan.`;
+    if(new Set(list).size<n)return 'Each physiotherapy session needs a different time.';
+    return '';
+  }
   // 2.14.75: Strength = amount + unit chosen from a list (avoids typing mistakes such as "500ma").
   // Saved as one text value, e.g. "500 mg", "2.5 mg/5 ml", "50/500 mg" — the same column as before.
   const MEDICATION_STRENGTH_UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
@@ -23109,7 +23142,7 @@ Thank you.`;
 
   function Admissions({profile,onNavigate}){
     const today=new Date().toISOString().slice(0,10);
-    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_plan:null,feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Daily',physio_time:'10:00',physio_precautions:'',undergoing_prescribed_medication:'Yes'};
+    const initial={record_type:'',admission_type:'Previous Hospital / Care Centre',patient_category:'Short Stay',title:'',full_name:'',date_of_birth:'',age:'',gender:'Male',blood_group:'Unknown',profession:'',profession_field:'',employment_status:'',mobile:'+91 ',address:'',country:'India',state:'Tamil Nadu',district:'',taluk:'',village_town:'',locality_area:'',street_name:'',house_no:'',apartment_name:'',flat_no:'',landmark:'',pincode:'',room_no:'',bed_no:'',admission_date:today,admission_time:localDateTimeValue().slice(11,16),vitals_time_1:'06:00',vitals_time_2:'14:00',vitals_time_3:'22:00',hospital_name:'',discharge_date:today,diagnosis:'',treating_doctor:'',doctor_phone:'+91 ',referring_doctor:'',referring_source:'',family_doctor:'',attendant_staying:'',attendant_name:'',attendant_phone:'+91 ',attendant_alternative_phone:'+91 ',allergies:'',special_instructions:'',diet_plan:'Normal diet',feeding_plan:null,feeding_instruction:'',billing_package:'',fall_risk:false,pressure_sore_risk:false,aspiration_risk:false,wandering_risk:false,infection_risk:false,seizure_history:false,oxygen_required:false,oxygen_instruction:'',dressing_required:false,dressing_instruction:'',special_nurse_required:false,special_nurse_name:'',special_nurse_shift:'Both shifts / 24-hour coverage',special_nurse_instructions:'',physio_required:false,therapy_type:'',physiotherapist_name:'',physio_frequency:'Once daily',physio_time:'10:00',physio_times:['10:00'],physio_precautions:'',undergoing_prescribed_medication:'Yes'};
     const [form,setForm]=React.useState(initial),[meds,setMeds]=React.useState([blankMedicine()]),[care,setCare]=React.useState([blankCare()]),[procs,setProcs]=React.useState([]),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
     const [familyAccess,setFamilyAccess]=React.useState({delivery_mode:'Family Portal Access',enabled:true,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:true,daily_whatsapp_time:'20:00'});
     const [familyAccess2,setFamilyAccess2]=React.useState({enabled:false,relative_name:'',relationship:'',mobile:'+91 ',email:'',primary_contact:false});
@@ -25123,6 +25156,7 @@ Please keep these login details confidential.`;
       const effectiveProcs=(procs||[]).filter(nursingProcedureRowComplete);
       {const badProc=(procs||[]).findIndex(r=>String(r.care_type||'').trim()&&!nursingProcedureRowComplete(r));if(badProc>=0){setMsg(`Section 5, Nursing procedure ${badProc+1}: ${nursingProcedureRowProblem(procs[badProc])}`);setBusy(false);return}}
       if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
+      if(form.physio_required&&form.therapy_type){const pp=physioTimesProblem(form.physio_frequency,Array.isArray(form.physio_times)&&form.physio_times.length?form.physio_times:[form.physio_time]);if(pp){setMsg(`Section 6 Physiotherapy: ${pp}`);setBusy(false);return}} // 2.18.94
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
         setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit), Time, and the Day of week for weekly medicines.');
         setBusy(false);
@@ -25154,7 +25188,7 @@ Please keep these login details confidential.`;
         package_room_class:selectedPackage?packageRoomClass():null,
         admission_time:form.admission_time||localDateTimeValue().slice(11,16),
         vitals_schedule:[form.vitals_time_1||'06:00',form.vitals_time_2||'14:00',form.vitals_time_3||'22:00']};
-      ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_precautions','vitals_time_1','vitals_time_2','vitals_time_3'].forEach(k=>delete payload[k]);
+      ['physio_required','therapy_type','physiotherapist_name','physio_frequency','physio_time','physio_times','physio_precautions','vitals_time_1','vitals_time_2','vitals_time_3'].forEach(k=>delete payload[k]);
       // 2.15.17: record_type is not a column. is_trial is written only when a NEW Guest is created as Trial —
       // an existing / returning Guest's record never changes type, so a real Guest can never become erasable.
       delete payload.record_type;delete payload.is_trial;
@@ -25294,7 +25328,13 @@ Please keep these login details confidential.`;
           const {error:procInsertError}=await client.from('care_orders').insert(effectiveProcs.map(r=>nursingProcedureOrderRow({...r,start_date:form.admission_date||todayISOIndia()},patient.id,user.id)));
           if(procInsertError)throw procInsertError;
         }
-        if(form.physio_required&&form.therapy_type&&!(await alreadySaved('physiotherapy_plans',q=>q.eq('is_active',true))))await client.from('physiotherapy_plans').insert({patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:form.physio_time,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id});
+        if(form.physio_required&&form.therapy_type&&!(await alreadySaved('physiotherapy_plans',q=>q.eq('is_active',true)))){ // 2.18.94: session_times (SQL 282) — one time per session of the day; preferred_time = the first one
+          const ptimes=(Array.isArray(form.physio_times)&&form.physio_times.length?form.physio_times:[form.physio_time]).slice(0,physioSessionsPerDayFor(form.physio_frequency)).map(t=>String(t||'').slice(0,5)).filter(Boolean).sort();
+          const physioRow={patient_id:patient.id,advised_by:form.treating_doctor||form.referring_doctor,therapy_type:form.therapy_type,physiotherapist_name:form.physiotherapist_name||null,frequency:form.physio_frequency,preferred_time:ptimes[0]||form.physio_time||null,session_times:ptimes,precautions:form.physio_precautions,start_date:form.admission_date,entered_by:user.id};
+          let {error:physioErr}=await client.from('physiotherapy_plans').insert(physioRow);
+          if(physioErr&&/session_times/i.test(physioErr.message||'')){const {session_times,...rest}=physioRow;({error:physioErr}=await client.from('physiotherapy_plans').insert(rest));}
+          if(physioErr)throw physioErr;
+        }
         // Final admission commit. For a NEW resident, only now allot the room and
         // activate the patient. This prevents validation/setup errors from leaving a
         // patient shown as admitted or a bed shown as occupied.
@@ -25876,7 +25916,9 @@ Please keep these login details confidential.`;
         )
       ),
       h(AdmissionNursingProcedureSection,{rows:procs,setRows:setProcs,setMsg}),
-      h('div',{className:'section-card'},h('h4',null,'6. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),field('Frequency','physio_frequency',form,setForm,false),field('Preferred time','physio_time',form,setForm,false,'time'),textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
+      h('div',{className:'section-card'},h('h4',null,'6. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:PHYSIO_FREQUENCIES.includes(form.physio_frequency)?form.physio_frequency:(/twice/i.test(form.physio_frequency||'')?'Twice daily':/three|thrice/i.test(form.physio_frequency||'')?'Three times daily':'Once daily'),onChange:e=>setForm({...form,physio_frequency:e.target.value})},PHYSIO_FREQUENCIES.map(x=>h('option',{key:x,value:x},x)))),
+          h(PhysioSessionTimesFields,{frequency:form.physio_frequency,times:Array.isArray(form.physio_times)&&form.physio_times.length?form.physio_times:[form.physio_time],onChange:t=>setForm({...form,physio_times:t,physio_time:t[0]||''})}), // 2.18.94: one time per session
+          textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
       h('div',{className:'section-card'},h('h4',null,'7. Package, room and activation'),
         h('div',{className:'form-grid'},
           h('div',{className:'field'},h('label',null,'Billing Option'),h('select',{required:true,value:form.billing_package,onChange:e=>setForm({...form,billing_package:e.target.value})},
@@ -26106,8 +26148,8 @@ Please keep these login details confidential.`;
       }
     }
 
-    function shiftPhysioPerDay(order){const f=String(order?.frequency||'').toLowerCase();return /four|4\s*times|qid/.test(f)?4:/thrice|three|3\s*times|tds|tid/.test(f)?3:/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f)?2:1;}
-    async function logPhysio(order,status){
+    function shiftPhysioPerDay(order){return Math.max(physioSessionsPerDayFor(order?.frequency),physioPlanTimes(order).length||1);}
+    async function logPhysio(order,status,slotTime=''){
       const {data:{user}}=await client.auth.getUser();
       const notes=status==='Completed'
         ?(prompt('Session notes (optional):')||'')
@@ -26116,9 +26158,10 @@ Please keep these login details confidential.`;
       const todays=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id&&x.session_date===today);
       const perDay=shiftPhysioPerDay(order);
       if(todays.length>=perDay){alert(`All ${perDay} session${perDay>1?'s':''} of this plan are already recorded today.`);return;}
-      const pref=String(order.preferred_time||'').slice(0,5),used=todays.map(x=>String(x.scheduled_time||'').slice(0,5));
+      const used=todays.map(x=>String(x.scheduled_time||'').slice(0,5));
       const now=new Date(),nowHHMM=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      const scheduled=pref&&!used.includes(pref)?pref:nowHHMM;
+      // 2.18.94: the session time of this task (Twice daily → 7:30 AM task, 7:30 PM task)
+      const scheduled=slotTime&&!used.includes(slotTime)?slotTime:(physioPlanTimes(order).find(t=>!used.includes(t))||nowHHMM);
       const {error}=await client.from('physiotherapy_sessions').insert({
         plan_id:order.id,order_id:order.id,patient_id:order.patient_id,session_date:today,scheduled_time:scheduled,status,
         session_at:status==='Completed'?now.toISOString():null,actual_time:status==='Completed'?nowHHMM:null,performed_by:user.id,notes
@@ -26217,18 +26260,21 @@ Please keep these login details confidential.`;
         .filter(x=>!x.log);
     })];
 
-    const physioTasks=physio
-      .filter(order=>(!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)&&(!order.preferred_time||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_time).slice(0,5))))
-      .map(order=>({
+    // 2.18.94: one task per session time of the plan (Twice daily = 2 tasks), each in its own shift
+    const physioTasks=physio.flatMap(order=>{
+      const times=physioPlanTimes(order),multi=times.length>1,list=times.length?times:[''];
+      const logs=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);
+      return list.filter(t=>(!t||shiftForTime(t)===shift)&&(!t||clinicalSlotAfterAdmission(order.patients,today,t))).map(t=>({
         type:'Physiotherapy',
         patient_id:order.patient_id,
         patient:order.patients,
         order,
-        time:order.preferred_time?String(order.preferred_time).slice(0,5):'',
-        label:(()=>{const n=shiftPhysioPerDay(order),d=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id).length;return `${order.therapy_type||'Physiotherapy'}${n>1?` (${Math.min(d,n)} of ${n} sessions today)`:''}`})(),
-        // 2.18.93: done only when every session of the day is recorded (Twice daily = 2)
-        log:(()=>{const l=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);return l.length>=shiftPhysioPerDay(order)?l[l.length-1]:null})()
+        time:t,
+        slotTime:t,
+        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}`,
+        log:multi?logs.find(x=>String(x.scheduled_time||'').slice(0,5)===t)||null:(logs[0]||null)
       }));
+    });
 
     const patientMap=new Map();
     function ensurePatient(task){
@@ -26406,16 +26452,16 @@ Please keep these login details confidential.`;
 
               h('div',{className:'patient-work-section'},
                 h('h4',null,`Physiotherapy (${group.physio.filter(x=>!x.log).length} pending)`),
-                group.physio.map((x,physioIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`physio-${x.order.id}`},
+                group.physio.map((x,physioIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`physio-${x.order.id}-${x.slotTime||''}`},
                   h('span',{className:'task-row-number'},physioIndex+1),
-                  h('div',null,h('strong',null,x.label),h('small',null,`${x.time||shift} · ${x.order.frequency||'—'}`)),
+                  h('div',null,h('strong',null,x.label),h('small',null,`${x.time?medicationTimeLabel(x.time):shift} · ${x.order.frequency||'—'}`)),
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
                   x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Physiotherapy',{
-                      patient_id:x.patient_id,plan_id:x.order.id,status:'Completed'
+                      patient_id:x.patient_id,plan_id:x.order.id,status:'Completed',scheduled_time:x.slotTime||''
                     })},'Complete'),
                     h('button',{className:'btn btn-danger',onClick:()=>openRegularTask('Physiotherapy',{
-                      patient_id:x.patient_id,plan_id:x.order.id,status:'Pending'
+                      patient_id:x.patient_id,plan_id:x.order.id,status:'Pending',scheduled_time:x.slotTime||''
                     })},'Postpone')
                   )
                 )),
@@ -28068,13 +28114,14 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         physiotherapist_name:existingPhysio.physiotherapist_name||'',
         frequency:existingPhysio.frequency||'Daily',
         preferred_time:existingPhysio.preferred_time||'10:00',
+        session_times:physioPlanTimes(existingPhysio).length?physioPlanTimes(existingPhysio):[String(existingPhysio.preferred_time||'10:00').slice(0,5)], // 2.18.94
         precautions:existingPhysio.precautions||'',
         advised_by:existingPhysio.advised_by||row.treating_doctor||row.referring_doctor||'',
         start_date:existingPhysio.start_date||row.admission_date||todayISOIndia(),
         end_date:existingPhysio.end_date||'',
         is_active:existingPhysio.is_active!==false
       }:{
-        required:false,id:null,therapy_type:'',physiotherapist_name:'',frequency:'Daily',preferred_time:'10:00',precautions:'',
+        required:false,id:null,therapy_type:'',physiotherapist_name:'',frequency:'Once daily',preferred_time:'10:00',session_times:['10:00'],precautions:'',
         advised_by:row.treating_doctor||row.referring_doctor||'',start_date:row.admission_date||todayISOIndia(),end_date:'',is_active:true
       });
       await loadEditMedia(row);
@@ -28346,13 +28393,16 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
 
         if(editPhysio.required){
           if(!editPhysio.therapy_type.trim())throw new Error('Please enter the therapy or exercise advised.');
+          {const pp=physioTimesProblem(editPhysio.frequency,editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]);if(pp)throw new Error(pp);}
+          const physioTimes=(editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]).slice(0,physioSessionsPerDayFor(editPhysio.frequency)).map(t=>String(t||'').slice(0,5)).filter(Boolean).sort();
           const physioPayload={
             patient_id:editTarget.id,
             advised_by:editPhysio.advised_by||editForm.treating_doctor||editForm.referring_doctor||null,
             therapy_type:editPhysio.therapy_type.trim(),
             physiotherapist_name:editPhysio.physiotherapist_name||null,
             frequency:editPhysio.frequency||'Daily',
-            preferred_time:editPhysio.preferred_time||null,
+            preferred_time:physioTimes[0]||editPhysio.preferred_time||null,
+            session_times:physioTimes,
             precautions:editPhysio.precautions||null,
             start_date:editPhysio.start_date||editForm.admission_date||todayISOIndia(),
             end_date:editPhysio.end_date||null,
@@ -28360,11 +28410,14 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             entered_by:user?.id||null,
             updated_at:new Date().toISOString()
           };
+          const withoutTimes=()=>{const {session_times,...rest}=physioPayload;return rest}; // before SQL 282
           if(editPhysio.id){
-            const {error:pe}=await client.from('physiotherapy_plans').update(physioPayload).eq('id',editPhysio.id);
+            let {error:pe}=await client.from('physiotherapy_plans').update(physioPayload).eq('id',editPhysio.id);
+            if(pe&&/session_times/i.test(pe.message||''))({error:pe}=await client.from('physiotherapy_plans').update(withoutTimes()).eq('id',editPhysio.id));
             if(pe)throw pe;
           }else{
-            const {data:newPlan,error:pe}=await client.from('physiotherapy_plans').insert(physioPayload).select('id').single();
+            let {data:newPlan,error:pe}=await client.from('physiotherapy_plans').insert(physioPayload).select('id').single();
+            if(pe&&/session_times/i.test(pe.message||''))({data:newPlan,error:pe}=await client.from('physiotherapy_plans').insert(withoutTimes()).select('id').single());
             if(pe)throw pe;
             if(newPlan?.id)setEditPhysio(current=>({...current,id:newPlan.id}));
           }
@@ -30055,7 +30108,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
             h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
-          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${x.preferred_time||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
+          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(medicationTimeLabel).join(', ')||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
             // 2.15.34: meals and separate beverage servings, newest first.
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
@@ -30335,8 +30388,8 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
             ?h('div',{className:'form-grid'},
               h('div',{className:'field'},h('label',null,'Therapy / Exercise'),h('input',{required:true,value:editPhysio.therapy_type,onChange:e=>setEditPhysio({...editPhysio,therapy_type:e.target.value}),placeholder:'Example: Gait training / ROM exercises'})),
               h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{value:editPhysio.physiotherapist_name,onChange:e=>setEditPhysio({...editPhysio,physiotherapist_name:e.target.value}),placeholder:'Name of physiotherapist'})),
-              h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:editPhysio.frequency,onChange:e=>setEditPhysio({...editPhysio,frequency:e.target.value})},['Once daily','Twice daily','Three times daily','Alternate days','Weekly','As advised'].map(x=>h('option',{key:x,value:x},x)))),
-              h('div',{className:'field'},h('label',null,'Preferred Time'),h('input',{type:'time',value:editPhysio.preferred_time,onChange:e=>setEditPhysio({...editPhysio,preferred_time:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:PHYSIO_FREQUENCIES.includes(editPhysio.frequency)?editPhysio.frequency:(physioSessionsPerDayFor(editPhysio.frequency)===2?'Twice daily':physioSessionsPerDayFor(editPhysio.frequency)===3?'Three times daily':'Once daily'),onChange:e=>setEditPhysio({...editPhysio,frequency:e.target.value})},PHYSIO_FREQUENCIES.map(x=>h('option',{key:x,value:x},x)))),
+              h(PhysioSessionTimesFields,{frequency:editPhysio.frequency,times:editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time],onChange:t=>setEditPhysio({...editPhysio,session_times:t,preferred_time:t[0]||''})}), // 2.18.94: one time per session
               h('div',{className:'field'},h('label',null,'Advised By'),h('input',{value:editPhysio.advised_by,onChange:e=>setEditPhysio({...editPhysio,advised_by:e.target.value}),placeholder:'Doctor / Physiotherapist'})),
               h('div',{className:'field'},h('label',null,'Start Date'),h(StrictDateInput,{max:todayISOIndia(),value:editPhysio.start_date,onChange:e=>setEditPhysio({...editPhysio,start_date:e.target.value})})),
               h('div',{className:'field'},h('label',null,'End Date (optional)'),h(StrictDateInput,{min:editPhysio.start_date||undefined,value:editPhysio.end_date,onChange:e=>setEditPhysio({...editPhysio,end_date:e.target.value})})),
@@ -36655,7 +36708,7 @@ function RoomsBeds({profile,onNavigate}){
         ||plans.find(plan=>plan.patient_id===context.patient_id);
       if(target){
         openEntry(target);
-        setForm(current=>({...current,status:context.status||'Completed'}));
+        setForm(current=>({...current,status:context.status||'Completed',...(context.scheduled_time?{scheduled_time:String(context.scheduled_time).slice(0,5)}:{})})); // 2.18.94: the session's own time
       }
       clearTaskNavigationContext();
     },[loading,plans]);
@@ -36683,13 +36736,7 @@ function RoomsBeds({profile,onNavigate}){
 
     // 2.18.93: Twice / Thrice daily plans record each session separately (SQL 280: one session per plan, date AND
     // scheduled time). The number of sessions a day comes from the plan's frequency.
-    function physioSessionsPerDay(plan){
-      const f=String(plan?.frequency||'').toLowerCase();
-      if(/four|4\s*times|qid/.test(f))return 4;
-      if(/thrice|three|3\s*times|tds|tid/.test(f))return 3;
-      if(/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f))return 2;
-      return 1;
-    }
+    function physioSessionsPerDay(plan){return Math.max(physioSessionsPerDayFor(plan?.frequency),physioPlanTimes(plan).length||1);}
     const physioHHMM=v=>String(v||'').slice(0,5);
     function openEntry(plan,session=null){
       setNameSuggestionsOpen(false);
@@ -36699,10 +36746,10 @@ function RoomsBeds({profile,onNavigate}){
       setEntryPlan(plan);
       setForm({
         session_date:pending?.session_date||todayISOIndia(),
-        scheduled_time:(()=>{const t=String(pending?.scheduled_time||plan.preferred_time||'').slice(0,5);
-          if(pending)return t;
+        scheduled_time:(()=>{if(pending)return String(pending.scheduled_time||plan.preferred_time||'').slice(0,5);
+          // 2.18.94: the plan's first session time not yet recorded today (Twice daily → morning, then evening)
           const used=sessions.filter(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()).map(row=>physioHHMM(row.scheduled_time));
-          return used.includes(t)?'':t;})(),
+          const times=physioPlanTimes(plan);return times.find(t=>!used.includes(t))||(times.length>1?'':'');})(),
         actual_time:'',
         status:'Completed',
         organisation_id:organisationFor(pending,plan)?.id||'',
@@ -36847,7 +36894,7 @@ function RoomsBeds({profile,onNavigate}){
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
-      clockLabel(plan.preferred_time||plan.session_time),
+      physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time),
       plan.precautions||plan.special_instructions||'—',
       canEnter?h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEntry(plan)},'Record Session'):h('span',{className:'small-note'},'View only')
     ]);

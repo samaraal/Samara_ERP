@@ -106,8 +106,8 @@
       }
     }
 
-    function shiftPhysioPerDay(order){const f=String(order?.frequency||'').toLowerCase();return /four|4\s*times|qid/.test(f)?4:/thrice|three|3\s*times|tds|tid/.test(f)?3:/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f)?2:1;}
-    async function logPhysio(order,status){
+    function shiftPhysioPerDay(order){return Math.max(physioSessionsPerDayFor(order?.frequency),physioPlanTimes(order).length||1);}
+    async function logPhysio(order,status,slotTime=''){
       const {data:{user}}=await client.auth.getUser();
       const notes=status==='Completed'
         ?(prompt('Session notes (optional):')||'')
@@ -116,9 +116,10 @@
       const todays=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id&&x.session_date===today);
       const perDay=shiftPhysioPerDay(order);
       if(todays.length>=perDay){alert(`All ${perDay} session${perDay>1?'s':''} of this plan are already recorded today.`);return;}
-      const pref=String(order.preferred_time||'').slice(0,5),used=todays.map(x=>String(x.scheduled_time||'').slice(0,5));
+      const used=todays.map(x=>String(x.scheduled_time||'').slice(0,5));
       const now=new Date(),nowHHMM=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      const scheduled=pref&&!used.includes(pref)?pref:nowHHMM;
+      // 2.18.94: the session time of this task (Twice daily → 7:30 AM task, 7:30 PM task)
+      const scheduled=slotTime&&!used.includes(slotTime)?slotTime:(physioPlanTimes(order).find(t=>!used.includes(t))||nowHHMM);
       const {error}=await client.from('physiotherapy_sessions').insert({
         plan_id:order.id,order_id:order.id,patient_id:order.patient_id,session_date:today,scheduled_time:scheduled,status,
         session_at:status==='Completed'?now.toISOString():null,actual_time:status==='Completed'?nowHHMM:null,performed_by:user.id,notes
@@ -217,18 +218,21 @@
         .filter(x=>!x.log);
     })];
 
-    const physioTasks=physio
-      .filter(order=>(!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)&&(!order.preferred_time||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_time).slice(0,5))))
-      .map(order=>({
+    // 2.18.94: one task per session time of the plan (Twice daily = 2 tasks), each in its own shift
+    const physioTasks=physio.flatMap(order=>{
+      const times=physioPlanTimes(order),multi=times.length>1,list=times.length?times:[''];
+      const logs=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);
+      return list.filter(t=>(!t||shiftForTime(t)===shift)&&(!t||clinicalSlotAfterAdmission(order.patients,today,t))).map(t=>({
         type:'Physiotherapy',
         patient_id:order.patient_id,
         patient:order.patients,
         order,
-        time:order.preferred_time?String(order.preferred_time).slice(0,5):'',
-        label:(()=>{const n=shiftPhysioPerDay(order),d=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id).length;return `${order.therapy_type||'Physiotherapy'}${n>1?` (${Math.min(d,n)} of ${n} sessions today)`:''}`})(),
-        // 2.18.93: done only when every session of the day is recorded (Twice daily = 2)
-        log:(()=>{const l=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);return l.length>=shiftPhysioPerDay(order)?l[l.length-1]:null})()
+        time:t,
+        slotTime:t,
+        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}`,
+        log:multi?logs.find(x=>String(x.scheduled_time||'').slice(0,5)===t)||null:(logs[0]||null)
       }));
+    });
 
     const patientMap=new Map();
     function ensurePatient(task){
@@ -406,16 +410,16 @@
 
               h('div',{className:'patient-work-section'},
                 h('h4',null,`Physiotherapy (${group.physio.filter(x=>!x.log).length} pending)`),
-                group.physio.map((x,physioIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`physio-${x.order.id}`},
+                group.physio.map((x,physioIndex)=>h('div',{className:`patient-work-task-row numbered-task-row ${x.log?'done':''}`,key:`physio-${x.order.id}-${x.slotTime||''}`},
                   h('span',{className:'task-row-number'},physioIndex+1),
-                  h('div',null,h('strong',null,x.label),h('small',null,`${x.time||shift} · ${x.order.frequency||'—'}`)),
+                  h('div',null,h('strong',null,x.label),h('small',null,`${x.time?medicationTimeLabel(x.time):shift} · ${x.order.frequency||'—'}`)),
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
                   x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Physiotherapy',{
-                      patient_id:x.patient_id,plan_id:x.order.id,status:'Completed'
+                      patient_id:x.patient_id,plan_id:x.order.id,status:'Completed',scheduled_time:x.slotTime||''
                     })},'Complete'),
                     h('button',{className:'btn btn-danger',onClick:()=>openRegularTask('Physiotherapy',{
-                      patient_id:x.patient_id,plan_id:x.order.id,status:'Pending'
+                      patient_id:x.patient_id,plan_id:x.order.id,status:'Pending',scheduled_time:x.slotTime||''
                     })},'Postpone')
                   )
                 )),

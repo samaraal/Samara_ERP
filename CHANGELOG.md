@@ -1,3 +1,11 @@
+## 2.18.94 — Physiotherapy plan: a time for EACH session (Twice daily = 2 times) (needs SQL 282)
+- Admission form (Section 6) and Patients → Edit → Physiotherapy Plan: the Frequency is now a list (Once daily, Twice daily, Three times daily, Alternate days, Weekly, As advised). Twice daily shows **Session 1 time** and **Session 2 time** (Three times daily: 3 times); all are compulsory and must differ. Saved in physiotherapy_plans.session_times; Preferred Time keeps the first time for older screens.
+- Record Physiotherapy Session opens with the next session time of the day not yet recorded (e.g. morning, then evening).
+- Shift Tasks shows one task per session time in its own shift ("session 1 of 2", "session 2 of 2"); Complete / Postpone opens the form with that session's time.
+- Alerts / escalations (SQL 282) expect each session time separately; plans with one time keep the old rule, and plans past their End Date no longer alert.
+- Existing Twice daily plans: open Patients → Edit → Physiotherapy Plan once and enter both session times.
+- Run supabase/sql/282_physio_session_times.sql (after 280 / 281), then publish the app.
+
 ## 2.18.93 — Physiotherapy: Twice / Thrice daily plans record every session (needs SQL 280)
 - Fix: a "Twice daily" plan (Mr. Ranjithkumar, 23-10-2026) could record only ONE session a day — the second was refused with "A session exists for this date" (the database allowed one session per plan per day).
 - Now each session of the day is its own record, identified by its Scheduled Time. The number per day follows the plan's frequency (Daily 1, Twice daily 2, Thrice daily 3). For the next session of the day the form leaves Scheduled Time empty when the plan time is already used — enter that session's time (e.g. the evening time). A clear message appears if all sessions of the day are already recorded or the same time is used twice.

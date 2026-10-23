@@ -104,7 +104,7 @@
         ||plans.find(plan=>plan.patient_id===context.patient_id);
       if(target){
         openEntry(target);
-        setForm(current=>({...current,status:context.status||'Completed'}));
+        setForm(current=>({...current,status:context.status||'Completed',...(context.scheduled_time?{scheduled_time:String(context.scheduled_time).slice(0,5)}:{})})); // 2.18.94: the session's own time
       }
       clearTaskNavigationContext();
     },[loading,plans]);
@@ -132,13 +132,7 @@
 
     // 2.18.93: Twice / Thrice daily plans record each session separately (SQL 280: one session per plan, date AND
     // scheduled time). The number of sessions a day comes from the plan's frequency.
-    function physioSessionsPerDay(plan){
-      const f=String(plan?.frequency||'').toLowerCase();
-      if(/four|4\s*times|qid/.test(f))return 4;
-      if(/thrice|three|3\s*times|tds|tid/.test(f))return 3;
-      if(/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f))return 2;
-      return 1;
-    }
+    function physioSessionsPerDay(plan){return Math.max(physioSessionsPerDayFor(plan?.frequency),physioPlanTimes(plan).length||1);}
     const physioHHMM=v=>String(v||'').slice(0,5);
     function openEntry(plan,session=null){
       setNameSuggestionsOpen(false);
@@ -148,10 +142,10 @@
       setEntryPlan(plan);
       setForm({
         session_date:pending?.session_date||todayISOIndia(),
-        scheduled_time:(()=>{const t=String(pending?.scheduled_time||plan.preferred_time||'').slice(0,5);
-          if(pending)return t;
+        scheduled_time:(()=>{if(pending)return String(pending.scheduled_time||plan.preferred_time||'').slice(0,5);
+          // 2.18.94: the plan's first session time not yet recorded today (Twice daily → morning, then evening)
           const used=sessions.filter(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()).map(row=>physioHHMM(row.scheduled_time));
-          return used.includes(t)?'':t;})(),
+          const times=physioPlanTimes(plan);return times.find(t=>!used.includes(t))||(times.length>1?'':'');})(),
         actual_time:'',
         status:'Completed',
         organisation_id:organisationFor(pending,plan)?.id||'',
@@ -296,7 +290,7 @@
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
-      clockLabel(plan.preferred_time||plan.session_time),
+      physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time),
       plan.precautions||plan.special_instructions||'—',
       canEnter?h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEntry(plan)},'Record Session'):h('span',{className:'small-note'},'View only')
     ]);

@@ -204,6 +204,39 @@
     for(let i=0;i<62&&d;i++){if(medicationOrderDueOnDate(order,d))return d;d=addDaysISODate(d,1);}
     return '';
   }
+  // 2.18.94: Physiotherapy plans — one session time per session of the day (Twice daily = 2 times, Three times daily = 3).
+  // Saved in physiotherapy_plans.session_times (SQL 282); preferred_time keeps the first time for older screens.
+  const PHYSIO_FREQUENCIES=['Once daily','Twice daily','Three times daily','Alternate days','Weekly','As advised'];
+  function physioSessionsPerDayFor(frequency){
+    const f=String(frequency||'').toLowerCase();
+    if(/four|4\s*times|qid/.test(f))return 4;
+    if(/thrice|three|3\s*times|tds|tid/.test(f))return 3;
+    if(/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f))return 2;
+    return 1;
+  }
+  function physioPlanTimes(plan){
+    const list=(Array.isArray(plan?.session_times)?plan.session_times:[]).map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t));
+    if(list.length)return [...new Set(list)].sort();
+    const one=String(plan?.preferred_time||plan?.session_time||'').slice(0,5);
+    return /^\d{2}:\d{2}$/.test(one)?[one]:[];
+  }
+  // Session time boxes for a plan form: n boxes for the frequency; returns the times array via onChange.
+  function PhysioSessionTimesFields({frequency,times,onChange}){
+    const n=physioSessionsPerDayFor(frequency);
+    const list=Array.from({length:n},(_,i)=>String((times||[])[i]||'').slice(0,5));
+    const label=i=>n===1?'Preferred time':`Session ${i+1} time`;
+    return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
+      h('label',null,label(i),n>1?' *':''),
+      h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
+      n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));
+  }
+  function physioTimesProblem(frequency,times){
+    const n=physioSessionsPerDayFor(frequency);if(n<2)return '';
+    const list=(times||[]).slice(0,n).map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t));
+    if(list.length<n)return `Enter all ${n} session times for the ${frequency} physiotherapy plan.`;
+    if(new Set(list).size<n)return 'Each physiotherapy session needs a different time.';
+    return '';
+  }
   // 2.14.75: Strength = amount + unit chosen from a list (avoids typing mistakes such as "500ma").
   // Saved as one text value, e.g. "500 mg", "2.5 mg/5 ml", "50/500 mg" — the same column as before.
   const MEDICATION_STRENGTH_UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
