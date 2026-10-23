@@ -104,7 +104,7 @@
         const {data:orders}=await client.from('care_orders')
           .select('*') // 2.18.27: includes scheduled_times once SQL 252 is run
           .eq('patient_id',form.patient_id).eq('is_active',true);
-        const sameActivity=(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
+        const sameActivity=currentCareTaskOrders(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
         const forShift=sameActivity.filter(o=>o.shift===form.shift||o.shift==='Both shifts');
         const linked=sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||null;
         linkedOrderId=linked?.id||null;
