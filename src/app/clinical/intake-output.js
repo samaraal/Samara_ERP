@@ -46,6 +46,91 @@
   const ioSlotLabel=(day,i)=>{const a=ioSlotStart(day,i),b=ioSlotStart(day,i+1);return `${ioHour(a).replace(/ (AM|PM)$/,ioHour(a).slice(-2)===ioHour(b).slice(-2)?'':' $1')}–${ioHour(b)}`};
   const ioColOf=category=>IO_COLS.find(c=>c.cats.includes(category))||IO_COLS[IO_COLS.length-1];
 
+  // 2.18.87: printable Intake / Output PDF (full clinical detail) — day-wise totals with Day / Night shift totals,
+  // bar chart, every entry with time, item, amount and nurse, alert limits, signature lines.
+  const ioEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const ioBal=n=>{n=Math.round(Number(n)||0);return `${n>0?'+':n<0?'−':''}${Math.abs(n).toLocaleString('en-IN')} ml`};
+  function ioChartSvg(days){
+    const list=[...days].sort((a,b)=>a.date.localeCompare(b.date)).slice(-31);if(!list.length)return '';
+    const W=760,H=220,L=46,R=10,T=16,B=40,max=Math.max(500,...list.map(d=>Math.max(d.intake,d.output)));
+    const top=Math.ceil(max/500)*500,gw=(W-L-R)/list.length,bw=Math.max(3,Math.min(26,gw*0.34)),y=v=>T+(H-T-B)*(1-(Number(v)||0)/top);
+    let g='';for(let i=0;i<=4;i++){const v=top*i/4,yy=y(v);g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#f1dbe5"/><text x="${L-6}" y="${yy+4}" font-size="10" text-anchor="end" fill="#7b6670">${Math.round(v)}</text>`;}
+    const step=Math.ceil(list.length/10),vals=list.length<=10;
+    const bars=list.map((d,i)=>{const cx=L+gw*i+gw/2,xi=cx-bw-1,xo=cx+1,yi=y(d.intake),yo=y(d.output),base=y(0);
+      return `<rect x="${xi}" y="${yi}" width="${bw}" height="${Math.max(0,base-yi)}" rx="3" fill="#b20b5d"/><rect x="${xo}" y="${yo}" width="${bw}" height="${Math.max(0,base-yo)}" rx="3" fill="#1d7fae"/>`
+        +(vals?`<text x="${xi+bw/2}" y="${yi-3}" font-size="9" text-anchor="middle" fill="#b20b5d">${Math.round(d.intake)}</text><text x="${xo+bw/2}" y="${yo-3}" font-size="9" text-anchor="middle" fill="#1d7fae">${Math.round(d.output)}</text>`:'')
+        +((i%step===0||i===list.length-1)?`<text x="${cx}" y="${H-B+15}" font-size="10" text-anchor="middle" fill="#5d1039">${ioEsc(formatDateIN(d.date).slice(0,5))}</text>`:'');}).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${g}<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="#c9a3b5"/>${bars}</svg>`;
+  }
+  async function ioOpenPrint({patient,setting,from,to,who}){
+    const win=samaraPrintBar(window.open('','_blank'));
+    if(!win){alert('Please allow pop-ups to print / save the Intake / Output chart.');return false}
+    win.document.open();win.document.write('<p style="font-family:Arial;padding:20px">Preparing the Intake / Output chart…</p>');win.document.close();
+    const fromAt=new Date(`${from}T07:00:00+05:30`),toAt=new Date(new Date(`${to}T07:00:00+05:30`).getTime()+24*3600000);
+    const [e,b]=await Promise.all([
+      client.from('io_entries').select('*').eq('patient_id',patient.id).gte('io_date',from).lte('io_date',to).eq('voided',false).order('entry_at',{ascending:true}),
+      client.from('beverage_records').select('*').eq('patient_id',patient.id).gte('given_at',fromAt.toISOString()).lt('given_at',toAt.toISOString()).order('given_at',{ascending:true})
+    ]);
+    if(e.error){win.document.body.innerHTML=`<p style="font-family:Arial;padding:20px;color:#b42318">${ioEsc(e.error.message)}</p>`;return false}
+    const rows=[
+      ...(e.data||[]).map(r=>({at:r.entry_at,date:r.io_date||ioChartDay(r.entry_at),shift:r.shift||ioShiftOf(r.entry_at),direction:r.direction,category:r.category,ml:Number(r.volume_ml)||0,stool:r.category==='Stool'?Number(r.stool_count)||0:0,
+        what:[r.item,r.category==='Stool'&&r.stool_type?r.stool_type:''].filter(Boolean).join(' · '),by:r.recorded_by_name||'',remarks:r.remarks||''})),
+      ...(b.error?[]:(b.data||[])).map(x=>({at:x.given_at,date:ioChartDay(x.given_at),shift:ioShiftOf(x.given_at),direction:'Intake',category:'Oral fluids',ml:ioBeverageMl(x),stool:0,
+        what:`${x.beverage==='Fresh Juice'&&x.juice_name?`Fresh Juice (${x.juice_name})`:x.beverage||'Beverage'} — ${x.quantity??x.quantity_ml??'?'} ${x.quantity_unit||'ml'}${x.consumption_status&&x.consumption_status!=='Consumed fully'?` (${x.consumption_status})`:''}`,by:'Food Intake',remarks:''}))
+    ].filter(r=>r.date>=from&&r.date<=to).sort((a,c)=>new Date(a.at)-new Date(c.at));
+    const chartDays=new Set((e.data||[]).map(r=>r.io_date));
+    const sumBy=(l,f)=>l.filter(f).reduce((t,x)=>t+x.ml,0);
+    const days=[...chartDays].sort().reverse().map(date=>{
+      const l=rows.filter(r=>r.date===date),sh=n=>{const k=l.filter(r=>r.shift===n);return {intake:sumBy(k,r=>r.direction==='Intake'),output:sumBy(k,r=>r.direction==='Output')}};
+      const d={date,l,day:sh(IO_DAY),night:sh(IO_NIGHT),intake:sumBy(l,r=>r.direction==='Intake'),output:sumBy(l,r=>r.direction==='Output'),
+        oral:sumBy(l,r=>r.category==='Oral fluids'),iv:sumBy(l,r=>r.category==='IV fluids'),tube:sumBy(l,r=>r.category==='Tube feed'),oin:sumBy(l,r=>r.category==='Other intake'),
+        urine:sumBy(l,r=>['Urine','Catheter urine'].includes(r.category)),drain:sumBy(l,r=>r.category==='Drain'),vomit:sumBy(l,r=>r.category==='Vomit'),oout:sumBy(l,r=>['Other output','Stool'].includes(r.category)),
+        stool:l.reduce((t,r)=>t+r.stool,0)};return d;});
+    const T=days.reduce((a,d)=>({intake:a.intake+d.intake,output:a.output+d.output}),{intake:0,output:0});
+    const today=ioChartDay(new Date()),n=v=>v?Math.round(v).toLocaleString('en-IN'):'—';
+    const over=d=>setting&&Math.abs(d.intake-d.output)>setting.balance_limit_ml&&(d.intake>0||d.output>0);
+    const lowUrine=d=>setting&&setting.urine_min_ml_shift>0&&d.date<today&&(sumBy(d.l,r=>r.shift===IO_DAY&&['Urine','Catheter urine'].includes(r.category))<setting.urine_min_ml_shift||sumBy(d.l,r=>r.shift===IO_NIGHT&&['Urine','Catheter urine'].includes(r.category))<setting.urine_min_ml_shift);
+    const dayRows=days.map(d=>`<tr><td><b>${ioEsc(formatDateIN(d.date))}</b>${d.date===today?'<br><small>so far</small>':''}</td><td class="n">${n(d.oral)}</td><td class="n">${n(d.iv)}</td><td class="n">${n(d.tube)}</td><td class="n">${n(d.oin)}</td><td class="n b">${n(d.intake)}</td><td class="n">${n(d.urine)}${lowUrine(d)?' <span class="flag">low</span>':''}</td><td class="n">${n(d.drain)}</td><td class="n">${n(d.vomit)}</td><td class="n">${d.stool?`${d.stool}×`:'—'}</td><td class="n">${n(d.oout)}</td><td class="n b">${n(d.output)}</td><td class="n b ${over(d)?'bad':''}">${ioEsc(ioBal(d.intake-d.output))}</td><td class="sm">Day: ${n(d.day.intake)} / ${n(d.day.output)}<br>Night: ${n(d.night.intake)} / ${n(d.night.output)}</td></tr>`).join('')||'<tr><td colspan="14" style="text-align:center">No Intake / Output entries in this period</td></tr>';
+    const entryRows=days.map(d=>`<tr class="dh"><td colspan="8">${ioEsc(formatDateWithDayIN(d.date))} · In ${ioEsc(ioMl(d.intake))} · Out ${ioEsc(ioMl(d.output))} · Balance ${ioEsc(ioBal(d.intake-d.output))}</td></tr>`+d.l.map(r=>`<tr><td>${ioEsc(ioTime(r.at))}</td><td>${r.shift===IO_DAY?'Day':'Night'}</td><td>${ioEsc(r.direction)}</td><td>${ioEsc(r.category)}</td><td>${ioEsc(r.what||'—')}</td><td class="n">${r.category==='Stool'?(r.stool?`${r.stool}×`:'')+(r.ml?` ${n(r.ml)} ml`:''):ioEsc(ioMl(r.ml))}</td><td>${ioEsc(r.by||'—')}</td><td>${ioEsc(r.remarks||'')}</td></tr>`).join('')).join('');
+    const logo=new URL('assets/samara-logo.png',window.location.href).href;
+    const room=patient.room_no?`${patient.room_no}${patient.bed_no?'-'+patient.bed_no:''}`:'—';
+    const box=(l,v,hi)=>`<div class="box${hi?' hi':''}"><span>${ioEsc(l)}</span><strong>${ioEsc(v)}</strong></div>`;
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>Samara_Intake_Output_${ioEsc(patient.patient_id||'')}_${ioEsc(from)}_to_${ioEsc(to)}</title><style>
+      @page{size:A4;margin:10mm 8mm 12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#3b2833;margin:0;font-size:9.5px;line-height:1.35;background:#fff}
+      .top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-bottom:3px solid #b20b5d;padding:0 2px 8px;margin-bottom:8px}.logo{width:110px;max-height:54px;object-fit:contain}.mid{text-align:center;color:#741041;font-weight:700;font-size:12px}
+      .org{text-align:right}.org strong{display:block;color:#b20b5d;font-size:14px}.org span{display:block;color:#6d5963;font-size:9px}
+      h1{font-size:15px;margin:2px 0;text-align:center;color:#321d28}.meta{text-align:center;color:#7b6670;margin:0 0 6px}
+      .info{display:grid;grid-template-columns:1fr 1fr;gap:3px 18px;border:1px solid #edc8da;border-radius:8px;padding:6px 10px;margin-bottom:8px}.info b{color:#7a1247}
+      .sum{display:flex;gap:6px;margin:0 0 8px}.box{flex:1;border:1px solid #e7c3d4;border-radius:8px;padding:5px 8px;background:#fff7fb}.box span{display:block;color:#6d5963;font-size:8px;font-weight:700;text-transform:uppercase}.box strong{display:block;font-size:13px;color:#321d28}.box.hi{background:#b20b5d;border-color:#b20b5d}.box.hi span,.box.hi strong{color:#fff}
+      .chart{border:1px solid #edc8da;border-radius:8px;padding:4px 8px;margin-bottom:8px}.chart svg{width:100%;height:auto}.legend{font-weight:700;color:#5d1039;margin:2px 0}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px;vertical-align:-1px}
+      h2{font-size:11.5px;color:#741041;margin:10px 0 4px}
+      table{width:100%;border-collapse:collapse}thead{display:table-header-group}tr{page-break-inside:avoid}th{background:#f7dce8;color:#67123d;border:1px solid #dfb4c6;padding:4px 3px;text-align:left;font-size:8.5px}
+      td{border:1px solid #ead4dd;padding:3px 4px;vertical-align:top;overflow-wrap:anywhere}.n{text-align:right;white-space:nowrap}.b{font-weight:700}.bad{color:#b42318}.sm{font-size:8.5px;color:#5d4a54}.flag{color:#b42318;font-weight:700}
+      th.in{background:#e6f0fb;color:#1d4f91}th.out{background:#fff1dc;color:#8a4b00}tr.dh td{background:#fbeef4;font-weight:700;color:#5d1039}
+      .sign{display:flex;justify-content:space-between;margin-top:26px}.sign div{border-top:1px solid #6f5c65;padding-top:5px;width:28%;text-align:center}
+      .footer{border-top:1px solid #eccbd9;margin-top:12px;padding-top:5px;text-align:center;color:#6f5a64;font-size:8px}
+      @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+    </style></head><body>
+      <div class="top"><img class="logo" src="${logo}" alt="Samara Assisted Living"><div class="mid">Nursing · Fluid Balance</div><div class="org"><strong>SAMARA HEALTH CARE LLP</strong><span>Compassion • Comfort • Dignity</span></div></div>
+      <h1>Intake / Output Chart</h1>
+      <p class="meta">${from===to?`Chart day ${ioEsc(formatDateIN(from))}`:`Period ${ioEsc(formatDateIN(from))} to ${ioEsc(formatDateIN(to))}`} · each day 7 AM to 7 AM · Day 7 AM–7 PM / Night 7 PM–7 AM</p>
+      <div class="info"><div><b>Guest:</b> ${ioEsc(formalName(patient)||patient.full_name||'')}</div><div><b>Guest ID:</b> ${ioEsc(patient.patient_id||'—')} · <b>Room:</b> ${ioEsc(room)}</div>
+        <div><b>On the chart since:</b> ${setting?ioEsc(fmt(setting.started_at)):'—'}${setting&&!setting.enabled&&setting.stopped_at?` · stopped ${ioEsc(fmt(setting.stopped_at))}`:''}</div><div><b>Reason:</b> ${ioEsc(setting?.reason||'—')}</div>
+        <div><b>Alert limits:</b> urine below ${setting?ioEsc(ioMl(setting.urine_min_ml_shift)):'—'} per shift · balance beyond ± ${setting?ioEsc(ioMl(setting.balance_limit_ml)):'—'}</div><div><b>Treating doctor:</b> ${ioEsc(patient.treating_doctor||'—')}</div></div>
+      <div class="sum">${box('Chart days',days.length)}${box('Total intake',ioMl(T.intake))}${box('Total output',ioMl(T.output))}${box('Net balance',ioBal(T.intake-T.output),true)}</div>
+      ${days.length>1?`<div class="chart"><div class="legend"><i style="background:#b20b5d"></i>Intake<i style="background:#1d7fae"></i>Output (ml per day)</div>${ioChartSvg(days)}</div>`:''}
+      <h2>Day-wise totals (ml)</h2>
+      <table><thead><tr><th rowspan="2">Chart day</th><th class="in" colspan="5">INTAKE</th><th class="out" colspan="6">OUTPUT</th><th rowspan="2">Balance</th><th rowspan="2">Shift In / Out</th></tr>
+        <tr><th class="in">Oral</th><th class="in">IV</th><th class="in">Tube</th><th class="in">Other</th><th class="in">Total</th><th class="out">Urine</th><th class="out">Drain</th><th class="out">Vomit</th><th class="out">Stool</th><th class="out">Other</th><th class="out">Total</th></tr></thead><tbody>${dayRows}</tbody></table>
+      <h2>All entries</h2>
+      <table><thead><tr><th style="width:9%">Time</th><th style="width:6%">Shift</th><th style="width:7%">In / Out</th><th style="width:12%">Type</th><th style="width:26%">Item</th><th style="width:10%">Amount</th><th style="width:14%">Recorded by</th><th>Remarks</th></tr></thead><tbody>${entryRows||'<tr><td colspan="8" style="text-align:center">No entries</td></tr>'}</tbody></table>
+      <div class="sign"><div>Nurse</div><div>Nursing Manager</div><div>Treating Doctor</div></div>
+      <div class="footer">Generated from Samara Care ERP on ${ioEsc(formatDateTimeIN(new Date().toISOString()))} by ${ioEsc(who)} · Tea / milk / juice from Resident Food Intake counted as oral intake · Computer-generated record</div>
+      <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
+    </body></html>`;
+    win.document.open();win.document.write(html);win.document.close();return true;
+  }
+
   function IntakeOutput({profile,onNavigate}){
     const [patients]=usePatients();
     const [settings,setSettings]=React.useState([]);
@@ -61,6 +146,7 @@
     const [editLimits,setEditLimits]=React.useState(null);
     const [cell,setCell]=React.useState(null); // {col, slot}
     const [cf,setCf]=React.useState(null);     // popup form
+    const [printForm,setPrintForm]=React.useState(null); // 2.18.87 {from,to}
     const [focus,clearFocus]=useRecordFocus('Intake / Output');
     const canManage=ioCanManage(profile);
     const setting=settings.find(s=>s.patient_id===patientId);
@@ -296,7 +382,24 @@
           h('div',{className:'field'},h('label',null,'Chart date'),h(StrictDateInput,{value:draftDate,max:today,onChange:e=>setDraftDate(e.target.value)})),
           draftDate&&draftDate!==chartDate?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setChartDate(draftDate||today)},'Apply'):null,
           h('button',{type:'button',className:'btn btn-secondary',disabled:chartDate>=today,onClick:()=>{const d=ioAddDays(chartDate,1);setChartDate(d);setDraftDate(d)}},'Next day ›'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:chartDate===today,onClick:()=>{setChartDate(today);setDraftDate(today)}},'Today')),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:chartDate===today,onClick:()=>{setChartDate(today);setDraftDate(today)}},'Today'),
+          h('button',{type:'button',className:'btn btn-primary',onClick:()=>setPrintForm({from:chartDate,to:chartDate})},'🖨 Print / PDF')),
+        printForm&&h('div',{className:'modal-backdrop',onClick:ev=>{if(ev.target===ev.currentTarget)setPrintForm(null)}},
+          h('div',{className:'card modal',style:{maxWidth:'520px'}},
+            h('div',{className:'panel-head'},h('div',null,h('h3',null,'Print / Save PDF — Intake / Output'),h('small',null,guestLabel(patientRow))),h('button',{type:'button',className:'close',onClick:()=>setPrintForm(null)},'×')),
+            h('div',{className:'actions',style:{display:'flex',gap:'6px',flexWrap:'wrap',margin:'4px 0 10px'}},
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPrintForm({from:chartDate,to:chartDate})},'This chart day'),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPrintForm({from:ioAddDays(today,-6)<'2026-08-27'?'2026-08-27':ioAddDays(today,-6),to:today})},'Last 7 days'),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPrintForm({from:`${today.slice(0,8)}01`,to:today})},'This month')),
+            h('div',{className:'form-grid'},
+              h('div',{className:'field'},h('label',null,'From (chart day)'),h(StrictDateInput,{value:printForm.from,min:'2026-08-27',max:today,onChange:ev=>setPrintForm({...printForm,from:ev.target.value})})),
+              h('div',{className:'field'},h('label',null,'To (chart day)'),h(StrictDateInput,{value:printForm.to,min:'2026-08-27',max:today,onChange:ev=>setPrintForm({...printForm,to:ev.target.value})}))),
+            h('small',{className:'io-help'},'Day-wise totals with Day / Night shift totals, a chart, every entry with time and nurse, and signature lines for Nurse, Nursing Manager and Treating Doctor.'),
+            h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPrintForm(null)},'Cancel'),
+              h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const f=printForm.from<=printForm.to?printForm.from:printForm.to,t=printForm.from<=printForm.to?printForm.to:printForm.from;
+                if(!f||!t){showSamaraActionToast('error','Intake / Output','Choose the From and To dates.');return}
+                if((new Date(t)-new Date(f))/86400000>92){showSamaraActionToast('error','Intake / Output','Choose a period of up to 3 months.');return}
+                ioOpenPrint({patient:patientRow,setting,from:f,to:t,who:profile?.full_name||profile?.name||'Staff'});setPrintForm(null)}},'Print / Save PDF')))),
         overLimit&&h('div',{className:'io-warn',role:'status'},`Balance ${balance>=0?'+':'−'}${ioMl(Math.abs(balance))} is beyond the limit of ± ${ioMl(setting.balance_limit_ml)}. Inform the Nursing Manager / treating doctor.`),
         h('small',{className:'io-help'},'Tap a box → choose what and how much → Save. ☕ = tea / milk / juice from Resident Food Intake (added automatically).'),
         h('div',{className:'io-gwrap'},h('table',{className:'io-grid'},
