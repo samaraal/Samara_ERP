@@ -191,13 +191,13 @@
         h('span',{className:'time-picker-caret'},'▾')
       ),
       selected.length?h('div',{className:'time-chip-list'},selected.map(time=>h('span',{className:'time-chip',key:time},medicationTimeLabel(time),h('button',{type:'button','aria-label':`Remove ${medicationTimeLabel(time)}`,onClick:()=>onChange(selected.filter(x=>x!==time).join(', '))},'×')))):null,
-      open?h('div',{className:'time-picker-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)cancel()}},
+      open&&ReactDOM.createPortal?h(React.Fragment,null,ReactDOM.createPortal(h('div',{className:'time-picker-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)cancel()}},
         h('div',{className:'time-picker-popup',role:'dialog','aria-modal':'true','aria-label':'Select medication time'},
           h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,limit===1?'Choose one medicine time':`Choose up to ${limit} medicine times · ${frequency}`)),h('button',{type:'button',className:'close',onClick:cancel},'×')),
           h('div',{className:'time-picker-grid'},MEDICATION_TIME_OPTIONS.map(opt=>h('button',{type:'button',className:`time-picker-option ${draft.includes(opt.value)?'selected':''}`,key:opt.value,onClick:()=>toggle(opt.value)},opt.label))),
           h('div',{className:'time-picker-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:reset},'Reset'),h('button',{type:'button',className:'btn btn-secondary',onClick:cancel},'Cancel'),h('button',{type:'button',className:'btn btn-primary',onClick:confirm},'OK'))
         )
-      ):null,
+      ),document.body)):null,
       required&&selected.length===0?h('small',{className:'field-hint error-text'},'Select at least one time'):null
     );
   }
