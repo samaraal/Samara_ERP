@@ -62,6 +62,27 @@
     if(!boundary&&updated?.date===admissionDate)boundary=updated.time;
     return !boundary||normalized>=boundary;
   }
+  // 2.18.84: was a GIVEN dose given on time? Compares "Actually given at" with the scheduled date + time (IST).
+  // This is different from "Late entry", which only says whether it was RECORDED late after giving.
+  // Late = 30 min or more after the scheduled time (same as the red "Administer (late)" button); early = 60 min or more before.
+  function medicationDurationText(minutes){
+    const m=Math.abs(Math.round(minutes)),hh=Math.floor(m/60),mm=m%60;
+    return hh?`${hh} h${mm?` ${mm} min`:''}`:`${mm} min`;
+  }
+  function medicationGivenTiming(log){
+    if(!log||String(log.status)!=='Given'||!log.administered_at)return null;
+    const date=String(log.scheduled_date||'').slice(0,10),time=normalizeMedicationTime(log.scheduled_time).slice(0,5);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time))return null;
+    const due=new Date(`${date}T${time}:00+05:30`).getTime(),given=new Date(log.administered_at).getTime();
+    if(!Number.isFinite(due)||!Number.isFinite(given))return null;
+    const minutes=Math.round((given-due)/60000);
+    if(minutes>=30)return {kind:'late',minutes,text:`Given late — ${medicationDurationText(minutes)} after the scheduled ${medicationTimeLabel(time)}`,short:`Given ${medicationDurationText(minutes)} late`};
+    if(minutes<=-60)return {kind:'early',minutes,text:`Given early — ${medicationDurationText(minutes)} before the scheduled ${medicationTimeLabel(time)}`,short:`Given ${medicationDurationText(minutes)} early`};
+    return {kind:'ontime',minutes,text:'Given on time',short:'On time'};
+  }
+  const medicationRecordingText=log=>!log?'':log.late_entry
+    ?`Late entry — recorded ${medicationDurationText(log.entry_delay_minutes||0)} after giving · ${log.late_entry_reason||''}${log.late_entry_justification?` — ${log.late_entry_justification}`:''}`
+    :'Recorded at the time of giving (no delay in recording)';
   // Doses that were not given (refused, patient sleeping, missed, delayed) can be rescheduled.
   const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed'];
   function addDaysISODate(dateISO,days){

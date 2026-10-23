@@ -1,3 +1,8 @@
+## 2.18.84 — MAR shows whether a medicine was GIVEN on time (not only recorded on time)
+- Fix: a dose given 3 h 39 min after its scheduled time showed "On-time entry", which only meant it was recorded at the moment of giving. That label is replaced.
+- Dose details (Today's MAR and Medication History) now show two separate lines: **Given on time?** — "Given on time" or "Given late — 3 h 39 min after the scheduled 10:00 AM" (or "Given early" when 1 h or more before), and **Recording** — "Recorded at the time of giving" or "Late entry — recorded … after giving".
+- Late = 30 minutes or more after the scheduled time (same rule as the red "Administer (late)" button). A late-given dose shows a red "Given … late" note on its MAR line and in Medication History; the Excel / PDF / print have a new "Given on time?" column. Past records are shown correctly too. No SQL.
+
 ## 2.18.83 — Time is typed as  hh : mm  with AM/PM (no more hour-only picker)
 - Every time field in the ERP (including Actual Administration Time in Medication Administration and all date-and-time fields) now has two small boxes  **hh : mm**  with the colon fixed in place, and an **AM / PM** dropdown.
 - Staff type the hour, the cursor moves to the minutes by itself (typing 9 → 09; a ":" also jumps to minutes). Any minute can be entered (e.g. 1:17 PM) — the old pop-up allowed only whole hours.

@@ -111,13 +111,14 @@
     return dates;
   }
   const mhPeriodText=(from,to)=>from===to?`Date: ${formatDateIN(from)}`:`Period: ${formatDateIN(from)} to ${formatDateIN(to)}`;
-  const MH_HEAD=['S.No.','Date','Time','Room','Guest','Guest ID','Medicine','Route','Status','Given at','Entry recorded','Entry','Nurse','Reason / Remarks'];
+  const MH_HEAD=['S.No.','Date','Time','Room','Guest','Guest ID','Medicine','Route','Status','Given at','Given on time?','Entry recorded','Recording','Nurse','Reason / Remarks'];
   function mhExportRows(rows,staffName){
     return rows.map((r,i)=>[i+1,formatDateIN(r.date),medicationTimeLabel(r.time)+(r.rescheduledFrom?` (rescheduled from ${medicationTimeLabel(r.rescheduledFrom)})`:''),
       mhRoom(r.patient).replace('Room ',''),mhName(r.patient),r.patient.patient_id||'',mhMedicine(r.order),r.order.route||'',mhStatusOf(r),
       r.log?.administered_at?mhTimeIN(r.log.administered_at)+(mhDayIndia(r.log.administered_at)!==r.date?` (${formatDateIN(mhDayIndia(r.log.administered_at))})`:''):'',
+      medicationGivenTiming(r.log)?.short||'',
       r.log?(r.log.entry_recorded_at||r.log.created_at?fmt(r.log.entry_recorded_at||r.log.created_at):''):'',
-      r.log?(r.log.late_entry?`Late (${r.log.entry_delay_minutes||0} min)`:'On time'):'',
+      r.log?(r.log.late_entry?`Late entry (${r.log.entry_delay_minutes||0} min)`:'At the time of giving'):'',
       r.log?staffName(r.log.administered_by):'',mhReason(r.log)]);
   }
   function mhTitle(A,patients){
@@ -159,7 +160,7 @@
       table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{page-break-inside:avoid}
       th{background:#f7dce8;color:#67123d;border:1px solid #dfb4c6;padding:5px 4px;text-align:left}
       td{border:1px solid #ead4dd;padding:4px;overflow-wrap:anywhere;vertical-align:top}tbody tr:nth-child(even) td{background:#fffafd}
-      .c0{width:30px;text-align:center}.c1{width:62px}.c2{width:58px}.c3{width:42px}.c4{width:100px;font-weight:700}.c5{width:78px}.c6{width:120px}.c7{width:52px}.c8{width:76px;font-weight:700}.c9{width:52px}.c10{width:92px}.c11{width:52px}.c12{width:80px}
+      .c0{width:30px;text-align:center}.c1{width:62px}.c2{width:58px}.c3{width:42px}.c4{width:100px;font-weight:700}.c5{width:78px}.c6{width:120px}.c7{width:52px}.c8{width:76px;font-weight:700}.c9{width:52px}.c10{width:70px;font-weight:700}.c11{width:92px}.c12{width:62px}.c13{width:80px}
       .sign{display:flex;justify-content:space-between;margin-top:30px}.sign div{border-top:1px solid #6f5c65;padding-top:5px;width:28%;text-align:center}
       .footer{border-top:1px solid #eccbd9;margin-top:14px;padding-top:5px;text-align:center;color:#6f5a64;font-size:8px}
       @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -207,7 +208,7 @@
       body:body.length?body:[[{content:'No doses in this period',colSpan:MH_HEAD.length,styles:{halign:'center'}}]],
       styles:{fontSize:7.5,cellPadding:1.5,lineColor:[234,212,221],textColor:[59,40,51],overflow:'linebreak'},
       headStyles:{fillColor:[247,220,232],textColor:[103,18,61],fontStyle:'bold'},alternateRowStyles:{fillColor:[255,250,253]},
-      columnStyles:{0:{cellWidth:9,halign:'center'},1:{cellWidth:17},2:{cellWidth:17},3:{cellWidth:12},4:{cellWidth:28,fontStyle:'bold'},5:{cellWidth:22},6:{cellWidth:32},7:{cellWidth:14},8:{cellWidth:22,fontStyle:'bold'},9:{cellWidth:15},10:{cellWidth:25},11:{cellWidth:15},12:{cellWidth:22}}});
+      columnStyles:{0:{cellWidth:9,halign:'center'},1:{cellWidth:17},2:{cellWidth:17},3:{cellWidth:12},4:{cellWidth:26,fontStyle:'bold'},5:{cellWidth:22},6:{cellWidth:30},7:{cellWidth:14},8:{cellWidth:20,fontStyle:'bold'},9:{cellWidth:14},10:{cellWidth:18,fontStyle:'bold'},11:{cellWidth:22},12:{cellWidth:16},13:{cellWidth:20}}});
     let yy=(doc.lastAutoTable?.finalY||60)+22;if(yy>H-20){doc.addPage();yy=30}
     doc.setDrawColor(111,92,101);doc.setLineWidth(0.3);doc.setFontSize(8.5);doc.setTextColor(80,70,75);
     const sw=(W-20-20)/3;[['Nurse',0],['Nursing Manager',1],['Treating Doctor',2]].forEach(([l,k])=>{const x=10+k*(sw+10);doc.line(x,yy,x+sw,yy);doc.text(l,x+sw/2,yy+4.5,{align:'center'})});
@@ -276,6 +277,7 @@
         h('div',{className:'mh-right'},
           h('span',{className:`mh-chip ${tone}`},mhStatusOf(r)),
           log?.administered_at&&h('span',{className:'mh-when'},`${mhTimeIN(log.administered_at)}${staffName(log.administered_by)?` · ${staffName(log.administered_by)}`:''}`),
+          (()=>{const gt=medicationGivenTiming(log);return gt&&gt.kind!=='ontime'?h('span',{className:`mh-chip ${gt.kind==='late'?'late':'warn'}`},gt.short):null})(),
           log?.late_entry&&h('span',{className:'mh-chip late'},'Late entry'),
           mhReason(log)&&h('span',{className:'mh-when',title:mhReason(log)},'📝')));
     };
@@ -326,7 +328,8 @@
           ['Actually given at',detail.log?.administered_at?fmt(detail.log.administered_at):''],
           ['Entry recorded at',detail.log?(detail.log.entry_recorded_at||detail.log.created_at?fmt(detail.log.entry_recorded_at||detail.log.created_at):''):''],
           ['Recorded by',detail.log?staffName(detail.log.administered_by):''],
-          ['Late entry',detail.log?.late_entry?`${detail.log.entry_delay_minutes||0} min late · ${detail.log.late_entry_reason||''}${detail.log.late_entry_justification?` — ${detail.log.late_entry_justification}`:''}`:''],
+          ['Given on time?',medicationGivenTiming(detail.log)?.text||''],
+          ['Recording',medicationRecordingText(detail.log)],
           ['Withhold reason',detail.log?.withhold_reason],['Reading',detail.log?.withhold_reading],
           ['Doctor informed',detail.log?.doctor_informed_name?`${detail.log.doctor_informed_name} · ${detail.log.doctor_informed_via||''}${detail.log.doctor_informed_at?` · ${fmt(detail.log.doctor_informed_at)}`:''}`:''],
           ["Doctor's instruction",detail.log?.doctor_instruction?`${detail.log.doctor_instruction}${detail.log.doctor_instruction_notes?` — ${detail.log.doctor_instruction_notes}`:''}`:''],

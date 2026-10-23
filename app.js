@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.83';
+  const APP_VERSION = '2.18.84';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -11080,6 +11080,10 @@ https://samaraassistedliving.com/`;
 "Doctor's instruction pending": "டாக்டர் அறிவுறுத்தல் நிலுவையில்",
 "Justification recorded": "காரணம் பதிவானது",
 "On-time entry": "நேரத்தில் பதிவு",
+"Given on time?": "நேரத்தில் கொடுக்கப்பட்டதா?",
+"Given on time": "நேரத்தில் கொடுக்கப்பட்டது",
+"Recording": "பதிவு",
+"Recorded at the time of giving (no delay in recording)": "கொடுத்த நேரத்திலேயே பதிவு செய்யப்பட்டது (பதிவில் தாமதம் இல்லை)",
 "No administration record for this scheduled dose": "இந்த டோஸுக்குப் பதிவு இல்லை",
 "Critical Pending": "அவசர நிலுவை",
 "Upcoming": "வரவிருக்கும்",
@@ -22257,6 +22261,27 @@ Thank you.`;
     if(!boundary&&updated?.date===admissionDate)boundary=updated.time;
     return !boundary||normalized>=boundary;
   }
+  // 2.18.84: was a GIVEN dose given on time? Compares "Actually given at" with the scheduled date + time (IST).
+  // This is different from "Late entry", which only says whether it was RECORDED late after giving.
+  // Late = 30 min or more after the scheduled time (same as the red "Administer (late)" button); early = 60 min or more before.
+  function medicationDurationText(minutes){
+    const m=Math.abs(Math.round(minutes)),hh=Math.floor(m/60),mm=m%60;
+    return hh?`${hh} h${mm?` ${mm} min`:''}`:`${mm} min`;
+  }
+  function medicationGivenTiming(log){
+    if(!log||String(log.status)!=='Given'||!log.administered_at)return null;
+    const date=String(log.scheduled_date||'').slice(0,10),time=normalizeMedicationTime(log.scheduled_time).slice(0,5);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time))return null;
+    const due=new Date(`${date}T${time}:00+05:30`).getTime(),given=new Date(log.administered_at).getTime();
+    if(!Number.isFinite(due)||!Number.isFinite(given))return null;
+    const minutes=Math.round((given-due)/60000);
+    if(minutes>=30)return {kind:'late',minutes,text:`Given late — ${medicationDurationText(minutes)} after the scheduled ${medicationTimeLabel(time)}`,short:`Given ${medicationDurationText(minutes)} late`};
+    if(minutes<=-60)return {kind:'early',minutes,text:`Given early — ${medicationDurationText(minutes)} before the scheduled ${medicationTimeLabel(time)}`,short:`Given ${medicationDurationText(minutes)} early`};
+    return {kind:'ontime',minutes,text:'Given on time',short:'On time'};
+  }
+  const medicationRecordingText=log=>!log?'':log.late_entry
+    ?`Late entry — recorded ${medicationDurationText(log.entry_delay_minutes||0)} after giving · ${log.late_entry_reason||''}${log.late_entry_justification?` — ${log.late_entry_justification}`:''}`
+    :'Recorded at the time of giving (no delay in recording)';
   // Doses that were not given (refused, patient sleeping, missed, delayed) can be rescheduled.
   const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed'];
   function addDaysISODate(dateISO,days){
@@ -34104,13 +34129,14 @@ function RoomsBeds({profile,onNavigate}){
     return dates;
   }
   const mhPeriodText=(from,to)=>from===to?`Date: ${formatDateIN(from)}`:`Period: ${formatDateIN(from)} to ${formatDateIN(to)}`;
-  const MH_HEAD=['S.No.','Date','Time','Room','Guest','Guest ID','Medicine','Route','Status','Given at','Entry recorded','Entry','Nurse','Reason / Remarks'];
+  const MH_HEAD=['S.No.','Date','Time','Room','Guest','Guest ID','Medicine','Route','Status','Given at','Given on time?','Entry recorded','Recording','Nurse','Reason / Remarks'];
   function mhExportRows(rows,staffName){
     return rows.map((r,i)=>[i+1,formatDateIN(r.date),medicationTimeLabel(r.time)+(r.rescheduledFrom?` (rescheduled from ${medicationTimeLabel(r.rescheduledFrom)})`:''),
       mhRoom(r.patient).replace('Room ',''),mhName(r.patient),r.patient.patient_id||'',mhMedicine(r.order),r.order.route||'',mhStatusOf(r),
       r.log?.administered_at?mhTimeIN(r.log.administered_at)+(mhDayIndia(r.log.administered_at)!==r.date?` (${formatDateIN(mhDayIndia(r.log.administered_at))})`:''):'',
+      medicationGivenTiming(r.log)?.short||'',
       r.log?(r.log.entry_recorded_at||r.log.created_at?fmt(r.log.entry_recorded_at||r.log.created_at):''):'',
-      r.log?(r.log.late_entry?`Late (${r.log.entry_delay_minutes||0} min)`:'On time'):'',
+      r.log?(r.log.late_entry?`Late entry (${r.log.entry_delay_minutes||0} min)`:'At the time of giving'):'',
       r.log?staffName(r.log.administered_by):'',mhReason(r.log)]);
   }
   function mhTitle(A,patients){
@@ -34152,7 +34178,7 @@ function RoomsBeds({profile,onNavigate}){
       table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}tr{page-break-inside:avoid}
       th{background:#f7dce8;color:#67123d;border:1px solid #dfb4c6;padding:5px 4px;text-align:left}
       td{border:1px solid #ead4dd;padding:4px;overflow-wrap:anywhere;vertical-align:top}tbody tr:nth-child(even) td{background:#fffafd}
-      .c0{width:30px;text-align:center}.c1{width:62px}.c2{width:58px}.c3{width:42px}.c4{width:100px;font-weight:700}.c5{width:78px}.c6{width:120px}.c7{width:52px}.c8{width:76px;font-weight:700}.c9{width:52px}.c10{width:92px}.c11{width:52px}.c12{width:80px}
+      .c0{width:30px;text-align:center}.c1{width:62px}.c2{width:58px}.c3{width:42px}.c4{width:100px;font-weight:700}.c5{width:78px}.c6{width:120px}.c7{width:52px}.c8{width:76px;font-weight:700}.c9{width:52px}.c10{width:70px;font-weight:700}.c11{width:92px}.c12{width:62px}.c13{width:80px}
       .sign{display:flex;justify-content:space-between;margin-top:30px}.sign div{border-top:1px solid #6f5c65;padding-top:5px;width:28%;text-align:center}
       .footer{border-top:1px solid #eccbd9;margin-top:14px;padding-top:5px;text-align:center;color:#6f5a64;font-size:8px}
       @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
@@ -34200,7 +34226,7 @@ function RoomsBeds({profile,onNavigate}){
       body:body.length?body:[[{content:'No doses in this period',colSpan:MH_HEAD.length,styles:{halign:'center'}}]],
       styles:{fontSize:7.5,cellPadding:1.5,lineColor:[234,212,221],textColor:[59,40,51],overflow:'linebreak'},
       headStyles:{fillColor:[247,220,232],textColor:[103,18,61],fontStyle:'bold'},alternateRowStyles:{fillColor:[255,250,253]},
-      columnStyles:{0:{cellWidth:9,halign:'center'},1:{cellWidth:17},2:{cellWidth:17},3:{cellWidth:12},4:{cellWidth:28,fontStyle:'bold'},5:{cellWidth:22},6:{cellWidth:32},7:{cellWidth:14},8:{cellWidth:22,fontStyle:'bold'},9:{cellWidth:15},10:{cellWidth:25},11:{cellWidth:15},12:{cellWidth:22}}});
+      columnStyles:{0:{cellWidth:9,halign:'center'},1:{cellWidth:17},2:{cellWidth:17},3:{cellWidth:12},4:{cellWidth:26,fontStyle:'bold'},5:{cellWidth:22},6:{cellWidth:30},7:{cellWidth:14},8:{cellWidth:20,fontStyle:'bold'},9:{cellWidth:14},10:{cellWidth:18,fontStyle:'bold'},11:{cellWidth:22},12:{cellWidth:16},13:{cellWidth:20}}});
     let yy=(doc.lastAutoTable?.finalY||60)+22;if(yy>H-20){doc.addPage();yy=30}
     doc.setDrawColor(111,92,101);doc.setLineWidth(0.3);doc.setFontSize(8.5);doc.setTextColor(80,70,75);
     const sw=(W-20-20)/3;[['Nurse',0],['Nursing Manager',1],['Treating Doctor',2]].forEach(([l,k])=>{const x=10+k*(sw+10);doc.line(x,yy,x+sw,yy);doc.text(l,x+sw/2,yy+4.5,{align:'center'})});
@@ -34269,6 +34295,7 @@ function RoomsBeds({profile,onNavigate}){
         h('div',{className:'mh-right'},
           h('span',{className:`mh-chip ${tone}`},mhStatusOf(r)),
           log?.administered_at&&h('span',{className:'mh-when'},`${mhTimeIN(log.administered_at)}${staffName(log.administered_by)?` · ${staffName(log.administered_by)}`:''}`),
+          (()=>{const gt=medicationGivenTiming(log);return gt&&gt.kind!=='ontime'?h('span',{className:`mh-chip ${gt.kind==='late'?'late':'warn'}`},gt.short):null})(),
           log?.late_entry&&h('span',{className:'mh-chip late'},'Late entry'),
           mhReason(log)&&h('span',{className:'mh-when',title:mhReason(log)},'📝')));
     };
@@ -34319,7 +34346,8 @@ function RoomsBeds({profile,onNavigate}){
           ['Actually given at',detail.log?.administered_at?fmt(detail.log.administered_at):''],
           ['Entry recorded at',detail.log?(detail.log.entry_recorded_at||detail.log.created_at?fmt(detail.log.entry_recorded_at||detail.log.created_at):''):''],
           ['Recorded by',detail.log?staffName(detail.log.administered_by):''],
-          ['Late entry',detail.log?.late_entry?`${detail.log.entry_delay_minutes||0} min late · ${detail.log.late_entry_reason||''}${detail.log.late_entry_justification?` — ${detail.log.late_entry_justification}`:''}`:''],
+          ['Given on time?',medicationGivenTiming(detail.log)?.text||''],
+          ['Recording',medicationRecordingText(detail.log)],
           ['Withhold reason',detail.log?.withhold_reason],['Reading',detail.log?.withhold_reading],
           ['Doctor informed',detail.log?.doctor_informed_name?`${detail.log.doctor_informed_name} · ${detail.log.doctor_informed_via||''}${detail.log.doctor_informed_at?` · ${fmt(detail.log.doctor_informed_at)}`:''}`:''],
           ["Doctor's instruction",detail.log?.doctor_instruction?`${detail.log.doctor_instruction}${detail.log.doctor_instruction_notes?` — ${detail.log.doctor_instruction_notes}`:''}`:''],
@@ -34961,7 +34989,7 @@ function RoomsBeds({profile,onNavigate}){
     }
     function pendingDoseState(item){
       if(item.log&&item.log.status==='Withheld')return {status:medicationWithholdOpen(item.log)?'Withheld · awaiting doctor':'Withheld',audit:[item.log.withhold_reason,item.log.withhold_reading,item.log.doctor_instruction?`Dr: ${item.log.doctor_instruction}`:'Doctor\'s instruction pending'].filter(Boolean).join(' · '),minutes:0};
-      if(item.log)return {status:item.log.status||'Recorded',audit:item.log.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:'On-time entry',minutes:0};
+      if(item.log){const gt=medicationGivenTiming(item.log);return {status:item.log.status||'Recorded',audit:[gt&&gt.kind!=='ontime'?gt.short:'',item.log.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:(gt?.kind==='ontime'?'Given on time':'')].filter(Boolean).join(' · ')||'Recorded',minutes:0};}
       const due=scheduledDoseDate(item.time,item.date||today);if(!due)return {status:'Pending',audit:'Not recorded',minutes:0};
       const minutes=Math.floor((Date.now()-due.getTime())/60000);
       if((item.date||today)<today)return {status:'Not Recorded',audit:'No administration record for this scheduled dose',minutes};
@@ -35162,7 +35190,8 @@ function RoomsBeds({profile,onNavigate}){
           item.rescheduledFrom&&h('small',{className:'mar-flag'},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`),
           warn&&h('small',{className:'mar-flag danger'},`Check before giving: ${warn.reading}`),
           !log&&minutes>=30&&h('small',{className:'mar-flag danger'},`${minutes} min late`),
-          log?.late_entry&&h('small',{className:'mar-flag'},'Late entry')),
+          (()=>{const gt=medicationGivenTiming(log);return gt&&gt.kind!=='ontime'?h('small',{className:`mar-flag ${gt.kind==='late'?'danger':''}`},gt.short):null})(),
+          log?.late_entry&&h('small',{className:'mar-flag'},'Late entry (recorded late)')),
         h('div',{className:'mar-actions'},
           action,
           !log&&h('button',{type:'button',className:'mar-act ghost',onClick:()=>openWithhold(item)},'Withhold'),
@@ -35361,7 +35390,8 @@ function RoomsBeds({profile,onNavigate}){
       doseDetail&&doseDetail.log&&h(RowDetailModal,{title:`${medicineLabel(doseDetail.order)} · ${medicationTimeLabel(doseDetail.time)}`,subtitle:patientLabel(doseDetail.order),onClose:()=>setDoseDetail(null),
         fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],
           ['Actually given at',doseDetail.log.administered_at?fmt(doseDetail.log.administered_at):''],['Entry recorded at',doseDetail.log.entry_recorded_at?fmt(doseDetail.log.entry_recorded_at):(doseDetail.log.created_at?fmt(doseDetail.log.created_at):'')],
-          ['Entry',doseDetail.log.late_entry?`Late entry · ${doseDetail.log.entry_delay_minutes||0} min · ${doseDetail.log.late_entry_reason||''}${doseDetail.log.late_entry_justification?` — ${doseDetail.log.late_entry_justification}`:''}`:'On-time entry'],
+          ['Given on time?',medicationGivenTiming(doseDetail.log)?.text||''],
+          ['Recording',medicationRecordingText(doseDetail.log)],
           ['Withhold reason',doseDetail.log.withhold_reason],['Reading',doseDetail.log.withhold_reading],['Doctor informed',doseDetail.log.doctor_informed_name?`${doseDetail.log.doctor_informed_name} · ${doseDetail.log.doctor_informed_via||''}`:''],
           ["Doctor's instruction",doseDetail.log.doctor_instruction?`${doseDetail.log.doctor_instruction}${doseDetail.log.doctor_instruction_notes?` — ${doseDetail.log.doctor_instruction_notes}`:''}`:''],
           ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Reschedule reason',doseDetail.log.reschedule_reason],['Remarks',doseDetail.log.remarks]]},

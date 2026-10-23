@@ -630,7 +630,7 @@
     }
     function pendingDoseState(item){
       if(item.log&&item.log.status==='Withheld')return {status:medicationWithholdOpen(item.log)?'Withheld · awaiting doctor':'Withheld',audit:[item.log.withhold_reason,item.log.withhold_reading,item.log.doctor_instruction?`Dr: ${item.log.doctor_instruction}`:'Doctor\'s instruction pending'].filter(Boolean).join(' · '),minutes:0};
-      if(item.log)return {status:item.log.status||'Recorded',audit:item.log.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:'On-time entry',minutes:0};
+      if(item.log){const gt=medicationGivenTiming(item.log);return {status:item.log.status||'Recorded',audit:[gt&&gt.kind!=='ontime'?gt.short:'',item.log.late_entry?`Late entry (${item.log.entry_delay_minutes||0} min) · ${item.log.late_entry_reason||'Justification recorded'}`:(gt?.kind==='ontime'?'Given on time':'')].filter(Boolean).join(' · ')||'Recorded',minutes:0};}
       const due=scheduledDoseDate(item.time,item.date||today);if(!due)return {status:'Pending',audit:'Not recorded',minutes:0};
       const minutes=Math.floor((Date.now()-due.getTime())/60000);
       if((item.date||today)<today)return {status:'Not Recorded',audit:'No administration record for this scheduled dose',minutes};
@@ -831,7 +831,8 @@
           item.rescheduledFrom&&h('small',{className:'mar-flag'},`Rescheduled dose (was ${medicationTimeLabel(item.rescheduledFrom)})`),
           warn&&h('small',{className:'mar-flag danger'},`Check before giving: ${warn.reading}`),
           !log&&minutes>=30&&h('small',{className:'mar-flag danger'},`${minutes} min late`),
-          log?.late_entry&&h('small',{className:'mar-flag'},'Late entry')),
+          (()=>{const gt=medicationGivenTiming(log);return gt&&gt.kind!=='ontime'?h('small',{className:`mar-flag ${gt.kind==='late'?'danger':''}`},gt.short):null})(),
+          log?.late_entry&&h('small',{className:'mar-flag'},'Late entry (recorded late)')),
         h('div',{className:'mar-actions'},
           action,
           !log&&h('button',{type:'button',className:'mar-act ghost',onClick:()=>openWithhold(item)},'Withhold'),
@@ -1030,7 +1031,8 @@
       doseDetail&&doseDetail.log&&h(RowDetailModal,{title:`${medicineLabel(doseDetail.order)} · ${medicationTimeLabel(doseDetail.time)}`,subtitle:patientLabel(doseDetail.order),onClose:()=>setDoseDetail(null),
         fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],
           ['Actually given at',doseDetail.log.administered_at?fmt(doseDetail.log.administered_at):''],['Entry recorded at',doseDetail.log.entry_recorded_at?fmt(doseDetail.log.entry_recorded_at):(doseDetail.log.created_at?fmt(doseDetail.log.created_at):'')],
-          ['Entry',doseDetail.log.late_entry?`Late entry · ${doseDetail.log.entry_delay_minutes||0} min · ${doseDetail.log.late_entry_reason||''}${doseDetail.log.late_entry_justification?` — ${doseDetail.log.late_entry_justification}`:''}`:'On-time entry'],
+          ['Given on time?',medicationGivenTiming(doseDetail.log)?.text||''],
+          ['Recording',medicationRecordingText(doseDetail.log)],
           ['Withhold reason',doseDetail.log.withhold_reason],['Reading',doseDetail.log.withhold_reading],['Doctor informed',doseDetail.log.doctor_informed_name?`${doseDetail.log.doctor_informed_name} · ${doseDetail.log.doctor_informed_via||''}`:''],
           ["Doctor's instruction",doseDetail.log.doctor_instruction?`${doseDetail.log.doctor_instruction}${doseDetail.log.doctor_instruction_notes?` — ${doseDetail.log.doctor_instruction_notes}`:''}`:''],
           ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Reschedule reason',doseDetail.log.reschedule_reason],['Remarks',doseDetail.log.remarks]]},
