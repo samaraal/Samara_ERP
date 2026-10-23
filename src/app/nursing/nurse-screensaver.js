@@ -523,15 +523,17 @@
         procCategory:r.category||''});
     });
 
-    // Meals — one box for all Guests not yet recorded (Breakfast 8 AM, Lunch 1 PM, Dinner 8 PM).
+    // Meals — one box for all Guests not yet recorded. 2.18.82: meal PERIODS (any time within the period):
+    // Breakfast 7:30–9:30 AM, Lunch 12:30–2:30 PM, Dinner 7:30–9:30 PM; overdue only after the period ends.
     const meals=mr.data||[];
-    [['08:00','Breakfast'],['13:00','Lunch'],['20:00','Dinner']].forEach(([t,label])=>{
+    [['07:30','09:30','Breakfast','7:30–9:30 AM'],['12:30','14:30','Lunch','12:30–2:30 PM'],['19:30','21:30','Dinner','7:30–9:30 PM']].forEach(([t,end,label,period])=>{
       const slot=nssTimeAhead(win,t,now);if(!slot)return;
-      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&clinicalSlotAfterAdmission(p,slot.date,t));
+      const deadline=new Date(slot.at.getTime()+(Number(end.slice(0,2))*60+Number(end.slice(3,5))-Number(t.slice(0,2))*60-Number(t.slice(3,5)))*60000);
+      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&clinicalSlotAfterAdmission(p,slot.date,end));
       const pending=eligible.filter(p=>!meals.some(r=>r.patient_id===p.id&&String(r.meal_date).slice(0,10)===slot.date&&nssMealKind(r.meal_type)===label));
       if(!eligible.length)return;
-      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,grace:30,patient:null,done:pending.length===0,nextShift:!!slot.next,
-        title:`${label} — record food intake`,who:`${pending.length} of ${eligible.length} Guests`,note:'meal time',
+      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,deadline,grace:0,patient:null,done:pending.length===0,nextShift:!!slot.next,
+        title:`${label} — record food intake`,who:`${pending.length} of ${eligible.length} Guests`,note:`period ${period}`,
         room:pending.length===1?nssRoomOf(pending[0]):`${pending.length} Guests`,
         name:pending.length===1?nssNameOf(pending[0]):pending.slice(0,3).map(p=>`${nssNameOf(p)} (${String(p.room_no||'').trim()||'—'})`).join(', ')+(pending.length>3?` + ${pending.length-3} more`:'')});
     });

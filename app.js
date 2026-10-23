@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.81';
+  const APP_VERSION = '2.18.82';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2239,8 +2239,9 @@ function initSamaraInaugurationInvitation(){
     const meal_type=title.includes('breakfast')?'Tiffin':title.includes('lunch')?'Lunch':title.includes('dinner')?'Dinner':'';
     let meal_date='',hour=null;
     try{const d=new Date(a?.due_at);if(!Number.isNaN(d.getTime())){meal_date=d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});hour=Number(d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',hour12:false}))}}catch(_error){}
-    // Escalation register rows carry no title: Meal Due times are 8 AM / 1 PM / 8 PM.
-    const byHour=hour===8?'Tiffin':hour===13?'Lunch':hour===20?'Dinner':'';
+    // Escalation register rows carry no title. Meal Due times: 9 AM / 2 PM / 9 PM (2.18.82 periods, SQL 275);
+    // older rows 8 AM / 1 PM / 8 PM.
+    const byHour=[8,9].includes(hour)?'Tiffin':[13,14].includes(hour)?'Lunch':[20,21].includes(hour)?'Dinner':'';
     return {meal_type:meal_type||(String(a?.alert_type||'').toLowerCase()==='meal'?byHour:''),meal_date,poor_intake:String(a?.alert_type||'').toLowerCase()==='meal intake'};
   };
   const clearTaskNavigationContext = () => {
@@ -26815,15 +26816,17 @@ Please keep these login details confidential.`;
         procCategory:r.category||''});
     });
 
-    // Meals — one box for all Guests not yet recorded (Breakfast 8 AM, Lunch 1 PM, Dinner 8 PM).
+    // Meals — one box for all Guests not yet recorded. 2.18.82: meal PERIODS (any time within the period):
+    // Breakfast 7:30–9:30 AM, Lunch 12:30–2:30 PM, Dinner 7:30–9:30 PM; overdue only after the period ends.
     const meals=mr.data||[];
-    [['08:00','Breakfast'],['13:00','Lunch'],['20:00','Dinner']].forEach(([t,label])=>{
+    [['07:30','09:30','Breakfast','7:30–9:30 AM'],['12:30','14:30','Lunch','12:30–2:30 PM'],['19:30','21:30','Dinner','7:30–9:30 PM']].forEach(([t,end,label,period])=>{
       const slot=nssTimeAhead(win,t,now);if(!slot)return;
-      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&clinicalSlotAfterAdmission(p,slot.date,t));
+      const deadline=new Date(slot.at.getTime()+(Number(end.slice(0,2))*60+Number(end.slice(3,5))-Number(t.slice(0,2))*60-Number(t.slice(3,5)))*60000);
+      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&clinicalSlotAfterAdmission(p,slot.date,end));
       const pending=eligible.filter(p=>!meals.some(r=>r.patient_id===p.id&&String(r.meal_date).slice(0,10)===slot.date&&nssMealKind(r.meal_type)===label));
       if(!eligible.length)return;
-      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,grace:30,patient:null,done:pending.length===0,nextShift:!!slot.next,
-        title:`${label} — record food intake`,who:`${pending.length} of ${eligible.length} Guests`,note:'meal time',
+      tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,deadline,grace:0,patient:null,done:pending.length===0,nextShift:!!slot.next,
+        title:`${label} — record food intake`,who:`${pending.length} of ${eligible.length} Guests`,note:`period ${period}`,
         room:pending.length===1?nssRoomOf(pending[0]):`${pending.length} Guests`,
         name:pending.length===1?nssNameOf(pending[0]):pending.slice(0,3).map(p=>`${nssNameOf(p)} (${String(p.room_no||'').trim()||'—'})`).join(', ')+(pending.length>3?` + ${pending.length-3} more`:'')});
     });

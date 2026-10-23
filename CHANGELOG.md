@@ -1,3 +1,11 @@
+## 2.18.82 — Meal times are now periods (needs SQL 275)
+- Breakfast **7:30–9:30 AM**, Lunch **12:30–2:30 PM**, Dinner **7:30–9:30 PM**, for all Guests (existing and new). Staff may serve and record the meal any time within the period.
+- Nurse reminder 30 minutes before the period ends (9:00 AM / 2:00 PM / 9:00 PM) if the meal is not yet recorded.
+- Nursing Manager + Admin / Director escalation **at the end of the period itself** (9:30 AM / 2:30 PM / 9:30 PM) — same channels as before (escalation register, phone, WhatsApp). "Critical pending" 30 minutes after the period ends.
+- The nursing screensaver shows each meal with its period and marks it late only after the period ends.
+- Open meal escalations made under the old fixed times (8 AM / 1 PM / 8 PM) are closed automatically; a still-unrecorded meal follows the new period rule.
+- Run supabase/sql/275_meal_periods.sql, then publish the app. Poor-intake alerts are unchanged.
+
 ## 2.18.81 — Nurses can reschedule any medicine dose to any time, with a reason
 - Today’s MAR now shows a **Reschedule** button beside every dose that is not yet given (as well as on Refused / Missed / Delayed doses). Nurses, the Nursing Manager and Admin can move that one medicine for that one Guest and time.
 - Any new time may be chosen (the earlier 15 minutes–12 hours limit is removed). A time later than the original falls on the same date; an earlier clock time falls on the next date. The form shows the resulting date and time before saving.

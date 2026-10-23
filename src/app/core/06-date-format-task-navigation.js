@@ -205,8 +205,9 @@
     const meal_type=title.includes('breakfast')?'Tiffin':title.includes('lunch')?'Lunch':title.includes('dinner')?'Dinner':'';
     let meal_date='',hour=null;
     try{const d=new Date(a?.due_at);if(!Number.isNaN(d.getTime())){meal_date=d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});hour=Number(d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',hour12:false}))}}catch(_error){}
-    // Escalation register rows carry no title: Meal Due times are 8 AM / 1 PM / 8 PM.
-    const byHour=hour===8?'Tiffin':hour===13?'Lunch':hour===20?'Dinner':'';
+    // Escalation register rows carry no title. Meal Due times: 9 AM / 2 PM / 9 PM (2.18.82 periods, SQL 275);
+    // older rows 8 AM / 1 PM / 8 PM.
+    const byHour=[8,9].includes(hour)?'Tiffin':[13,14].includes(hour)?'Lunch':[20,21].includes(hour)?'Dinner':'';
     return {meal_type:meal_type||(String(a?.alert_type||'').toLowerCase()==='meal'?byHour:''),meal_date,poor_intake:String(a?.alert_type||'').toLowerCase()==='meal intake'};
   };
   const clearTaskNavigationContext = () => {
