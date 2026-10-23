@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.75';
+  const APP_VERSION = '2.18.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2222,6 +2222,54 @@ function initSamaraInaugurationInvitation(){
     if(document.body)startObserver();else document.addEventListener('DOMContentLoaded',startObserver);
   }catch(_){}
 
+  function samaraNoticeFieldKey(value){
+    return String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  }
+
+  function samaraFieldForNotice(message){
+    const root=document.querySelector('.content');
+    if(!root)return null;
+    const controls=[...root.querySelectorAll('input,select,textarea')]
+      .filter(control=>!control.disabled&&control.type!=='hidden'&&control.getClientRects().length);
+    const messageKey=samaraNoticeFieldKey(message);
+    const messageWords=new Set(messageKey.split(' ').filter(word=>word.length>1));
+    let best=null,bestScore=0;
+    for(const control of controls){
+      const field=control.closest('.field');
+      const label=field?.querySelector('label')||[...root.querySelectorAll('label[for]')]
+        .find(item=>item.htmlFor===control.id);
+      const labelText=label?.textContent||control.getAttribute('aria-label')||control.placeholder||control.name||control.id||'';
+      const labelKey=samaraNoticeFieldKey(labelText);
+      if(!labelKey)continue;
+      let score=0;
+      if(messageKey.includes(labelKey))score=1;
+      else{
+        const words=labelKey.split(' ').filter(word=>word.length>1);
+        const matched=words.filter(word=>messageWords.has(word)).length;
+        if(words.length===1&&matched===1)score=.78;
+        else if(words.length>1&&matched)score=matched/words.length;
+      }
+      if(score>bestScore){best=control;bestScore=score}
+    }
+    if(bestScore>=.72)return best;
+    // Generic required-field errors still take staff to the first missing field.
+    if(/required|mandatory|missing|please (?:enter|choose|select|provide|complete|fill)/i.test(String(message||''))){
+      return controls.find(control=>control.dataset.samaraRequired==='true'&&(
+        control.type==='checkbox'? !control.checked:
+        control.type==='radio'?[...root.querySelectorAll(`input[type="radio"][name="${CSS.escape(control.name||'')}"]`)].every(item=>!item.checked):
+        !String(control.value||'').trim()
+      ))||null;
+    }
+    return null;
+  }
+
+  function focusSamaraNoticeField(control){
+    if(!control?.isConnected)return;
+    control.classList.add('samara-field-error');
+    control.scrollIntoView({behavior:'smooth',block:'center'});
+    window.setTimeout(()=>{try{control.focus({preventScroll:true})}catch(_error){control.focus()}},180);
+  }
+
   const showSamaraActionToast = (type='success',title='',text='') => {
     try{
       document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
@@ -2229,6 +2277,7 @@ function initSamaraInaugurationInvitation(){
       const warning=type==='warning'||(type==='success'&&/saved with warning|saved for review|warning/i.test(String(text)));
       const success=type==='success'&&!warning;
       const tone=success?'success':warning?'warning':'error';
+      const fieldTarget=!success&&!warning?samaraFieldForNotice(`${title||''} ${text||''}`):null;
       const overlay=document.createElement('div');
       overlay.className=`samara-save-confirmation ${tone}`;
       overlay.setAttribute('role',success?'status':'alert');
@@ -2252,7 +2301,7 @@ function initSamaraInaugurationInvitation(){
         width:'min(560px, calc(100vw - 20px))',
         boxSizing:'border-box',
         display:'grid',
-        gridTemplateColumns:'46px minmax(0,1fr) 54px',
+        gridTemplateColumns:fieldTarget?'46px minmax(0,1fr) auto 54px':'46px minmax(0,1fr) 54px',
         alignItems:'center',
         gap:'11px',
         minHeight:'92px',
@@ -2292,6 +2341,20 @@ function initSamaraInaugurationInvitation(){
       Object.assign(span.style,{color:'#fff',fontSize:'13px',lineHeight:'1.35',fontWeight:'600'});
       copy.append(strong,span);
 
+      let goToField=null;
+      if(fieldTarget){
+        goToField=document.createElement('button');
+        goToField.type='button';
+        goToField.textContent='Go to field';
+        goToField.setAttribute('aria-label','Go to the field that needs attention');
+        Object.assign(goToField.style,{
+          minHeight:'38px',padding:'6px 10px',border:'1px solid rgba(255,255,255,.7)',
+          borderRadius:'10px',background:'rgba(255,255,255,.16)',color:'#fff',
+          fontSize:'12px',fontWeight:'900',cursor:'pointer'
+        });
+        goToField.addEventListener('click',()=>focusSamaraNoticeField(fieldTarget));
+      }
+
       const ok=document.createElement('button');
       ok.type='button';
       ok.textContent='OK';
@@ -2308,9 +2371,13 @@ function initSamaraInaugurationInvitation(){
       });
       ok.addEventListener('click',()=>overlay.remove());
 
-      card.append(icon,copy,ok);
+      card.append(icon,copy);
+      if(goToField)card.append(goToField);
+      card.append(ok);
       overlay.appendChild(card);
       document.body.appendChild(overlay);
+
+      if(fieldTarget)focusSamaraNoticeField(fieldTarget);
 
       try{
         if(navigator.vibrate)navigator.vibrate(success?[80]:[100,60,100]);
@@ -6772,7 +6839,19 @@ https://samaraassistedliving.com/`;
         invalid.scrollIntoView({behavior:'smooth',block:'center'});
         setTimeout(()=>{
           try{invalid.focus({preventScroll:true})}catch(_error){invalid.focus()}
-        },420);
+        },180);
+      }
+
+      function isMissingRequired(control){
+        if(control.disabled)return false;
+        if(control.type==='checkbox')return !control.checked;
+        if(control.type==='radio'){
+          const group=[...root.querySelectorAll('input[type="radio"]')]
+            .filter(item=>item.name===control.name&&item.form===control.form);
+          return !group.some(item=>item.checked);
+        }
+        if(control.validity?.valueMissing)return true;
+        return !String(control.value||'').trim();
       }
 
       function apply(){
@@ -6808,7 +6887,7 @@ https://samaraassistedliving.com/`;
           form.dataset.samaraRequiredBound='true';
           form.addEventListener('submit',event=>{
             const invalid=[...form.querySelectorAll('[data-samara-required="true"]')]
-              .find(control=>!control.disabled&&!String(control.value||'').trim());
+              .find(isMissingRequired);
             if(!invalid)return;
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -6842,7 +6921,7 @@ https://samaraassistedliving.com/`;
         const form=button.closest('form');
         if(!form)return;
         const invalid=[...form.querySelectorAll('[data-samara-required="true"]')]
-          .find(control=>!control.disabled&&!String(control.value||'').trim());
+          .find(isMissingRequired);
         if(!invalid)return;
         event.preventDefault();
         event.stopImmediatePropagation();
