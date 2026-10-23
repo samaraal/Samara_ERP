@@ -37,7 +37,7 @@
   function mhReason(log){
     if(!log)return '';
     return [log.withhold_reason,log.withhold_reading,log.doctor_instruction?`Doctor: ${log.doctor_instruction}${log.doctor_instruction_notes?` (${log.doctor_instruction_notes})`:''}`:(log.status==='Withheld'?"Doctor's instruction pending":''),
-      log.rescheduled_time?`Rescheduled to ${medicationTimeLabel(log.rescheduled_time)}`:'',log.remarks].filter(x=>x&&String(x).trim()).join(' · ');
+      log.rescheduled_time?`Rescheduled to ${medicationTimeLabel(log.rescheduled_time)}`:'',log.reschedule_reason,log.remarks].filter(x=>x&&String(x).trim()).join(' · ');
   }
   // Last day a Guest could have had doses (discharge), and the first (admission).
   function mhGuestWindow(p){
@@ -331,6 +331,7 @@
           ['Doctor informed',detail.log?.doctor_informed_name?`${detail.log.doctor_informed_name} · ${detail.log.doctor_informed_via||''}${detail.log.doctor_informed_at?` · ${fmt(detail.log.doctor_informed_at)}`:''}`:''],
           ["Doctor's instruction",detail.log?.doctor_instruction?`${detail.log.doctor_instruction}${detail.log.doctor_instruction_notes?` — ${detail.log.doctor_instruction_notes}`:''}`:''],
           ['Rescheduled to',detail.log?.rescheduled_time?medicationTimeLabel(detail.log.rescheduled_time):''],
+          ['Reschedule reason',detail.log?.reschedule_reason],
           ['Remarks',detail.log?.remarks],
           ['Note',!detail.log?'No administration entry was made for this scheduled dose.':'']]})
     ));

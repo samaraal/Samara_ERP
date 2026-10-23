@@ -40,6 +40,7 @@
     const [dateTo,setDateTo]=React.useState('');
     const [appliedMedicationFilter,setAppliedMedicationFilter]=React.useState({period:'All',from:'',to:''});
     const [marTarget,setMarTarget]=React.useState(null);
+    const [rescheduleLog,setRescheduleLog]=React.useState(null);
     const [marForm,setMarForm]=React.useState({scheduled_time:'',status:'Given',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:false,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:'',sugar_reading:'',units_given:'',scheduled_date:''});
     // 2.18.61: MAR by time buttons for the current shift — chosen time, one-tap "Administer now" with a confirm
     const [selectedSlot,setSelectedSlot]=React.useState('');
@@ -412,7 +413,14 @@
       });
       setMarMessage('');
     }
-    function closeMar(){if(!marBusy){setMarTarget(null);setMarMessage('');}}
+    function openReschedule(order,log){
+      const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','A dose cannot be rescheduled after discharge.');return;}
+      setRescheduleLog(log);
+      setMarTarget(order);
+      setMarForm({scheduled_time:normalizeMedicationTime(log.scheduled_time),status:'Reschedule',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:true,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:'',sugar_reading:'',units_given:'',scheduled_date:String(log.scheduled_date||today).slice(0,10)});
+      setMarMessage('');
+    }
+    function closeMar(){if(!marBusy){setMarTarget(null);setRescheduleLog(null);setMarMessage('');}}
     async function saveMar(e){
       e.preventDefault();
       setMarMessage('');
@@ -420,6 +428,18 @@
       const fresh=await client.from('patients').select('is_active,admission_status').eq('id',marTarget.patient_id).single();
       if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged'){setMarMessage('Patient is discharged or status could not be verified. Refresh the medication list.');await load();return}
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
+      const isRescheduleAction=marForm.status==='Reschedule'||Boolean(rescheduleLog);
+      const rescheduleReason=String(marForm.remarks||'').trim();
+      if(isRescheduleAction&&!rescheduleReason){const text='Enter the reason for rescheduling this dose.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      if(isRescheduleAction&&!marForm.rescheduled_time){const text='Select the new medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      if(isRescheduleAction){const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,marForm.rescheduled_time);if(!(gap>=15&&gap<=12*60)){const text='The new time must be 15 minutes to 12 hours after the original dose time (it may be after midnight).';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}}
+      if(isRescheduleAction&&rescheduleLog){
+        setMarBusy(true);
+        const {error}=await client.from('medication_administrations').update({rescheduled_time:normalizeMedicationTime(marForm.rescheduled_time),reschedule_reason:rescheduleReason}).eq('id',rescheduleLog.id);
+        if(error){const text=error.message||'Unable to save the rescheduled medication.';setMarMessage(text);showSamaraActionToast('error','Reschedule failed',text);setMarBusy(false);return;}
+        showSamaraActionToast('success','Medication rescheduled',`New dose time: ${medicationTimeLabel(marForm.rescheduled_time)}. The original MAR entry is retained.`);
+        setMarBusy(false);setTab('Today’s MAR');await load();finishSuccessfulAction({close:()=>{setMarTarget(null);setRescheduleLog(null);},returnPage,onNavigate});return;
+      }
       if(marForm.status==='Withheld'){
         const need=(ok,text)=>{if(ok)return false;setMarMessage(text);showSamaraActionToast('error','Cannot withhold medicine',text);return true;};
         if(need(marForm.withhold_reason,'Select the reason for withholding this dose.'))return;
@@ -435,7 +455,7 @@
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
-      const canReschedule=MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule;
+      const canReschedule=marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule);
       if(canReschedule&&!marForm.rescheduled_time){const text='Please select the re-medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       if(canReschedule){const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,marForm.rescheduled_time);if(!(gap>=15&&gap<=12*60)){const text='Re-medication time must be 15 minutes to 12 hours after the original dose time (it may be after midnight).';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}}
       const entryTime=new Date();
@@ -462,7 +482,7 @@
         patient_id:marTarget.patient_id,
         scheduled_date:marForm.scheduled_date||today,
         scheduled_time:normalizeMedicationTime(marForm.scheduled_time),
-        status:marForm.status,
+        status:marForm.status==='Reschedule'?'Delayed':marForm.status,
         administered_at:administrationTime.toISOString(),
         administered_by:user?.id||profile?.auth_user_id||profile?.id,
         remarks:variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):String(marForm.remarks||'').trim(),
@@ -782,7 +802,8 @@
       const rt=log?.rescheduled_time?normalizeMedicationTime(log.rescheduled_time).slice(0,5):'';
       const reschedulePending=rt&&rescheduledDoseDate(log)&&!doseStatus(item.order,rt,rescheduledDoseDate(log));
       const given=log&&String(log.status)==='Given';
-      const statusText=log?(String(log.status)==='Withheld'?(medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld'):(log.status||'Recorded')):'';
+      const statusText=log?(log.rescheduled_time?'Rescheduled':String(log.status)==='Withheld'?(medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld'):(log.status||'Recorded')):'';
+      const rescheduledDoseWasRecorded=rt&&rescheduledDoseDate(log)&&doseStatus(item.order,rt,rescheduledDoseDate(log));
       const stop=fn=>e=>{e.stopPropagation();fn()};
       let action=null;
       if(given)action=h('button',{type:'button',className:'mar-act done',disabled:true},`Given ✓ ${formatTimeIN(log.administered_at||log.entry_recorded_at||log.created_at)}`);
@@ -804,6 +825,7 @@
         h('div',{className:'mar-actions'},
           action,
           !log&&h('button',{type:'button',className:'mar-act ghost',onClick:()=>openWithhold(item)},'Withhold'),
+          log&&MEDICATION_RESCHEDULE_STATUSES.includes(String(log.status))&&canReviseMedication&&!rescheduledDoseWasRecorded&&h('button',{type:'button',className:'mar-act ghost',onClick:stop(()=>openReschedule(item.order,log))},'Reschedule'),
           reschedulePending&&h('button',{type:'button',className:'mar-act go',onClick:stop(()=>openMar(item.order,rt,rescheduledDoseDate(log)))},`Give at ${medicationTimeLabel(rt)}`),
           log&&medicationWithholdOpen(log)&&canReviseMedication&&h('button',{type:'button',className:'mar-act ghost',onClick:stop(()=>openInstruction(log))},"Doctor's instruction")));
     };
@@ -1000,7 +1022,7 @@
           ['Entry',doseDetail.log.late_entry?`Late entry · ${doseDetail.log.entry_delay_minutes||0} min · ${doseDetail.log.late_entry_reason||''}${doseDetail.log.late_entry_justification?` — ${doseDetail.log.late_entry_justification}`:''}`:'On-time entry'],
           ['Withhold reason',doseDetail.log.withhold_reason],['Reading',doseDetail.log.withhold_reading],['Doctor informed',doseDetail.log.doctor_informed_name?`${doseDetail.log.doctor_informed_name} · ${doseDetail.log.doctor_informed_via||''}`:''],
           ["Doctor's instruction",doseDetail.log.doctor_instruction?`${doseDetail.log.doctor_instruction}${doseDetail.log.doctor_instruction_notes?` — ${doseDetail.log.doctor_instruction_notes}`:''}`:''],
-          ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Remarks',doseDetail.log.remarks]]},
+          ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Reschedule reason',doseDetail.log.reschedule_reason],['Remarks',doseDetail.log.remarks]]},
         !isFrontlineClinical&&h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openMar(d.order,d.time,d.date)}},'View / Correct'))),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
@@ -1078,7 +1100,7 @@
             withholdSuggestion&&h('div',{className:'message warning span-2',style:{display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
-            h('div',{className:'field'},h('label',null,'Status'),h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value})},['Given','Delayed','Refused','Missed','Withheld'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'message warning span-2'},'Sliding-scale insulin: check the blood sugar first, then enter the reading and the units you are giving (as per the doctor\'s scale).'),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Blood sugar reading (mg/dL)'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,required:true,value:marForm.sugar_reading,placeholder:'e.g. 186',onChange:e=>setMarForm({...marForm,sugar_reading:e.target.value})})),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Units given'),h('input',{type:'number',inputMode:'decimal',min:0,max:200,step:'0.5',required:true,value:marForm.units_given,placeholder:'e.g. 6',onChange:e=>setMarForm({...marForm,units_given:e.target.value})})),
@@ -1088,14 +1110,14 @@
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Treating doctor informed'),h('input',{required:true,value:marForm.doctor_informed_name,placeholder:'Doctor name',onChange:e=>setMarForm({...marForm,doctor_informed_name:e.target.value})})),
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Informed by'),h('select',{value:marForm.doctor_informed_via,onChange:e=>setMarForm({...marForm,doctor_informed_via:e.target.value})},MEDICATION_DOCTOR_CONTACT_MODES.map(m=>h('option',{key:m,value:m},m)))),
             marForm.status==='Withheld'&&marForm.doctor_informed_via!=='Not reachable yet — will retry'&&h('div',{className:'field span-2'},h('label',null,'Doctor informed at'),h(StrictDateTimeInput,{value:marForm.doctor_informed_at,onChange:e=>setMarForm({...marForm,doctor_informed_at:e.target.value})})),
-            MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
-            MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule&&h('div',{className:'field span-2'},h('label',null,'Re-medication Time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'The dose will appear again at this time in Today’s MAR and Shift Tasks (a time after midnight falls on the next day). The original entry remains permanently in MAR history.')),
-            h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
-            currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
-            currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
-            currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Entry Delay'),h('input',{value:`${currentEntryDelay} minutes`,readOnly:true})),
-            currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
-            h('div',{className:'field span-2'},h('label',null,['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)'),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:!['Given','Withheld'].includes(marForm.status)}))
+            !rescheduleLog&&MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
+            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'The dose will appear again in Today’s MAR and Shift Tasks. The original entry remains permanently in MAR history.')),
+            !rescheduleLog&&h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
+            !rescheduleLog&&currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
+            !rescheduleLog&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
+            !rescheduleLog&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Entry Delay'),h('input',{value:`${currentEntryDelay} minutes`,readOnly:true})),
+            !rescheduleLog&&currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
+            h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||!['Given','Withheld'].includes(marForm.status)}))
           ),
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':'Save MAR'))
         )
