@@ -24,6 +24,34 @@
     if(Number.isNaN(hour))return String(value||'');
     return `${hour===0?12:hour>12?hour-12:hour}:${normalized.slice(3,5)||'00'} ${hour<12?'AM':'PM'}`;
   }
+  // Clinical tasks scheduled before a same-day admission do not belong to the new stay.
+  // Compare in Samara's local timezone so the rule is consistent on every device.
+  function clinicalDateTimeInIndia(value){
+    const stamp=new Date(value);if(Number.isNaN(stamp.getTime()))return null;
+    const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(stamp).map(x=>[x.type,x.value]));
+    return {date:`${parts.year}-${parts.month}-${parts.day}`,time:`${parts.hour}:${parts.minute}`};
+  }
+  function clinicalSlotAfterAdmission(patient,dateISO,time){
+    const slotDate=String(dateISO||'').slice(0,10);
+    const admissionDate=String(patient?.admission_date||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)||!/^\d{4}-\d{2}-\d{2}$/.test(admissionDate))return true;
+    if(slotDate!==admissionDate)return slotDate>admissionDate;
+    const normalized=normalizeMedicationTime(time);
+    if(!/^\d{2}:\d{2}$/.test(normalized))return true;
+    const explicit=[patient.admission_datetime,patient.admission_timestamp,patient.admitted_at].filter(Boolean);
+    const clock=String(patient.admission_time||'').slice(0,5);
+    let boundary='';
+    if(clock)boundary=clock;
+    for(const value of explicit){
+      const stamp=clinicalDateTimeInIndia(value);
+      if(stamp?.date===admissionDate){boundary=stamp.time;break;}
+    }
+    const created=clinicalDateTimeInIndia(patient.created_at);
+    const updated=clinicalDateTimeInIndia(patient.updated_at);
+    if(!boundary&&created?.date===admissionDate)boundary=created.time;
+    if(!boundary&&updated?.date===admissionDate)boundary=updated.time;
+    return !boundary||normalized>=boundary;
+  }
   // Doses that were not given (refused, patient sleeping, missed, delayed) can be rescheduled.
   const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed'];
   function addDaysISODate(dateISO,days){
