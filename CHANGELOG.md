@@ -3,6 +3,7 @@
 - Now each session of the day is its own record, identified by its Scheduled Time. The number per day follows the plan's frequency (Daily 1, Twice daily 2, Thrice daily 3). For the next session of the day the form leaves Scheduled Time empty when the plan time is already used — enter that session's time (e.g. the evening time). A clear message appears if all sessions of the day are already recorded or the same time is used twice.
 - Shift Tasks shows "(1 of 2 sessions today)" and keeps a Twice daily plan pending until both sessions are recorded. Each session is billed separately, as a single session is today.
 - Run supabase/sql/280_physio_multiple_sessions_per_day.sql, then publish the app.
+- Follow-up SQL 281: also removes the older one-per-day constraint physiotherapy_sessions_order_date_key (file 36), which still refused the second session with "This record already exists". Run supabase/sql/281_physio_remove_old_one_per_day_rule.sql.
 
 ## 2.18.92 — Medicine Route: "NG / Ryles Tube"
 - "NG / Ryles Tube" added to the medicine Route list in the Admission form, Doctor Review (Add / Modify) and the prescription scan. No SQL.
