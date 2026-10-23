@@ -311,6 +311,27 @@
         .eq('patient_id',selected.id).eq('status','Started').gte('requested_at',new Date(Date.now()-120*86400000).toISOString())
         .then(({data,error})=>{if(error)return;dashboard.nursing_procedures_payload.records=[...procLogRecords,...(data||[]).filter(r=>(r.category||'Nursing Procedures')==='Nursing Procedures').map(r=>({id:`req-${r.id}`,procedure_name:r.procedure_name,status:'Done',completed_at:r.started_at||r.scheduled_at||r.requested_at,details:null}))];})
         .catch(()=>{});
+      // 2.18.89: Intake / Output history for the preview — same shape as family_portal_io_history (SQL 278),
+      // last 93 chart days; the Family Portal filters the period locally in Admin Preview.
+      const ioHistoryReady=(async()=>{
+        try{
+          const st=await client.from('io_chart_settings').select('*').eq('patient_id',selected.id).maybeSingle();
+          if(st.error||!st.data){dashboard.io_history_all={on_chart:false};return}
+          const todayC=ioChartDay(new Date());let from=ioAddDays(todayC,-92);if(from<'2026-08-27')from='2026-08-27';
+          const [rr,ee]=await Promise.all([
+            client.rpc('io_rows',{p_patient:selected.id,p_from:from,p_to:todayC}),
+            client.from('io_entries').select('io_date,category,stool_type').eq('patient_id',selected.id).eq('voided',false).gte('io_date',from)]);
+          if(rr.error)throw rr.error;
+          const chartDays=new Set((ee.data||[]).map(x=>x.io_date));
+          const by={};(rr.data||[]).forEach(r=>{if(!chartDays.has(r.io_date))return;const d=by[r.io_date]||(by[r.io_date]={chart_date:r.io_date,complete:r.io_date<todayC,intake_ml:0,output_ml:0,oral_ml:0,iv_ml:0,tube_ml:0,other_in_ml:0,urine_ml:0,drain_ml:0,vomit_ml:0,stool_ml:0,other_out_ml:0,stool_count:0,stool_types:[]});
+            const ml=Number(r.ml)||0;if(r.direction==='Intake')d.intake_ml+=ml;else d.output_ml+=ml;
+            const k={'Oral fluids':'oral_ml','IV fluids':'iv_ml','Tube feed':'tube_ml','Other intake':'other_in_ml','Urine':'urine_ml','Catheter urine':'urine_ml','Drain':'drain_ml','Vomit':'vomit_ml','Stool':'stool_ml','Other output':'other_out_ml'}[r.category];if(k)d[k]+=ml;
+            if(r.category==='Stool')d.stool_count+=Number(r.stool_count)||0;});
+          (ee.data||[]).forEach(x=>{const d=by[x.io_date];if(d&&x.category==='Stool'&&x.stool_type&&!d.stool_types.includes(x.stool_type))d.stool_types.push(x.stool_type)});
+          const days=Object.values(by).map(d=>{Object.keys(d).forEach(k=>{if(k.endsWith('_ml'))d[k]=Math.round(d[k])});d.balance_ml=d.intake_ml-d.output_ml;return d}).sort((a,b)=>b.chart_date.localeCompare(a.chart_date));
+          dashboard.io_history_all={on_chart:true,chart_on_now:st.data.enabled!==false,started_on:ioChartDay(st.data.started_at),today:todayC,days};
+        }catch(_e){dashboard.io_history_all={on_chart:false}}
+      })();
       const session={
         admin_preview:true,access_id:access.id||'admin-preview',patient_uuid:selected.id,
         patient_code:selected.patient_id||selected.patient_code||'',patient_name:formalName(selected)||selected.full_name||'Resident',
@@ -321,7 +342,7 @@
       const handler=async event=>{
         if(event.origin!==portalOrigin||event.source!==popup)return;
         if(event.data?.type!=='SAMARA_FAMILY_ADMIN_PREVIEW_REQUEST'||event.data?.preview_id!==previewId)return;
-        await tubeFeedsReady;await procRequestsReady;
+        await tubeFeedsReady;await procRequestsReady;await ioHistoryReady;
         popup.postMessage({type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard},portalOrigin);
       };
       window.addEventListener('message',handler);
@@ -332,7 +353,7 @@
       // This avoids relying on window.opener, which some browsers/privacy settings sever
       // for cross-origin tabs. The Family Portal validates both origin and preview_id.
       const previewMessage={type:'SAMARA_FAMILY_ADMIN_PREVIEW_DATA',preview_id:previewId,session,dashboard};
-      const sendPreview=async()=>{await tubeFeedsReady;await procRequestsReady;try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
+      const sendPreview=async()=>{await tubeFeedsReady;await procRequestsReady;await ioHistoryReady;try{if(popup&&!popup.closed)popup.postMessage(previewMessage,portalOrigin)}catch(_){}};
       [400,900,1600,2800,4500,7000].forEach(ms=>window.setTimeout(sendPreview,ms));
       window.setTimeout(()=>window.removeEventListener('message',handler),15000);
     }

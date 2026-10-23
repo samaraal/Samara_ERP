@@ -1,3 +1,6 @@
+## 2.18.89 — Family Portal Admin Preview shows the Intake / Output history
+- "Preview Family Portal" now sends the Guest's Intake / Output history (last 93 chart days, same figures as the family sees via SQL 278), so the Intake / Output box and page appear in Admin Preview too (with Family Portal 1.0.48). No SQL.
+
 ## 2.18.88 — "Medicine Given Late" card no longer repeats
 - Fix: the in-app alert card (Remind in 5 min / Open to Resolve) kept showing "Medicine Given Late" every few minutes for doses already given. Information-only items (Medicine Given Late, Poor Meal Intake) now show on that card once per device, with a **Noted** button (and "For information — already recorded"). Real pending tasks keep the normal Remind in 5 min behaviour. The item stays in Clinical Escalations for the Nursing Manager to close. No SQL.
 
