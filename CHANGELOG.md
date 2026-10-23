@@ -1,4 +1,4 @@
-## 2.18.75 — Master Care Plan changes reach the screensaver
+## 2.18.76 — Form errors take you to the field\n- Submitting a form with missing required information now scrolls to and focuses the first field that needs attention, including checkbox and radio requirements.\n- Error notifications identify likely matching fields and focus them automatically; a **Go to field** button is available when the message matches a field.\n\n## 2.18.75 — Master Care Plan changes reach the screensaver
 - Patient edit now retires the previous active care plan before saving and stops if that replacement fails.
 - Screensaver, Shift Tasks and the patient Nursing view use the newest saved plan; shift-specific entries replace stale “Both shifts” duplicates.
 - Existing duplicate active rows remain available as history and are no longer treated as the current plan.
