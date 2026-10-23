@@ -1,3 +1,7 @@
+## 2.18.95 — Payment receipts go to the FAMILY, never to the Guest's own mobile
+- Fix: Mr. S. Swaminathan's advance receipts (23-10-2026) went to the Guest's own mobile (labelled "Family Member") instead of Mrs. Vijayalakshmi (wife, primary) and Mr. Bharath Ram (son). The Accounts login could not read the family contact list directly, so it came back empty and the screen fell back to the patient's own mobile.
+- Accounts payment receipts and the outstanding-bill reminder now load the registered family contacts through the secure server lookup (the same one the payment link already uses), send to every active family contact (primary first), and never use the Guest's own mobile. With no family contact registered, a clear message asks to add one in Patients → Edit. No SQL.
+
 ## 2.18.94 — Physiotherapy plan: a time for EACH session (Twice daily = 2 times) (needs SQL 282)
 - Admission form (Section 6) and Patients → Edit → Physiotherapy Plan: the Frequency is now a list (Once daily, Twice daily, Three times daily, Alternate days, Weekly, As advised). Twice daily shows **Session 1 time** and **Session 2 time** (Three times daily: 3 times); all are compulsory and must differ. Saved in physiotherapy_plans.session_times; Preferred Time keeps the first time for older screens.
 - Record Physiotherapy Session opens with the next session time of the day not yet recorded (e.g. morning, then evening).

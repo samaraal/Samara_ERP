@@ -634,39 +634,43 @@
       return true;
     }
 
+    // 2.18.95: registered family contacts for WhatsApp (primary first) — secure server lookup, then a direct read
+    // (Admin / Manager), then the legacy attendant phone. Never the Guest's own mobile.
+    async function loadFamilyReceiptContacts(patientId,patient={}){
+      let list=[];
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(session){
+          const res=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action:'family_contacts',patient_id:patientId})});
+          const j=await res.json().catch(()=>({}));
+          if(res.ok&&j.success!==false&&Array.isArray(j.contacts))list=j.contacts.map(c=>({name:String(c.relative_name||'Family Member').trim()||'Family Member',mobile:normalizeWhatsAppRecipient(c.mobile||''),primary:!!c.primary_contact}));
+        }
+      }catch(e){console.warn('Secure family contact lookup failed:',e)}
+      if(!list.length){
+        try{
+          const {data,error}=await client.from('family_portal_access').select('relative_name,mobile,primary_contact,is_active,created_at').eq('patient_id',patientId).eq('is_active',true).order('primary_contact',{ascending:false}).order('created_at',{ascending:true});
+          if(!error)list=(data||[]).map(c=>({name:String(c.relative_name||'Family Member').trim()||'Family Member',mobile:normalizeWhatsAppRecipient(c.mobile||''),primary:!!c.primary_contact}));
+        }catch(_e){}
+      }
+      list=list.filter(c=>c.mobile);
+      const legacy=normalizeWhatsAppRecipient(patient.attendant_phone||'');
+      if(legacy&&!list.some(c=>c.mobile===legacy))list.push({name:patient.attendant_name||'Family Member',mobile:legacy,primary:list.length===0});
+      return list.filter((c,i,a)=>a.findIndex(x=>x.mobile===c.mobile)===i);
+    }
     async function sendPaymentReceiptWhatsAppApi(receipt,{automatic=false}={}){
       if(!receipt)return false;
       const patient=patients.find(p=>p.id===receipt.patient_id)||{};
       // Payment receipts must also work for discharged/inactive patients.
       // Family contacts are stored in family_portal_access (including Contact 2),
       // so do not rely only on the legacy attendant_phone field on patients.
-      let familyContacts=[];
-      try{
-        const {data,error}=await client.from('family_portal_access')
-          .select('id,relative_name,mobile,primary_contact,is_active,created_at')
-          .eq('patient_id',receipt.patient_id)
-          .eq('is_active',true)
-          .order('primary_contact',{ascending:false})
-          .order('created_at',{ascending:true});
-        if(error)throw error;
-        familyContacts=(data||[])
-          .map(contact=>({
-            name:String(contact.relative_name||'Family Member').trim()||'Family Member',
-            mobile:normalizeWhatsAppRecipient(contact.mobile||''),
-            primary:!!contact.primary_contact
-          }))
-          .filter(contact=>contact.mobile);
-      }catch(contactError){
-        console.warn('Could not load family_portal_access for payment WhatsApp:',contactError);
-      }
-      const legacyMobile=normalizeWhatsAppRecipient(patient.attendant_phone||patient.mobile||'');
-      if(legacyMobile&&!familyContacts.some(contact=>contact.mobile===legacyMobile)){
-        familyContacts.push({name:patient.attendant_name||'Family Member',mobile:legacyMobile,primary:familyContacts.length===0});
-      }
+      // 2.18.95: family contacts are read through the secure server lookup (same as payment links). The Accounts login
+      // cannot read family_portal_access directly, so the list came back EMPTY and the receipt went to the Guest's own
+      // mobile labelled "Family Member" (Mr. S. Swaminathan, 23-10-2026). The Guest's own mobile is never used now.
+      let familyContacts=await loadFamilyReceiptContacts(receipt.patient_id,patient);
       // Remove accidental duplicate numbers while preserving primary/contact order.
       familyContacts=familyContacts.filter((contact,index,list)=>list.findIndex(item=>item.mobile===contact.mobile)===index);
       if(!familyContacts.length){
-        const text='Family / patient WhatsApp number is not available in the Patient File or Family Contacts.';
+        const text='No family WhatsApp number is registered for this Guest (Patients → Edit → Family contacts). The receipt is not sent to the Guest\'s own mobile.';
         setMessage(text);
         if(automatic)notify('error','Payment saved · WhatsApp not sent',text);
         return false;
@@ -755,9 +759,11 @@ Thank you.`;
       if(pendingBills<=0){setMessage('There is no outstanding amount to notify for the selected patient.');return}
       if(dailyPayableSent&&!resend)return;
       const patient=patients.find(p=>p.id===patientFilter)||{};
-      const to=patient.attendant_phone||patient.mobile||'';
-      if(!to){setMessage('Family / patient WhatsApp number is not available in the Patient File.');return}
-      const recipient=patient.attendant_name||formalName(patient)||patient.full_name||'Family Member';
+      // 2.18.95: the primary registered family contact (never the Guest's own mobile)
+      const firstContact=(await loadFamilyReceiptContacts(patient.id||patientFilter,patient))[0];
+      const to=firstContact?.mobile||'';
+      if(!to){setMessage('No family WhatsApp number is registered for this Guest (Patients → Edit → Family contacts).');return}
+      const recipient=firstContact.name||'Family Member';
       const patientName=formalName(patient)||patient.full_name||'Patient';
       const amount=Number(pendingBills||0).toLocaleString('en-IN',{maximumFractionDigits:2});
       const dueDate=formatDateIN(new Date().toISOString().slice(0,10));
