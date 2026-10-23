@@ -40,56 +40,61 @@
     if(!parts)return '';
     return `${parts.hour%12||12}:${String(parts.minute).padStart(2,'0')} ${parts.hour>=12?'PM':'AM'}`;
   };
-  const parseManualTime=value=>{
-    const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)$/i);
+  const parseManualTime=(value,period)=>{
+    const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)$/);
     if(!match)return '';
     let hour=Number(match[1])%12;
-    if(match[3].toUpperCase()==='PM')hour+=12;
+    if(String(period||'').toUpperCase()==='PM')hour+=12;
+    else if(String(period||'').toUpperCase()!=='AM')return '';
     return `${String(hour).padStart(2,'0')}:${match[2]}`;
   };
   function ManualTimeInput(props){
-    const {value,onChange,style,className,placeholder,min,max,step,required,name,...inputProps}=props||{};
-    const [draft,setDraft]=React.useState(()=>formatManualTime(value));
+    const {value,onChange,style,className,placeholder,min,max,step,required,name,validateTime,...inputProps}=props||{};
+    const initial=formatManualTime(value).split(' ');
+    const [draft,setDraft]=React.useState(initial[0]||'');
+    const [period,setPeriod]=React.useState(initial[1]||'AM');
     const inputRef=React.useRef(null);
-    React.useEffect(()=>setDraft(formatManualTime(value)),[value]);
+    React.useEffect(()=>{const parts=formatManualTime(value).split(' ');setDraft(parts[0]||'');setPeriod(parts[1]||'AM')},[value]);
     React.useEffect(()=>{
       const input=inputRef.current;
       if(!input)return;
-      const parsed=parseManualTime(draft);
-      let problem='';
+      const parsed=parseManualTime(draft,period);
+      let problem=parsed&&validateTime?validateTime(parsed)||'':'';
       if(parsed&&step&&Number(step)>60){
         const parts=time24Parts(parsed);
-        if((parts.hour*3600+parts.minute*60)%Number(step)!==0)problem=`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;
+        if((parts.hour*3600+parts.minute*60)%Number(step)!==0)problem=problem||`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;
       }
       input.setCustomValidity(problem);
-    },[draft,step]);
-    const update=event=>{
-      const next=event.target.value;
-      setDraft(next);
-      const parsed=parseManualTime(next);
-      if(onChange&&parsed)onChange({target:{value:parsed},currentTarget:event.currentTarget});
-      else if(onChange&&!next.trim()&&!required)onChange({target:{value:''},currentTarget:event.currentTarget});
+    },[draft,period,step,validateTime]);
+    const emit=(nextDraft,nextPeriod,event)=>{
+      const parsed=parseManualTime(nextDraft,nextPeriod);
+      if(onChange&&parsed)onChange({target:{value:parsed},currentTarget:event?.currentTarget});
+      else if(onChange&&!nextDraft.trim()&&!required)onChange({target:{value:''},currentTarget:event?.currentTarget});
     };
     return React.createElement(React.Fragment,null,
-      React.createElement('input',{
-        ...inputProps,
-        ref:inputRef,
-        type:'text',
-        value:draft,
-        required:Boolean(required),
-        placeholder:placeholder||'h:mm AM/PM',
-        inputMode:'text',
-        autoComplete:'off',
-        pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d\\s?(?:AM|PM)',
-        title:'Enter time as h:mm AM or h:mm PM (for example, 8:30 AM).',
-        'data-samara-time-entry':'true',
-        'aria-label':inputProps['aria-label']||'Time (h:mm AM/PM)',
-        className,
-        style,
-        min:undefined,max:undefined,step:undefined,
-        onChange:update
-      }),
-      name?React.createElement('input',{type:'hidden',name,value:parseManualTime(draft)}):null
+      React.createElement('div',{className:'samara-time-entry',style:{display:'flex',gap:'6px',width:'100%'}},
+        React.createElement('input',{
+          ...inputProps,
+          ref:inputRef,
+          type:'text',
+          value:draft,
+          required:Boolean(required),
+          placeholder:placeholder||'h:mm',
+          inputMode:'text',
+          autoComplete:'off',
+          pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d',
+          title:'Enter the time as h:mm, then choose AM or PM.',
+          'data-samara-time-entry':'true',
+          'aria-label':inputProps['aria-label']||'Time (h:mm)',
+          className,
+          style:{flex:'1 1 auto',minWidth:0,...(style||{})},
+          min:undefined,max:undefined,step:undefined,
+          onChange:event=>{const next=event.target.value;setDraft(next);emit(next,period,event)}
+        }),
+        React.createElement('select',{value:period,disabled:Boolean(inputProps.disabled),'aria-label':'AM/PM',onChange:event=>{const next=event.target.value;setPeriod(next);emit(draft,next,event)},style:{flex:'0 0 78px',width:'78px',padding:'8px 6px'}},
+          React.createElement('option',{value:'AM'},'AM'),React.createElement('option',{value:'PM'},'PM'))
+      ),
+      name?React.createElement('input',{type:'hidden',name,value:parseManualTime(draft,period)}):null
     );
   }
   function StrictDateTimeInput(props){
@@ -100,30 +105,20 @@
     };
     const initial=split(value);
     const [date,setDate]=React.useState(initial.date);
-    const [time,setTime]=React.useState(formatManualTime(initial.time));
-    const timeRef=React.useRef(null);
-    React.useEffect(()=>{const next=split(value);setDate(next.date);setTime(formatManualTime(next.time))},[value]);
+    const [time,setTime]=React.useState(initial.time);
+    React.useEffect(()=>{const next=split(value);setDate(next.date);setTime(next.time)},[value]);
     const emit=(nextDate,nextTime)=>{
       if(!onChange)return;
-      const parsed=parseManualTime(nextTime);
-      onChange({target:{value:nextDate&&parsed?`${nextDate}T${parsed}`:''}});
+      const parsed=time24Parts(nextTime);
+      onChange({target:{value:nextDate&&parsed?`${nextDate}T${nextTime}`:''}});
     };
     const dateChanged=event=>{
       const nextDate=event.target.value;
       setDate(nextDate);
-      if(nextDate&&parseManualTime(time))emit(nextDate,time);
-      else if(!nextDate&&!time.trim())emit('','');
+      if(nextDate&&time24Parts(time))emit(nextDate,time);
+      else if(!nextDate&&!time)emit('','');
     };
-    const timeChanged=event=>{
-      const nextTime=event.target.value;
-      setTime(nextTime);
-      if(date&&parseManualTime(nextTime))emit(date,nextTime);
-      else if(!nextTime.trim()&&!required)emit('','');
-    };
-    React.useEffect(()=>{
-      const control=timeRef.current;
-      if(!control)return;
-      const parsed=parseManualTime(time);
+    const validateTime=parsed=>{
       let problem='';
       if(parsed&&date){
         const current=`${date}T${parsed}`;
@@ -131,18 +126,18 @@
         if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(minValue)&&current<minValue)problem='Choose a date and time at or after the allowed time.';
         if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(maxValue)&&current>maxValue)problem='Choose a date and time at or before the allowed time.';
       }
-      control.setCustomValidity(problem);
-    },[date,time,min,max]);
+      return problem;
+    };
     const dateMax=String(max||'').slice(0,10)||undefined;
     const dateMin=String(min||'').slice(0,10)||undefined;
-    const valueToSubmit=date&&parseManualTime(time)?`${date}T${parseManualTime(time)}`:'';
-    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1.15fr) minmax(118px,.85fr)',gap:'8px',alignItems:'center',...(style||{})}},
+    const valueToSubmit=date&&time24Parts(time)?`${date}T${time}`:'';
+    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1.15fr) minmax(190px,.85fr)',gap:'8px',alignItems:'center',...(style||{})}},
       h('div',{style:{position:'relative',minWidth:0}},
         h('input',{type:'text',readOnly:true,value:date?formatDateIN(date):'',placeholder:'DD-MM-YYYY',disabled,tabIndex:-1,'aria-hidden':'true',style:{width:'100%',paddingRight:'42px',cursor:'pointer'}}),
         h('span',{'aria-hidden':'true',style:{position:'absolute',right:'14px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'16px'}},'▾'),
         h('input',{...inputProps,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:0,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
       ),
-      h('input',{...inputProps,ref:timeRef,id:undefined,name:undefined,type:'text',value:time,onChange:timeChanged,required:Boolean(required),disabled,placeholder:'h:mm AM/PM',inputMode:'text',autoComplete:'off',pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d\\s?(?:AM|PM)',title:'Enter time as h:mm AM or h:mm PM (for example, 8:30 AM).','data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Date and time'} — time (h:mm AM/PM)`,style:{minWidth:0}}),
+      h(ManualTimeInput,{...inputProps,id:undefined,name:undefined,value:time,onChange:event=>{setTime(event.target.value);if(date&&time24Parts(event.target.value))emit(date,event.target.value);else if(!event.target.value&&!required)emit('','')},required,disabled,validateTime,'aria-label':`${inputProps['aria-label']||'Date and time'} — time (h:mm)`}),
       name?h('input',{type:'hidden',name,value:valueToSubmit}):null
     );
   }

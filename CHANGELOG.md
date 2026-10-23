@@ -1,3 +1,7 @@
+## 2.18.78 — AM/PM dropdown and frequency-matched medicine times
+- Time fields now use a separate AM/PM dropdown while staff enter the hour and minute; saved values stay unchanged.
+- Medicine times are limited to the selected frequency. Choosing another time replaces the prior selection for once-daily medicines.
+
 ## 2.18.77 — Manual time entry across the ERP
 - Time fields now accept staff entry in h:mm AM/PM format and retain the existing 24-hour values for saving.
 - Date and time fields keep the calendar picker for the date while the time is typed manually.

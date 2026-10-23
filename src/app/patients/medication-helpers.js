@@ -10,6 +10,16 @@
     'HS':['22:00'],
     'STAT':[]
   };
+  const MEDICATION_FREQUENCY_MAX_TIMES={
+    'Once Daily (OD)':1,'Twice Daily (BD)':2,'Three Times Daily (TDS)':3,'Four Times Daily (QID)':4,
+    'HS':1,'STAT':1,'SOS / PRN':24,'Weekly':1,'Monthly':1
+  };
+  function medicationTimeSelectionLimit(frequency){return MEDICATION_FREQUENCY_MAX_TIMES[String(frequency||'')]||1}
+  function medicationTimesForFrequency(frequency,current){
+    const suggested=MEDICATION_FREQUENCY_TIMES[frequency];
+    const times=(suggested||String(current||'').split(',').map(normalizeMedicationTime).filter(Boolean));
+    return times.slice(-medicationTimeSelectionLimit(frequency)).join(', ');
+  }
   function normalizeMedicationTime(value){
     const text=String(value||'').trim();
     if(!text)return '';
@@ -163,14 +173,15 @@
         :required&&amount&&!unit?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},'Choose the unit'):null
     );
   }
-  function MedicationTimeSelector({label,value,onChange,required=false}){
-    const selected=String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
+  function MedicationTimeSelector({label,value,onChange,required=false,frequency='Once Daily (OD)'}){
+    const limit=medicationTimeSelectionLimit(frequency);
+    const selected=String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean).slice(0,limit);
     const [open,setOpen]=React.useState(false);
     const [draft,setDraft]=React.useState(selected);
-    React.useEffect(()=>{if(!open)setDraft(selected)},[value,open]);
+    React.useEffect(()=>{if(!open)setDraft(selected)},[value,frequency,open]);
     function openPicker(){setDraft(selected);setOpen(true)}
-    function toggle(time){setDraft(current=>current.includes(time)?current.filter(x=>x!==time):[...current,time].sort())}
-    function confirm(){onChange(draft.join(', '));setOpen(false)}
+    function toggle(time){setDraft(current=>current.includes(time)?current.filter(x=>x!==time):limit===1?[time]:[...current.slice(-(limit-1)),time])}
+    function confirm(){onChange([...draft].sort().join(', '));setOpen(false)}
     function reset(){setDraft([])}
     function cancel(){setDraft(selected);setOpen(false)}
     return h('div',{className:'field medication-time-field'},
@@ -182,7 +193,7 @@
       selected.length?h('div',{className:'time-chip-list'},selected.map(time=>h('span',{className:'time-chip',key:time},medicationTimeLabel(time),h('button',{type:'button','aria-label':`Remove ${medicationTimeLabel(time)}`,onClick:()=>onChange(selected.filter(x=>x!==time).join(', '))},'×')))):null,
       open?h('div',{className:'time-picker-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)cancel()}},
         h('div',{className:'time-picker-popup',role:'dialog','aria-modal':'true','aria-label':'Select medication time'},
-          h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,'Choose one or more medicine times')),h('button',{type:'button',className:'close',onClick:cancel},'×')),
+          h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,limit===1?'Choose one medicine time':`Choose up to ${limit} medicine times · ${frequency}`)),h('button',{type:'button',className:'close',onClick:cancel},'×')),
           h('div',{className:'time-picker-grid'},MEDICATION_TIME_OPTIONS.map(opt=>h('button',{type:'button',className:`time-picker-option ${draft.includes(opt.value)?'selected':''}`,key:opt.value,onClick:()=>toggle(opt.value)},opt.label))),
           h('div',{className:'time-picker-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:reset},'Reset'),h('button',{type:'button',className:'btn btn-secondary',onClick:cancel},'Cancel'),h('button',{type:'button',className:'btn btn-primary',onClick:confirm},'OK'))
         )
@@ -313,4 +324,4 @@
     return null;
   }
   // 2.16.29: the same medicine-entry pieces are used by the Spot Assessment (spot-assessment.js)
-  try{window.SamaraMedicationKit={MEDICATION_FREQUENCY_TIMES,normalizeMedicationTime,medicationTimeLabel,MedicationStrengthInput,MedicationTimeSelector,medicationStrengthValid,blankMedicine}}catch(_){}
+  try{window.SamaraMedicationKit={MEDICATION_FREQUENCY_TIMES,MEDICATION_FREQUENCY_MAX_TIMES,medicationTimeSelectionLimit,medicationTimesForFrequency,normalizeMedicationTime,medicationTimeLabel,MedicationStrengthInput,MedicationTimeSelector,medicationStrengthValid,blankMedicine}}catch(_){}
