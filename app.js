@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.91';
+  const APP_VERSION = '2.18.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3401,7 +3401,7 @@ https://samaraassistedliving.com/`;
     const MEAL_TIMES={'Before food':['07:00','12:00','19:00'],'After food':['09:00','14:00','21:00'],'With food':['08:00','13:00','20:00'],'No restriction':['09:00','14:00','21:00']};
     const BEDTIME='22:00';
     const FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
-    const ROUTES=['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
+    const ROUTES=['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
     const FOODS=['Before food','After food','With food','No restriction'];
     const DURATIONS=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const UNITS=['mg','mcg','g','ml','mg/ml','mg/5 ml','IU','units','%','drops','tablet','capsule','puff','sachet','patch'];
@@ -3512,7 +3512,7 @@ https://samaraassistedliving.com/`;
           const row={...blankMedicine(),
             prescribed_by_doctor:doctor,medicine_name:String(m.medicine_name||'').trim(),
             strength:amount&&unit?`${amount} ${unit}`:amount,
-            frequency,route:ROUTES.includes(m.route)?m.route:'Oral',food_instruction:food,times:times.join(', '),
+            frequency,route:/ryle|naso\s*gastric|\bng\b|\bngt\b|feeding\s*tube|\brt\b/i.test(String(m.route||''))?'NG / Ryles Tube':ROUTES.includes(m.route)?m.route:'Oral',food_instruction:food,times:times.join(', '),
             duration,custom_duration_days:duration==='Custom'?String(m.custom_duration_days||''):'',
             special_instruction:special,is_locked:true};
           if(!doctor){flags.add('prescribed_by_doctor');why.prescribed_by_doctor='Not printed — enter the doctor'}
@@ -25803,7 +25803,7 @@ Please keep these login details confidential.`;
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
             h(MedicationStrengthInput,{label:'Strength',value:m.strength,onChange:v=>updateRow(setMeds,meds,i,'strength',v),required:true}),
             miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:medicationTimesForFrequency(v,row.times)}:row);setMeds(next)}),
-            miniSelect('Route',m.route,['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
+            miniSelect('Route',m.route,['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
             h(MedicationTimeSelector,{label:'Time',value:m.times,frequency:m.frequency,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
             miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateRow(setMeds,meds,i,'food_instruction',v)),
             miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateRow(setMeds,meds,i,'duration',v)),
@@ -34659,7 +34659,7 @@ function RoomsBeds({profile,onNavigate}){
     const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
     const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
-    const medicationRoutes=['Oral','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
+    const medicationRoutes=['Oral','NG / Ryles Tube','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
     const medicationFood=['Before food','After food','With food','No restriction'];
 
     function localDateTimeValue(date=new Date()){

@@ -2841,7 +2841,7 @@ Please keep these login details confidential.`;
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
             h(MedicationStrengthInput,{label:'Strength',value:m.strength,onChange:v=>updateRow(setMeds,meds,i,'strength',v),required:true}),
             miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:medicationTimesForFrequency(v,row.times)}:row);setMeds(next)}),
-            miniSelect('Route',m.route,['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
+            miniSelect('Route',m.route,['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
             h(MedicationTimeSelector,{label:'Time',value:m.times,frequency:m.frequency,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
             miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateRow(setMeds,meds,i,'food_instruction',v)),
             miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateRow(setMeds,meds,i,'duration',v)),

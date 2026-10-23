@@ -79,7 +79,7 @@
     const [reviewForm,setReviewForm]=React.useState({patient_id:'',reviewed_at:'',doctor_name:'',doctor_contact:'',review_type:'Routine Doctor Review',order_mode:'Written Prescription',effective_from:'',clinical_notes:'',received_by_name:'',confirmation_due_at:'',changes:[]});
     const medicationDurations=['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','28 Days','30 Days','Until Doctor Review','Long Term','Custom'];
     const medicationFrequencies=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'];
-    const medicationRoutes=['Oral','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
+    const medicationRoutes=['Oral','NG / Ryles Tube','IV','IM','SC','Sublingual','Inhalation','Nasal','Topical','Eye','Ear','Other'];
     const medicationFood=['Before food','After food','With food','No restriction'];
 
     function localDateTimeValue(date=new Date()){
