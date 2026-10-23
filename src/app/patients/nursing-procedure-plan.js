@@ -23,6 +23,45 @@
   function nprocFrequencyForTimes(times){return times.length===1?'Once daily':times.length===2?'Twice daily':`${times.length} times daily`}
   const isNursingProcedureOrder=o=>String(o?.order_kind||'')===NURSING_PROC_KIND;
   const isCareOnlyOrder=o=>!isNursingProcedureOrder(o);
+  // Older releases could leave several Master Care Plan saves active at once. A plan save
+  // inserts its care rows together, so use the newest save batch until those old rows are
+  // retired; this keeps screensavers and shift views on the patient's latest plan.
+  function currentMasterCarePlanRows(rows){
+    const care=(Array.isArray(rows)?rows:[]).filter(o=>isCareOnlyOrder(o)&&o?.is_active!==false);
+    if(care.length<2)return care;
+    const latest=care.reduce((max,o)=>{
+      const at=Date.parse(o?.created_at||'');
+      return Number.isFinite(at)&&at>max?at:max;
+    },-Infinity);
+    const newest=Number.isFinite(latest)?care.filter(o=>Date.parse(o?.created_at||'')===latest):care;
+    const specificShifts=new Map();
+    newest.forEach(o=>{
+      const shift=String(o?.shift||'').toLowerCase();
+      if(shift.includes('day')||shift.includes('night')){
+        const key=String(o?.care_type||o?.activity||'').trim().toLowerCase();
+        specificShifts.set(key,true);
+      }
+    });
+    const seen=new Set();
+    return newest.filter(o=>{
+      const task=String(o?.care_type||o?.activity||'').trim().toLowerCase();
+      const shift=String(o?.shift||'Both shifts').trim().toLowerCase();
+      if(shift.includes('both')&&specificShifts.has(task))return false;
+      const key=[task,shift,String(o?.frequency||'').trim().toLowerCase(),String(o?.instruction||'').trim().toLowerCase(),String(o?.preferred_from||'').slice(0,5),String(o?.preferred_to||'').slice(0,5)].join('|');
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  function currentCareTaskOrders(rows){
+    const active=(Array.isArray(rows)?rows:[]).filter(o=>o?.is_active!==false);
+    const byPatient=new Map();
+    active.filter(isCareOnlyOrder).forEach(o=>{
+      if(!byPatient.has(o.patient_id))byPatient.set(o.patient_id,[]);
+      byPatient.get(o.patient_id).push(o);
+    });
+    return [...active.filter(isNursingProcedureOrder),...Array.from(byPatient.values()).flatMap(currentMasterCarePlanRows)];
+  }
   function blankNursingProcedure(){
     return {tariff_id:'',procedure_code:'',care_type:'',custom:false,timing:NURSING_PROC_TIMING_FIXED,scheduled_times:[],shift:'Both shifts',frequency:'Daily',instruction:'',preferred_from:'',preferred_to:'',is_locked:false};
   }
@@ -59,10 +98,10 @@
     const {error}=await client.from('care_orders').select('order_kind,scheduled_times').limit(1);
     return !error;
   }
-  // Patient edit replaces the Master Care Plan: delete CARE rows only, never the planned procedures.
+  // Patient edit replaces the Master Care Plan: retire CARE rows only, never procedures or history.
   async function deleteCareOnlyOrders(patientId){
-    let res=await client.from('care_orders').delete().eq('patient_id',patientId).or('order_kind.is.null,order_kind.neq."Nursing Procedure"');
-    if(res.error&&/order_kind/i.test(String(res.error.message||'')))res=await client.from('care_orders').delete().eq('patient_id',patientId); // before SQL 251: no procedures exist yet
+    let res=await client.from('care_orders').update({is_active:false}).eq('patient_id',patientId).eq('is_active',true).or('order_kind.is.null,order_kind.neq."Nursing Procedure"');
+    if(res.error&&/order_kind/i.test(String(res.error.message||'')))res=await client.from('care_orders').update({is_active:false}).eq('patient_id',patientId).eq('is_active',true); // before SQL 251: no procedures exist yet
     return res;
   }
   // Charge Master → Nursing Procedures items (code + name only; nurses never see the rate).
