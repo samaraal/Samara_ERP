@@ -231,7 +231,19 @@
         invalid.scrollIntoView({behavior:'smooth',block:'center'});
         setTimeout(()=>{
           try{invalid.focus({preventScroll:true})}catch(_error){invalid.focus()}
-        },420);
+        },180);
+      }
+
+      function isMissingRequired(control){
+        if(control.disabled)return false;
+        if(control.type==='checkbox')return !control.checked;
+        if(control.type==='radio'){
+          const group=[...root.querySelectorAll('input[type="radio"]')]
+            .filter(item=>item.name===control.name&&item.form===control.form);
+          return !group.some(item=>item.checked);
+        }
+        if(control.validity?.valueMissing)return true;
+        return !String(control.value||'').trim();
       }
 
       function apply(){
@@ -267,7 +279,7 @@
           form.dataset.samaraRequiredBound='true';
           form.addEventListener('submit',event=>{
             const invalid=[...form.querySelectorAll('[data-samara-required="true"]')]
-              .find(control=>!control.disabled&&!String(control.value||'').trim());
+              .find(isMissingRequired);
             if(!invalid)return;
             event.preventDefault();
             event.stopImmediatePropagation();
@@ -301,7 +313,7 @@
         const form=button.closest('form');
         if(!form)return;
         const invalid=[...form.querySelectorAll('[data-samara-required="true"]')]
-          .find(control=>!control.disabled&&!String(control.value||'').trim());
+          .find(isMissingRequired);
         if(!invalid)return;
         event.preventDefault();
         event.stopImmediatePropagation();
