@@ -15,7 +15,7 @@
       saveTaskNavigationContext({page,return_page:'Shift Tasks',...context});
       onNavigate?.(page);
     }
-    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required,is_active,admission_status';
+    const patientFields='id,patient_id,full_name,room_no,bed_no,special_nurse_required,special_nurse_name,special_nurse_shift,fall_risk,pressure_sore_risk,aspiration_risk,wandering_risk,infection_risk,seizure_history,oxygen_required,dressing_required,is_active,admission_status,admission_date,admission_time,created_at,updated_at';
 
     async function load(){
       setLoading(true);
@@ -122,6 +122,7 @@
     meds.forEach(order=>(order.scheduled_times||[]).forEach(raw=>{
       const time=String(raw).slice(0,5);
       if(!medicationOrderDoseEligible(order,today,time))return;
+      if(!clinicalSlotAfterAdmission(order.patients,today,time))return;
       if(shiftForTime(time)!==shift)return;
       medTasks.push({
         type:'Medicine',
@@ -137,6 +138,7 @@
     medLogs.filter(log=>log.rescheduled_time&&rescheduledDoseDate(log)===today).forEach(log=>{
       const order=meds.find(o=>o.id===log.order_id);if(!order)return;
       const time=normalizeMedicationTime(log.rescheduled_time).slice(0,5);
+      if(!clinicalSlotAfterAdmission(order.patients,today,time))return;
       if(!time||shiftForTime(time)!==shift)return;
       if(medTasks.some(t=>t.order.id===order.id&&t.time===time))return;
       medTasks.push({
@@ -155,12 +157,13 @@
     // 2.18.27: Nursing Procedures with fixed times (like medicines) → one task per time.
     const procFixedTimes=order=>isNursingProcedureOrder(order)?nursingProcedureTimes(order):[];
     const procTimeLog=(order,t)=>careLogs.find(x=>x.care_order_id===order.id&&(x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:false));
+    const upcomingShiftDate=shift==='Day Shift (7 AM–7 PM)'?today:addDaysISODate(today,1);
     const fixedProcTasks=(type,wantCurrent)=>care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
-      procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent).map(t=>({
+      procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent&&clinicalSlotAfterAdmission(order.patients,wantCurrent?today:upcomingShiftDate,t)).map(t=>({
         type,patient_id:order.patient_id,patient:order.patients,order,taskShift:shiftForTime(t),time:t,
         label:order.care_type||'Nursing procedure',log:procTimeLog(order,t)}))).filter(x=>wantCurrent||!x.log);
 
-    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
+    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -182,7 +185,7 @@
         }));
     })];
 
-    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length).flatMap(order=>{
+    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,upcomingShiftDate,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -206,7 +209,7 @@
     })];
 
     const physioTasks=physio
-      .filter(order=>!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)
+      .filter(order=>(!order.preferred_time||shiftForTime(String(order.preferred_time).slice(0,5))===shift)&&(!order.preferred_time||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_time).slice(0,5))))
       .map(order=>({
         type:'Physiotherapy',
         patient_id:order.patient_id,
