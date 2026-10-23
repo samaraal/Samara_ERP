@@ -1,3 +1,6 @@
+## 2.18.90 — Intake / Output PDF: clear colour key
+- The chart key on the Intake / Output PDF now reads "Pink bar = Intake (fluids taken in)" and "Blue bar = Output (fluids passed out)", matching Family Portal 1.0.50. No SQL.
+
 ## 2.18.89 — Family Portal Admin Preview shows the Intake / Output history
 - "Preview Family Portal" now sends the Guest's Intake / Output history (last 93 chart days, same figures as the family sees via SQL 278), so the Intake / Output box and page appear in Admin Preview too (with Family Portal 1.0.48). No SQL.
 
