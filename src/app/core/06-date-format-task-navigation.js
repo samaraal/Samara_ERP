@@ -43,7 +43,7 @@
     return `${parts.hour%12||12}:${String(parts.minute).padStart(2,'0')} ${parts.hour>=12?'PM':'AM'}`;
   };
   const parseManualTime=(value,period)=>{
-    const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)$/);
+    const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2])[:.]([0-5]\d)$/);
     if(!match)return '';
     let hour=Number(match[1])%12;
     if(String(period||'').toUpperCase()==='PM')hour+=12;
@@ -84,8 +84,8 @@
           placeholder:placeholder||'h:mm',
           inputMode:'text',
           autoComplete:'off',
-          pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d',
-          title:'Enter the time as h:mm, then choose AM or PM.',
+          pattern:'(?:0?[1-9]|1[0-2])[:.][0-5]\\d',
+          title:'Enter the time as h:mm (or h.mm), then choose AM or PM.',
           'data-samara-time-entry':'true',
           'aria-label':inputProps['aria-label']||'Time (h:mm)',
           className,
