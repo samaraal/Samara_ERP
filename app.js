@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.78';
+  const APP_VERSION = '2.18.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2057,10 +2057,12 @@ function initSamaraInaugurationInvitation(){
   // MM/DD/YYYY rendering is never shown to the user. Database values remain YYYY-MM-DD.
   const StrictDateInput = props => {
     const {value,onChange,style,...nativeProps}=props||{};
-    return h('div',{style:{position:'relative',width:'100%'}},
-      h('input',{type:'text',readOnly:true,value:value?formatDateIN(value):'',placeholder:'DD-MM-YYYY',style:{...(style||{}),width:'100%',paddingRight:'48px',cursor:'pointer'}}),
-      h('span',{'aria-hidden':'true',style:{position:'absolute',right:'15px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'18px'}},'▾'),
-      h('input',{...nativeProps,'data-samara-native':'1',type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
+    const picker=React.useRef(null);
+    const showCalendar=()=>{const input=picker.current;if(!input)return;try{if(input.showPicker)input.showPicker();else input.click()}catch(_){input.focus();input.click()}};
+    return h('div',{className:'samara-date-entry',style:{position:'relative',width:'100%',...style}},
+      h('button',{type:'button',className:'samara-date-display',disabled:nativeProps.disabled,onClick:showCalendar,'aria-label':nativeProps['aria-label']||'Choose date'},
+        h('span',null,value?formatDateIN(value):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
+      h('input',{...nativeProps,ref:picker,'data-samara-native':'1',type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
     );
   };
   const time24Parts=value=>{
@@ -2165,15 +2167,28 @@ function initSamaraInaugurationInvitation(){
     const dateMax=String(max||'').slice(0,10)||undefined;
     const dateMin=String(min||'').slice(0,10)||undefined;
     const valueToSubmit=date&&time24Parts(time)?`${date}T${time}`:'';
-    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1.15fr) minmax(190px,.85fr)',gap:'8px',alignItems:'center',...(style||{})}},
-      h('div',{style:{position:'relative',minWidth:0}},
-        h('input',{type:'text',readOnly:true,value:date?formatDateIN(date):'',placeholder:'DD-MM-YYYY',disabled,tabIndex:-1,'aria-hidden':'true',style:{width:'100%',paddingRight:'42px',cursor:'pointer'}}),
-        h('span',{'aria-hidden':'true',style:{position:'absolute',right:'14px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'16px'}},'▾'),
-        h('input',{...inputProps,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:0,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
+    const picker=React.useRef(null);
+    const showCalendar=()=>{const input=picker.current;if(!input)return;try{if(input.showPicker)input.showPicker();else input.click()}catch(_){input.focus();input.click()}};
+    const chooseTime=next=>{setTime(next);if(date&&time24Parts(next))emit(date,next);else if(!next&&!required)emit('','')};
+    const timeLabel=formatManualTime(time)||'Select time';
+    const options=Array.from({length:24},(_,index)=>{const hour=index%12||12;const period=index<12?'AM':'PM';return {value:`${String(index).padStart(2,'0')}:00`,label:`${hour}:00 ${period}`}});
+    const [timePickerOpen,setTimePickerOpen]=React.useState(false);
+    const currentTime=time24Parts(time);
+    const selectedTime=currentTime?`${String(currentTime.hour).padStart(2,'0')}:00`:'';
+    const timePopup=timePickerOpen?h('div',{className:'time-picker-backdrop',onMouseDown:event=>{if(event.target===event.currentTarget)setTimePickerOpen(false)}},
+      h('div',{className:'time-picker-popup',role:'dialog','aria-modal':'true','aria-label':'Select effective time'},
+        h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,'Choose one effective time')),h('button',{type:'button',className:'close',onClick:()=>setTimePickerOpen(false),'aria-label':'Close'},'×')),
+        h('div',{className:'time-picker-grid'},options.map(option=>h('button',{type:'button',className:`time-picker-option ${selectedTime===option.value?'selected':''}`,key:option.value,onClick:()=>{chooseTime(option.value);setTimePickerOpen(false)}},option.label))),
+        h('div',{className:'time-picker-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTimePickerOpen(false)},'Cancel'))
+      )):null;
+    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:'8px',alignItems:'center',...(style||{})}},
+      h('div',{className:'samara-date-entry',style:{position:'relative',minWidth:0}},
+        h('button',{type:'button',className:'samara-date-display',disabled,onClick:showCalendar,'aria-label':inputProps['aria-label']||'Choose date'},h('span',null,date?formatDateIN(date):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
+        h('input',{...inputProps,ref:picker,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:-1,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
       ),
-      h(ManualTimeInput,{...inputProps,id:undefined,name:undefined,value:time,onChange:event=>{setTime(event.target.value);if(date&&time24Parts(event.target.value))emit(date,event.target.value);else if(!event.target.value&&!required)emit('','')},required,disabled,validateTime,'aria-label':`${inputProps['aria-label']||'Date and time'} — time (h:mm)`}),
+      h('button',{type:'button',className:'time-picker-trigger samara-effective-time-trigger',onClick:()=>setTimePickerOpen(true),'aria-label':`${inputProps['aria-label']||'Effective date and time'} time: ${timeLabel}`},h('span',{className:time?'time-picker-value':'time-picker-placeholder'},timeLabel),h('span',{className:'time-picker-caret','aria-hidden':'true'},'▾')),
       name?h('input',{type:'hidden',name,value:valueToSubmit}):null
-    );
+    ,timePopup&&ReactDOM.createPortal?ReactDOM.createPortal(timePopup,document.body):timePopup);
   }
 
   const formatTimeIN = value => window.SamaraDateTime.time(value);
@@ -22357,13 +22372,13 @@ Thank you.`;
         h('span',{className:'time-picker-caret'},'▾')
       ),
       selected.length?h('div',{className:'time-chip-list'},selected.map(time=>h('span',{className:'time-chip',key:time},medicationTimeLabel(time),h('button',{type:'button','aria-label':`Remove ${medicationTimeLabel(time)}`,onClick:()=>onChange(selected.filter(x=>x!==time).join(', '))},'×')))):null,
-      open?h('div',{className:'time-picker-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)cancel()}},
+      open&&ReactDOM.createPortal?h(React.Fragment,null,ReactDOM.createPortal(h('div',{className:'time-picker-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)cancel()}},
         h('div',{className:'time-picker-popup',role:'dialog','aria-modal':'true','aria-label':'Select medication time'},
           h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,limit===1?'Choose one medicine time':`Choose up to ${limit} medicine times · ${frequency}`)),h('button',{type:'button',className:'close',onClick:cancel},'×')),
           h('div',{className:'time-picker-grid'},MEDICATION_TIME_OPTIONS.map(opt=>h('button',{type:'button',className:`time-picker-option ${draft.includes(opt.value)?'selected':''}`,key:opt.value,onClick:()=>toggle(opt.value)},opt.label))),
           h('div',{className:'time-picker-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:reset},'Reset'),h('button',{type:'button',className:'btn btn-secondary',onClick:cancel},'Cancel'),h('button',{type:'button',className:'btn btn-primary',onClick:confirm},'OK'))
         )
-      ):null,
+      ),document.body)):null,
       required&&selected.length===0?h('small',{className:'field-hint error-text'},'Select at least one time'):null
     );
   }
