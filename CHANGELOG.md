@@ -1,3 +1,8 @@
+## 2.18.75 — Master Care Plan changes reach the screensaver
+- Patient edit now retires the previous active care plan before saving and stops if that replacement fails.
+- Screensaver, Shift Tasks and the patient Nursing view use the newest saved plan; shift-specific entries replace stale “Both shifts” duplicates.
+- Existing duplicate active rows remain available as history and are no longer treated as the current plan.
+
 ## 2.18.74 — Clinical alerts and tasks start at admission time
 - Medication, care, vital-sign, meal and procedure tasks scheduled before a same-day admission are excluded from the nursing screensaver and Shift Tasks until their next eligible slot.
 - Clinical Alerts and Escalations use the admission-time boundary so pre-admission tasks are not marked late or escalated during the new stay.
