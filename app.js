@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.74';
+  const APP_VERSION = '2.18.75';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22326,6 +22326,45 @@ Thank you.`;
   function nprocFrequencyForTimes(times){return times.length===1?'Once daily':times.length===2?'Twice daily':`${times.length} times daily`}
   const isNursingProcedureOrder=o=>String(o?.order_kind||'')===NURSING_PROC_KIND;
   const isCareOnlyOrder=o=>!isNursingProcedureOrder(o);
+  // Older releases could leave several Master Care Plan saves active at once. A plan save
+  // inserts its care rows together, so use the newest save batch until those old rows are
+  // retired; this keeps screensavers and shift views on the patient's latest plan.
+  function currentMasterCarePlanRows(rows){
+    const care=(Array.isArray(rows)?rows:[]).filter(o=>isCareOnlyOrder(o)&&o?.is_active!==false);
+    if(care.length<2)return care;
+    const latest=care.reduce((max,o)=>{
+      const at=Date.parse(o?.created_at||'');
+      return Number.isFinite(at)&&at>max?at:max;
+    },-Infinity);
+    const newest=Number.isFinite(latest)?care.filter(o=>Date.parse(o?.created_at||'')===latest):care;
+    const specificShifts=new Map();
+    newest.forEach(o=>{
+      const shift=String(o?.shift||'').toLowerCase();
+      if(shift.includes('day')||shift.includes('night')){
+        const key=String(o?.care_type||o?.activity||'').trim().toLowerCase();
+        specificShifts.set(key,true);
+      }
+    });
+    const seen=new Set();
+    return newest.filter(o=>{
+      const task=String(o?.care_type||o?.activity||'').trim().toLowerCase();
+      const shift=String(o?.shift||'Both shifts').trim().toLowerCase();
+      if(shift.includes('both')&&specificShifts.has(task))return false;
+      const key=[task,shift,String(o?.frequency||'').trim().toLowerCase(),String(o?.instruction||'').trim().toLowerCase(),String(o?.preferred_from||'').slice(0,5),String(o?.preferred_to||'').slice(0,5)].join('|');
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  function currentCareTaskOrders(rows){
+    const active=(Array.isArray(rows)?rows:[]).filter(o=>o?.is_active!==false);
+    const byPatient=new Map();
+    active.filter(isCareOnlyOrder).forEach(o=>{
+      if(!byPatient.has(o.patient_id))byPatient.set(o.patient_id,[]);
+      byPatient.get(o.patient_id).push(o);
+    });
+    return [...active.filter(isNursingProcedureOrder),...Array.from(byPatient.values()).flatMap(currentMasterCarePlanRows)];
+  }
   function blankNursingProcedure(){
     return {tariff_id:'',procedure_code:'',care_type:'',custom:false,timing:NURSING_PROC_TIMING_FIXED,scheduled_times:[],shift:'Both shifts',frequency:'Daily',instruction:'',preferred_from:'',preferred_to:'',is_locked:false};
   }
@@ -22362,10 +22401,10 @@ Thank you.`;
     const {error}=await client.from('care_orders').select('order_kind,scheduled_times').limit(1);
     return !error;
   }
-  // Patient edit replaces the Master Care Plan: delete CARE rows only, never the planned procedures.
+  // Patient edit replaces the Master Care Plan: retire CARE rows only, never procedures or history.
   async function deleteCareOnlyOrders(patientId){
-    let res=await client.from('care_orders').delete().eq('patient_id',patientId).or('order_kind.is.null,order_kind.neq."Nursing Procedure"');
-    if(res.error&&/order_kind/i.test(String(res.error.message||'')))res=await client.from('care_orders').delete().eq('patient_id',patientId); // before SQL 251: no procedures exist yet
+    let res=await client.from('care_orders').update({is_active:false}).eq('patient_id',patientId).eq('is_active',true).or('order_kind.is.null,order_kind.neq."Nursing Procedure"');
+    if(res.error&&/order_kind/i.test(String(res.error.message||'')))res=await client.from('care_orders').update({is_active:false}).eq('patient_id',patientId).eq('is_active',true); // before SQL 251: no procedures exist yet
     return res;
   }
   // Charge Master → Nursing Procedures items (code + name only; nurses never see the rate).
@@ -25771,12 +25810,13 @@ Please keep these login details confidential.`;
     const procFixedTimes=order=>isNursingProcedureOrder(order)?nursingProcedureTimes(order):[];
     const procTimeLog=(order,t)=>careLogs.find(x=>x.care_order_id===order.id&&(x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:false));
     const upcomingShiftDate=shift==='Day Shift (7 AM–7 PM)'?today:addDaysISODate(today,1);
-    const fixedProcTasks=(type,wantCurrent)=>care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
+    const currentCareOrders=currentCareTaskOrders(care);
+    const fixedProcTasks=(type,wantCurrent)=>currentCareOrders.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
       procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent&&clinicalSlotAfterAdmission(order.patients,wantCurrent?today:upcomingShiftDate,t)).map(t=>({
         type,patient_id:order.patient_id,patient:order.patients,order,taskShift:shiftForTime(t),time:t,
         label:order.care_type||'Nursing procedure',log:procTimeLog(order,t)}))).filter(x=>wantCurrent||!x.log);
 
-    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
+    const currentCareTasks=[...fixedProcTasks('Care',true),...currentCareOrders.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -25798,7 +25838,7 @@ Please keep these login details confidential.`;
         }));
     })];
 
-    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,upcomingShiftDate,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
+    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...currentCareOrders.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,upcomingShiftDate,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -26481,7 +26521,8 @@ Please keep these login details confidential.`;
     // Daily care — preferred window when set, else any time in the shift (reminder 2 h before shift end).
     const careLogs=cl.data||[];
     const careStats={planned:0,done:0};
-    (c.data||[]).forEach(order=>{
+    const currentCareOrders=currentCareTaskOrders(c.data||[]);
+    currentCareOrders.forEach(order=>{
       const p=order.patients;if(!nssGuestActive(p))return;
       // 2.18.27: a Nursing Procedure with fixed times (like medicines) — one task per time in this shift;
       // done when a record exists for that time (or, for a record without a time, given near that time).
@@ -26528,7 +26569,7 @@ Please keep these login details confidential.`;
 
     // 2.18.24: Guests with NO care plan — show their usual care for this shift from the last 3 days' records
     // (marked "usual — no care plan"), so the Care box is not empty; the Nursing Manager is reminded to fill the plan.
-    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false&&String(o.order_kind||'')!=='Nursing Procedure').map(o=>o.patient_id)); // 2.18.26: procedures alone are not a care plan
+    const withPlan=new Set(currentCareOrders.filter(o=>String(o.order_kind||'')!=='Nursing Procedure').map(o=>o.patient_id)); // procedures alone are not a care plan
     const shiftKey=x=>String(x||'').toLowerCase().startsWith('day')?'day':String(x||'').toLowerCase().startsWith('night')?'night':'';
     const curKey=win.name.startsWith('Day')?'day':'night';
     const shiftDate=win.dates[0];
@@ -27639,7 +27680,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
       setEditDailyWhatsApp({enabled:!!existingComm?.daily_whatsapp_enabled,recipient_name:existingComm?.recipient_name||primaryFamily?.relative_name||row.attendant_name||'',relationship:existingComm?.relationship||primaryFamily?.relationship||'',mobile:keepFamilyMobile(existingComm?.recipient_mobile||primaryFamily?.mobile||row.attendant_phone||''),email:existingComm?.recipient_email||primaryFamily?.email||'',daily_report_time:String(existingComm?.daily_report_time||'20:00').slice(0,5),doctor_enabled:!!existingComm?.doctor_report_enabled,doctor_name:existingComm?.doctor_recipient_name||row.treating_doctor||row.referring_doctor||'',doctor_mobile:keepFamilyMobile(existingComm?.doctor_recipient_mobile||row.doctor_phone||'')});
       setEditFamilyCredential(null);setEditFamilyCredential2(null);
       setEditMeds(currentUpcomingMedicineOrders(existingMeds||[]).map(m=>({...blankMedicine(),...m,times:Array.isArray(m.scheduled_times)?m.scheduled_times.join(', '):(m.times||''),custom_duration_days:m.duration_days||''})));
-      setEditCare((existingCare||[]).filter(isCareOnlyOrder).map(c=>({...blankCare(),...c}))); // 2.18.26: planned Nursing Procedures are edited in the patient file → Nursing, not here
+      setEditCare(currentMasterCarePlanRows((existingCare||[]).filter(isCareOnlyOrder)).map(c=>({...blankCare(),...c}))); // planned procedures are edited in the patient file → Nursing
       setEditPhysio(existingPhysio?{
         required:existingPhysio.is_active!==false,
         id:existingPhysio.id,
@@ -27918,7 +27959,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         // Medication orders are intentionally NOT edited from the general Patient Edit form.
         // Prescription changes must go through Medicines → Doctor Review / Modify so the old
         // prescription, MAR, effective time, doctor instruction and audit history are preserved.
-        await deleteCareOnlyOrders(editTarget.id); // 2.18.26: replace CARE rows only — planned Nursing Procedures are kept
+        const {error:retireCareError}=await deleteCareOnlyOrders(editTarget.id);
+        if(retireCareError)throw retireCareError;
         const careRows=editCare.filter(c=>c.care_type).map(c=>({patient_id:editTarget.id,care_type:c.care_type,shift:c.shift,frequency:c.frequency,instruction:c.instruction||null,preferred_from:careTimeValue(c.preferred_from)||null,preferred_to:careTimeValue(c.preferred_to)||null,entered_by:user?.id||null}));
         if(careRows.length){const {error:ce}=await client.from('care_orders').insert(careRows);if(ce)throw ce}
 
@@ -29629,7 +29671,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               )):sectionEmpty('No medication administration recorded today.')
             )
           ),
-          tab==='Nursing'&&h('div',{className:'patient-nursing-card'},h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),details.care.filter(isCareOnlyOrder).length?details.care.filter(isCareOnlyOrder).map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),(()=>{const procIds=new Set(details.care.filter(isNursingProcedureOrder).map(o=>o.id));const careOnlyLogs=details.careLogs.filter(x=>!procIds.has(x.care_order_id));return careOnlyLogs.length?careOnlyLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')})()),
+          tab==='Nursing'&&h('div',{className:'patient-nursing-card'},h('div',{className:'section-card'},h('h4',null,'Master Care Plan'),currentMasterCarePlanRows(details.care).length?currentMasterCarePlanRows(details.care).map(c=>h('div',{className:'timeline-item',key:c.id},h('strong',null,c.care_type),h('span',null,`${c.shift} · ${c.frequency} · ${careWindowLabel(c)} · ${c.instruction||''}`),h(TamilAssist,{text:c.instruction,context:'Care Plan Instruction'}))):sectionEmpty('No care orders.'),h('h4',{style:{marginTop:'18px'}},'Recent Care Records'),(()=>{const procIds=new Set(details.care.filter(isNursingProcedureOrder).map(o=>o.id));const careOnlyLogs=details.careLogs.filter(x=>!procIds.has(x.care_order_id));return careOnlyLogs.length?careOnlyLogs.slice(0,30).map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.care_date)} · ${x.shift} · ${x.status}`),h('span',{className:'patient-file-detail'},` · ${x.remarks||'—'}`),h(TamilAssist,{text:x.remarks,context:'Nursing Care Remark'}))):sectionEmpty('No care records.')})()),
             // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
             h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
@@ -32937,7 +32979,7 @@ function RoomsBeds({profile,onNavigate}){
         seenMedicationOrders.add(key);
         return true;
       });
-      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:data[3],careLogs:data[4],vitals:data[5],physioOrders:(data[6]||[]).filter(x=>activePatientIds.has(x.patient_id)),physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
+      setState({loading:false,patients:data[0],medOrders:validMedicationOrders,medLogs:data[2],careOrders:currentCareTaskOrders(data[3]),careLogs:data[4],vitals:data[5],physioOrders:(data[6]||[]).filter(x=>activePatientIds.has(x.patient_id)),physioSessions:data[7],incidents:data[8],handovers:data[9],discharges:data[10]});
     }
     React.useEffect(()=>{load();const ch=client.channel('clinical-dashboard-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).on('postgres_changes',{event:'*',schema:'public',table:'medication_administrations'},load).on('postgres_changes',{event:'*',schema:'public',table:'care_logs'},load).on('postgres_changes',{event:'*',schema:'public',table:'incidents'},load).on('postgres_changes',{event:'*',schema:'public',table:'patient_discharges'},load).on('postgres_changes',{event:'*',schema:'public',table:'shift_handovers'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     const terminalMedicationStatuses=new Set(['given','refused','withheld','unavailable','missed']);
@@ -33200,7 +33242,7 @@ function RoomsBeds({profile,onNavigate}){
         const {data:orders}=await client.from('care_orders')
           .select('*') // 2.18.27: includes scheduled_times once SQL 252 is run
           .eq('patient_id',form.patient_id).eq('is_active',true);
-        const sameActivity=(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
+        const sameActivity=currentCareTaskOrders(orders||[]).filter(o=>normaliseDailyCareActivity(o.care_type).toLowerCase()===chosenActivity);
         const forShift=sameActivity.filter(o=>o.shift===form.shift||o.shift==='Both shifts');
         const linked=sameActivity.find(o=>o.id===form.care_order_id)||forShift[0]||sameActivity[0]||null;
         linkedOrderId=linked?.id||null;
