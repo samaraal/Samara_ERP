@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.87';
+  const APP_VERSION = '2.18.88';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9427,6 +9427,8 @@ https://samaraassistedliving.com/`;
 "Remaining G / E": "மீதம் கெ / ஊ",
 "Remarks": "குறிப்புகள்",
 "Remind in 5 min": "5 நிமிடத்தில் நினைவூட்டு",
+"Noted": "பார்த்தேன்",
+"For information — already recorded. Close it in Clinical Escalations after review.": "தகவலுக்கு மட்டும் — ஏற்கனவே பதிவு செய்யப்பட்டது. பார்த்த பிறகு Clinical Escalations-இல் மூடவும்.",
 "Reminder": "நினைவூட்டல்",
 "Reminders": "நினைவூட்டல்கள்",
 "Remove": "நீக்கு",
