@@ -1,3 +1,7 @@
+## 2.18.77 — Manual time entry across the ERP
+- Time fields now accept staff entry in h:mm AM/PM format and retain the existing 24-hour values for saving.
+- Date and time fields keep the calendar picker for the date while the time is typed manually.
+
 ## 2.18.76 — Form errors take you to the field
 - Submitting a form with missing required information now scrolls to and focuses the first field that needs attention, including checkbox and radio requirements.
 - Error notifications identify likely matching fields and focus them automatically; a **Go to field** button is available when the message matches a field.
