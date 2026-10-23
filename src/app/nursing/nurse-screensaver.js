@@ -442,7 +442,8 @@
     // Daily care — preferred window when set, else any time in the shift (reminder 2 h before shift end).
     const careLogs=cl.data||[];
     const careStats={planned:0,done:0};
-    (c.data||[]).forEach(order=>{
+    const currentCareOrders=currentCareTaskOrders(c.data||[]);
+    currentCareOrders.forEach(order=>{
       const p=order.patients;if(!nssGuestActive(p))return;
       // 2.18.27: a Nursing Procedure with fixed times (like medicines) — one task per time in this shift;
       // done when a record exists for that time (or, for a record without a time, given near that time).
@@ -489,7 +490,7 @@
 
     // 2.18.24: Guests with NO care plan — show their usual care for this shift from the last 3 days' records
     // (marked "usual — no care plan"), so the Care box is not empty; the Nursing Manager is reminded to fill the plan.
-    const withPlan=new Set((c.data||[]).filter(o=>o.is_active!==false&&String(o.order_kind||'')!=='Nursing Procedure').map(o=>o.patient_id)); // 2.18.26: procedures alone are not a care plan
+    const withPlan=new Set(currentCareOrders.filter(o=>String(o.order_kind||'')!=='Nursing Procedure').map(o=>o.patient_id)); // procedures alone are not a care plan
     const shiftKey=x=>String(x||'').toLowerCase().startsWith('day')?'day':String(x||'').toLowerCase().startsWith('night')?'night':'';
     const curKey=win.name.startsWith('Day')?'day':'night';
     const shiftDate=win.dates[0];

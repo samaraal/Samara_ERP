@@ -35,7 +35,7 @@ let output = '';
 for (const { file } of manifest.files) {
   const p = path.join(srcDir, file);
   if (!fs.existsSync(p)) fail(`manifest.json lists ${file} but the file does not exist`);
-  output += fs.readFileSync(p, 'utf8');
+  output += fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 }
 
 // Syntax check without running anything

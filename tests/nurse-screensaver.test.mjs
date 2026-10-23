@@ -18,7 +18,7 @@ function load(tables,AT=NOW){
     return chain;
   };
   const ctx={client:{from:q},h:()=>null,React:{useState:()=>[null,()=>{}]},document:{},window:{},console,Date:FakeDate,Promise,Map,Set,Math,String,Number,Array,JSON,Object,RegExp};
-  vm.runInNewContext(read('patients/medication-helpers.js')+read('nursing/nurse-screensaver.js')+';this.__load=loadNurseSaverTasks;this.__boxes=nssBuildBoxes;',ctx);
+  vm.runInNewContext(read('patients/medication-helpers.js')+read('patients/nursing-procedure-plan.js')+read('nursing/nurse-screensaver.js')+';this.__load=loadNurseSaverTasks;this.__boxes=nssBuildBoxes;',ctx);
   return ctx.__load().then(d=>({...d,boxes:ctx.__boxes([...d.overdue,...d.next])}));
 }
 const guest=(id,name,room,extra={})=>({id,title:'Mr.',full_name:name,room_no:room,bed_no:null,is_active:true,admission_status:'Admitted',vitals_schedule:null,diet_plan:'',...extra});
@@ -73,6 +73,21 @@ test('Care windows, any-time care, approved procedures; discharged Guests skippe
   assert.equal(d.next[d.next.length-1].anyTime,true,'any-time care is listed last');
   const bath=d.next.find(x=>x.title==='Sponge bath');
   assert.equal(bath.state,'due');assert.equal(bath.windowText,'10:00–12:00');
+});
+
+test('Screensaver uses the newest Master Care Plan save and preserves its day/night assignments',async()=>{
+  const d=await load({patients:[G1],care_orders:[
+    {id:'old',patient_id:'g1',care_type:'Stale admission task',shift:'Both shifts',created_at:'2026-10-19T07:00:00Z',is_active:true},
+    {id:'both',patient_id:'g1',care_type:'Updated day task',shift:'Both shifts',created_at:'2026-10-22T13:54:40.267519Z',is_active:true},
+    {id:'day',patient_id:'g1',care_type:'Updated day task',shift:'Day Shift (7 AM–7 PM)',created_at:'2026-10-22T13:54:40.267519Z',is_active:true},
+    {id:'night',patient_id:'g1',care_type:'Updated night task',shift:'Night Shift (7 PM–7 AM)',created_at:'2026-10-22T13:54:40.267519Z',is_active:true},
+    {id:'duplicate',patient_id:'g1',care_type:'Updated day task',shift:'Day Shift (7 AM–7 PM)',created_at:'2026-10-22T13:54:40.267519Z',is_active:true}
+  ],care_logs:[],vital_signs:[]});
+  const titles=d.next.map(x=>x.title);
+  assert.ok(titles.includes('Updated day task'));
+  assert.ok(!titles.includes('Stale admission task'));
+  assert.ok(!titles.includes('Updated night task'));
+  assert.equal(titles.filter(x=>x==='Updated day task').length,1,'duplicate entries in the latest save collapse to one task');
 });
 
 test('Task-wise boxes: one box per type, late first, meal box lists each pending Guest',async()=>{

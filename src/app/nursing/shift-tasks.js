@@ -158,12 +158,13 @@
     const procFixedTimes=order=>isNursingProcedureOrder(order)?nursingProcedureTimes(order):[];
     const procTimeLog=(order,t)=>careLogs.find(x=>x.care_order_id===order.id&&(x.scheduled_time?String(x.scheduled_time).slice(0,5)===t:false));
     const upcomingShiftDate=shift==='Day Shift (7 AM–7 PM)'?today:addDaysISODate(today,1);
-    const fixedProcTasks=(type,wantCurrent)=>care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
+    const currentCareOrders=currentCareTaskOrders(care);
+    const fixedProcTasks=(type,wantCurrent)=>currentCareOrders.filter(order=>order?.id&&order?.patient_id&&order?.patients&&procFixedTimes(order).length).flatMap(order=>
       procFixedTimes(order).filter(t=>(shiftForTime(t)===shift)===wantCurrent&&clinicalSlotAfterAdmission(order.patients,wantCurrent?today:upcomingShiftDate,t)).map(t=>({
         type,patient_id:order.patient_id,patient:order.patients,order,taskShift:shiftForTime(t),time:t,
         label:order.care_type||'Nursing procedure',log:procTimeLog(order,t)}))).filter(x=>wantCurrent||!x.log);
 
-    const currentCareTasks=[...fixedProcTasks('Care',true),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
+    const currentCareTasks=[...fixedProcTasks('Care',true),...currentCareOrders.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,today,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
@@ -185,7 +186,7 @@
         }));
     })];
 
-    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...care.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,upcomingShiftDate,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
+    const upcomingCareTasks=[...fixedProcTasks('Upcoming Care',false),...currentCareOrders.filter(order=>order?.id&&order?.patient_id&&order?.patients&&!procFixedTimes(order).length&&(!order.preferred_from&&!order.preferred_to||clinicalSlotAfterAdmission(order.patients,upcomingShiftDate,String(order.preferred_from||order.preferred_to).slice(0,5)))).flatMap(order=>{
       const taskShifts=order.shift==='Both shifts'
         ?['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)']
         :[order.shift];
