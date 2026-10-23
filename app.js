@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.85';
+  const APP_VERSION = '2.18.86';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4792,13 +4792,20 @@ https://samaraassistedliving.com/`;
 
       // Pick ONE eligible item per refresh so voices never overlap.
       // Every unresolved alert gets a turn because each alert has its own lastPlayed timestamp.
+      // 2.18.86: information-only alerts (Medicine Given Late, Poor Meal Intake) pop up ONCE per device —
+      // the dose / meal is already recorded; the Nursing Manager reviews and closes them in Clinical Escalations.
+      const infoOnce=a=>['medicine late','meal intake'].includes(String(a?.alert_type||'').toLowerCase());
+      const INFO_SEEN_KEY='samara_info_alerts_seen';
+      let infoSeen={};try{infoSeen=JSON.parse(localStorage.getItem(INFO_SEEN_KEY)||'{}')||{}}catch(_e){infoSeen={}}
       const nextToAnnounce=ordered.find(a=>{
+        if(infoOnce(a)&&infoSeen[a.key])return false;
         const last=lastPlayed.current[a.key]||0;
         return now-last>=repeatMs;
       });
 
       if(nextToAnnounce){
         lastPlayed.current[nextToAnnounce.key]=now;
+        if(infoOnce(nextToAnnounce)){try{const keep=Object.fromEntries(Object.entries(infoSeen).filter(([,t])=>now-Number(t)<3*86400000));keep[nextToAnnounce.key]=now;localStorage.setItem(INFO_SEEN_KEY,JSON.stringify(keep))}catch(_e){}}
         play(nextToAnnounce.priority);
         speak(nextToAnnounce);
 
@@ -4819,7 +4826,7 @@ https://samaraassistedliving.com/`;
         if(now-popupLast>=repeatMs){
           lastPopup.current[nextToAnnounce.key]=now;
           const overdue=Number(nextToAnnounce.overdue_minutes||0);
-          const heading=nextToAnnounce.is_escalated?'CLINICAL ESCALATION':'CLINICAL ALERT';
+          const heading=infoOnce(nextToAnnounce)?'FOR INFORMATION':nextToAnnounce.is_escalated?'CLINICAL ESCALATION':'CLINICAL ALERT';
           showClinicalAlertPopup({
             heading,
             patient:nextToAnnounce.patient_name||'Patient',
@@ -4827,7 +4834,7 @@ https://samaraassistedliving.com/`;
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
             dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':['meal intake','medicine late'].includes(String(nextToAnnounce.alert_type||'').toLowerCase())?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
-            message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
+            message:infoOnce(nextToAnnounce)?'For information — already recorded. Please review and close it in Clinical Escalations.':nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });
         }
