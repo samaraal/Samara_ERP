@@ -1,3 +1,8 @@
+## 2.18.74 — Clinical alerts and tasks start at admission time
+- Medication, care, vital-sign, meal and procedure tasks scheduled before a same-day admission are excluded from the nursing screensaver and Shift Tasks until their next eligible slot.
+- Clinical Alerts and Escalations use the admission-time boundary so pre-admission tasks are not marked late or escalated during the new stay.
+- Apply Supabase SQL migration 274, then publish the rebuilt ERP app.
+
 ## 2.18.73 — Daily Intelligent Report can optionally include the doctor
 - Authorized staff can opt in a doctor by name and WhatsApp number from the resident's daily report settings; doctor delivery is off by default.
 - Scheduled report logs and retry checks track family and doctor delivery separately.
