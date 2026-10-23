@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.77';
+  const APP_VERSION = '2.18.78';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2074,56 +2074,61 @@ function initSamaraInaugurationInvitation(){
     if(!parts)return '';
     return `${parts.hour%12||12}:${String(parts.minute).padStart(2,'0')} ${parts.hour>=12?'PM':'AM'}`;
   };
-  const parseManualTime=value=>{
-    const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)\s*(AM|PM)$/i);
+  const parseManualTime=(value,period)=>{
+    const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)$/);
     if(!match)return '';
     let hour=Number(match[1])%12;
-    if(match[3].toUpperCase()==='PM')hour+=12;
+    if(String(period||'').toUpperCase()==='PM')hour+=12;
+    else if(String(period||'').toUpperCase()!=='AM')return '';
     return `${String(hour).padStart(2,'0')}:${match[2]}`;
   };
   function ManualTimeInput(props){
-    const {value,onChange,style,className,placeholder,min,max,step,required,name,...inputProps}=props||{};
-    const [draft,setDraft]=React.useState(()=>formatManualTime(value));
+    const {value,onChange,style,className,placeholder,min,max,step,required,name,validateTime,...inputProps}=props||{};
+    const initial=formatManualTime(value).split(' ');
+    const [draft,setDraft]=React.useState(initial[0]||'');
+    const [period,setPeriod]=React.useState(initial[1]||'AM');
     const inputRef=React.useRef(null);
-    React.useEffect(()=>setDraft(formatManualTime(value)),[value]);
+    React.useEffect(()=>{const parts=formatManualTime(value).split(' ');setDraft(parts[0]||'');setPeriod(parts[1]||'AM')},[value]);
     React.useEffect(()=>{
       const input=inputRef.current;
       if(!input)return;
-      const parsed=parseManualTime(draft);
-      let problem='';
+      const parsed=parseManualTime(draft,period);
+      let problem=parsed&&validateTime?validateTime(parsed)||'':'';
       if(parsed&&step&&Number(step)>60){
         const parts=time24Parts(parsed);
-        if((parts.hour*3600+parts.minute*60)%Number(step)!==0)problem=`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;
+        if((parts.hour*3600+parts.minute*60)%Number(step)!==0)problem=problem||`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;
       }
       input.setCustomValidity(problem);
-    },[draft,step]);
-    const update=event=>{
-      const next=event.target.value;
-      setDraft(next);
-      const parsed=parseManualTime(next);
-      if(onChange&&parsed)onChange({target:{value:parsed},currentTarget:event.currentTarget});
-      else if(onChange&&!next.trim()&&!required)onChange({target:{value:''},currentTarget:event.currentTarget});
+    },[draft,period,step,validateTime]);
+    const emit=(nextDraft,nextPeriod,event)=>{
+      const parsed=parseManualTime(nextDraft,nextPeriod);
+      if(onChange&&parsed)onChange({target:{value:parsed},currentTarget:event?.currentTarget});
+      else if(onChange&&!nextDraft.trim()&&!required)onChange({target:{value:''},currentTarget:event?.currentTarget});
     };
     return React.createElement(React.Fragment,null,
-      React.createElement('input',{
-        ...inputProps,
-        ref:inputRef,
-        type:'text',
-        value:draft,
-        required:Boolean(required),
-        placeholder:placeholder||'h:mm AM/PM',
-        inputMode:'text',
-        autoComplete:'off',
-        pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d\\s?(?:AM|PM)',
-        title:'Enter time as h:mm AM or h:mm PM (for example, 8:30 AM).',
-        'data-samara-time-entry':'true',
-        'aria-label':inputProps['aria-label']||'Time (h:mm AM/PM)',
-        className,
-        style,
-        min:undefined,max:undefined,step:undefined,
-        onChange:update
-      }),
-      name?React.createElement('input',{type:'hidden',name,value:parseManualTime(draft)}):null
+      React.createElement('div',{className:'samara-time-entry',style:{display:'flex',gap:'6px',width:'100%'}},
+        React.createElement('input',{
+          ...inputProps,
+          ref:inputRef,
+          type:'text',
+          value:draft,
+          required:Boolean(required),
+          placeholder:placeholder||'h:mm',
+          inputMode:'text',
+          autoComplete:'off',
+          pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d',
+          title:'Enter the time as h:mm, then choose AM or PM.',
+          'data-samara-time-entry':'true',
+          'aria-label':inputProps['aria-label']||'Time (h:mm)',
+          className,
+          style:{flex:'1 1 auto',minWidth:0,...(style||{})},
+          min:undefined,max:undefined,step:undefined,
+          onChange:event=>{const next=event.target.value;setDraft(next);emit(next,period,event)}
+        }),
+        React.createElement('select',{value:period,disabled:Boolean(inputProps.disabled),'aria-label':'AM/PM',onChange:event=>{const next=event.target.value;setPeriod(next);emit(draft,next,event)},style:{flex:'0 0 78px',width:'78px',padding:'8px 6px'}},
+          React.createElement('option',{value:'AM'},'AM'),React.createElement('option',{value:'PM'},'PM'))
+      ),
+      name?React.createElement('input',{type:'hidden',name,value:parseManualTime(draft,period)}):null
     );
   }
   function StrictDateTimeInput(props){
@@ -2134,30 +2139,20 @@ function initSamaraInaugurationInvitation(){
     };
     const initial=split(value);
     const [date,setDate]=React.useState(initial.date);
-    const [time,setTime]=React.useState(formatManualTime(initial.time));
-    const timeRef=React.useRef(null);
-    React.useEffect(()=>{const next=split(value);setDate(next.date);setTime(formatManualTime(next.time))},[value]);
+    const [time,setTime]=React.useState(initial.time);
+    React.useEffect(()=>{const next=split(value);setDate(next.date);setTime(next.time)},[value]);
     const emit=(nextDate,nextTime)=>{
       if(!onChange)return;
-      const parsed=parseManualTime(nextTime);
-      onChange({target:{value:nextDate&&parsed?`${nextDate}T${parsed}`:''}});
+      const parsed=time24Parts(nextTime);
+      onChange({target:{value:nextDate&&parsed?`${nextDate}T${nextTime}`:''}});
     };
     const dateChanged=event=>{
       const nextDate=event.target.value;
       setDate(nextDate);
-      if(nextDate&&parseManualTime(time))emit(nextDate,time);
-      else if(!nextDate&&!time.trim())emit('','');
+      if(nextDate&&time24Parts(time))emit(nextDate,time);
+      else if(!nextDate&&!time)emit('','');
     };
-    const timeChanged=event=>{
-      const nextTime=event.target.value;
-      setTime(nextTime);
-      if(date&&parseManualTime(nextTime))emit(date,nextTime);
-      else if(!nextTime.trim()&&!required)emit('','');
-    };
-    React.useEffect(()=>{
-      const control=timeRef.current;
-      if(!control)return;
-      const parsed=parseManualTime(time);
+    const validateTime=parsed=>{
       let problem='';
       if(parsed&&date){
         const current=`${date}T${parsed}`;
@@ -2165,18 +2160,18 @@ function initSamaraInaugurationInvitation(){
         if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(minValue)&&current<minValue)problem='Choose a date and time at or after the allowed time.';
         if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(maxValue)&&current>maxValue)problem='Choose a date and time at or before the allowed time.';
       }
-      control.setCustomValidity(problem);
-    },[date,time,min,max]);
+      return problem;
+    };
     const dateMax=String(max||'').slice(0,10)||undefined;
     const dateMin=String(min||'').slice(0,10)||undefined;
-    const valueToSubmit=date&&parseManualTime(time)?`${date}T${parseManualTime(time)}`:'';
-    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1.15fr) minmax(118px,.85fr)',gap:'8px',alignItems:'center',...(style||{})}},
+    const valueToSubmit=date&&time24Parts(time)?`${date}T${time}`:'';
+    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1.15fr) minmax(190px,.85fr)',gap:'8px',alignItems:'center',...(style||{})}},
       h('div',{style:{position:'relative',minWidth:0}},
         h('input',{type:'text',readOnly:true,value:date?formatDateIN(date):'',placeholder:'DD-MM-YYYY',disabled,tabIndex:-1,'aria-hidden':'true',style:{width:'100%',paddingRight:'42px',cursor:'pointer'}}),
         h('span',{'aria-hidden':'true',style:{position:'absolute',right:'14px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'16px'}},'▾'),
         h('input',{...inputProps,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:0,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}})
       ),
-      h('input',{...inputProps,ref:timeRef,id:undefined,name:undefined,type:'text',value:time,onChange:timeChanged,required:Boolean(required),disabled,placeholder:'h:mm AM/PM',inputMode:'text',autoComplete:'off',pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d\\s?(?:AM|PM)',title:'Enter time as h:mm AM or h:mm PM (for example, 8:30 AM).','data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Date and time'} — time (h:mm AM/PM)`,style:{minWidth:0}}),
+      h(ManualTimeInput,{...inputProps,id:undefined,name:undefined,value:time,onChange:event=>{setTime(event.target.value);if(date&&time24Parts(event.target.value))emit(date,event.target.value);else if(!event.target.value&&!required)emit('','')},required,disabled,validateTime,'aria-label':`${inputProps['aria-label']||'Date and time'} — time (h:mm)`}),
       name?h('input',{type:'hidden',name,value:valueToSubmit}):null
     );
   }
@@ -22181,6 +22176,16 @@ Thank you.`;
     'HS':['22:00'],
     'STAT':[]
   };
+  const MEDICATION_FREQUENCY_MAX_TIMES={
+    'Once Daily (OD)':1,'Twice Daily (BD)':2,'Three Times Daily (TDS)':3,'Four Times Daily (QID)':4,
+    'HS':1,'STAT':1,'SOS / PRN':24,'Weekly':1,'Monthly':1
+  };
+  function medicationTimeSelectionLimit(frequency){return MEDICATION_FREQUENCY_MAX_TIMES[String(frequency||'')]||1}
+  function medicationTimesForFrequency(frequency,current){
+    const suggested=MEDICATION_FREQUENCY_TIMES[frequency];
+    const times=(suggested||String(current||'').split(',').map(normalizeMedicationTime).filter(Boolean));
+    return times.slice(-medicationTimeSelectionLimit(frequency)).join(', ');
+  }
   function normalizeMedicationTime(value){
     const text=String(value||'').trim();
     if(!text)return '';
@@ -22334,14 +22339,15 @@ Thank you.`;
         :required&&amount&&!unit?h('small',{className:'field-hint error-text',style:{display:'block',marginTop:'4px'}},'Choose the unit'):null
     );
   }
-  function MedicationTimeSelector({label,value,onChange,required=false}){
-    const selected=String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean);
+  function MedicationTimeSelector({label,value,onChange,required=false,frequency='Once Daily (OD)'}){
+    const limit=medicationTimeSelectionLimit(frequency);
+    const selected=String(value||'').split(',').map(normalizeMedicationTime).filter(Boolean).slice(0,limit);
     const [open,setOpen]=React.useState(false);
     const [draft,setDraft]=React.useState(selected);
-    React.useEffect(()=>{if(!open)setDraft(selected)},[value,open]);
+    React.useEffect(()=>{if(!open)setDraft(selected)},[value,frequency,open]);
     function openPicker(){setDraft(selected);setOpen(true)}
-    function toggle(time){setDraft(current=>current.includes(time)?current.filter(x=>x!==time):[...current,time].sort())}
-    function confirm(){onChange(draft.join(', '));setOpen(false)}
+    function toggle(time){setDraft(current=>current.includes(time)?current.filter(x=>x!==time):limit===1?[time]:[...current.slice(-(limit-1)),time])}
+    function confirm(){onChange([...draft].sort().join(', '));setOpen(false)}
     function reset(){setDraft([])}
     function cancel(){setDraft(selected);setOpen(false)}
     return h('div',{className:'field medication-time-field'},
@@ -22353,7 +22359,7 @@ Thank you.`;
       selected.length?h('div',{className:'time-chip-list'},selected.map(time=>h('span',{className:'time-chip',key:time},medicationTimeLabel(time),h('button',{type:'button','aria-label':`Remove ${medicationTimeLabel(time)}`,onClick:()=>onChange(selected.filter(x=>x!==time).join(', '))},'×')))):null,
       open?h('div',{className:'time-picker-backdrop',onMouseDown:e=>{if(e.target===e.currentTarget)cancel()}},
         h('div',{className:'time-picker-popup',role:'dialog','aria-modal':'true','aria-label':'Select medication time'},
-          h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,'Choose one or more medicine times')),h('button',{type:'button',className:'close',onClick:cancel},'×')),
+          h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,limit===1?'Choose one medicine time':`Choose up to ${limit} medicine times · ${frequency}`)),h('button',{type:'button',className:'close',onClick:cancel},'×')),
           h('div',{className:'time-picker-grid'},MEDICATION_TIME_OPTIONS.map(opt=>h('button',{type:'button',className:`time-picker-option ${draft.includes(opt.value)?'selected':''}`,key:opt.value,onClick:()=>toggle(opt.value)},opt.label))),
           h('div',{className:'time-picker-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:reset},'Reset'),h('button',{type:'button',className:'btn btn-secondary',onClick:cancel},'Cancel'),h('button',{type:'button',className:'btn btn-primary',onClick:confirm},'OK'))
         )
@@ -22484,7 +22490,7 @@ Thank you.`;
     return null;
   }
   // 2.16.29: the same medicine-entry pieces are used by the Spot Assessment (spot-assessment.js)
-  try{window.SamaraMedicationKit={MEDICATION_FREQUENCY_TIMES,normalizeMedicationTime,medicationTimeLabel,MedicationStrengthInput,MedicationTimeSelector,medicationStrengthValid,blankMedicine}}catch(_){}
+  try{window.SamaraMedicationKit={MEDICATION_FREQUENCY_TIMES,MEDICATION_FREQUENCY_MAX_TIMES,medicationTimeSelectionLimit,medicationTimesForFrequency,normalizeMedicationTime,medicationTimeLabel,MedicationStrengthInput,MedicationTimeSelector,medicationStrengthValid,blankMedicine}}catch(_){}
   // 2.18.26: Nursing Procedure plan (SQL 251).
   // Planned procedures (e.g. Ryle's tube feeding, catheter care, nebulization, dressing) are kept in
   // care_orders with order_kind = 'Nursing Procedure', next to the Master Care Plan, so that
@@ -25640,9 +25646,9 @@ Please keep these login details confidential.`;
             miniInput('Prescribed Doctor',m.prescribed_by_doctor,v=>updateRow(setMeds,meds,i,'prescribed_by_doctor',v),true),
             miniInput('Medicine',m.medicine_name,v=>updateRow(setMeds,meds,i,'medicine_name',v),true),
             h(MedicationStrengthInput,{label:'Strength',value:m.strength,onChange:v=>updateRow(setMeds,meds,i,'strength',v),required:true}),
-            miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||String(row.times||'').split(',').map(normalizeMedicationTime).filter(Boolean)).join(', ')}:row);setMeds(next)}),
+            miniSelect('Frequency',m.frequency,['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Weekly','Monthly'],v=>{const next=meds.map((row,n)=>n===i?{...row,frequency:v,times:medicationTimesForFrequency(v,row.times)}:row);setMeds(next)}),
             miniSelect('Route',m.route,['Oral','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'],v=>updateRow(setMeds,meds,i,'route',v)),
-            h(MedicationTimeSelector,{label:'Time',value:m.times,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
+            h(MedicationTimeSelector,{label:'Time',value:m.times,frequency:m.frequency,onChange:v=>updateRow(setMeds,meds,i,'times',v),required:true}),
             miniSelect('Food',m.food_instruction,['Before food','After food','With food','No restriction'],v=>updateRow(setMeds,meds,i,'food_instruction',v)),
             miniSelect('Duration',m.duration,['Single Dose','1 Day','3 Days','5 Days','7 Days','10 Days','14 Days','21 Days','30 Days','Until Doctor Review','Long Term','Custom'],v=>updateRow(setMeds,meds,i,'duration',v)),
             m.duration==='Custom'&&miniInput('Custom days',m.custom_duration_days,v=>updateRow(setMeds,meds,i,'custom_duration_days',v),true,'number'),
@@ -34500,9 +34506,9 @@ function RoomsBeds({profile,onNavigate}){
 
                 miniInput('Medicine',row.medicine_name,v=>patch({medicine_name:v}),true),
                 h(MedicationStrengthInput,{label:'Strength',value:row.strength,onChange:v=>patch({strength:v}),required:true}),
-                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>patch({frequency:v,times:(MEDICATION_FREQUENCY_TIMES[v]||parseTimes(row.times)).join(', ') })),
+                miniSelect('Frequency',row.frequency,medicationFrequencies,v=>patch({frequency:v,times:medicationTimesForFrequency(v,row.times)})),
                 miniSelect('Route',row.route,medicationRoutes,v=>patch({route:v})),
-                h(MedicationTimeSelector,{label:'Time',value:row.times,onChange:v=>patch({times:v}),required:true}),
+                h(MedicationTimeSelector,{label:'Time',value:row.times,frequency:row.frequency,onChange:v=>patch({times:v}),required:true}),
                 miniSelect('Food',row.food_instruction,medicationFood,v=>patch({food_instruction:v})),
                 miniSelect('Duration',row.duration,medicationDurations,v=>patch({duration:v})),
                 row.duration==='Custom'&&miniInput('Custom days',row.custom_duration_days,v=>patch({custom_duration_days:v}),true,'number'),
