@@ -1126,7 +1126,7 @@
         // Admin/Director screens ignore vitals escalations still at the Manager level.
         const viewerRole=String(profile?.role||'').trim().toLowerCase();
         const adminTierViewer=['admin','administrator','director'].includes(viewerRole);
-        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(String(e.alert_type||'').toLowerCase()==='vital signs'&&String(e.escalated_to_role||'')==='Manager'));
+        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(['vital signs','medicine late'].includes(String(e.alert_type||'').toLowerCase())&&String(e.escalated_to_role||'')==='Manager'));
       }catch(escError){
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
@@ -1158,7 +1158,7 @@
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>String(a.alert_type||'').toLowerCase()!=='meal intake');
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -1211,7 +1211,7 @@
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':String(nextToAnnounce.alert_type||'').toLowerCase()==='meal intake'?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':['meal intake','medicine late'].includes(String(nextToAnnounce.alert_type||'').toLowerCase())?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });

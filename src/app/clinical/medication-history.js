@@ -329,6 +329,7 @@
           ['Entry recorded at',detail.log?(detail.log.entry_recorded_at||detail.log.created_at?fmt(detail.log.entry_recorded_at||detail.log.created_at):''):''],
           ['Recorded by',detail.log?staffName(detail.log.administered_by):''],
           ['Given on time?',medicationGivenTiming(detail.log)?.text||''],
+          ['Reason for giving late',medicationLateGivenText(detail.log)],
           ['Recording',medicationRecordingText(detail.log)],
           ['Withhold reason',detail.log?.withhold_reason],['Reading',detail.log?.withhold_reading],
           ['Doctor informed',detail.log?.doctor_informed_name?`${detail.log.doctor_informed_name} · ${detail.log.doctor_informed_via||''}${detail.log.doctor_informed_at?` · ${fmt(detail.log.doctor_informed_at)}`:''}`:''],

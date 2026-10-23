@@ -1,3 +1,10 @@
+## 2.18.85 — Correct today's "given at" time · reason compulsory for late doses (needs SQL 276)
+- **Correct given time:** tap a GIVEN dose in Today's MAR → **Correct given time**. Nurses, the Nursing Manager and Admin can change the actual time the medicine was given, for doses recorded **today** only. A reason is compulsory; the old time, new time, staff name and reason are added to the record's remarks (and the audit log). The time cannot be later than when it was recorded, and must be within 12 hours of the scheduled time. If the corrected time is more than 30 minutes before the recording time, the dose shows as a late entry (recorded later than given).
+- **Reason for giving late:** whenever a dose is saved as Given **30 minutes or more** after its scheduled time (MAR form or a time correction), a reason is compulsory — Guest asleep · Medicine not available · Guest refused at first, took it later · Guest away (hospital visit / outing) · Busy with an emergency · Doctor's instruction · Other (with details).
+- The **Nursing Manager is informed at once**: ERP pop-up / voice, Clinical Alerts and the Clinical Escalations register ("Medicine Given Late: … — reason"). She closes it with remarks. Not sent on WhatsApp; not on Admin / Director pop-ups (still visible in the register). Correcting the time back to on time closes it automatically.
+- "Administer now" switches to the full form if the dose has meanwhile become 30 minutes late. The reason is shown in dose details and Medication History.
+- Run supabase/sql/276_medicine_given_late_reason.sql, then publish the app.
+
 ## 2.18.84 — MAR shows whether a medicine was GIVEN on time (not only recorded on time)
 - Fix: a dose given 3 h 39 min after its scheduled time showed "On-time entry", which only meant it was recorded at the moment of giving. That label is replaced.
 - Dose details (Today's MAR and Medication History) now show two separate lines: **Given on time?** — "Given on time" or "Given late — 3 h 39 min after the scheduled 10:00 AM" (or "Given early" when 1 h or more before), and **Recording** — "Recorded at the time of giving" or "Late entry — recorded … after giving".

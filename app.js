@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.84';
+  const APP_VERSION = '2.18.85';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4741,7 +4741,7 @@ https://samaraassistedliving.com/`;
         // Admin/Director screens ignore vitals escalations still at the Manager level.
         const viewerRole=String(profile?.role||'').trim().toLowerCase();
         const adminTierViewer=['admin','administrator','director'].includes(viewerRole);
-        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(String(e.alert_type||'').toLowerCase()==='vital signs'&&String(e.escalated_to_role||'')==='Manager'));
+        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(['vital signs','medicine late'].includes(String(e.alert_type||'').toLowerCase())&&String(e.escalated_to_role||'')==='Manager'));
       }catch(escError){
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
@@ -4773,7 +4773,7 @@ https://samaraassistedliving.com/`;
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>String(a.alert_type||'').toLowerCase()!=='meal intake');
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -4826,7 +4826,7 @@ https://samaraassistedliving.com/`;
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':String(nextToAnnounce.alert_type||'').toLowerCase()==='meal intake'?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':['meal intake','medicine late'].includes(String(nextToAnnounce.alert_type||'').toLowerCase())?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });
@@ -22279,6 +22279,13 @@ Thank you.`;
     if(minutes<=-60)return {kind:'early',minutes,text:`Given early — ${medicationDurationText(minutes)} before the scheduled ${medicationTimeLabel(time)}`,short:`Given ${medicationDurationText(minutes)} early`};
     return {kind:'ontime',minutes,text:'Given on time',short:'On time'};
   }
+  // 2.18.85: compulsory reason when a dose is GIVEN 30+ minutes late (SQL 276) — the Nursing Manager is informed.
+  const MEDICATION_LATE_GIVEN_REASONS=['Guest asleep','Medicine not available','Guest refused at first, took it later','Guest away (hospital visit / outing)','Busy with an emergency','Doctor\'s instruction','Other'];
+  function medicationLateGivenMinutes(scheduledDate,scheduledTime,givenAt){
+    const t=medicationGivenTiming({status:'Given',scheduled_date:scheduledDate,scheduled_time:scheduledTime,administered_at:givenAt});
+    return t&&t.kind==='late'?t.minutes:0;
+  }
+  const medicationLateGivenText=log=>log?.late_given_reason?`${log.late_given_reason}${log.late_given_details?` — ${log.late_given_details}`:''}`:'';
   const medicationRecordingText=log=>!log?'':log.late_entry
     ?`Late entry — recorded ${medicationDurationText(log.entry_delay_minutes||0)} after giving · ${log.late_entry_reason||''}${log.late_entry_justification?` — ${log.late_entry_justification}`:''}`
     :'Recorded at the time of giving (no delay in recording)';
@@ -34347,6 +34354,7 @@ function RoomsBeds({profile,onNavigate}){
           ['Entry recorded at',detail.log?(detail.log.entry_recorded_at||detail.log.created_at?fmt(detail.log.entry_recorded_at||detail.log.created_at):''):''],
           ['Recorded by',detail.log?staffName(detail.log.administered_by):''],
           ['Given on time?',medicationGivenTiming(detail.log)?.text||''],
+          ['Reason for giving late',medicationLateGivenText(detail.log)],
           ['Recording',medicationRecordingText(detail.log)],
           ['Withhold reason',detail.log?.withhold_reason],['Reading',detail.log?.withhold_reading],
           ['Doctor informed',detail.log?.doctor_informed_name?`${detail.log.doctor_informed_name} · ${detail.log.doctor_informed_via||''}${detail.log.doctor_informed_at?` · ${fmt(detail.log.doctor_informed_at)}`:''}`:''],
@@ -34407,6 +34415,9 @@ function RoomsBeds({profile,onNavigate}){
     const [confirmBusy,setConfirmBusy]=React.useState(false);
     const [confirmMessage,setConfirmMessage]=React.useState('');
     const [doseDetail,setDoseDetail]=React.useState(null);
+    // 2.18.85: correct the actual "given at" time of a dose recorded TODAY (reason compulsory, audit kept)
+    const [timeFix,setTimeFix]=React.useState(null);
+    const [timeFixBusy,setTimeFixBusy]=React.useState(false);
     const [prescriptionView,setPrescriptionView]=React.useState('all');
     const [showHistoryMobile,setShowHistoryMobile]=React.useState(false);
     // 2.15.11: withheld dose → doctor's instruction
@@ -34789,6 +34800,53 @@ function RoomsBeds({profile,onNavigate}){
       setMarForm({scheduled_time:normalizeMedicationTime(time),status:'Reschedule',administered_at:'',remarks:'',late_entry_reason:'',late_entry_justification:'',reschedule:true,rescheduled_time:'',withhold_reason:'',withhold_reading:'',doctor_informed_name:'',doctor_informed_via:'Phone call',doctor_informed_at:'',sugar_reading:'',units_given:'',scheduled_date:String(dateISO||today).slice(0,10)});
       setMarMessage('');
     }
+    // 2.18.85: a GIVEN dose recorded TODAY (IST) may have its actual "given at" time corrected by Nurse / Manager / Admin.
+    function istDay(v){try{return new Date(v).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(_){return ''}}
+    function canCorrectGivenTime(log){
+      if(!log||!canReviseMedication||String(log.status)!=='Given')return false;
+      return istDay(log.entry_recorded_at||log.created_at)===todayISOIndia();
+    }
+    function openTimeFix(item){
+      const log=item.log;if(!canCorrectGivenTime(log)){showSamaraActionToast('error','Cannot correct','Only doses recorded today can be corrected.');return;}
+      setTimeFix({order:item.order,log,at:log.administered_at?localDateTimeValue(new Date(log.administered_at)):'',reason:'',late_given_reason:log.late_given_reason||'',late_given_details:log.late_given_details||''});
+    }
+    async function saveTimeFix(e){
+      e.preventDefault();if(!timeFix||timeFixBusy)return;
+      const log=timeFix.log,reason=String(timeFix.reason||'').trim();
+      const fail=text=>{showSamaraActionToast('error','Cannot correct the time',text);};
+      if(!canCorrectGivenTime(log))return fail('Only doses recorded today can be corrected.');
+      if(!reason)return fail('Enter the reason for the correction.');
+      const at=timeFix.at?new Date(timeFix.at):null;
+      if(!at||Number.isNaN(at.getTime()))return fail('Enter the actual date and time the medicine was given.');
+      const recorded=new Date(log.entry_recorded_at||log.created_at||Date.now());
+      if(at.getTime()>recorded.getTime()+60000)return fail('The medicine cannot have been given after it was recorded in the ERP.');
+      const due=new Date(`${String(log.scheduled_date).slice(0,10)}T${normalizeMedicationTime(log.scheduled_time).slice(0,5)}:00+05:30`);
+      if(Number.isFinite(due.getTime())&&Math.abs(at.getTime()-due.getTime())>12*3600000)return fail('The time must be within 12 hours of the scheduled dose time.');
+      const old=new Date(log.administered_at);
+      if(Number.isFinite(old.getTime())&&Math.abs(old.getTime()-at.getTime())<60000)return fail('The new time is the same as the saved time.');
+      const lateGiven=medicationLateGivenMinutes(log.scheduled_date,log.scheduled_time,at.toISOString());
+      if(lateGiven&&!timeFix.late_given_reason)return fail(`With this time the medicine was given ${medicationDurationText(lateGiven)} late. Select the reason for giving it late.`);
+      if(lateGiven&&timeFix.late_given_reason==='Other'&&!String(timeFix.late_given_details||'').trim())return fail('Write the reason for giving the medicine late.');
+      setTimeFixBusy(true);
+      try{
+        const delay=Math.max(0,Math.round((recorded.getTime()-at.getTime())/60000));
+        const late=delay>30;
+        const who=profile?.full_name||profile?.name||profile?.login_id||'Staff';
+        const note=`Given time corrected from ${formatTimeIN(log.administered_at)} to ${formatTimeIN(at.toISOString())} by ${who} on ${fmt(new Date().toISOString())} — ${reason}`;
+        const patch={administered_at:at.toISOString(),entry_delay_minutes:delay,late_entry:late,
+          late_entry_reason:late?(log.late_entry_reason||'Time corrected after entry'):null,
+          late_entry_justification:late?[log.late_entry_justification,reason].filter(x=>x&&String(x).trim()).join(' · '):null,
+          remarks:[String(log.remarks||'').trim(),note].filter(Boolean).join(' · '),
+          ...(lateGiven?{late_given_reason:timeFix.late_given_reason,late_given_details:String(timeFix.late_given_details||'').trim()||null}
+            :(Object.prototype.hasOwnProperty.call(log,'late_given_reason')?{late_given_reason:null,late_given_details:null}:{}))};
+        const {error}=await client.from('medication_administrations').update(patch).eq('id',log.id);
+        if(error&&/late_given/i.test(error.message||''))throw new Error('Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.');
+        if(error)throw error;
+        showSamaraActionToast('success','Given time corrected',`${medicineLabel(timeFix.order)} — now given at ${formatTimeIN(at.toISOString())}${late?' (shown as a late entry: recorded later than given)':''}${lateGiven?' The Nursing Manager has been informed of the late dose.':''}`);
+        setTimeFix(null);await load();
+      }catch(err){fail(err?.message||'Unable to save. Please try again.');}
+      finally{setTimeFixBusy(false);}
+    }
     function closeMar(){if(!marBusy){setMarTarget(null);setRescheduleLog(null);setMarMessage('');}}
     async function saveMar(e){
       e.preventDefault();
@@ -34839,6 +34897,10 @@ function RoomsBeds({profile,onNavigate}){
       if(isLateEntry&&!String(marForm.late_entry_justification||'').trim()){
         const text='Please enter a detailed justification for the late entry.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
+      // 2.18.85: given 30+ min after the scheduled time -> reason compulsory (Nursing Manager informed)
+      const lateGivenMinutes=marForm.status==='Given'?medicationLateGivenMinutes(marForm.scheduled_date||today,marForm.scheduled_time,administrationTime.toISOString()):0;
+      if(lateGivenMinutes&&!marForm.late_given_reason){const text=`This medicine is being given ${medicationDurationText(lateGivenMinutes)} late. Select the reason for giving it late.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      if(lateGivenMinutes&&marForm.late_given_reason==='Other'&&!String(marForm.late_given_details||'').trim()){const text='Write the reason for giving the medicine late.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time,marForm.scheduled_date||today);
       if(alreadyRecorded&&isFrontlineClinical){
         const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
@@ -34862,6 +34924,7 @@ function RoomsBeds({profile,onNavigate}){
         late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null,
         rescheduled_time:canReschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
         reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null,
+        ...(lateGivenMinutes?{late_given_reason:marForm.late_given_reason,late_given_details:String(marForm.late_given_details||'').trim()||null}:{}),
         ...(marForm.status==='Withheld'?{
           withhold_reason:marForm.withhold_reason,
           withhold_reading:String(marForm.withhold_reading||'').trim(),
@@ -34872,8 +34935,10 @@ function RoomsBeds({profile,onNavigate}){
       };
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error&&marForm.status==='Withheld'&&/withhold_|doctor_informed|column/i.test(error.message||'')){const text='Withholding needs the database update SQL 167. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      if(error&&lateGivenMinutes&&/late_given/i.test(error.message||'')){const text='Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(marForm.status==='Withheld')showSamaraActionToast('success','Dose withheld','Recorded. Nursing Manager and Admin are alerted. Record the doctor\'s instruction as soon as it is received.');
+      else if(lateGivenMinutes)showSamaraActionToast('success','Medication saved',`Recorded as given ${medicationDurationText(lateGivenMinutes)} late — ${marForm.late_given_reason}. The Nursing Manager has been informed.`);
       else showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');setMarBusy(false);setTab('Today’s MAR');await load();
       finishSuccessfulAction({
         close:()=>setMarTarget(null),
@@ -35147,6 +35212,7 @@ function RoomsBeds({profile,onNavigate}){
         const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();
         if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged')throw new Error('The Guest is discharged or the status could not be checked. Press Refresh and try again.');
         const time=normalizeMedicationTime(item.time).slice(0,5);
+        if(medicationLateGivenMinutes(item.date,time,new Date().toISOString())){setConfirmTarget(null);openMar(item.order,item.time,item.date);showSamaraActionToast('error','Reason needed','This dose is now 30 minutes or more late — enter the reason for giving it late.');return;}
         const existing=await client.from('medication_administrations').select('order_id,scheduled_time,status').eq('order_id',item.order.id).eq('scheduled_date',item.date);
         if(existing.error)throw existing.error;
         const already=(existing.data||[]).find(x=>normalizeMedicationTime(x.scheduled_time).slice(0,5)===time);
@@ -35391,11 +35457,30 @@ function RoomsBeds({profile,onNavigate}){
         fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],
           ['Actually given at',doseDetail.log.administered_at?fmt(doseDetail.log.administered_at):''],['Entry recorded at',doseDetail.log.entry_recorded_at?fmt(doseDetail.log.entry_recorded_at):(doseDetail.log.created_at?fmt(doseDetail.log.created_at):'')],
           ['Given on time?',medicationGivenTiming(doseDetail.log)?.text||''],
+          ['Reason for giving late',medicationLateGivenText(doseDetail.log)],
           ['Recording',medicationRecordingText(doseDetail.log)],
           ['Withhold reason',doseDetail.log.withhold_reason],['Reading',doseDetail.log.withhold_reading],['Doctor informed',doseDetail.log.doctor_informed_name?`${doseDetail.log.doctor_informed_name} · ${doseDetail.log.doctor_informed_via||''}`:''],
           ["Doctor's instruction",doseDetail.log.doctor_instruction?`${doseDetail.log.doctor_instruction}${doseDetail.log.doctor_instruction_notes?` — ${doseDetail.log.doctor_instruction_notes}`:''}`:''],
           ['Rescheduled to',doseDetail.log.rescheduled_time?medicationTimeLabel(doseDetail.log.rescheduled_time):''],['Reschedule reason',doseDetail.log.reschedule_reason],['Remarks',doseDetail.log.remarks]]},
-        !isFrontlineClinical&&h('div',{style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openMar(d.order,d.time,d.date)}},'View / Correct'))),
+        h('div',{style:{marginTop:'10px',display:'flex',gap:'8px',flexWrap:'wrap'}},
+          canCorrectGivenTime(doseDetail.log)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openTimeFix(d)}},'Correct given time'),
+          !isFrontlineClinical&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const d=doseDetail;setDoseDetail(null);openMar(d.order,d.time,d.date)}},'View / Correct'))),
+      timeFix&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!timeFixBusy)setTimeFix(null)}},
+        h('form',{className:'card modal',style:{maxWidth:'560px'},onSubmit:saveTimeFix},
+          h('div',{className:'panel-head'},h('div',null,h('h3',null,'Correct the time the medicine was given'),h('small',null,`${medicineLabel(timeFix.order)} · ${patientLabel(timeFix.order)}`)),h('button',{type:'button',className:'close',disabled:timeFixBusy,onClick:()=>setTimeFix(null)},'×')),
+          h('div',{className:'form-grid'},
+            h('div',{className:'field'},h('label',null,'Scheduled'),h('input',{readOnly:true,value:`${formatDateIN(timeFix.log.scheduled_date)} · ${medicationTimeLabel(timeFix.log.scheduled_time)}`})),
+            h('div',{className:'field'},h('label',null,'Recorded in the ERP at'),h('input',{readOnly:true,value:fmt(timeFix.log.entry_recorded_at||timeFix.log.created_at)})),
+            h('div',{className:'field'},h('label',null,'Given at — as saved now'),h('input',{readOnly:true,value:fmt(timeFix.log.administered_at)})),
+            h('div',{className:'field span-2'},h('label',null,'Actual time the medicine was given *'),h(StrictDateTimeInput,{value:timeFix.at,required:true,max:localDateTimeValue(new Date(timeFix.log.entry_recorded_at||timeFix.log.created_at||Date.now())),onChange:e=>setTimeFix({...timeFix,at:e.target.value})}),h('small',null,'Type the real time the Guest received the medicine. It cannot be later than the time it was recorded.')),
+            (()=>{const lm=timeFix.at?medicationLateGivenMinutes(timeFix.log.scheduled_date,timeFix.log.scheduled_time,new Date(timeFix.at).toISOString()):0;
+              return lm?h(React.Fragment,null,
+                h('div',{className:'message warning span-2'},`With this time the medicine was given ${medicationDurationText(lm)} late. Select why; the Nursing Manager will be informed.`),
+                h('div',{className:'field'},h('label',null,'Reason for giving late *'),h('select',{required:true,value:timeFix.late_given_reason||'',onChange:e=>setTimeFix({...timeFix,late_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_LATE_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
+                h('div',{className:'field'},h('label',null,timeFix.late_given_reason==='Other'?'Details *':'Details (optional)'),h('input',{type:'text',required:timeFix.late_given_reason==='Other',value:timeFix.late_given_details||'',onChange:e=>setTimeFix({...timeFix,late_given_details:e.target.value})}))):null})(),
+            h('div',{className:'field span-2'},h('label',null,'Reason for the correction *'),h('textarea',{rows:3,required:true,value:timeFix.reason,placeholder:'e.g. Given at 10:05 AM; recorded later because of an emergency in Room 104',onChange:e=>setTimeFix({...timeFix,reason:e.target.value})})),
+            h('div',{className:'small-note span-2'},'Allowed only for doses recorded today. The earlier time, the new time, your name and the reason are kept in the record and the audit log.')),
+          h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:timeFixBusy,onClick:()=>setTimeFix(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:timeFixBusy},timeFixBusy?'Saving…':'Save corrected time')))),
       reviewOpen&&h('div',{className:'modal-backdrop medication-review-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!reviewBusy)setReviewOpen(false)}},
         h('form',{className:'card modal medication-review-modal',onSubmit:saveMedicationReview},
           h('div',{className:'panel-head'},h('div',null,h('h3',null,'Doctor Review / Modify Medication'),h('small',null,'Only medication-review fields are shown. Previous prescriptions and MAR entries are never overwritten.')),h('button',{type:'button',className:'close',disabled:reviewBusy,onClick:()=>setReviewOpen(false)},'×')),
@@ -35485,6 +35570,11 @@ function RoomsBeds({profile,onNavigate}){
             !rescheduleLog&&MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
             (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,marForm.rescheduled_time&&medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)?`New dose: ${formatDateIN(rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:marForm.rescheduled_time}))} at ${medicationTimeLabel(marForm.rescheduled_time)} (original ${medicationTimeLabel(marForm.scheduled_time)}). Any time may be chosen; a time earlier than the original falls on the next day.`:'Any time may be chosen; a time earlier than the original falls on the next day. The dose will appear again in Today’s MAR and Shift Tasks; the original entry and reason remain permanently in MAR history.')),
             !rescheduleLog&&marForm.status!=='Reschedule'&&h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
+            (()=>{const lm=!rescheduleLog&&marForm.status==='Given'&&marForm.administered_at?medicationLateGivenMinutes(marForm.scheduled_date||today,marForm.scheduled_time,new Date(marForm.administered_at).toISOString()):0;
+              return lm?h(React.Fragment,null,
+                h('div',{className:'message warning span-2'},`Given ${medicationDurationText(lm)} after the scheduled ${medicationTimeLabel(marForm.scheduled_time)}. A reason is compulsory; the Nursing Manager will be informed.`),
+                h('div',{className:'field'},h('label',null,'Reason for giving late *'),h('select',{required:true,value:marForm.late_given_reason||'',onChange:e=>setMarForm({...marForm,late_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_LATE_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
+                h('div',{className:'field'},h('label',null,marForm.late_given_reason==='Other'?'Details *':'Details (optional)'),h('input',{type:'text',required:marForm.late_given_reason==='Other',value:marForm.late_given_details||'',placeholder:'e.g. woke up at 11:30 AM',onChange:e=>setMarForm({...marForm,late_given_details:e.target.value})}))):null})(),
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Entry Delay'),h('input',{value:`${currentEntryDelay} minutes`,readOnly:true})),

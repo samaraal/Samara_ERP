@@ -80,6 +80,13 @@
     if(minutes<=-60)return {kind:'early',minutes,text:`Given early — ${medicationDurationText(minutes)} before the scheduled ${medicationTimeLabel(time)}`,short:`Given ${medicationDurationText(minutes)} early`};
     return {kind:'ontime',minutes,text:'Given on time',short:'On time'};
   }
+  // 2.18.85: compulsory reason when a dose is GIVEN 30+ minutes late (SQL 276) — the Nursing Manager is informed.
+  const MEDICATION_LATE_GIVEN_REASONS=['Guest asleep','Medicine not available','Guest refused at first, took it later','Guest away (hospital visit / outing)','Busy with an emergency','Doctor\'s instruction','Other'];
+  function medicationLateGivenMinutes(scheduledDate,scheduledTime,givenAt){
+    const t=medicationGivenTiming({status:'Given',scheduled_date:scheduledDate,scheduled_time:scheduledTime,administered_at:givenAt});
+    return t&&t.kind==='late'?t.minutes:0;
+  }
+  const medicationLateGivenText=log=>log?.late_given_reason?`${log.late_given_reason}${log.late_given_details?` — ${log.late_given_details}`:''}`:'';
   const medicationRecordingText=log=>!log?'':log.late_entry
     ?`Late entry — recorded ${medicationDurationText(log.entry_delay_minutes||0)} after giving · ${log.late_entry_reason||''}${log.late_entry_justification?` — ${log.late_entry_justification}`:''}`
     :'Recorded at the time of giving (no delay in recording)';
