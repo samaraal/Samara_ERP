@@ -2802,3 +2802,9 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .fim-add input{flex:1;min-width:0}
 .fim-hidden{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
 @media(max-width:560px){.fim-item{align-items:flex-start}.fim-actions{width:100%}}
+
+/* 2.18.83: typed time  hh : mm  + AM/PM — the two small boxes keep their size everywhere */
+.samara-time-entry{flex-wrap:nowrap!important}
+.samara-time-entry>input{width:2.8em!important;min-width:2.8em!important;max-width:2.8em!important;flex:0 0 2.8em!important;text-align:center!important;padding-left:2px!important;padding-right:2px!important;box-sizing:border-box!important}
+.samara-time-entry>select{width:74px!important;min-width:74px!important;flex:0 0 74px!important}
+.samara-datetime-entry .samara-time-entry{width:auto!important;flex:0 0 auto!important}

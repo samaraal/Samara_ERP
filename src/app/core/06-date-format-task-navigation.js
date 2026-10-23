@@ -50,53 +50,77 @@
     else if(String(period||'').toUpperCase()!=='AM')return '';
     return `${String(hour).padStart(2,'0')}:${match[2]}`;
   };
+  // 2.18.83: time is typed by staff as  hh : mm  (the colon is fixed, not typed) + AM/PM dropdown.
+  // Hour 1–12, minute 00–59; the cursor moves to the minutes by itself. The saved value stays 24-hour HH:MM.
   function ManualTimeInput(props){
-    const {value,onChange,style,className,placeholder,min,max,step,required,name,validateTime,...inputProps}=props||{};
-    const initial=formatManualTime(value).split(' ');
-    const [draft,setDraft]=React.useState(initial[0]||'');
-    const [period,setPeriod]=React.useState(initial[1]||'AM');
-    const inputRef=React.useRef(null);
-    React.useEffect(()=>{const parts=formatManualTime(value).split(' ');setDraft(parts[0]||'');setPeriod(parts[1]||'AM')},[value]);
+    const {value,onChange,style,className,placeholder,min,max,step,required,name,validateTime,disabled,...inputProps}=props||{};
+    const split=v=>{const t=formatManualTime(v);const m=t.match(/^(\d{1,2}):(\d{2}) (AM|PM)$/);return m?{hh:m[1].padStart(2,'0'),mm:m[2],ap:m[3]}:null};
+    const init=split(value);
+    const [hh,setHh]=React.useState(init?.hh||'');
+    const [mm,setMm]=React.useState(init?.mm||'');
+    const [period,setPeriod]=React.useState(init?.ap||'AM');
+    const hourRef=React.useRef(null),minRef=React.useRef(null);
+    const lastEmitted=React.useRef(String(value||'').slice(0,5));
     React.useEffect(()=>{
-      const input=inputRef.current;
-      if(!input)return;
-      const parsed=parseManualTime(draft,period);
-      let problem=parsed&&validateTime?validateTime(parsed)||'':'';
-      if(parsed&&step&&Number(step)>60){
-        const parts=time24Parts(parsed);
-        if((parts.hour*3600+parts.minute*60)%Number(step)!==0)problem=problem||`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;
-      }
-      input.setCustomValidity(problem);
-    },[draft,period,step,validateTime]);
-    const emit=(nextDraft,nextPeriod,event)=>{
-      const parsed=parseManualTime(nextDraft,nextPeriod);
-      if(onChange&&parsed)onChange({target:{value:parsed},currentTarget:event?.currentTarget});
-      else if(onChange&&!nextDraft.trim()&&!required)onChange({target:{value:''},currentTarget:event?.currentTarget});
+      const v=String(value||'').slice(0,5);
+      if(v===lastEmitted.current)return; // our own change coming back — keep what the staff is typing
+      lastEmitted.current=v;
+      const next=split(value);
+      setHh(next?.hh||'');setMm(next?.mm||'');if(next)setPeriod(next.ap);
+    },[value]);
+    const parsedOf=(h1,m1,ap)=>{
+      const hn=Number(h1),mn=Number(m1);
+      if(!/^\d{1,2}$/.test(h1)||!/^\d{2}$/.test(m1)||hn<1||hn>12||mn>59)return '';
+      return parseManualTime(`${hn}:${m1}`,ap);
     };
+    const parsed=parsedOf(hh,mm,period);
+    React.useEffect(()=>{
+      const input=hourRef.current;if(!input)return;
+      let problem='';
+      if((hh||mm)&&!parsed)problem='Enter the time as hh : mm (hour 1–12, minutes 00–59) and choose AM or PM.';
+      else if(!hh&&!mm&&required)problem='Enter the time.';
+      if(!problem&&parsed&&validateTime)problem=validateTime(parsed)||'';
+      if(!problem&&parsed&&step&&Number(step)>60){const p=time24Parts(parsed);if((p.hour*3600+p.minute*60)%Number(step)!==0)problem=`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;}
+      input.setCustomValidity(problem);
+    },[hh,mm,period,parsed,required,step,validateTime]);
+    const emit=(h1,m1,ap)=>{
+      const out=parsedOf(h1,m1,ap);
+      if(out){lastEmitted.current=out;onChange&&onChange({target:{value:out}});}
+      else if(!h1&&!m1&&!required){lastEmitted.current='';onChange&&onChange({target:{value:''}});}
+    };
+    // a full box + one more digit typed = start again with the new digit (staff never have to delete first)
+    const digits=v=>{const d=String(v||'').replace(/\D/g,'');return d.length>2?d.slice(-1):d;};
+    const onHour=e=>{
+      let v=digits(e.target.value);
+      if(v.length===1&&Number(v)>1)v='0'+v;           // 2–9 → 02–09, jump to minutes
+      if(v.length===2&&(Number(v)<1||Number(v)>12))v=v.slice(0,1); // 13+ not allowed
+      setHh(v);emit(v,mm,period);
+      if(v.length===2&&minRef.current){minRef.current.focus();minRef.current.select&&minRef.current.select();}
+    };
+    const onMin=e=>{
+      let v=digits(e.target.value);
+      if(v.length===1&&Number(v)>5)v='0'+v;           // 6–9 → 06–09
+      setMm(v);emit(hh,v,period);
+    };
+    // read the box itself (not the state) — the state may not have caught up when the cursor jumps
+    const padHour=()=>{const cur=hourRef.current?.value||'';if(cur.length===1&&Number(cur)>=1){const v='0'+cur;setHh(v);emit(v,minRef.current?.value||mm,period);}};
+    const padMin=()=>{const cur=minRef.current?.value||'';if(cur.length===1){const v='0'+cur;setMm(v);emit(hourRef.current?.value||hh,v,period);}};
+    const minKey=e=>{if(e.key==='Backspace'&&!mm&&hourRef.current){e.preventDefault();hourRef.current.focus();}};
+    const hourKey=e=>{if((e.key===':'||e.key==='.'||e.key==='ArrowRight'&&e.currentTarget.selectionStart===hh.length)&&minRef.current){e.preventDefault();padHour();minRef.current.focus();}};
+    const box={width:'2.6em',minWidth:'2.6em',textAlign:'center',padding:'8px 2px',fontVariantNumeric:'tabular-nums',letterSpacing:'.04em'};
     return React.createElement(React.Fragment,null,
-      React.createElement('div',{className:'samara-time-entry',style:{display:'flex',gap:'6px',width:'100%'}},
-        React.createElement('input',{
-          ...inputProps,
-          ref:inputRef,
-          type:'text',
-          value:draft,
-          required:Boolean(required),
-          placeholder:placeholder||'h:mm',
-          inputMode:'text',
-          autoComplete:'off',
-          pattern:'(?:0?[1-9]|1[0-2]):[0-5]\\d',
-          title:'Enter the time as h:mm, then choose AM or PM.',
-          'data-samara-time-entry':'true',
-          'aria-label':inputProps['aria-label']||'Time (h:mm)',
-          className,
-          style:{flex:'1 1 auto',minWidth:0,...(style||{})},
-          min:undefined,max:undefined,step:undefined,
-          onChange:event=>{const next=event.target.value;setDraft(next);emit(next,period,event)}
-        }),
-        React.createElement('select',{value:period,disabled:Boolean(inputProps.disabled),'aria-label':'AM/PM',onChange:event=>{const next=event.target.value;setPeriod(next);emit(draft,next,event)},style:{flex:'0 0 78px',width:'78px',padding:'8px 6px'}},
+      React.createElement('div',{className:`samara-time-entry ${className||''}`.trim(),style:{display:'flex',alignItems:'center',gap:'4px',width:'100%',...(style||{})},role:'group','aria-label':inputProps['aria-label']||'Time'},
+        React.createElement('input',{...inputProps,ref:hourRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'--',value:hh,disabled,required:Boolean(required),
+          'data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Time'} – hour`,title:'Hour (1–12)',style:box,
+          onChange:onHour,onBlur:padHour,onKeyDown:hourKey,onFocus:e=>e.target.select&&e.target.select(),onMouseUp:e=>e.preventDefault()}),
+        React.createElement('span',{'aria-hidden':'true',style:{fontWeight:800,fontSize:'18px',lineHeight:1,padding:'0 1px',userSelect:'none'}},':'),
+        React.createElement('input',{ref:minRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'--',value:mm,disabled,required:Boolean(required),
+          'aria-label':`${inputProps['aria-label']||'Time'} – minutes`,title:'Minutes (00–59)',style:box,
+          onChange:onMin,onBlur:padMin,onKeyDown:minKey,onFocus:e=>e.target.select&&e.target.select(),onMouseUp:e=>e.preventDefault()}),
+        React.createElement('select',{value:period,disabled:Boolean(disabled),'aria-label':'AM/PM',onChange:e=>{const ap=e.target.value;setPeriod(ap);emit(hh,mm,ap)},style:{flex:'0 0 74px',width:'74px',padding:'8px 6px',marginLeft:'4px'}},
           React.createElement('option',{value:'AM'},'AM'),React.createElement('option',{value:'PM'},'PM'))
       ),
-      name?React.createElement('input',{type:'hidden',name,value:parseManualTime(draft,period)}):null
+      name?React.createElement('input',{type:'hidden',name,value:parsed}):null
     );
   }
   function StrictDateTimeInput(props){
@@ -136,25 +160,14 @@
     const picker=React.useRef(null);
     const showCalendar=()=>{const input=picker.current;if(!input)return;try{if(input.showPicker)input.showPicker();else input.click()}catch(_){input.focus();input.click()}};
     const chooseTime=next=>{setTime(next);if(date&&time24Parts(next))emit(date,next);else if(!next&&!required)emit('','')};
-    const timeLabel=formatManualTime(time)||'Select time';
-    const options=Array.from({length:24},(_,index)=>{const hour=index%12||12;const period=index<12?'AM':'PM';return {value:`${String(index).padStart(2,'0')}:00`,label:`${hour}:00 ${period}`}});
-    const [timePickerOpen,setTimePickerOpen]=React.useState(false);
-    const currentTime=time24Parts(time);
-    const selectedTime=currentTime?`${String(currentTime.hour).padStart(2,'0')}:00`:'';
-    const timePopup=timePickerOpen?h('div',{className:'time-picker-backdrop',onMouseDown:event=>{if(event.target===event.currentTarget)setTimePickerOpen(false)}},
-      h('div',{className:'time-picker-popup',role:'dialog','aria-modal':'true','aria-label':'Select effective time'},
-        h('div',{className:'time-picker-head'},h('div',null,h('h4',null,'Select Time'),h('small',null,'Choose one effective time')),h('button',{type:'button',className:'close',onClick:()=>setTimePickerOpen(false),'aria-label':'Close'},'×')),
-        h('div',{className:'time-picker-grid'},options.map(option=>h('button',{type:'button',className:`time-picker-option ${selectedTime===option.value?'selected':''}`,key:option.value,onClick:()=>{chooseTime(option.value);setTimePickerOpen(false)}},option.label))),
-        h('div',{className:'time-picker-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTimePickerOpen(false)},'Cancel'))
-      )):null;
-    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:'8px',alignItems:'center',...(style||{})}},
-      h('div',{className:'samara-date-entry',style:{position:'relative',minWidth:0}},
+    return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'center',...(style||{})}},
+      h('div',{className:'samara-date-entry',style:{position:'relative',minWidth:'130px',flex:'1 1 130px'}},
         h('button',{type:'button',className:'samara-date-display',disabled,onClick:showCalendar,'aria-label':inputProps['aria-label']||'Choose date'},h('span',null,date?formatDateIN(date):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
         h('input',{...inputProps,ref:picker,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:-1,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
       ),
-      h('button',{type:'button',className:'time-picker-trigger samara-effective-time-trigger',onClick:()=>setTimePickerOpen(true),'aria-label':`${inputProps['aria-label']||'Effective date and time'} time: ${timeLabel}`},h('span',{className:time?'time-picker-value':'time-picker-placeholder'},timeLabel),h('span',{className:'time-picker-caret','aria-hidden':'true'},'▾')),
+      h(ManualTimeInput,{style:{width:'auto',flex:'0 0 auto'},value:time,disabled,required:Boolean(required),validateTime,onChange:e=>chooseTime(e.target.value),'aria-label':`${inputProps['aria-label']||'Effective date and time'} time`}),
       name?h('input',{type:'hidden',name,value:valueToSubmit}):null
-    ,timePopup&&ReactDOM.createPortal?ReactDOM.createPortal(timePopup,document.body):timePopup);
+    );
   }
 
   const formatTimeIN = value => window.SamaraDateTime.time(value);

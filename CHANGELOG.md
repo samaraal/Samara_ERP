@@ -1,3 +1,8 @@
+## 2.18.83 — Time is typed as  hh : mm  with AM/PM (no more hour-only picker)
+- Every time field in the ERP (including Actual Administration Time in Medication Administration and all date-and-time fields) now has two small boxes  **hh : mm**  with the colon fixed in place, and an **AM / PM** dropdown.
+- Staff type the hour, the cursor moves to the minutes by itself (typing 9 → 09; a ":" also jumps to minutes). Any minute can be entered (e.g. 1:17 PM) — the old pop-up allowed only whole hours.
+- Hours 1–12 and minutes 00–59 only; a full box can be typed over without deleting. Saved values are unchanged (24-hour). No SQL.
+
 ## 2.18.82 — Meal times are now periods (needs SQL 275)
 - Breakfast **7:30–9:30 AM**, Lunch **12:30–2:30 PM**, Dinner **7:30–9:30 PM**, for all Guests (existing and new). Staff may serve and record the meal any time within the period.
 - Nurse reminder 30 minutes before the period ends (9:00 AM / 2:00 PM / 9:00 PM) if the meal is not yet recorded.
