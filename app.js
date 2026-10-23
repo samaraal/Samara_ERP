@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.92';
+  const APP_VERSION = '2.18.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -26106,15 +26106,23 @@ Please keep these login details confidential.`;
       }
     }
 
+    function shiftPhysioPerDay(order){const f=String(order?.frequency||'').toLowerCase();return /four|4\s*times|qid/.test(f)?4:/thrice|three|3\s*times|tds|tid/.test(f)?3:/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f)?2:1;}
     async function logPhysio(order,status){
       const {data:{user}}=await client.auth.getUser();
       const notes=status==='Completed'
         ?(prompt('Session notes (optional):')||'')
         :(prompt('Reason / notes:')||'');
-      const {error}=await client.from('physiotherapy_sessions').upsert({
-        plan_id:order.id,order_id:order.id,patient_id:order.patient_id,session_date:today,status,
-        session_at:new Date().toISOString(),performed_by:user.id,notes
-      },{onConflict:'order_id,session_date'});
+      // 2.18.93: Twice / Thrice daily plans — one record per session (SQL 280), each with its own scheduled time.
+      const todays=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id&&x.session_date===today);
+      const perDay=shiftPhysioPerDay(order);
+      if(todays.length>=perDay){alert(`All ${perDay} session${perDay>1?'s':''} of this plan are already recorded today.`);return;}
+      const pref=String(order.preferred_time||'').slice(0,5),used=todays.map(x=>String(x.scheduled_time||'').slice(0,5));
+      const now=new Date(),nowHHMM=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const scheduled=pref&&!used.includes(pref)?pref:nowHHMM;
+      const {error}=await client.from('physiotherapy_sessions').insert({
+        plan_id:order.id,order_id:order.id,patient_id:order.patient_id,session_date:today,scheduled_time:scheduled,status,
+        session_at:status==='Completed'?now.toISOString():null,actual_time:status==='Completed'?nowHHMM:null,performed_by:user.id,notes
+      });
       if(error)alert(error.message);else load()
     }
 
@@ -26217,8 +26225,9 @@ Please keep these login details confidential.`;
         patient:order.patients,
         order,
         time:order.preferred_time?String(order.preferred_time).slice(0,5):'',
-        label:order.therapy_type||'Physiotherapy',
-        log:physioLogs.find(x=>(x.plan_id||x.order_id)===order.id)
+        label:(()=>{const n=shiftPhysioPerDay(order),d=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id).length;return `${order.therapy_type||'Physiotherapy'}${n>1?` (${Math.min(d,n)} of ${n} sessions today)`:''}`})(),
+        // 2.18.93: done only when every session of the day is recorded (Twice daily = 2)
+        log:(()=>{const l=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);return l.length>=shiftPhysioPerDay(order)?l[l.length-1]:null})()
       }));
 
     const patientMap=new Map();
@@ -36672,6 +36681,16 @@ function RoomsBeds({profile,onNavigate}){
         : 'Patient not linked';
     };
 
+    // 2.18.93: Twice / Thrice daily plans record each session separately (SQL 280: one session per plan, date AND
+    // scheduled time). The number of sessions a day comes from the plan's frequency.
+    function physioSessionsPerDay(plan){
+      const f=String(plan?.frequency||'').toLowerCase();
+      if(/four|4\s*times|qid/.test(f))return 4;
+      if(/thrice|three|3\s*times|tds|tid/.test(f))return 3;
+      if(/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f))return 2;
+      return 1;
+    }
+    const physioHHMM=v=>String(v||'').slice(0,5);
     function openEntry(plan,session=null){
       setNameSuggestionsOpen(false);
       const pending=session||sessions.find(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()&&row.status==='Pending'&&!row.session_at);
@@ -36680,7 +36699,10 @@ function RoomsBeds({profile,onNavigate}){
       setEntryPlan(plan);
       setForm({
         session_date:pending?.session_date||todayISOIndia(),
-        scheduled_time:String(pending?.scheduled_time||plan.preferred_time||'').slice(0,5),
+        scheduled_time:(()=>{const t=String(pending?.scheduled_time||plan.preferred_time||'').slice(0,5);
+          if(pending)return t;
+          const used=sessions.filter(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()).map(row=>physioHHMM(row.scheduled_time));
+          return used.includes(t)?'':t;})(),
         actual_time:'',
         status:'Completed',
         organisation_id:organisationFor(pending,plan)?.id||'',
@@ -36742,10 +36764,18 @@ function RoomsBeds({profile,onNavigate}){
         physiotherapist_name:form.physiotherapist_name?.trim()||null,
         updated_at:new Date().toISOString()
       };
-      const existing=sessions.find(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
+      const sameDay=sessions.filter(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
+      const perDay=physioSessionsPerDay(entryPlan);
+      const existing=perDay>1
+        ?sameDay.find(row=>physioHHMM(row.scheduled_time)===physioHHMM(payload.scheduled_time))
+        :sameDay[0];
+      if(!existing&&perDay>1&&sameDay.length>=perDay)throw new Error(`This plan is ${entryPlan.frequency}: ${perDay} sessions are already recorded for ${formatDateIN(form.session_date)}. Open a session's options to request a correction.`);
+      if(!existing&&perDay>1&&!payload.scheduled_time)throw new Error('Enter the Scheduled Time of this session (each session of the day needs its own time).');
       let query;
       if(existing){
-        if(existing.status!=='Pending'||existing.session_at||!['Completed','Not Done'].includes(form.status))throw new Error('A session exists for this date. Open its Session options to request a correction.');
+        if(existing.status!=='Pending'||existing.session_at||!['Completed','Not Done'].includes(form.status))throw new Error(perDay>1
+          ?`A session at ${clockLabel(existing.scheduled_time)} is already recorded for this date. For the next session of the day, change the Scheduled Time (e.g. the evening time); to correct this one, open its Session options.`
+          :'A session exists for this date. Open its Session options to request a correction.');
         const {status,actual_time,session_at,performed_by,reason,notes,updated_at,organisation_id,physiotherapist_name}=payload;
         query=client.from('physiotherapy_sessions').update({status,actual_time,session_at,performed_by,reason,notes,updated_at,organisation_id,physiotherapist_name}).eq('id',existing.id).eq('status','Pending');
         query=existing.updated_at?query.eq('updated_at',existing.updated_at):query.is('updated_at',null);

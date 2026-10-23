@@ -106,15 +106,23 @@
       }
     }
 
+    function shiftPhysioPerDay(order){const f=String(order?.frequency||'').toLowerCase();return /four|4\s*times|qid/.test(f)?4:/thrice|three|3\s*times|tds|tid/.test(f)?3:/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f)?2:1;}
     async function logPhysio(order,status){
       const {data:{user}}=await client.auth.getUser();
       const notes=status==='Completed'
         ?(prompt('Session notes (optional):')||'')
         :(prompt('Reason / notes:')||'');
-      const {error}=await client.from('physiotherapy_sessions').upsert({
-        plan_id:order.id,order_id:order.id,patient_id:order.patient_id,session_date:today,status,
-        session_at:new Date().toISOString(),performed_by:user.id,notes
-      },{onConflict:'order_id,session_date'});
+      // 2.18.93: Twice / Thrice daily plans — one record per session (SQL 280), each with its own scheduled time.
+      const todays=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id&&x.session_date===today);
+      const perDay=shiftPhysioPerDay(order);
+      if(todays.length>=perDay){alert(`All ${perDay} session${perDay>1?'s':''} of this plan are already recorded today.`);return;}
+      const pref=String(order.preferred_time||'').slice(0,5),used=todays.map(x=>String(x.scheduled_time||'').slice(0,5));
+      const now=new Date(),nowHHMM=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      const scheduled=pref&&!used.includes(pref)?pref:nowHHMM;
+      const {error}=await client.from('physiotherapy_sessions').insert({
+        plan_id:order.id,order_id:order.id,patient_id:order.patient_id,session_date:today,scheduled_time:scheduled,status,
+        session_at:status==='Completed'?now.toISOString():null,actual_time:status==='Completed'?nowHHMM:null,performed_by:user.id,notes
+      });
       if(error)alert(error.message);else load()
     }
 
@@ -217,8 +225,9 @@
         patient:order.patients,
         order,
         time:order.preferred_time?String(order.preferred_time).slice(0,5):'',
-        label:order.therapy_type||'Physiotherapy',
-        log:physioLogs.find(x=>(x.plan_id||x.order_id)===order.id)
+        label:(()=>{const n=shiftPhysioPerDay(order),d=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id).length;return `${order.therapy_type||'Physiotherapy'}${n>1?` (${Math.min(d,n)} of ${n} sessions today)`:''}`})(),
+        // 2.18.93: done only when every session of the day is recorded (Twice daily = 2)
+        log:(()=>{const l=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);return l.length>=shiftPhysioPerDay(order)?l[l.length-1]:null})()
       }));
 
     const patientMap=new Map();
