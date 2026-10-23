@@ -2845,3 +2845,8 @@ The full original notes for older releases are kept in [`docs/release-notes/`](d
 
 
 
+## 2.18.79 — Responsive date and time pickers across the ERP
+- Date fields open their calendar from an explicit, accessible button, including compact medication rows.
+- Effective-from date/time fields use the same single-choice hourly time picker as medication times.
+- Time-selection dialogs render above the full application so nearby controls cannot cover them.
+

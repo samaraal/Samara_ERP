@@ -868,7 +868,7 @@ body{font-size:17px;line-height:1.42}
 .time-chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
 .time-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:#e7f4f1;color:#0d6253;font-size:12px;font-weight:700}
 .time-chip button{border:0;background:transparent;color:#0d6253;cursor:pointer;padding:0;font-size:16px;line-height:1}
-.time-picker-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(9,35,31,.38);display:flex;align-items:center;justify-content:center;padding:18px}
+.time-picker-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(9,35,31,.38);display:flex;align-items:center;justify-content:center;padding:18px}
 .time-picker-popup{width:min(560px,96vw);max-height:min(620px,90vh);overflow:auto;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.28);padding:18px}
 .time-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
 .time-picker-head h4{margin:0 0 2px;font-size:20px}.time-picker-head small{color:#6d817d}
@@ -877,6 +877,13 @@ body{font-size:17px;line-height:1.42}
 .time-picker-option:hover{border-color:#0f8f7b;background:#f3fbf9}.time-picker-option.selected{background:#0f7b69;color:#fff;border-color:#0f7b69;box-shadow:0 4px 12px rgba(15,123,105,.22)}
 .time-picker-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #e2ece9}
 @media(max-width:560px){.time-picker-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.time-picker-popup{padding:14px}.time-picker-actions{display:grid;grid-template-columns:1fr 1fr 1fr}.time-picker-actions .btn{width:100%}}
+.samara-date-display{box-sizing:border-box;width:100%;min-width:0;min-height:42px;padding:8px 10px;border:1px solid #c9d9d5;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:4px;text-align:left;color:inherit;font:inherit;cursor:pointer;white-space:nowrap}
+.samara-date-display span:first-child{overflow:hidden;text-overflow:clip}
+.samara-date-display span:last-child{flex:none;color:#356b60}
+.samara-date-display:disabled{opacity:.6;cursor:not-allowed}
+.samara-effective-time-trigger{box-sizing:border-box;min-width:0;white-space:nowrap}
+.samara-effective-time-trigger .time-picker-value,.samara-effective-time-trigger .time-picker-placeholder{overflow:hidden;text-overflow:ellipsis}
+.samara-datetime-entry>*{min-width:0}
 
 
 /* v2.8.37 — Unified Feedback Dashboard */
