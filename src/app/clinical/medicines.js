@@ -430,14 +430,16 @@
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
       const isRescheduleAction=marForm.status==='Reschedule'||Boolean(rescheduleLog);
       const rescheduleReason=String(marForm.remarks||'').trim();
+      const rescheduleTime=normalizeMedicationTime(marForm.rescheduled_time);
+      const rescheduleTimeParts=rescheduleTime.match(/^(\d{2}):(\d{2})$/);
+      const validRescheduleTime=Boolean(rescheduleTimeParts&&Number(rescheduleTimeParts[1])<24&&Number(rescheduleTimeParts[2])<60);
       if(isRescheduleAction&&!rescheduleReason){const text='Enter the reason for rescheduling this dose.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
-      if(isRescheduleAction&&!marForm.rescheduled_time){const text='Select the new medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
-      if(isRescheduleAction){const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,marForm.rescheduled_time);if(!(gap>=15&&gap<=12*60)){const text='The new time must be 15 minutes to 12 hours after the original dose time (it may be after midnight).';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}}
+      if(isRescheduleAction&&!validRescheduleTime){const text='Enter a valid new medication time in h:mm format and choose AM or PM.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       if(isRescheduleAction&&rescheduleLog){
         setMarBusy(true);
-        const {error}=await client.from('medication_administrations').update({rescheduled_time:normalizeMedicationTime(marForm.rescheduled_time),reschedule_reason:rescheduleReason}).eq('id',rescheduleLog.id);
+        const {error}=await client.from('medication_administrations').update({rescheduled_time:rescheduleTime,reschedule_reason:rescheduleReason}).eq('id',rescheduleLog.id);
         if(error){const text=error.message||'Unable to save the rescheduled medication.';setMarMessage(text);showSamaraActionToast('error','Reschedule failed',text);setMarBusy(false);return;}
-        showSamaraActionToast('success','Medication rescheduled',`New dose time: ${medicationTimeLabel(marForm.rescheduled_time)}. The original MAR entry is retained.`);
+        showSamaraActionToast('success','Medication rescheduled',`New dose time: ${medicationTimeLabel(marForm.rescheduled_time)}. Only this dose was moved; the prescription and original MAR entry are unchanged.`);
         setMarBusy(false);setTab('Today’s MAR');await load();finishSuccessfulAction({close:()=>{setMarTarget(null);setRescheduleLog(null);},returnPage,onNavigate});return;
       }
       if(marForm.status==='Withheld'){
@@ -456,8 +458,7 @@
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
       const canReschedule=marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule);
-      if(canReschedule&&!marForm.rescheduled_time){const text='Please select the re-medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
-      if(canReschedule){const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,marForm.rescheduled_time);if(!(gap>=15&&gap<=12*60)){const text='Re-medication time must be 15 minutes to 12 hours after the original dose time (it may be after midnight).';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}}
+      if(canReschedule&&!validRescheduleTime){const text='Enter a valid new medication time in h:mm format and choose AM or PM.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       const entryTime=new Date();
       const administrationTime=marForm.administered_at?new Date(marForm.administered_at):entryTime;
       if(Number.isNaN(administrationTime.getTime())){const text='Please enter a valid administration time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
@@ -1111,7 +1112,7 @@
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Informed by'),h('select',{value:marForm.doctor_informed_via,onChange:e=>setMarForm({...marForm,doctor_informed_via:e.target.value})},MEDICATION_DOCTOR_CONTACT_MODES.map(m=>h('option',{key:m,value:m},m)))),
             marForm.status==='Withheld'&&marForm.doctor_informed_via!=='Not reachable yet — will retry'&&h('div',{className:'field span-2'},h('label',null,'Doctor informed at'),h(StrictDateTimeInput,{value:marForm.doctor_informed_at,onChange:e=>setMarForm({...marForm,doctor_informed_at:e.target.value})})),
             !rescheduleLog&&MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
-            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'The dose will appear again in Today’s MAR and Shift Tasks. The original entry remains permanently in MAR history.')),
+            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,'This reschedules only this dose. The prescription and other MAR doses stay unchanged; the original entry remains in history.')),
             !rescheduleLog&&h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
             !rescheduleLog&&currentIsLateEntry&&h('div',{className:'message warning span-2'},`Late entry detected: this record is being entered approximately ${currentEntryDelay} minutes after the stated administration time. Justification is compulsory.`),
             !rescheduleLog&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
