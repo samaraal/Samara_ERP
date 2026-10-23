@@ -1,3 +1,7 @@
+## 2.18.80 — Medication rescheduling with required reason
+- Nurses and clinical managers can reschedule a new dose or an existing delayed, refused or missed dose from Medication Administration.
+- A new time and reason are required; existing MAR entries are retained, and the rescheduled dose and reason appear in medication history.
+
 ## 2.18.78 — AM/PM dropdown and frequency-matched medicine times
 - Time fields now use a separate AM/PM dropdown while staff enter the hour and minute; saved values stay unchanged.
 - Medicine times are limited to the selected frequency. Choosing another time replaces the prior selection for once-daily medicines.
