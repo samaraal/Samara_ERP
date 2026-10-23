@@ -1,3 +1,9 @@
+## 2.18.81 — Nurses can reschedule any medicine dose to any time, with a reason
+- Today’s MAR now shows a **Reschedule** button beside every dose that is not yet given (as well as on Refused / Missed / Delayed doses). Nurses, the Nursing Manager and Admin can move that one medicine for that one Guest and time.
+- Any new time may be chosen (the earlier 15 minutes–12 hours limit is removed). A time later than the original falls on the same date; an earlier clock time falls on the next date. The form shows the resulting date and time before saving.
+- The reason is compulsory and is recorded on the original dose, which stays in MAR history as “Rescheduled”. The dose then appears again at the new time (Today’s MAR, Shift Tasks, screensaver, alerts) and can be rescheduled again if needed.
+- No administration time or late-entry justification is asked when only rescheduling. No SQL.
+
 ## 2.18.80 — Medication rescheduling with required reason
 - Nurses and clinical managers can reschedule a new dose or an existing delayed, refused or missed dose from Medication Administration.
 - A new time and reason are required; existing MAR entries are retained, and the rescheduled dose and reason appear in medication history.

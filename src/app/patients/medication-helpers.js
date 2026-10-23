@@ -75,6 +75,14 @@
     const am=Number(a.slice(0,2))*60+Number(a.slice(3,5)),bm=Number(b.slice(0,2))*60+Number(b.slice(3,5));
     return bm>am?bm-am:bm+1440-am;
   }
+  // 2.18.81: nurses may reschedule a dose to ANY time. A time later than the original dose falls on the same
+  // date; an earlier clock time falls on the next date (the dose is moved forward, up to 24 hours). The only
+  // time not allowed is the original time itself.
+  function medicationRescheduleTimeValid(scheduledTime,rescheduledTime){
+    const gap=medicationRescheduleGapMinutes(scheduledTime,rescheduledTime);
+    return Number.isFinite(gap)&&gap>0&&gap<1440;
+  }
+  const MEDICATION_RESCHEDULE_TIME_MESSAGE='Choose a new time different from the original dose time.';
   // Date on which a rescheduled dose falls: same day, or the next day when the new time is past midnight.
   function rescheduledDoseDate(log){
     const date=String(log?.scheduled_date||'').slice(0,10);

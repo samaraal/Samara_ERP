@@ -1,5 +1,5 @@
-const APP_VERSION = '2.18.80';
-const CACHE = 'samara-erp-2.18.80-medication-reschedule';
+const APP_VERSION = '2.18.81';
+const CACHE = 'samara-erp-2.18.81-medication-reschedule';
 const SHELL = [
   './',
   './index.html',
