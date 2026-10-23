@@ -1,3 +1,8 @@
+## 2.18.97 — Updates never wipe a staff entry + auto-saved drafts (no SQL)
+- Cause: the "New version" box reloaded the page while staff were typing, so half-filled entries were lost.
+- The box now has **Later – finish my entry**, and it does not appear at all while a form has unsaved typing; a small "New version ready" chip stays at the top instead (tap to update when ready). A waiting update is applied by itself only when nothing is typed, no popup is open and the screen has been idle 2 minutes (or the tab is in the background); a green "Samara Care updated" note confirms it.
+- Every form keeps a **draft on this device** every few seconds (per signed-in user). After an update, reload, crash or the 30-minute idle sign-out, opening the same form shows "Unsaved entry from 9:42 PM — Restore / Discard / Not now" (with the Guest and the first values typed). The draft is deleted once the entry is saved, after 12 hours, or on Sign Out. Search / filter boxes are ignored; the Admission form keeps its own draft system.
+
 ## 2.18.96 — "Alternate Days" medicines (every other day) (needs SQL 283)
 - New Frequency **Alternate Days** in Admission (Section 3), Doctor Review / Modify / Add New Medicine and Spot Assessment; the prescription scan also reads "alternate days / EOD / A/D".
 - Choosing it asks for a compulsory **Dose day** (any day the medicine is given — first dose, or the last dose taken before admission; quick buttons Start day / Next day) and shows the coming dose dates. It is written into the instruction ("Alternate days from 23-10-2026") and saved as medication_orders.dose_anchor_date, so a later Doctor Review keeps the same cycle.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.96';
+  const APP_VERSION = '2.18.97';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '23-Oct-2026 Alternate-day medicines';
+  const APP_BUILD_DATE = '23-Oct-2026 Updates never wipe entries + drafts';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -12775,6 +12775,280 @@ https://samaraassistedliving.com/`;
     `;
     document.head.appendChild(st);
   })();
+  // 2.18.97 GLOBAL WATCHER: Unsaved-entry guard + device drafts.
+  // Problem (23-10-2026): with frequent ERP updates, the "Update Now" box reloaded the page while staff were typing,
+  // and half-filled entries were lost. This file:
+  //   1. knows when a form on screen has unsaved typing (SamaraDrafts.unsavedCount) — the update box waits for it;
+  //   2. keeps a DRAFT of every form on THIS device every few seconds (localStorage, per signed-in user);
+  //   3. when the same form is opened again (after an update, reload, crash, idle sign-out), offers
+  //      "Unsaved entry from 9:42 PM — Restore / Discard" in a bar at the bottom of the screen;
+  //   4. deletes the draft as soon as the entry is saved (success message), after 12 hours, and on Sign Out.
+  // The Admission form keeps its own draft system (local + server drafts) and is only watched for "unsaved typing".
+  // Search / filter boxes and anything inside a "filter" area are ignored. Nothing is sent to the server.
+  (function samaraUnsavedEntryGuard(){
+    if(window.SamaraDrafts)return;
+    const PREFIX='samara_draft:v1:';
+    const MAX_AGE_MS=12*60*60*1000;
+    const SUCCESS_SEL='.samara-toast.success,.samara-toast.warning,.message.success,.toast.success,.toast.warning,[data-toast-type="success"],[data-toast-type="warning"]';
+    const ERROR_SEL='.samara-toast.error,.message.error,.toast.error,[data-toast-type="error"]';
+    const SAVE_WORDS=/\b(save|submit|confirm|record|add|administer|give|approve|send|update|mark|complete|start|post|raise|request|receive|issue|hand\s*over|return|discharge|admit|book|create|register|done)\b/i;
+    const NOT_SAVE_WORDS=/\b(cancel|close|back|discard|remove|delete|clear|reset|restore|not now|later|filter|apply|search|print|download|excel|pdf|view|show|hide|edit|scan|read|upload|choose|select|camera|voice|mic)\b/i;
+    const SKIP_TYPES=new Set(['hidden','file','password','search','button','submit','reset','image','range','color']);
+    const TYPED_TYPES=new Set(['','text','number','tel','email','url','date','time','datetime-local','month','week']);
+    const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    const hash=s=>{let x=5381;for(let i=0;i<s.length;i++)x=((x<<5)+x+s.charCodeAt(i))|0;return (x>>>0).toString(36)};
+    const ls={
+      get:k=>{try{return localStorage.getItem(k)}catch(_){return null}},
+      set:(k,v)=>{try{localStorage.setItem(k,v);return true}catch(_){return false}},
+      del:k=>{try{localStorage.removeItem(k)}catch(_){}},
+      keys:()=>{try{const out=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX))out.push(k)}return out}catch(_){return []}}
+    };
+    let userId='';
+    try{client.auth.getSession().then(r=>{userId=r?.data?.session?.user?.id||''}).catch(()=>{})}catch(_){}
+    try{client.auth.onAuthStateChange((_e,s)=>{userId=s?.user?.id||''})}catch(_){}
+    const currentPage=()=>String(window.samaraCurrentPage||'');
+
+    // ---------- which fields / which form ----------
+    function trackable(el){
+      if(!(el instanceof Element)||!el.matches('input,textarea,select'))return false;
+      if(!el.closest('section.content,.modal-backdrop,[role="dialog"]'))return false;
+      if(el.closest('#samara-draft-bar,#samara-update-refresh-prompt,[data-no-draft],[class*="filter"],.sr-filters,.global-search,.nurse-saver'))return false;
+      const t=String(el.type||'').toLowerCase();
+      if(el.tagName==='INPUT'&&SKIP_TYPES.has(t))return false;
+      if(el.disabled)return false;
+      if((t==='checkbox'||t==='radio')&&el.closest('table'))return false; // table ticks act at once (e.g. roster grid) — never replay them
+      const hint=`${el.getAttribute('placeholder')||''} ${el.getAttribute('aria-label')||''} ${el.name||''} ${el.className||''}`;
+      if(/search|filter|lookup/i.test(hint))return false;
+      return true;
+    }
+    function containerOf(el){
+      return el.closest('form')||el.closest('.modal-card,.modal,[role="dialog"]')||el.closest('.section-card,.card,.panel')||el.closest('section.content');
+    }
+    function titleOf(c){
+      const hd=c.querySelector('h1,h2,h3,h4,legend,.modal-title');
+      let t=hd?hd.textContent:'';
+      if(!clean(t)){const up=c.parentElement&&c.parentElement.closest('.section-card,.card,.panel,.modal-card');const h2=up&&up.querySelector('h1,h2,h3,h4');t=h2?h2.textContent:''}
+      return clean(t).slice(0,80);
+    }
+    function labelOf(el){
+      const f=el.closest('.field,.check-card,label');let l='';
+      if(f){const lab=f.matches('label')?f:f.querySelector('label');l=clean(lab?lab.textContent:'')}
+      if(!l)l=clean(el.getAttribute('aria-label')||el.getAttribute('placeholder')||el.name||el.id||'');
+      return `${el.tagName}:${String(el.type||'').toLowerCase()}:${l.replace(/\*/g,'').trim().slice(0,60)}`;
+    }
+    function fieldIds(c){
+      const seen={};
+      return [...c.querySelectorAll('input,textarea,select')].filter(el=>trackable(el)&&containerOf(el)===c).map(el=>{const b=labelOf(el);seen[b]=(seen[b]||0)+1;return {el,id:`${b}#${seen[b]}`}});
+    }
+    const keyCache=new WeakMap();
+    function keyOf(c){
+      if(keyCache.has(c))return keyCache.get(c);
+      const ids=fieldIds(c).slice(0,3).map(x=>x.id);
+      const sig=`${currentPage()}|${titleOf(c)}|${ids.join(',')}`;
+      const k=`${PREFIX}${userId||'anon'}:${hash(sig)}`;
+      if(userId)keyCache.set(c,k);return k;
+    }
+    const ownDrafts=c=>Boolean(c.closest('.admission-form')); // Admission has its own drafts
+
+    // ---------- state ----------
+    const state=new Map(); // container -> {dirty, lastInputAt, pendingSaveAt, timer}
+    const seenAt=new WeakMap();
+    const dismissed=new Set();
+    let restoring=false;
+
+    function snapshot(c){
+      const list=fieldIds(c).map(({el,id})=>{
+        const t=String(el.type||'').toLowerCase();
+        if(t==='checkbox'||t==='radio')return {id,checked:el.checked,value:el.value};
+        return {id,value:el.value};
+      });
+      // a "Guest / Patient" dropdown, if any, to show whose entry it is
+      let guest='';
+      for(const {el,id} of fieldIds(c)){if(el.tagName==='SELECT'&&/guest|patient|resident/i.test(id)&&el.value){guest=clean(el.options[el.selectedIndex]?.textContent).slice(0,60);break}}
+      const preview=list.filter(f=>f.checked===undefined&&/^(INPUT:(text|number|tel|email)?:|TEXTAREA:)/.test(f.id)&&clean(f.value)&&!/^\+91$/.test(clean(f.value))).map(f=>clean(f.value).slice(0,40)).slice(0,3);
+      return {list,guest,preview};
+    }
+    function writeDraft(c){
+      const st=state.get(c);if(!st||!st.dirty||ownDrafts(c)||!userId)return;
+      const s=snapshot(c);
+      if(!s.list.length)return;
+      ls.set(keyOf(c),JSON.stringify({v:1,userId,page:currentPage(),title:titleOf(c),guest:s.guest,preview:s.preview,savedAt:Date.now(),fields:s.list}));
+    }
+    function scheduleWrite(c){const st=state.get(c);if(!st)return;clearTimeout(st.timer);st.timer=setTimeout(()=>writeDraft(c),1500)}
+    function markSaved(c){const st=state.get(c);if(st){clearTimeout(st.timer);st.dirty=false;st.pendingSaveAt=0}ls.del(keyOf(c))}
+    function flushAll(){state.forEach((st,c)=>{if(st.dirty){clearTimeout(st.timer);writeDraft(c)}})}
+
+    function onInput(e){
+      if(restoring)return;
+      const el=e.target;if(!trackable(el))return;
+      // voice typing fills the field the nurse is in (not a real key press) — count it; other code changing fields does not count
+      if(!e.isTrusted&&document.activeElement!==el)return;
+      const c=containerOf(el);if(!c)return;
+      const t=String(el.type||'').toLowerCase();
+      // Only typing (text, numbers, dates, times, notes) or ticking a box makes an entry "unsaved work";
+      // choosing from a dropdown alone does not (dropdowns are still kept in the draft).
+      const typed=el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&(TYPED_TYPES.has(t)||t==='checkbox'||t==='radio'));
+      let st=state.get(c);
+      if(!st){st={dirty:false,lastInputAt:0,pendingSaveAt:0,timer:null};state.set(c,st);keyOf(c)}
+      if(typed)st.dirty=true;
+      st.lastInputAt=Date.now();
+      if(st.dirty)scheduleWrite(c);
+    }
+    function onClick(e){
+      const b=e.target instanceof Element?e.target.closest('button,input[type="submit"]'):null;if(!b)return;
+      const c=containerOf(b);const st=c&&state.get(c);if(!st||!st.dirty)return;
+      const text=clean(b.textContent||b.value||b.getAttribute('aria-label'));
+      if(b.type==='submit'||(SAVE_WORDS.test(text)&&!NOT_SAVE_WORDS.test(text)))st.pendingSaveAt=Date.now();
+    }
+    function onSubmit(e){const c=e.target instanceof Element?containerOf(e.target):null;const st=c&&state.get(c);if(st)st.pendingSaveAt=Date.now()}
+    document.addEventListener('input',onInput,true);
+    document.addEventListener('change',onInput,true);
+    document.addEventListener('click',onClick,true);
+    document.addEventListener('submit',onSubmit,true);
+    window.addEventListener('pagehide',flushAll);
+    window.addEventListener('beforeunload',flushAll);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushAll()});
+
+    // ---------- drafts on this device ----------
+    function readDraft(k){try{const d=JSON.parse(ls.get(k)||'null');return d&&d.v===1?d:null}catch(_){return null}}
+    function myDrafts(){
+      const now=Date.now(),out=[];
+      for(const k of ls.keys()){
+        const d=readDraft(k);
+        if(!d||now-Number(d.savedAt||0)>MAX_AGE_MS){ls.del(k);continue}
+        if(userId&&k.startsWith(`${PREFIX}${userId}:`))out.push({key:k,...d});
+      }
+      return out.sort((a,b)=>b.savedAt-a.savedAt);
+    }
+    const fmtTime=ms=>{try{const d=new Date(ms);const t=d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'}).toUpperCase();const day=typeof formatDateIN==='function'?formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})):'';return day?`${day} ${t}`:t}catch(_){return ''}};
+
+    async function restore(c,d){
+      const setVal=(el,v)=>{
+        const proto=el.tagName==='SELECT'?HTMLSelectElement.prototype:el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+        const desc=Object.getOwnPropertyDescriptor(proto,'value');
+        if(desc&&desc.set)desc.set.call(el,v);else el.value=v;
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+      };
+      restoring=true;const done=new Set();
+      try{
+        // Several passes: fields that appear only after an earlier choice (e.g. "Oxygen required" → instruction) are filled next pass.
+        for(let pass=0;pass<5&&done.size<d.fields.length;pass++){
+          const cur=new Map(fieldIds(c).map(x=>[x.id,x.el]));
+          for(const f of d.fields){
+            if(done.has(f.id))continue;
+            const el=cur.get(f.id);if(!el||!el.isConnected||el.disabled)continue;
+            const t=String(el.type||'').toLowerCase();
+            if(f.checked!==undefined&&(t==='checkbox'||t==='radio')){
+              if(t==='checkbox'?el.checked!==f.checked:(f.checked&&!el.checked)){el.click();await wait(45)}
+              done.add(f.id);continue;
+            }
+            if(String(el.value)===String(f.value)){done.add(f.id);continue}
+            if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===String(f.value)))continue; // list not loaded yet → next pass
+            setVal(el,String(f.value??''));done.add(f.id);await wait(45);
+          }
+          await wait(300);
+        }
+      }finally{restoring=false}
+      let st=state.get(c);if(!st){st={dirty:true,lastInputAt:Date.now(),pendingSaveAt:0,timer:null};state.set(c,st)}
+      st.dirty=true;writeDraft(c);
+      return {filled:done.size,total:d.fields.length};
+    }
+
+    // ---------- the bottom bar ----------
+    let bar=null,barFor=null,summaryShown=false;
+    function ensureStyle(){
+      if(document.getElementById('samara-draft-bar-style'))return;
+      const s=document.createElement('style');s.id='samara-draft-bar-style';
+      s.textContent=`#samara-draft-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99990;width:min(620px,calc(100vw - 24px));background:linear-gradient(135deg,#fff 0%,#fde7f1 100%);border:2px solid #e48ab3;border-radius:16px;box-shadow:0 10px 32px rgba(122,18,71,.22);padding:12px 14px;font-family:inherit;color:#3b1028}
+      #samara-draft-bar b{color:#a3134f}#samara-draft-bar .sdb-sub{font-size:13px;color:#6b4a5b;margin-top:3px;word-break:break-word}
+      #samara-draft-bar .sdb-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+      #samara-draft-bar button{border:0;border-radius:10px;padding:9px 14px;font-weight:800;font-size:14px;cursor:pointer}
+      #samara-draft-bar .sdb-main{background:#c2185b;color:#fff}#samara-draft-bar .sdb-alt{background:#fff;color:#a3134f;border:1.5px solid #e48ab3}
+      .samara-draft-target{outline:3px dashed #e48ab3!important;outline-offset:4px}`;
+      document.head.appendChild(s);
+    }
+    function hideBar(){if(bar)bar.remove();bar=null;if(barFor&&barFor.c)barFor.c.classList.remove('samara-draft-target');barFor=null}
+    function showBar(title,sub,buttons,target){
+      ensureStyle();hideBar();
+      bar=document.createElement('div');bar.id='samara-draft-bar';bar.setAttribute('role','status');
+      const t=document.createElement('div');t.innerHTML='';const b1=document.createElement('b');b1.textContent=title;t.appendChild(b1);bar.appendChild(t);
+      if(sub){const s=document.createElement('div');s.className='sdb-sub';s.textContent=sub;bar.appendChild(s)}
+      const row=document.createElement('div');row.className='sdb-btns';
+      buttons.forEach(([label,cls,fn])=>{const x=document.createElement('button');x.type='button';x.className=cls;x.textContent=label;x.addEventListener('click',fn);row.appendChild(x)});
+      bar.appendChild(row);document.body.appendChild(bar);
+      barFor=target||{};if(target&&target.c)target.c.classList.add('samara-draft-target');
+    }
+    function offer(c,d){
+      const sub=[d.title&&`Form: ${d.title}`,d.guest&&`Guest: ${d.guest}`,d.preview&&d.preview.length&&`“${d.preview.join(' · ')}”`].filter(Boolean).join('  ·  ');
+      showBar(`📝 Unsaved entry from ${fmtTime(d.savedAt)} — kept on this device`,sub,[
+        ['Restore','sdb-main',async()=>{
+          const k=d.key;hideBar();dismissed.add(k);
+          try{c.scrollIntoView({behavior:'smooth',block:'start'})}catch(_){}
+          const r=await restore(c,d);
+          showBar(`✓ Entry restored (${r.filled} of ${r.total} fields)`,'Please check every field, then press Save.',[['OK','sdb-main',hideBar]]);
+          setTimeout(()=>{if(bar&&/restored/.test(bar.textContent))hideBar()},9000);
+        }],
+        ['Discard','sdb-alt',()=>{if(!window.confirm('Discard this unsaved entry? It cannot be brought back.'))return;ls.del(d.key);dismissed.add(d.key);hideBar()}],
+        ['Not now','sdb-alt',()=>{dismissed.add(d.key);hideBar()}]
+      ],{c,key:d.key});
+    }
+    function offerSummary(list){
+      summaryShown=true;
+      const sub=list.slice(0,4).map(d=>`${d.page||'Page'}${d.title?` — ${d.title}`:''} (${fmtTime(d.savedAt)})`).join('\n');
+      const buttons=list.slice(0,3).filter((d,i,a)=>d.page&&a.findIndex(x=>x.page===d.page)===i).map(d=>[`Open ${d.page}`,'sdb-main',()=>{hideBar();window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:d.page}}))}]);
+      buttons.push(['Not now','sdb-alt',()=>{list.forEach(d=>dismissed.add(d.key));hideBar()}]);
+      showBar(`📝 You have ${list.length} unsaved ${list.length===1?'entry':'entries'} on this device`,`${sub}\nOpen the same form again to restore it.`,buttons,{summary:true});
+      const s=bar&&bar.querySelector('.sdb-sub');if(s)s.style.whiteSpace='pre-line';
+    }
+
+    // ---------- every second ----------
+    function tick(){
+      const now=Date.now();
+      const success=[...document.querySelectorAll(SUCCESS_SEL)];
+      success.forEach(n=>{if(!seenAt.has(n))seenAt.set(n,now)});
+      const errorVisible=Boolean(document.querySelector(ERROR_SEL));
+      state.forEach((st,c)=>{
+        const pending=st.pendingSaveAt&&now-st.pendingSaveAt<30000;
+        if(pending&&success.some(n=>(seenAt.get(n)||0)>=st.pendingSaveAt-100)){markSaved(c);state.delete(c);return}
+        if(!c.isConnected){
+          if(pending&&now-st.pendingSaveAt<10000&&!errorVisible)markSaved(c); // form closed right after Save → saved
+          else if(st.dirty){clearTimeout(st.timer);writeDraft(c)} // closed without saving → keep the draft
+          state.delete(c);
+        }
+      });
+      if(!userId||restoring)return;
+      if(bar&&barFor&&barFor.c&&!barFor.c.isConnected)hideBar();
+      if(bar)return;
+      const drafts=myDrafts().filter(d=>!dismissed.has(d.key));
+      if(!drafts.length)return;
+      const page=currentPage();
+      const here=drafts.filter(d=>d.page===page);
+      if(here.length){
+        const byKey=new Map(here.map(d=>[d.key,d]));
+        const seen=new Set();
+        for(const el of document.querySelectorAll('section.content input,section.content textarea,section.content select,.modal-backdrop input,.modal-backdrop textarea,.modal-backdrop select')){
+          if(!trackable(el))continue;
+          const c=containerOf(el);if(!c||seen.has(c))continue;seen.add(c);
+          if(ownDrafts(c))continue;
+          const st=state.get(c);if(st&&st.dirty)continue;
+          const d=byKey.get(keyOf(c));
+          if(d){offer(c,d);return}
+        }
+      }
+      if(!summaryShown){const others=drafts.filter(d=>d.page!==page);if(others.length)offerSummary(drafts)}
+    }
+    setInterval(tick,1000);
+
+    window.SamaraDrafts={
+      // forms on screen with typing that is not saved yet (the update box waits for these)
+      unsavedCount(){let n=0;state.forEach((st,c)=>{if(st.dirty&&c.isConnected)n++});return n},
+      flush:flushAll,
+      // Sign Out on this device: remove this user's drafts (Guest details must not stay on a shared device)
+      clearForSignOut(){try{const id=userId;ls.keys().forEach(k=>{if(!id||k.startsWith(`${PREFIX}${id}:`))ls.del(k)});state.clear();hideBar()}catch(_){}}
+    };
+  })();
   // 2.16.31: Kitchen units standardised. Every kitchen item is kept in ONE unit only — Kg, Litres or Nos —
   // and is bought in fixed pack sizes (e.g. Milk only as 500 ml or 1 L packets). Staff choose the pack and the
   // number of packets; the ERP converts to the item's unit, so stock never mixes ml with Litres or g with Kg.
@@ -13817,6 +14091,7 @@ https://samaraassistedliving.com/`;
     },[session?.user?.id,profile?.id]);
 
     React.useEffect(()=>{
+      window.samaraCurrentPage=page; // 2.18.97: device drafts are kept per page
       if(currentPageRef.current!==page){
         previousPageRef.current=currentPageRef.current;
         currentPageRef.current=page;
@@ -14061,12 +14336,48 @@ https://samaraassistedliving.com/`;
           return false;
         };
 
+        // 2.18.97: an update must NEVER wipe an entry being typed. The box offers "Later – finish my entry", does not
+        // appear at all while a form has unsaved typing, and a small "Update ready" chip stays at the top instead.
+        // The update is applied by itself only when nothing is typed, no popup is open and the screen has been idle
+        // for 2 minutes (or the ERP tab is in the background). Drafts are kept on the device either way.
+        let updateLater=false;
+        const unsavedEntries=()=>{try{return Number(window.SamaraDrafts?.unsavedCount?.()||0)}catch(_){return 0}};
+        let lastUserActivityAt=Date.now();
+        ['pointerdown','keydown','touchstart','input','wheel'].forEach(n=>window.addEventListener(n,()=>{lastUserActivityAt=Date.now()},{passive:true,capture:true}));
+        const applyUpdate=async(silent=false)=>{
+          try{window.SamaraDrafts?.flush?.()}catch(_){}
+          try{
+            localStorage.setItem(UPDATE_ACK_KEY,remoteUpdateVersion);
+            acknowledgedVersion=remoteUpdateVersion;
+            if(silent)sessionStorage.setItem('samara_auto_updated_to',remoteUpdateVersion);
+          }catch(_error){}
+          try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
+          const url=new URL(window.location.href);
+          url.searchParams.set('samara_refresh',remoteUpdateVersion);
+          window.location.replace(url.toString());
+        };
+        const showUpdateChip=()=>{
+          let chip=document.getElementById('samara-update-chip');
+          if(!chip){
+            chip=document.createElement('button');chip.type='button';chip.id='samara-update-chip';
+            Object.assign(chip.style,{position:'fixed',top:'8px',left:'50%',transform:'translateX(-50%)',zIndex:'99980',border:'1.5px solid #e48ab3',borderRadius:'999px',
+              background:'linear-gradient(135deg,#fff,#fde7f1)',color:'#a3134f',fontWeight:'800',fontSize:'13px',padding:'7px 14px',boxShadow:'0 6px 18px rgba(122,18,71,.18)',cursor:'pointer',maxWidth:'calc(100vw - 24px)'});
+            chip.addEventListener('click',()=>{
+              if(unsavedEntries()>0&&!window.confirm('You have an entry that is not saved yet.\n\nIt is kept on this device — after the update, open the same form and press "Restore".\n\nUpdate now?'))return;
+              chip.disabled=true;chip.textContent='Updating…';applyUpdate(false);
+            });
+            document.body.appendChild(chip);
+          }
+          if(!chip.disabled)chip.textContent=unsavedEntries()>0?`🔄 New version ${remoteUpdateVersion} ready — updates after you save`:`🔄 New version ${remoteUpdateVersion} ready — tap to update`;
+        };
         const showUpdatePrompt=()=>{
           // The acknowledgement is stored on each device/browser separately.
           // This means accepting an update on Windows never suppresses the notice on an iPhone/PWA.
           const trulyNewRemote=isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION);
           const alreadyAcknowledged=acknowledgedVersion===remoteUpdateVersion;
-          if(updatePromptShown||!remoteUpdateVersion||!trulyNewRemote||alreadyAcknowledged)return;
+          if(!remoteUpdateVersion||!trulyNewRemote||alreadyAcknowledged)return;
+          if(updateLater||unsavedEntries()>0){showUpdateChip();return}
+          if(updatePromptShown)return;
           updatePromptShown=true;
 
           const existing=document.getElementById('samara-update-refresh-prompt');
@@ -14087,26 +14398,46 @@ https://samaraassistedliving.com/`;
           title.textContent='New version of Samara Care is available';
           Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
           const message=document.createElement('div');
-          message.textContent=`Version ${remoteUpdateVersion} is ready. Update now to use the latest Samara Care.`;
+          message.textContent=`Version ${remoteUpdateVersion} is ready. If you are in the middle of an entry, choose Later and save it first.`;
           Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
           const ok=document.createElement('button');
           ok.type='button'; ok.textContent='Update Now';
           Object.assign(ok.style,{width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
-          ok.addEventListener('click',async()=>{
-            ok.disabled=true; ok.textContent='Updating…';
-            overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180);
-            try{
-              localStorage.setItem(UPDATE_ACK_KEY,remoteUpdateVersion);
-              acknowledgedVersion=remoteUpdateVersion;
-            }catch(_error){}
-            try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
-            const url=new URL(window.location.href);
-            url.searchParams.set('samara_refresh',remoteUpdateVersion);
-            window.location.replace(url.toString());
+          const later=document.createElement('button');
+          later.type='button'; later.textContent='Later – finish my entry';
+          Object.assign(later.style,{width:'100%',minHeight:'46px',marginTop:'10px',border:'1.5px solid #e48ab3',borderRadius:'14px',background:'#fff',color:'#a3134f',fontSize:'16px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
+          const closeOverlay=()=>{overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180)};
+          ok.addEventListener('click',()=>{
+            ok.disabled=true; later.disabled=true; ok.textContent='Updating…';
+            closeOverlay();
+            applyUpdate(false);
           });
-          card.append(title,message,ok); overlay.appendChild(card); document.body.appendChild(overlay);
+          later.addEventListener('click',()=>{updateLater=true;closeOverlay();showUpdateChip()});
+          card.append(title,message,ok,later); overlay.appendChild(card); document.body.appendChild(overlay);
           setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
         };
+        // Applies a waiting update by itself only when it is completely safe.
+        setInterval(()=>{
+          if(!remoteUpdateVersion||!isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION)||acknowledgedVersion===remoteUpdateVersion)return;
+          if(unsavedEntries()>0){showUpdateChip();return}
+          const hidden=document.visibilityState==='hidden';
+          const idle=Date.now()-lastUserActivityAt>=120000;
+          const focused=document.activeElement&&document.activeElement.matches&&document.activeElement.matches('input,textarea,select,[contenteditable="true"]');
+          const popupOpen=Boolean(document.querySelector('.modal-backdrop,#samara-draft-bar'));
+          let media=false;try{media=[...document.querySelectorAll('video,audio')].some(v=>!v.paused&&!v.ended)}catch(_){}
+          const talk=String(window.samaraCurrentPage||'')==='Talk to Guest';
+          if((hidden||idle)&&!focused&&!popupOpen&&!media&&!talk)applyUpdate(true);
+          else if(updateLater||updatePromptShown)showUpdateChip();
+        },15000);
+        try{
+          const done=sessionStorage.getItem('samara_auto_updated_to');
+          if(done&&done===APP_VERSION){
+            sessionStorage.removeItem('samara_auto_updated_to');
+            setTimeout(()=>{const n=document.createElement('div');n.textContent=`✓ Samara Care updated to ${APP_VERSION}`;
+              Object.assign(n.style,{position:'fixed',top:'8px',left:'50%',transform:'translateX(-50%)',zIndex:'99980',borderRadius:'999px',background:'#e8f7ee',color:'#0a7a42',fontWeight:'800',fontSize:'13px',padding:'7px 14px',border:'1.5px solid #9bd8b3'});
+              document.body.appendChild(n);setTimeout(()=>n.remove(),6000)},1500);
+          }
+        }catch(_){}
 
         const checkRemoteVersion=async(force=false)=>{
           const now=Date.now();
@@ -14419,7 +14750,7 @@ https://samaraassistedliving.com/`;
           (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
           h('button',{type:'button',className:'btn btn-secondary mobile-global-home',onClick:()=>{pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},title:'Go to Home','aria-label':'Go to Home'},'⌂ Home'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
-          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})},title:'Sign out of Samara Care on this device','aria-label':'Sign out'},'⇥ Sign Out')),
+          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;try{window.SamaraDrafts?.clearForSignOut()}catch(_){}await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})},title:'Sign out of Samara Care on this device','aria-label':'Sign out'},'⇥ Sign Out')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · 6 languages')),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),
@@ -15079,7 +15410,7 @@ https://samaraassistedliving.com/`;
       h('div',{className:'sidebar-footer'},
         h('button',{type:'button',className:'user-chip',onClick:()=>setPage('My Profile'),title:'Open My Profile',style:{width:'100%',textAlign:'left',cursor:'pointer'}},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),
         h('button',{type:'button',className:'btn btn-secondary full',onClick:samaraOpenAppHelp},'App Help / Repair'),
-        h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})}},'Sign out') /* 2.18.1: this device only */
+        h('button',{className:'btn btn-secondary full',onClick:async()=>{try{window.SamaraDrafts?.clearForSignOut()}catch(_){}await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})}},'Sign out') /* 2.18.1: this device only */
       )
     );
   }
@@ -15155,6 +15486,7 @@ https://samaraassistedliving.com/`;
     },[]);
     async function signOut(){
       if(!window.confirm('Are you sure you want to sign out?'))return;
+      try{window.SamaraDrafts?.clearForSignOut()}catch(_){}
       onClose();
       await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');
       await client.auth.signOut({scope:'local'}); // 2.18.1: this device only

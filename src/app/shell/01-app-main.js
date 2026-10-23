@@ -112,6 +112,7 @@
     },[session?.user?.id,profile?.id]);
 
     React.useEffect(()=>{
+      window.samaraCurrentPage=page; // 2.18.97: device drafts are kept per page
       if(currentPageRef.current!==page){
         previousPageRef.current=currentPageRef.current;
         currentPageRef.current=page;
@@ -356,12 +357,48 @@
           return false;
         };
 
+        // 2.18.97: an update must NEVER wipe an entry being typed. The box offers "Later – finish my entry", does not
+        // appear at all while a form has unsaved typing, and a small "Update ready" chip stays at the top instead.
+        // The update is applied by itself only when nothing is typed, no popup is open and the screen has been idle
+        // for 2 minutes (or the ERP tab is in the background). Drafts are kept on the device either way.
+        let updateLater=false;
+        const unsavedEntries=()=>{try{return Number(window.SamaraDrafts?.unsavedCount?.()||0)}catch(_){return 0}};
+        let lastUserActivityAt=Date.now();
+        ['pointerdown','keydown','touchstart','input','wheel'].forEach(n=>window.addEventListener(n,()=>{lastUserActivityAt=Date.now()},{passive:true,capture:true}));
+        const applyUpdate=async(silent=false)=>{
+          try{window.SamaraDrafts?.flush?.()}catch(_){}
+          try{
+            localStorage.setItem(UPDATE_ACK_KEY,remoteUpdateVersion);
+            acknowledgedVersion=remoteUpdateVersion;
+            if(silent)sessionStorage.setItem('samara_auto_updated_to',remoteUpdateVersion);
+          }catch(_error){}
+          try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
+          const url=new URL(window.location.href);
+          url.searchParams.set('samara_refresh',remoteUpdateVersion);
+          window.location.replace(url.toString());
+        };
+        const showUpdateChip=()=>{
+          let chip=document.getElementById('samara-update-chip');
+          if(!chip){
+            chip=document.createElement('button');chip.type='button';chip.id='samara-update-chip';
+            Object.assign(chip.style,{position:'fixed',top:'8px',left:'50%',transform:'translateX(-50%)',zIndex:'99980',border:'1.5px solid #e48ab3',borderRadius:'999px',
+              background:'linear-gradient(135deg,#fff,#fde7f1)',color:'#a3134f',fontWeight:'800',fontSize:'13px',padding:'7px 14px',boxShadow:'0 6px 18px rgba(122,18,71,.18)',cursor:'pointer',maxWidth:'calc(100vw - 24px)'});
+            chip.addEventListener('click',()=>{
+              if(unsavedEntries()>0&&!window.confirm('You have an entry that is not saved yet.\n\nIt is kept on this device — after the update, open the same form and press "Restore".\n\nUpdate now?'))return;
+              chip.disabled=true;chip.textContent='Updating…';applyUpdate(false);
+            });
+            document.body.appendChild(chip);
+          }
+          if(!chip.disabled)chip.textContent=unsavedEntries()>0?`🔄 New version ${remoteUpdateVersion} ready — updates after you save`:`🔄 New version ${remoteUpdateVersion} ready — tap to update`;
+        };
         const showUpdatePrompt=()=>{
           // The acknowledgement is stored on each device/browser separately.
           // This means accepting an update on Windows never suppresses the notice on an iPhone/PWA.
           const trulyNewRemote=isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION);
           const alreadyAcknowledged=acknowledgedVersion===remoteUpdateVersion;
-          if(updatePromptShown||!remoteUpdateVersion||!trulyNewRemote||alreadyAcknowledged)return;
+          if(!remoteUpdateVersion||!trulyNewRemote||alreadyAcknowledged)return;
+          if(updateLater||unsavedEntries()>0){showUpdateChip();return}
+          if(updatePromptShown)return;
           updatePromptShown=true;
 
           const existing=document.getElementById('samara-update-refresh-prompt');
@@ -382,26 +419,46 @@
           title.textContent='New version of Samara Care is available';
           Object.assign(title.style,{fontSize:'21px',fontWeight:'800',lineHeight:'1.3',marginBottom:'8px'});
           const message=document.createElement('div');
-          message.textContent=`Version ${remoteUpdateVersion} is ready. Update now to use the latest Samara Care.`;
+          message.textContent=`Version ${remoteUpdateVersion} is ready. If you are in the middle of an entry, choose Later and save it first.`;
           Object.assign(message.style,{fontSize:'17px',lineHeight:'1.45',marginBottom:'20px',color:'#5d4450'});
           const ok=document.createElement('button');
           ok.type='button'; ok.textContent='Update Now';
           Object.assign(ok.style,{width:'100%',minHeight:'52px',border:'0',borderRadius:'14px',background:'#c2185b',color:'#fff',fontSize:'18px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
-          ok.addEventListener('click',async()=>{
-            ok.disabled=true; ok.textContent='Updating…';
-            overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180);
-            try{
-              localStorage.setItem(UPDATE_ACK_KEY,remoteUpdateVersion);
-              acknowledgedVersion=remoteUpdateVersion;
-            }catch(_error){}
-            try{ const registration=await navigator.serviceWorker.getRegistration(); await registration?.update(); }catch(_error){}
-            const url=new URL(window.location.href);
-            url.searchParams.set('samara_refresh',remoteUpdateVersion);
-            window.location.replace(url.toString());
+          const later=document.createElement('button');
+          later.type='button'; later.textContent='Later – finish my entry';
+          Object.assign(later.style,{width:'100%',minHeight:'46px',marginTop:'10px',border:'1.5px solid #e48ab3',borderRadius:'14px',background:'#fff',color:'#a3134f',fontSize:'16px',fontWeight:'800',cursor:'pointer',WebkitTapHighlightColor:'transparent'});
+          const closeOverlay=()=>{overlay.style.pointerEvents='none'; overlay.style.opacity='0'; setTimeout(()=>overlay.remove(),180)};
+          ok.addEventListener('click',()=>{
+            ok.disabled=true; later.disabled=true; ok.textContent='Updating…';
+            closeOverlay();
+            applyUpdate(false);
           });
-          card.append(title,message,ok); overlay.appendChild(card); document.body.appendChild(overlay);
+          later.addEventListener('click',()=>{updateLater=true;closeOverlay();showUpdateChip()});
+          card.append(title,message,ok,later); overlay.appendChild(card); document.body.appendChild(overlay);
           setTimeout(()=>{try{ok.focus({preventScroll:true})}catch(_){ok.focus()}},50);
         };
+        // Applies a waiting update by itself only when it is completely safe.
+        setInterval(()=>{
+          if(!remoteUpdateVersion||!isRemoteVersionNewer(remoteUpdateVersion,APP_VERSION)||acknowledgedVersion===remoteUpdateVersion)return;
+          if(unsavedEntries()>0){showUpdateChip();return}
+          const hidden=document.visibilityState==='hidden';
+          const idle=Date.now()-lastUserActivityAt>=120000;
+          const focused=document.activeElement&&document.activeElement.matches&&document.activeElement.matches('input,textarea,select,[contenteditable="true"]');
+          const popupOpen=Boolean(document.querySelector('.modal-backdrop,#samara-draft-bar'));
+          let media=false;try{media=[...document.querySelectorAll('video,audio')].some(v=>!v.paused&&!v.ended)}catch(_){}
+          const talk=String(window.samaraCurrentPage||'')==='Talk to Guest';
+          if((hidden||idle)&&!focused&&!popupOpen&&!media&&!talk)applyUpdate(true);
+          else if(updateLater||updatePromptShown)showUpdateChip();
+        },15000);
+        try{
+          const done=sessionStorage.getItem('samara_auto_updated_to');
+          if(done&&done===APP_VERSION){
+            sessionStorage.removeItem('samara_auto_updated_to');
+            setTimeout(()=>{const n=document.createElement('div');n.textContent=`✓ Samara Care updated to ${APP_VERSION}`;
+              Object.assign(n.style,{position:'fixed',top:'8px',left:'50%',transform:'translateX(-50%)',zIndex:'99980',borderRadius:'999px',background:'#e8f7ee',color:'#0a7a42',fontWeight:'800',fontSize:'13px',padding:'7px 14px',border:'1.5px solid #9bd8b3'});
+              document.body.appendChild(n);setTimeout(()=>n.remove(),6000)},1500);
+          }
+        }catch(_){}
 
         const checkRemoteVersion=async(force=false)=>{
           const now=Date.now();
@@ -714,7 +771,7 @@
           (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
           h('button',{type:'button',className:'btn btn-secondary mobile-global-home',onClick:()=>{pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},title:'Go to Home','aria-label':'Go to Home'},'⌂ Home'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
-          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})},title:'Sign out of Samara Care on this device','aria-label':'Sign out'},'⇥ Sign Out')),
+          h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;try{window.SamaraDrafts?.clearForSignOut()}catch(_){}await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})},title:'Sign out of Samara Care on this device','aria-label':'Sign out'},'⇥ Sign Out')),
         h(NursingMobileQuickActions,{profile,page,onNavigate:setPage}),
         page==='Clinical Dashboard'&&allowed.includes('Talk to Guest')&&h('div',{style:{padding:'12px 16px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPage('Talk to Guest')},'🎙 Talk to Guest · 6 languages')),
         h(window.SamaraDutySwap.DailyNotice,dutyNotice),

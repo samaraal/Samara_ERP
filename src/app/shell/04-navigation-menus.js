@@ -31,7 +31,7 @@
       h('div',{className:'sidebar-footer'},
         h('button',{type:'button',className:'user-chip',onClick:()=>setPage('My Profile'),title:'Open My Profile',style:{width:'100%',textAlign:'left',cursor:'pointer'}},h('strong',null,formalName(profile)),h('small',null,`${profile.login_id} · ${profile.role}`)),
         h('button',{type:'button',className:'btn btn-secondary full',onClick:samaraOpenAppHelp},'App Help / Repair'),
-        h('button',{className:'btn btn-secondary full',onClick:async()=>{await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})}},'Sign out') /* 2.18.1: this device only */
+        h('button',{className:'btn btn-secondary full',onClick:async()=>{try{window.SamaraDrafts?.clearForSignOut()}catch(_){}await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})}},'Sign out') /* 2.18.1: this device only */
       )
     );
   }
@@ -107,6 +107,7 @@
     },[]);
     async function signOut(){
       if(!window.confirm('Are you sure you want to sign out?'))return;
+      try{window.SamaraDrafts?.clearForSignOut()}catch(_){}
       onClose();
       await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');
       await client.auth.signOut({scope:'local'}); // 2.18.1: this device only
