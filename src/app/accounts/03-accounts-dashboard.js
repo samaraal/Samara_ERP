@@ -188,6 +188,10 @@
     ];
 
     return h('div',{className:'accounts-dashboard'},
+      h('button',{type:'button',className:'accounts-panel outside-bills-shortcut',onClick:()=>dashboardNavigate(onNavigate,'Outside Bills Paid by Samara','Outside Bills Paid by Samara',{source:'Accounts Dashboard'})},
+        h('span',null,h('strong',null,'Outside Bills Paid by Samara'),h('small',null,'View bills, handling fees, Guest charges and payments due to vendors.')),
+        h('span',{'aria-hidden':'true'},'Open full details →')
+      ),
       h('div',{className:'accounts-hero'},
         h('div',null,
           h('small',null,'FINANCE · BILLING · COLLECTIONS'),
@@ -287,7 +291,6 @@
       h(Section,{title:'Accounts Workflow',subtitle:'Open the required financial stage directly'},
         h('div',{className:'accounts-workflow-grid'},
           [
-            ['🧾','Outside Bills Paid by Samara','View outside bills, handling fees, Guest charges and payments due to vendors.','Open','outside-bills'],
             ['🧾','Charge Approvals','Approve, partially approve or reject Nurse-raised charges.',pendingApprovals,'approvals'],
             ['💳','Payments','Receive Cash, UPI, RTGS or Card payments.',todayCollections?money(todayCollections):'Open','payments'],
             ['📑','Final Billing','Resident-wise ledger, discounts and net payable.',finalBills,'final-billing'],
