@@ -1,3 +1,6 @@
+## 2.18.123 — Physiotherapy: recording the 2nd session of the day is clear
+- When the morning session is already done, the Record form now says "Session 1 of 2 is already done today … This form records the next session — 4:00–6:00 PM. Enter the Actual Session Time and press Save Session." The "Open Session options" button (which opened the morning session for correction) is no longer shown there; it appears only for a real duplicate, renamed "Correct this entry". No SQL.
+
 ## 2.18.122 — Physiotherapy approvals no longer at the top
 - Removed the "🔔 Physio approvals (N)" button, its pop-up and the "₹ Physio unbilled" button from the top bar. Pending corrections remain in Notifications and Physiotherapy Dashboard → Physiotherapy Correction Approvals; unbilled sessions remain flagged in Patient Rates & Billing.
 - One-time SQL 291 closes correction requests left Pending although already reviewed (sessions unchanged). No other SQL.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.122';
+  const APP_VERSION = '2.18.123';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio alerts removed from top bar';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio 2nd session form clearer';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -37483,11 +37483,16 @@ function RoomsBeds({profile,onNavigate}){
               if(!sameDay.length)return null;
               const clash=sameDay.find(row=>physioHHMM(row.scheduled_time)===physioHHMM(form.scheduled_time));
               const full=sameDay.length>=st.perDay;
-              return h('div',{className:'message '+(clash||full?'error':'info')+' span-2',role:'status'},
-                h('strong',null,clash?'This session is already recorded. ':full?`All ${st.perDay} session(s) for this date are already recorded. `:`Already recorded for this date (${sameDay.length} of ${st.perDay}): `),
+              // 2.18.123: when this is simply the next session of the day, just say so — no "Session options" button
+              // (it opened the earlier session for correction and confused staff). The button stays only for a real duplicate.
+              if(!clash&&!full)return h('div',{className:'message success span-2',role:'status'},
+                h('strong',null,`Session ${sameDay.length} of ${st.perDay} is already done today (actual ${sameDay.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')}). `),
+                `This form records the next session${form.scheduled_time?` — ${physioWindowLabel(form.scheduled_time,entryPlan)}`:''}. Enter the Actual Session Time and press Save Session.`);
+              return h('div',{className:'message error span-2',role:'status'},
+                h('strong',null,clash?'This session is already recorded. ':`All ${st.perDay} session(s) for this date are already recorded. `),
                 sameDay.map(row=>h('div',{key:row.id,style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:6}},
                   h('span',null,`${clockLabel(row.scheduled_time)} · ${row.status}${row.actual_time?' · actual '+clockLabel(row.actual_time):''}`),
-                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setEntryPlan(null);openCorrection(row)}},'Open Session options'))),
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setEntryPlan(null);openCorrection(row)}},'Correct this entry'))),
                 (clash||full)&&h('small',{style:{display:'block',marginTop:6}},'Do not record it again. To change it, use Open Session options (needs Nursing Manager / Admin approval).'));
             })(),
             h('div',{className:'field'},h('label',null,'Status'),h('div',{role:'group','aria-label':'Session Status',style:{display:'flex',flexWrap:'wrap',gap:'6px'}},
