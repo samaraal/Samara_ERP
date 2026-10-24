@@ -1,3 +1,9 @@
+## 2.18.105 — Physiotherapy: today's progress on each plan, no duplicate sessions
+- Physiotherapy Plan rows show "Today: X of N done (times)". The button names the next session ("Record 5:00 PM session" / "Record 2nd session") and becomes a grey "✓ All done today" when every session is recorded.
+- Twice / Thrice daily plans with a missing session time are flagged "second time missing — Admin please add in Patient Edit" (new plans already require all times).
+- Recording today: the session is chosen from the plan's own times (recorded ones shown "✓ recorded"); staff type only the Actual time, so the plan time is no longer overwritten.
+- Before saving, the form lists sessions already recorded for that date with "Open Session options", and warns when the session or the whole day is already recorded. Today's progress is read separately, so it is correct whatever period is filtered. No SQL.
+
 ## 2.18.104 — Compact filter rows across the ERP
 - Filter dropdowns no longer stretch across the whole screen. Every filter group (registers, reports, dashboards) shows as one row of short boxes — about 4 per row on a laptop, 2 on a tablet, 1 on a phone — with Apply at the end. Pop-ups and entry forms are unchanged.
 - Bills & Charges Register: new "Search Guest" (3 letters: name / ID / room) narrows the Patient list; Patient, Status, Category and Period change only when Apply is pressed. Quick-view boxes and notifications still apply at once. No SQL.

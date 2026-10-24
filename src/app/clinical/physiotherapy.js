@@ -3,6 +3,7 @@
     const [plans,setPlans]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [sessions,setSessions]=React.useState([]);
+    const [todaySessions,setTodaySessions]=React.useState([]); // 2.18.105: always today's, whatever period is filtered
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
     const [entryPlan,setEntryPlan]=React.useState(null);
@@ -64,8 +65,9 @@
         filters?loadPhysioFilteredSessions(filters):client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
         client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300),
         client.rpc('physio_organisation_options'),
-        client.rpc('physio_practitioner_options')
-      ]);
+        client.rpc('physio_practitioner_options'),
+        client.from('physiotherapy_sessions').select('*').eq('session_date',todayISOIndia())
+      ]).then(r=>{const today=r.pop();if(!today.error)setTodaySessions(today.data||[]);return r;});
       if(plansResult.error){
         setMessage(plansResult.error.message||'Unable to load physiotherapy plans.');
         setPlans([]);
@@ -134,6 +136,24 @@
     // scheduled time). The number of sessions a day comes from the plan's frequency.
     function physioSessionsPerDay(plan){return Math.max(physioSessionsPerDayFor(plan?.frequency),physioPlanTimes(plan).length||1);}
     const physioHHMM=v=>String(v||'').slice(0,5);
+    // 2.18.105: today's progress for a plan. A session counts once it is recorded (Completed / Not Done).
+    // Recorded sessions whose scheduled time is not one of the plan times still use up a slot, in order,
+    // so a session entered as 10:30 does not leave the 8:00 AM slot looking "not done".
+    function physioTodayStatus(plan){
+      const perDay=physioSessionsPerDay(plan);
+      const times=physioPlanTimes(plan);
+      const mine=todaySessions.filter(row=>(row.plan_id||row.order_id)===plan.id);
+      const recorded=mine.filter(row=>row.status!=='Pending'||row.session_at);
+      const covered=new Set();let loose=0;
+      recorded.forEach(row=>{const t=physioHHMM(row.scheduled_time);if(times.includes(t)&&!covered.has(t))covered.add(t);else loose++;});
+      const open=times.filter(t=>!covered.has(t));
+      const openAfterLoose=open.slice(Math.min(loose,open.length));
+      const done=Math.min(perDay,recorded.length);
+      const missingTimes=times.length<perDay;
+      const pendingRow=mine.find(row=>row.status==='Pending'&&!row.session_at)||null;
+      return {perDay,times,recorded,done,allDone:done>=perDay,nextTime:openAfterLoose[0]||'',openTimes:openAfterLoose,missingTimes,pendingRow};
+    }
+    const ordinal=n=>['1st','2nd','3rd','4th'][n]||`${n+1}th`;
     function openEntry(plan,session=null){
       setNameSuggestionsOpen(false);
       const pending=session||sessions.find(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()&&row.status==='Pending'&&!row.session_at);
@@ -143,9 +163,8 @@
       setForm({
         session_date:pending?.session_date||todayISOIndia(),
         scheduled_time:(()=>{if(pending)return String(pending.scheduled_time||plan.preferred_time||'').slice(0,5);
-          // 2.18.94: the plan's first session time not yet recorded today (Twice daily → morning, then evening)
-          const used=sessions.filter(row=>(row.plan_id||row.order_id)===plan.id&&row.session_date===todayISOIndia()).map(row=>physioHHMM(row.scheduled_time));
-          const times=physioPlanTimes(plan);return times.find(t=>!used.includes(t))||(times.length>1?'':'');})(),
+          // 2.18.105: the next plan time not yet covered today (Twice daily → morning, then evening)
+          return physioTodayStatus(plan).nextTime||'';})(),
         actual_time:'',
         status:'Completed',
         organisation_id:organisationFor(pending,plan)?.id||'',
@@ -207,7 +226,7 @@
         physiotherapist_name:form.physiotherapist_name?.trim()||null,
         updated_at:new Date().toISOString()
       };
-      const sameDay=sessions.filter(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
+      const sameDay=(form.session_date===todayISOIndia()?todaySessions:sessions).filter(row=>(row.order_id||row.plan_id)===entryPlan.id&&row.session_date===form.session_date);
       const perDay=physioSessionsPerDay(entryPlan);
       const existing=perDay>1
         ?sameDay.find(row=>physioHHMM(row.scheduled_time)===physioHHMM(payload.scheduled_time))
@@ -290,9 +309,15 @@
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
-      physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time),
+      (()=>{const st=physioTodayStatus(plan);return h('div',null,
+        h('div',null,physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time)),
+        h('small',{style:{display:'block',fontWeight:700,color:st.allDone?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
+        st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.precautions||plan.special_instructions||'—',
-      canEnter?h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEntry(plan)},'Record Session'):h('span',{className:'small-note'},'View only')
+      canEnter?(()=>{const st=physioTodayStatus(plan);
+        if(st.allDone)return h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'All of today’s sessions are recorded. Use Session options in Recent Sessions to correct one.'},'✓ All done today');
+        const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
+        return h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEntry(plan)},label);})():h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{
@@ -361,7 +386,34 @@
               type:'date',value:form.session_date,max:todayISOIndia(),required:true,disabled:!!editingSession,
               onChange:e=>setForm({...form,session_date:e.target.value})
             })),
-            h('div',{className:'field'},h('label',null,'Scheduled Time'),h('input',{'aria-label':'Scheduled Time',type:'time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule',onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
+            (()=>{
+              // 2.18.105: for today, the session is chosen from the plan's own times; staff type only the Actual time.
+              const st=physioTodayStatus(entryPlan);
+              const fromPlan=!editingSession&&form.session_date===todayISOIndia()&&st.times.length>0&&!st.missingTimes;
+              const pendingLocked=!!sessions.find(row=>(row.plan_id||row.order_id)===entryPlan.id&&row.session_date===form.session_date&&row.status==='Pending'&&!row.session_at&&physioHHMM(row.scheduled_time)===physioHHMM(form.scheduled_time));
+              if(fromPlan)return h('div',{className:'field'},h('label',null,'Session (plan time)'),
+                h('select',{'aria-label':'Scheduled Time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})},
+                  h('option',{value:''},st.openTimes.length?'Choose session':'All sessions recorded'),
+                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${clockLabel(t)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
+                h('small',{className:'small-note'},'This is the plan time. Enter when treatment actually happened in “Actual Session Time”.'));
+              return h('div',{className:'field'},h('label',null,'Scheduled Time'),h('input',{'aria-label':'Scheduled Time',type:'time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})}),
+                st.missingTimes&&form.session_date===todayISOIndia()&&h('small',{className:'error-text'},`This ${entryPlan.frequency} plan is missing a session time. Enter the plan time (not the actual time); Admin should add it in Patient Edit.`));
+            })(),
+            (()=>{
+              // 2.18.105: warn before a duplicate — show what is already recorded for this date.
+              if(editingSession)return null;
+              const st=physioTodayStatus(entryPlan);
+              const sameDay=(form.session_date===todayISOIndia()?todaySessions:sessions).filter(row=>(row.plan_id||row.order_id)===entryPlan.id&&row.session_date===form.session_date&&(row.status!=='Pending'||row.session_at));
+              if(!sameDay.length)return null;
+              const clash=sameDay.find(row=>physioHHMM(row.scheduled_time)===physioHHMM(form.scheduled_time));
+              const full=sameDay.length>=st.perDay;
+              return h('div',{className:'message '+(clash||full?'error':'info')+' span-2',role:'status'},
+                h('strong',null,clash?'This session is already recorded. ':full?`All ${st.perDay} session(s) for this date are already recorded. `:`Already recorded for this date (${sameDay.length} of ${st.perDay}): `),
+                sameDay.map(row=>h('div',{key:row.id,style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:6}},
+                  h('span',null,`${clockLabel(row.scheduled_time)} · ${row.status}${row.actual_time?' · actual '+clockLabel(row.actual_time):''}`),
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setEntryPlan(null);openCorrection(row)}},'Open Session options'))),
+                (clash||full)&&h('small',{style:{display:'block',marginTop:6}},'Do not record it again. To change it, use Open Session options (needs Nursing Manager / Admin approval).'));
+            })(),
             h('div',{className:'field'},h('label',null,'Status'),h('div',{role:'group','aria-label':'Session Status',style:{display:'flex',flexWrap:'wrap',gap:'6px'}},
               ['Completed','Pending','Not Done','Reschedule'].map(status=>h('button',{
                 key:status,type:'button',className:`btn ${form.status===status?'btn-primary':'btn-secondary'}`,
