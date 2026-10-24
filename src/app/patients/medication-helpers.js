@@ -265,7 +265,7 @@
     const list=Array.from({length:n},(_,i)=>String((times||[])[i]||'').slice(0,5));
     const label=i=>n===1?'Preferred time':`Session ${i+1} time`;
     return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
-      h('label',null,label(i),n>1?' *':''),
+      h('label',null,label(i)), // required mark comes from the field style
       h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
       t?h('small',{className:'small-note',style:{display:'block'}},'Window: '+physioWindowLabel(t)+' (1 hour before to 1 hour after)'):null,
       n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));

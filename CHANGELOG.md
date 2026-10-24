@@ -1,3 +1,7 @@
+## 2.18.110 — Physiotherapy: ended plans shown clearly
+- A plan whose End Date has passed shows "⚠ Plan ended DD-MM-YYYY — no sessions expected, no reminders" on the Physiotherapy plan row (it previously looked active).
+- Session time labels no longer show a double "* *". No SQL.
+
 ## 2.18.109 — Physiotherapy session window (7–9 AM instead of a fixed 8 AM) (SQL 287)
 - Each plan time is now the middle of a 2-hour window: 8:00 AM → 7:00–9:00 AM, 5:00 PM → 4:00–6:00 PM. Any time inside the window is on time.
 - Reminders / escalations for plan sessions start only at the window end (9:00 AM / 6:00 PM). Reschedule is unchanged — a rescheduled session keeps its exact time.

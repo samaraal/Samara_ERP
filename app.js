@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.109';
+  const APP_VERSION = '2.18.110';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio 2-hour session window';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio plan ended warning';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22832,7 +22832,7 @@ Thank you.`;
     const list=Array.from({length:n},(_,i)=>String((times||[])[i]||'').slice(0,5));
     const label=i=>n===1?'Preferred time':`Session ${i+1} time`;
     return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
-      h('label',null,label(i),n>1?' *':''),
+      h('label',null,label(i)), // required mark comes from the field style
       h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
       t?h('small',{className:'small-note',style:{display:'block'}},'Window: '+physioWindowLabel(t)+' (1 hour before to 1 hour after)'):null,
       n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));
@@ -37329,7 +37329,12 @@ function RoomsBeds({profile,onNavigate}){
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
-      (()=>{const st=physioTodayStatus(plan);return h('div',null,
+      (()=>{const st=physioTodayStatus(plan);
+        // 2.18.110: a plan whose End Date has passed expects no sessions and sends no reminders — say so plainly.
+        if(plan.end_date&&String(plan.end_date).slice(0,10)<todayISOIndia())return h('div',null,
+          h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time)]).filter(Boolean).map(physioWindowLabel).join(', ')),
+          h('small',{style:{display:'block',fontWeight:700,color:'#b42318'}},`⚠ Plan ended ${formatDateIN(plan.end_date)} — no sessions expected, no reminders. To continue, clear or extend End Date in Patient Edit.`));
+        return h('div',null,
         h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),

@@ -312,7 +312,12 @@
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
-      (()=>{const st=physioTodayStatus(plan);return h('div',null,
+      (()=>{const st=physioTodayStatus(plan);
+        // 2.18.110: a plan whose End Date has passed expects no sessions and sends no reminders — say so plainly.
+        if(plan.end_date&&String(plan.end_date).slice(0,10)<todayISOIndia())return h('div',null,
+          h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time)]).filter(Boolean).map(physioWindowLabel).join(', ')),
+          h('small',{style:{display:'block',fontWeight:700,color:'#b42318'}},`⚠ Plan ended ${formatDateIN(plan.end_date)} — no sessions expected, no reminders. To continue, clear or extend End Date in Patient Edit.`));
+        return h('div',null,
         h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
