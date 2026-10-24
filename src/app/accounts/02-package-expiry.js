@@ -6,7 +6,7 @@
     const [loading,setLoading]=React.useState(true);
     const [busy,setBusy]=React.useState('');
     const [message,setMessage]=React.useState('');
-    const [packageFocus,setPackageFocus]=React.useState('All');
+    const [packageFocus,setPackageFocus]=React.useState(()=>{const intent=readDashboardIntent('Package Expiry Dashboard');return intent&&/package expiry/i.test(intent.focus||'')?'Attention Required':'All'}); // 2.18.103: dashboard box opens the same expired / expiring list it counts
 
     const today=todayISOIndia();
     const dateOnly=value=>String(value||'').slice(0,10);

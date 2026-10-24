@@ -39,6 +39,9 @@
     const [breakupOpen,setBreakupOpen]=React.useState(false);
     const [breakupMonth,setBreakupMonth]=React.useState(todayISOIndia().slice(0,7));
     const [breakupCategory,setBreakupCategory]=React.useState(null);
+    // 2.18.103: Outstanding / Unadjusted Advance boxes open a Guest-wise list on this page.
+    const [balanceList,setBalanceList]=React.useState(null); // 'outstanding' | 'advances' | null
+    const [balanceGuest,setBalanceGuest]=React.useState(null);
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
     const dateKey=value=>String(value||'').slice(0,10);
     const monthKey=value=>dateKey(value).slice(0,7);
@@ -99,8 +102,8 @@
         byPatient.get(key).push({...row,_sourceIndex:index});
       });
       let realised=0,outstanding=0,unadjustedAdvance=0;
-      const realisedByDate=new Map();
-      byPatient.forEach(patientRows=>{
+      const realisedByDate=new Map(),perPatient=[];
+      byPatient.forEach((patientRows,patientKey)=>{
         patientRows.sort((a,b)=>{
           const ad=new Date(a.transaction_date||0).getTime();
           const bd=new Date(b.transaction_date||0).getTime();
@@ -126,8 +129,10 @@
         realised+=Math.min(netCharges,netReceipts);
         outstanding+=Math.max(0,netCharges-netReceipts);
         unadjustedAdvance+=Math.max(0,netReceipts-netCharges);
+        perPatient.push({key:patientKey,gross,discount,receipts,refund,netCharges,netReceipts,
+          outstanding:Math.max(0,netCharges-netReceipts),advance:Math.max(0,netReceipts-netCharges)});
       });
-      return {realised,outstanding,unadjustedAdvance,realisedByDate};
+      return {realised,outstanding,unadjustedAdvance,realisedByDate,perPatient};
     }
     const realisation=buildRealisation(rows);
     const outstanding=realisation.outstanding;
@@ -178,14 +183,117 @@
       ['Discounts This Month',monthDiscounts,'Accounts Reports','purple','Approved discounts granted this month'],
       ['Net Charges This Month',monthNetCharges,'Accounts Reports','blue','Gross charges less approved discounts'],
       ['Realised Revenue This Month',monthRealisedRevenue,'Accounts Reports','green','Revenue materialised against charges'],
-      ['Outstanding Receivables',outstanding,'Accounts Reports','red','Approved net charges still unpaid'],
-      ['Unadjusted Advances',unadjustedAdvance,'Payments','blue','Receipts not yet materialised against charges'],
+      ['Outstanding Receivables',outstanding,'list:outstanding','red','Approved net charges still unpaid · tap for Guest list'],
+      ['Unadjusted Advances',unadjustedAdvance,'list:advances','blue','Receipts not yet materialised against charges · tap for Guest list'],
       ['Pending Approvals',pendingApprovals,'Charge Approvals','orange','Clinical charges awaiting decision',true],
       ['Pending Final Bills',finalBills,'Final Billing','purple','Active patients with balance',true],
       ['Discharge Clearance',dischargeClearance,'Discharge Clearance','orange','Management-approved cases',true],
       ['Package Expiry',packageExpiry,'Package Expiry Dashboard','orange','Expired / expiring within 3 days',true],
       ['Average Daily Realised Revenue',averageDailyRevenue,'Accounts Reports','blue','Materialised revenue across realised-revenue days']
     ];
+
+    // ---- Guest-wise Outstanding / Advance list (2.18.103) ----
+    const allPatients=[...state.patients,...(state.outside?.patients||[])];
+    const guestOf=key=>allPatients.find(p=>p.id===key)||null;
+    const guestName=key=>{
+      if(key==='__unassigned__')return 'Unassigned entries';
+      const p=guestOf(key);return p?(formalName(p)||p.full_name||p.patient_id||'Guest'):'Guest';
+    };
+    const guestRoom=key=>{
+      if(String(key).startsWith('outside:'))return 'Outside visit';
+      const p=guestOf(key);if(!p||!p.room_no)return '—';
+      return `${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`;
+    };
+    function openBalanceList(kind){
+      setBalanceGuest(null);
+      setBalanceList(current=>current===kind?null:kind);
+      setTimeout(()=>{const el=document.getElementById('accounts-balance-list');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},80);
+    }
+    const balanceField=balanceList==='advances'?'advance':'outstanding';
+    const balanceRows=balanceList?realisation.perPatient
+      .filter(r=>r[balanceField]>0.009)
+      .map(r=>({...r,name:guestName(r.key),room:guestRoom(r.key)}))
+      .sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'})):[];
+    const balanceTotal=balanceRows.reduce((t,r)=>t+r[balanceField],0);
+    function guestDetails(r){
+      const p=guestOf(r.key)||{};
+      const isOutside=String(r.key).startsWith('outside:');
+      const txns=rows.filter(t=>(t.patient_id||'__unassigned__')===r.key)
+        .slice().sort((a,b)=>new Date(a.transaction_date||0)-new Date(b.transaction_date||0));
+      const info=[
+        [isOutside?'Invoice No.':'Guest ID',p.patient_id||'—'],
+        ['Room / Bed',r.room],
+        ...(isOutside?[]:[['Admission Date',p.admission_date?formatDateIN(p.admission_date):'—'],['Status',p.is_active===false?'Discharged / Inactive':'Active']]),
+        ['Total Charges',money(r.gross)],
+        ['Discounts',money(r.discount)],
+        ['Net Charges',money(r.netCharges)],
+        ['Received (Payments + Advances)',money(r.receipts)],
+        ['Refunds',money(r.refund)],
+        [r.outstanding>0.009?'Outstanding Amount':'Unadjusted Advance',money(r.outstanding>0.009?r.outstanding:r.advance)]
+      ];
+      return h('div',{className:'accounts-balance-detail',style:{padding:'14px 12px',background:'#fff7fb',borderRadius:12}},
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))',gap:'8px 18px',marginBottom:12}},
+          info.map(([k,v])=>h('div',{key:k},h('small',{style:{display:'block',color:'#8a5a73'}},k),h('strong',null,v)))
+        ),
+        h('h4',{style:{margin:'6px 0'}},`All entries (${txns.length})`),
+        h('div',{style:{overflowX:'auto'}},h('table',{className:'table',style:{width:'100%'}},
+          h('thead',null,h('tr',null,['Date','Type','Category','Description','Mode','Amount'].map(t=>h('th',{key:t},t)))),
+          h('tbody',null,
+            txns.map(t=>h('tr',{key:t.id},
+              h('td',null,formatDateIN(t.transaction_date)),
+              h('td',null,t.transaction_type||'—'),
+              h('td',null,t.category||'—'),
+              h('td',null,t.description||'—'),
+              h('td',null,t.payment_mode||'—'),
+              h('td',{style:{textAlign:'right'}},money(t.amount))
+            )),
+            !txns.length&&h('tr',null,h('td',{colSpan:6,className:'empty'},'No entries.'))
+          )
+        )),
+        h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}},
+          !isOutside&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Payments','New Payment',{source:'Accounts Dashboard',patient_id:r.key})},'＋ Receive Payment'),
+          !isOutside&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dashboardNavigate(onNavigate,'Final Billing','Final Billing',{source:'Accounts Dashboard',patient_id:r.key})},'📑 Final Billing'),
+          isOutside&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Outside Samara Nursing Procedures')},'Open Outside Nursing invoices'),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setBalanceGuest(null)},'Close details')
+        )
+      );
+    }
+    const balancePanel=balanceList&&h('section',{id:'accounts-balance-list',className:'accounts-panel',style:{marginBottom:20}},
+      h('div',{className:'accounts-panel-head'},
+        h('div',null,
+          h('h3',null,balanceList==='advances'?'Unadjusted Advances — Guest-wise':'Outstanding Receivables — Guest-wise'),
+          h('small',null,balanceList==='advances'
+            ?'Guests whose receipts are more than their approved net charges. Tap a row for full details.'
+            :'Guests with approved net charges still unpaid (includes Outside Nursing invoices). Tap a row for full details.')
+        ),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setBalanceList(null);setBalanceGuest(null)}},'Close')
+      ),
+      state.loading?h('p',null,'Loading…'):state.error?h('p',{role:'alert'},state.error):
+      !balanceRows.length?h('p',{className:'empty'},balanceList==='advances'?'No unadjusted advances.':'No outstanding amounts. All Guests are fully paid.'):
+      h('div',{style:{overflowX:'auto'}},h('table',{className:'table accounts-balance-table',style:{width:'100%'}},
+        h('thead',null,h('tr',null,
+          h('th',{style:{width:70}},'S.No'),h('th',null,'Guest Name'),h('th',null,'Room No.'),
+          h('th',{style:{textAlign:'right'}},balanceList==='advances'?'Advance Amount':'Outstanding Amount'))),
+        h('tbody',null,
+          balanceRows.map((r,i)=>{
+            const open=balanceGuest===r.key;
+            const toggle=()=>setBalanceGuest(open?null:r.key);
+            return h(React.Fragment,{key:r.key},
+              h('tr',{tabIndex:0,role:'button','aria-expanded':open,onClick:toggle,
+                onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}},
+                style:{cursor:'pointer',background:open?'#fde7f1':undefined}},
+                h('td',null,i+1),
+                h('td',null,h('strong',null,r.name),' ',h('span',{style:{color:'#a91653'}},open?'▾':'▸')),
+                h('td',null,r.room),
+                h('td',{style:{textAlign:'right',fontWeight:700,color:balanceList==='advances'?'#1d4ed8':'#b42318'}},money(r[balanceField]))
+              ),
+              open&&h('tr',null,h('td',{colSpan:4,style:{padding:0}},guestDetails(r)))
+            );
+          }),
+          h('tr',null,h('th',{colSpan:3},`Total (${balanceRows.length} Guest${balanceRows.length===1?'':'s'})`),h('th',{style:{textAlign:'right'}},money(balanceTotal)))
+        )
+      ))
+    );
 
     return h('div',{className:'accounts-dashboard'},
       h('button',{type:'button',className:'accounts-panel outside-bills-shortcut',onClick:()=>dashboardNavigate(onNavigate,'Outside Bills Paid by Samara','Outside Bills Paid by Samara',{source:'Accounts Dashboard'})},
@@ -215,7 +323,9 @@
       h('div',{className:'accounts-kpi-grid'},
         h('button',{type:'button',className:'accounts-kpi teal',onClick:()=>setBreakupOpen(v=>!v),'aria-expanded':breakupOpen,'aria-controls':'collection-breakup'},h('span',null,'Collection Breakup'),h('strong',null,'View breakup →'),h('small',null,'Total Charges · Realised · Pending by category')),
         kpis.map(([label,value,page,tone,note,isCount])=>h('button',{
-          type:'button',className:`accounts-kpi ${tone}`,key:label,onClick:()=>dashboardNavigate(onNavigate,page,label,{source:'Accounts Dashboard'})
+          type:'button',className:`accounts-kpi ${tone}`,key:label,
+          'aria-expanded':page.startsWith('list:')?balanceList===page.slice(5):undefined,
+          onClick:()=>page.startsWith('list:')?openBalanceList(page.slice(5)):dashboardNavigate(onNavigate,page,label,{source:'Accounts Dashboard'})
         },
           h('span',null,label),
           h('strong',null,isCount?Number(value||0):money(value)),
@@ -223,6 +333,7 @@
         ))
       ),
 
+      balancePanel,
       breakupOpen&&h('section',{id:'collection-breakup',className:'accounts-panel',style:{marginBottom:20}},
         h('div',{className:'accounts-panel-head'},h('h3',null,'Collection Breakup'),h('label',null,'Charge month ',h('input',{type:'month',value:breakupMonth,max:month,onChange:e=>{if(e.target.value){setBreakupMonth(e.target.value);setBreakupCategory(null)}}})),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setBreakupOpen(false)},'Close')),
         h('p',null,'Charges posted in the selected month, after discounts; settled through '+today+'. Payments and advances cover each patient’s oldest charges first (FIFO). Discounts are spread proportionately across that patient’s charges in the discount’s posting month; any excess reduces other charges oldest first. Refunds reduce available receipts. Outside nursing stays within its own invoice.'),
@@ -271,7 +382,7 @@
               ['Unadjusted Advances',money(unadjustedAdvance)],
               ['Refunds',money(refundValue)],
               ['Net Outstanding',money(outstanding)]
-            ].map(([label,value])=>h('button',{type:'button',className:'accounts-status-item',key:label,onClick:()=>dashboardNavigate(onNavigate,'Accounts Reports',label,{source:'Accounts Dashboard'}),style:{width:'100%',textAlign:'left',font:'inherit',cursor:'pointer'}},h('span',null,label),h('strong',null,value)))
+            ].map(([label,value])=>h('button',{type:'button',className:'accounts-status-item',key:label,onClick:()=>label==='Net Outstanding'?openBalanceList('outstanding'):label==='Unadjusted Advances'?openBalanceList('advances'):dashboardNavigate(onNavigate,'Accounts Reports',label,{source:'Accounts Dashboard'}),style:{width:'100%',textAlign:'left',font:'inherit',cursor:'pointer'}},h('span',null,label),h('strong',null,value)))
           )
         )
       ),

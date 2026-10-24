@@ -6,8 +6,41 @@ function Reports(){
     to:todayISOIndia(),
     patient_id:'',
     payment_mode:'All',
-    transaction_type:'All',source:'All'
+    transaction_type:'All',source:'All',register_type:'All'
   });
+  // 2.18.103: open the matching period + section when a box on the Accounts Dashboard is tapped.
+  const REPORT_START='2026-08-27'; // Samara inauguration — no earlier dates needed
+  const [dashFocus]=React.useState(()=>{
+    const intent=readDashboardIntent('Accounts Reports');
+    const label=String(intent?.focus||'');
+    const today=todayISOIndia(),monthStart=today.slice(0,8)+'01';
+    const map={
+      'Collections Today':{from:today,to:today,section:'report-payments'},
+      'Collections This Month':{from:monthStart,to:today,section:'report-payments'},
+      'Gross Charges This Month':{from:monthStart,to:today,register_type:'Charge',section:'report-register'},
+      'Discounts This Month':{from:monthStart,to:today,register_type:'Discount',section:'report-register'},
+      'Net Charges This Month':{from:monthStart,to:today,register_type:'Charges & Discounts',section:'report-register'},
+      'Realised Revenue This Month':{from:monthStart,to:today,section:'report-ledger'},
+      'Average Daily Realised Revenue':{from:REPORT_START,to:today,section:'report-ledger'},
+      'Gross Charges':{from:REPORT_START,to:today,register_type:'Charge',section:'report-register'},
+      'Discounts':{from:REPORT_START,to:today,register_type:'Discount',section:'report-register'},
+      'Net Charges':{from:REPORT_START,to:today,register_type:'Charges & Discounts',section:'report-register'},
+      'Realised Revenue':{from:REPORT_START,to:today,section:'report-ledger'},
+      'Collections / Receipts':{from:REPORT_START,to:today,section:'report-payments'},
+      'Refunds':{from:REPORT_START,to:today,transaction_type:'Refund',section:'report-payments'}
+    };
+    return map[label]?{label,...map[label]}:null;
+  });
+  React.useEffect(()=>{
+    if(!dashFocus)return;
+    const {label,section,...preset}=dashFocus;
+    setFilters(current=>({...current,...preset}));
+  },[]);
+  React.useEffect(()=>{
+    if(!dashFocus||state.loading)return;
+    const t=setTimeout(()=>{const el=document.getElementById(dashFocus.section);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},150);
+    return()=>clearTimeout(t);
+  },[state.loading]);
 
   const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
   const dateOnly=value=>String(value||'').slice(0,10);
@@ -66,6 +99,13 @@ function Reports(){
   const paymentModeTotal=mode=>receivedRows
     .filter(row=>String(row.payment_mode||'')===mode)
     .reduce((sum,row)=>sum+Number(row.amount||0),0);
+
+  const registerRows=filtered.filter(row=>{
+    const t=filters.register_type;
+    if(t==='All')return true;
+    if(t==='Charges & Discounts')return ['Charge','Discount'].includes(row.transaction_type);
+    return row.transaction_type===t;
+  });
 
   const sum=types=>filtered.filter(row=>types.includes(row.transaction_type))
     .reduce((total,row)=>total+Number(row.amount||0),0);
@@ -180,6 +220,10 @@ function Reports(){
     ),
 
     state.outside?.error&&h('p',{role:'alert'},state.outside.error),
+    dashFocus&&h('div',{className:'record-focus-banner',role:'status',style:{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',padding:'10px 14px',background:'#fde7f1',borderRadius:12,margin:'8px 0'}},
+      h('span',null,'Opened from Accounts Dashboard: ',h('strong',null,dashFocus.label),` · ${formatDateIN(filters.from)} to ${formatDateIN(filters.to)}`),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{const el=document.getElementById(dashFocus.section);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}},'Go to section ↓')
+    ),
     h('p',null,'Includes approved Outside Nursing invoices and saved receipts, identified by SN invoice number. Pending and voided procedures are excluded.'),
     h(Section,{title:'Payment Report Filters',subtitle:'Choose period, patient, transaction type and payment mode'},
       h('div',{className:'accounts-report-filters'},
@@ -193,6 +237,7 @@ function Reports(){
         miniSelect('Service',filters.source,['All','Resident Billing','Outside Nursing'],v=>setFilters({...filters,source:v})),
         miniSelect('Transaction Type',filters.transaction_type,['All','Payment','Advance','Refund'],v=>setFilters({...filters,transaction_type:v})),
         miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment','Razorpay'],v=>setFilters({...filters,payment_mode:v})),
+        miniSelect('Register Type',filters.register_type,['All','Charge','Discount','Charges & Discounts','Payment','Advance','Refund'],v=>setFilters({...filters,register_type:v})),
         h('div',{className:'field'},h('label',null,'Quick Report'),h('button',{type:'button',className:'btn btn-secondary',onClick:setToday},'Today / Daily Collection'))
       )
     ),
@@ -211,6 +256,7 @@ function Reports(){
       ))
     ),
 
+    h('div',{id:'report-payments'}),
     h(LogTable,{
       title:`Payment Report (${paymentRows.length})`,
       subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
@@ -286,6 +332,7 @@ function Reports(){
       )
     ),
 
+    h('div',{id:'report-ledger'}),
     h(LogTable,{
       title:`Patient / Outside Invoice Financial Ledger (${patientLedger.length})`,
       subtitle:'Charges, receipts, concessions, refunds and balance',
@@ -302,11 +349,12 @@ function Reports(){
       ])
     }),
 
+    h('div',{id:'report-register'}),
     h(LogTable,{
-      title:`Detailed Transaction Register (${filtered.length})`,
-      subtitle:'Filtered billing, payment, discount and refund history',
+      title:`Detailed Transaction Register (${registerRows.length})`,
+      subtitle:filters.register_type==='All'?'Filtered billing, payment, discount and refund history':`Showing ${filters.register_type} entries only`,
       heads:['Date','Patient','Patient / Invoice ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
-      rows:filtered.map(row=>[
+      rows:registerRows.map(row=>[
         transactionDate(row),
         formalName(row.patients||{})||row.patients?.full_name||'—',
         row.patients?.patient_id||'—',

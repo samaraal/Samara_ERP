@@ -1,3 +1,9 @@
+## 2.18.103 — Accounts Dashboard boxes open the right view; Outstanding Guest list
+- Outstanding Receivables (and Financial Position › Net Outstanding) opens a Guest-wise list on the dashboard: S.No · Guest Name · Room No. · Outstanding Amount, alphabetical, with total. Tapping a row shows full details (Guest ID, room/bed, admission date, status, charges, discounts, received, refunds, every entry) with Receive Payment / Final Billing buttons.
+- Unadjusted Advances opens the same kind of Guest-wise list (was the blank Payments form).
+- Accounts Reports now opens with the matching period and section: Collections Today → today's payments; month boxes → this month; Gross Charges / Discounts / Net Charges → Detailed Register filtered to that type; Realised / Average → Guest ledger. New "Register Type" filter.
+- Package Expiry opens with "Attention Required" (expired / expiring within 3 days) — the same Guests it counts. No SQL.
+
 ## 2.18.102 — Restore dashboard figures to their individual colors
 - KPI figures use their existing green, blue, red, purple, amber, teal or pink category color. Baby-pink gradient boxes, labels, banner and navigation stay as in 2.18.101. No SQL.
 
