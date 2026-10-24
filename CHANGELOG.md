@@ -1,3 +1,7 @@
+## 2.18.98 — Charge requests fit the screen; notifications focus the request
+- Bills & Charges Approval uses responsive request cards on desktop and mobile, keeping amounts, decisions and approval actions visible without a wide table.
+- Charge notifications clear the date filter, highlight and scroll to the matching request, and focus Approve (pending) or Decision (already processed). No SQL.
+
 ## 2.18.97 — Updates never wipe a staff entry + auto-saved drafts (no SQL)
 - Cause: the "New version" box reloaded the page while staff were typing, so half-filled entries were lost.
 - The box now has **Later – finish my entry**, and it does not appear at all while a form has unsaved typing; a small "New version ready" chip stays at the top instead (tap to update when ready). A waiting update is applied by itself only when nothing is typed, no popup is open and the screen has been idle 2 minutes (or the tab is in the background); a green "Samara Care updated" note confirms it.
