@@ -202,8 +202,6 @@
     const [patientReturns,setPatientReturns]=React.useState([]);
     const [storeAllocations,setStoreAllocations]=React.useState([]);
     const [tariffBusy,setTariffBusy]=React.useState(false);
-    const [isChargeMobile,setIsChargeMobile]=React.useState(()=>typeof window!=='undefined'&&window.matchMedia('(max-width: 760px)').matches);
-    React.useEffect(()=>{if(typeof window==='undefined')return;const mq=window.matchMedia('(max-width: 760px)');const sync=()=>setIsChargeMobile(mq.matches);sync();mq.addEventListener?.('change',sync);return()=>mq.removeEventListener?.('change',sync)},[]);
     const defaultCategories={
       'Doctor Services':['General Physician Visit','Emergency Doctor Visit','Specialist Consultation','Teleconsultation','Home Visit','Follow-up Consultation'],
       'Nursing Procedures':['Blood Glucose Monitoring','Blood Sample Collection','Blood Transfusion Assistance','Bladder Wash','Catheterization','Urinary Catheterization / Change','Dressing','Dressing - Minor','Dressing - Major','Wound / Pressure Sore Dressing','ECG','Enema','Injection','Injection - IM / IV / SC','IV Cannulation','IV Fluid Administration','Nebulization - Own Nebulizer','Nebulization - Samara Nebulizer','Oxygen Therapy','Pressure Sore Care','Ryle’s Tube Feeding','Ryle’s / NG Tube Insertion','Ryle’s / NG Tube Change','Stoma Care','Suctioning','Tracheostomy Suctioning','Tracheostomy Dressing / Care','Wound Care','Other Nursing Procedure'],
@@ -289,6 +287,7 @@
         if(target?.type!=='charge-request'||!target?.request_id)return false;
         try{sessionStorage.removeItem('samara-workflow-target')}catch(_error){}
         if(!target.at||Date.now()-Number(target.at)>120000)return false;
+        setPeriod(current=>({...current,mode:'All dates'}));
         setWorkflowRequestId(String(target.request_id));
         setQuickView('All');
         setFilter(current=>({...current,patient_id:'',status:'All',category:'All'}));
@@ -306,7 +305,11 @@
       if(!workflowRequestId||!rows.some(row=>String(row.id)===workflowRequestId))return;
       const timer=setTimeout(()=>{
         const node=document.getElementById(`charge-request-${workflowRequestId}`)||document.getElementById('bill-charge-register');
-        if(node)node.scrollIntoView({behavior:'smooth',block:'center'});
+        if(node){
+          node.scrollIntoView({behavior:'smooth',block:'center',inline:'nearest'});
+          const target=node.querySelector('[data-charge-approve]:not(:disabled)')||node.querySelector('[data-charge-decision]')||node;
+          target.focus({preventScroll:true});
+        }
       },80);
       return()=>clearTimeout(timer);
     },[workflowRequestId,rows]);
@@ -839,10 +842,10 @@
       navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
-    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer'}},
+    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start'}},
         h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('strong',{style:{display:'block',fontSize:'16px',overflowWrap:'anywhere'}},`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'Charge'}`),h('small',{style:{display:'block',marginTop:'3px',overflowWrap:'anywhere'}},pLabel(r.patient_id))),
-        h('span',{className:'badge',style:{flex:'0 0 auto'}},r.approval_status||'Pending')
+        h('span',{className:'badge','data-charge-decision':true,tabIndex:-1,'aria-label':`Decision: ${r.approval_status||'Pending'}`,style:{flex:'0 1 auto',whiteSpace:'normal'}},r.approval_status||'Pending')
       ),
       h('div',{style:{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:'8px 12px',marginTop:'12px'}},
         h('div',{style:{minWidth:0}},h('small',null,'Date'),h('div',{style:{overflowWrap:'anywhere'}},formatDateIN(r.charge_date))),
@@ -852,48 +855,27 @@
         h('div',{style:{minWidth:0}},h('small',null,'Provider'),h('div',{style:{overflowWrap:'anywhere'}},r.service_provider||r.hospital_name||r.laboratory_name||'—')),
         h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Patient'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},pLabel(r.patient_id))),
         h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Service'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},r.service_name||r.description||'—')),
-        h('div',{style:{minWidth:0}},h('small',null,'Request Amount'),h('div',null,profile?.role==='Nurse'?'Hidden':(()=>{const store=currentStoreRequestAmount(r);return store.amount>0?money(store.amount):'—'})())),
+        h('div',{style:{minWidth:0}},h('small',null,'Request Amount'),h('div',null,profile?.role==='Nurse'?'Hidden':(()=>{const store=currentStoreRequestAmount(r);return store.amount>0?h('span',null,money(store.amount),store.fromMaster?h('small',{style:{display:'block',overflowWrap:'anywhere'}},`Store rate ${money(store.rate)} × ${Number(r.quantity||1)}`):null):'—'})())),
         h('div',{style:{minWidth:0}},h('small',null,'Approved Amount'),h('div',null,profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount))),
         h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Decision'),h('div',{style:{overflowWrap:'anywhere'}},[r.decision_by_name,r.decision_at&&fmt(r.decision_at)].filter(Boolean).join(' · ')||'—')),
         h('div',{style:{gridColumn:'1 / -1',minWidth:0}},h('small',null,'Remarks'),h('div',{style:{overflowWrap:'anywhere',wordBreak:'break-word'}},r.decision_remarks||r.approval_remarks||r.remarks||'—'))
       ),
       canApprove&&(r.approval_status||'Pending')==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'12px'}},
-        h('button',{className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
+        h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
         h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
         h('button',{className:'btn btn-danger',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Reject')
       )
     );
 
-    const desktopRegister=h(LogTable,{
-      title:`Bill & Charge Requests (${filtered.length})`,
-      subtitle:'Click any request row to open its full details.',
-      onRowClick:i=>setSelectedChargeDetail(filtered[i]),
-      heads:['Service Date','Requested At','Patient','Category','Service','Qty','Decision','Action','Request Amount','Approved Amount','Provider','Decision By','Decision Time','Remarks'],
-      rows:filtered.map(r=>[
-        formatDateIN(r.charge_date),formatDateTimeIN(r.created_at||r.raised_at),pLabel(r.patient_id),r.category,`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`,
-        `${r.quantity||1} ${r.unit||''}`,
-        h('span',{className:'badge'},r.approval_status||'Pending'),
-        h('div',{className:'employee-actions',style:{display:'flex',gap:'6px',flexWrap:'wrap',minWidth:canApprove?'235px':'80px'}},
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
-          canApprove&&(r.approval_status||'Pending')==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Reject'),
-          !canApprove&&h('span',{style:{color:'#8b7780'}},'—')
-        ),
-        profile?.role==='Nurse'?'Hidden':(()=>{const store=currentStoreRequestAmount(r);return store.amount>0?h('span',null,money(store.amount),store.fromMaster?h('small',{style:{display:'block',color:'#7b6570',marginTop:'2px'}},`Store rate ₹${Number(store.rate).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})} × ${Number(r.quantity||1)}`):null):'—'})(),
-        profile?.role==='Nurse'?'Hidden':money(r.approved_amount??r.final_amount),
-        r.service_provider||r.hospital_name||r.laboratory_name||'—',
-        r.decision_by_name||'—',r.decision_at?fmt(r.decision_at):'—',r.decision_remarks||r.approval_remarks||'—'
-      ])
-    });
-    const mobileRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'Mobile view — each request is contained within the screen. No horizontal scrolling.'},
-      h('div',{style:{width:'100%',maxWidth:'100%',overflowX:'hidden'}},filtered.length?filtered.map(chargeMobileCard):h('div',{className:'empty',style:{padding:'18px'}},'No records found'))
+    const responsiveRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'Review each request below. Select a request to open its full details.'},
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,420px),1fr))',gap:'12px',width:'100%',maxWidth:'100%',minWidth:0}},filtered.length?filtered.map(chargeMobileCard):h('div',{className:'empty',style:{padding:'18px'}},'No records found'))
     );
     const register=h(React.Fragment,null,
-      workflowRequestId&&h('div',{className:'message warning',style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',marginBottom:'10px'}},
+      workflowRequestId&&h('div',{className:'message warning',style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'10px'}},
         h('span',null,'Showing the exact charge request opened from the notification.'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setWorkflowRequestId('')},'Show All Charge Requests')
       ),
-      isChargeMobile?mobileRegister:desktopRegister
+      responsiveRegister
     );
 
     const diagTable=h(LogTable,{
