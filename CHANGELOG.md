@@ -1,3 +1,8 @@
+## 2.18.117 — Physiotherapist Panel "Paid by" dropdown; statements for every physiotherapist; tap rows for details
+- Physiotherapist Panel (Samara own team): a **Paid by** dropdown on each row — Salary or Session fee (asks for the fee when switching to Session fee).
+- "Statement for" lists every physiotherapist, marked (salary) or (per session). Salaried physiotherapists — and an all-salaried Samara team — get a **Work Statement**: sessions done with Guest, room, scheduled / actual time and status, counts, Print / WhatsApp PDF. Per-session ones keep the fee statement, now also with the sessions done in the period.
+- Tap any statement row (sessions or fee / payment entries) to see its full details. No SQL.
+
 ## 2.18.116 — Therapist Accounts: clear message when SQL 285 is missing
 - For a Samara own-team organisation, Therapist Accounts now says when SQL 285 is not installed (Samara per-session physiotherapists' sessions cannot be listed before it), instead of showing an empty list. No SQL.
 
