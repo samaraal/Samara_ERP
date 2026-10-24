@@ -218,6 +218,24 @@
       .complete-bill-status.paid{background:#fae7f0;color:#7a1247}
       .complete-bill-status.partial{background:#fff4df;color:#9a6700}
       .complete-bill-status.pending{background:#ffeded;color:#b42318}
+      /* Samara baby-pink boxes throughout the Accounts dashboard and outside bills. */
+      .accounts-dashboard .accounts-kpi,.accounts-dashboard .accounts-workflow-card,
+      .accounts-dashboard .accounts-panel,.accounts-dashboard .accounts-status-item,
+      .outside-bills-page .card.stat,.outside-bills-page .stores-ledger-card,
+      .outside-bills-page .card.panel,.outside-bills-page .card.modal,.samara-charge-card{
+        background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%)!important;
+        border:1px solid #edb5ce;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);
+      }
+      .accounts-dashboard .accounts-hero{background:linear-gradient(135deg,#fff0f6,#f6bfd7)!important;color:#651b40;box-shadow:0 10px 24px rgba(143,23,76,.12)}
+      .accounts-dashboard .accounts-kpi strong,.accounts-dashboard .accounts-kpi span,
+      .accounts-dashboard .accounts-kpi small,.accounts-dashboard .accounts-workflow-body strong,
+      .accounts-dashboard .accounts-workflow-body small{color:#651b40}
+      .accounts-dashboard .accounts-kpi::after{background:#f8c7dc}
+      .accounts-dashboard .accounts-bar-fill{background:linear-gradient(90deg,#f4a9ca,#b51660)}
+      .accounts-dashboard .accounts-kpi::before,.accounts-dashboard .accounts-workflow-card::before{background:#b51660}
+      .outside-bills-page .stores-ledger-card{overflow-wrap:anywhere;min-width:0}
+      .outside-bills-page .stores-ledger-card:focus-visible,.outside-bills-page .card.stat:focus-visible,
+      .accounts-dashboard button:focus-visible{outline:3px solid #ae1459;outline-offset:3px}
       @media print{
         .sidebar,.topbar,.mobile-menu,.sound-unlock-button,.accounts-report-actions,.btn{display:none!important}
         .main,.content{margin:0!important;padding:0!important}

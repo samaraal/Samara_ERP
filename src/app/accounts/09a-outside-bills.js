@@ -32,8 +32,10 @@
       window.open(r.data.signedUrl,'_blank','noopener,noreferrer');
     }
   }
-  function OutsideBillsRegister({profile,patients,pLabel,refreshKey}){
+  function OutsideBillsRegister({profile,patients,refreshKey}){
     const [rows,setRows]=React.useState(null),[error,setError]=React.useState(''),[detail,setDetail]=React.useState(null),[pay,setPay]=React.useState(null),[busy,setBusy]=React.useState(false);
+    const {pLabel}=usePatientLookup(patients,(rows||[]).map(r=>r.patient_id));
+    const [summary,setSummary]=React.useState(null);
     const today=todayISOIndia();
     const [period,setPeriod]=React.useState('month'),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(today),[to,setTo]=React.useState(today);
     const [status,setStatus]=React.useState('All'),[patient,setPatient]=React.useState(''),[search,setSearch]=React.useState('');
@@ -89,19 +91,19 @@
       setPay(null);setDetail(null);load();
     }
     function fields(r){
-      return [['Guest',pLabel(r.patient_id)],['Item',[r.charge_item_code,r.service_name].filter(Boolean).join(' · ')],['Shop / Lab / Hospital / Vehicle',r.service_provider],
+      return [['Guest',pLabel(r.patient_id)],['Service date',formatDateIN(r.charge_date)],['Quantity',`${r.quantity||1} ${r.unit||''}`],['Approval decision',r.approval_status||'Pending'],['Item',[r.charge_item_code,r.service_name].filter(Boolean).join(' · ')],['Shop / Lab / Hospital / Vehicle',r.service_provider],
         ['From → To',r.outside_route],['Bill',[r.bill_number,r.bill_date&&formatDateIN(r.bill_date)].filter(Boolean).join(' · ')],
         ['Bill amount',r.outside_bill_amount!=null?money(r.outside_bill_amount):money(r.requested_amount)],['Handling fee',r.outside_handling_fee!=null?money(r.outside_handling_fee):''],
         ['Charged to Guest',['Approved','Partially Approved'].includes(r.approval_status)?money(r.approved_amount):''],
         ['Who paid',r.outside_paid_by],['Status',stage(r)],
         ['Paid to vendor',r.outside_settle_date?[formatDateIN(r.outside_settle_date),r.outside_settle_mode,r.outside_settle_ref,r.outside_settled_by_name].filter(Boolean).join(' · '):''],
         ['Petty cash',r.outside_petty_entry_id?'Written into Nursing Manager Petty Cash':''],
-        ['Raised by',[r.raised_by_name,r.raised_at&&formatDateTimeIN(r.raised_at)].filter(Boolean).join(' · ')],
-        ['Verified by (Accounts)',[r.decision_by_name,(r.decision_date||r.approved_at)&&formatDateTimeIN(r.decision_date||r.approved_at)].filter(Boolean).join(' · ')],
-        ['Remarks',[r.remarks,r.approval_remarks].filter(Boolean).join(' · ')]];
+        ['Raised by',[r.raised_by_name,(r.raised_at||r.created_at)&&formatDateTimeIN(r.raised_at||r.created_at)].filter(Boolean).join(' · ')],
+        ['Verified by (Accounts)',[r.decision_by_name,(r.decision_at||r.decision_date||r.approved_at)&&formatDateTimeIN(r.decision_at||r.decision_date||r.approved_at)].filter(Boolean).join(' · ')],
+        ['Remarks',[r.remarks,r.decision_remarks||r.approval_remarks].filter(Boolean).join(' · ')]];
     }
     const canSettle=['Accounts','Admin'].includes(profile?.role);
-    const card=r=>h('article',{key:r.id,className:'stores-ledger-card row-clickable',style:{cursor:'pointer'},onClick:()=>setDetail(r)},
+    const card=r=>h('article',{key:r.id,className:'stores-ledger-card row-clickable',role:'button',tabIndex:0,style:{cursor:'pointer'},onClick:()=>{setSummary(null);setDetail(r)},onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSummary(null);setDetail(r)}}},
       h('div',{className:'stores-ledger-card-head'},h('strong',null,`${r.service_name||'Outside bill'} · ${r.service_provider||''}`),h('span',null,formatDateIN(r.bill_date||r.charge_date))),
       h('div',{className:'stores-ledger-card-fields'},
         h('div',null,h('small',null,'Guest'),h('strong',null,pLabel(r.patient_id))),
@@ -111,10 +113,7 @@
     return h(Section,{title:'Outside Bills Paid by Samara',subtitle:'Outside pharmacy, lab, scan, ambulance, taxi and hospital bills paid for Guests. Charged to the Guest at actual bill amount plus the Charge Master handling fee. Bills on credit stay here until marked paid.'},
       error&&h('p',{role:'alert',style:{color:'#a00050',fontWeight:700}},error),
       h('div',{className:'grid stats'},
-        h('div',{className:'card stat'},h('span',null,'Paid / owed by Samara (period)'),h('strong',null,money(sum(samaraPaid,'outside_bill_amount')))),
-        h('div',{className:'card stat'},h('span',null,'Handling fees (period)'),h('strong',null,money(sum(samaraPaid,'outside_handling_fee')))),
-        h('div',{className:'card stat'},h('span',null,'Charged to Guests (period)'),h('strong',null,money(sum(samaraPaid,'approved_amount')))),
-        h('button',{type:'button',className:'card stat',style:{textAlign:'left',cursor:'pointer',border:owedAll.length?'1px solid #e9a1a1':'1px solid #e8c3d2'},onClick:()=>{setStatus('Payable to vendor');filters.setNow({status:'Payable to vendor'})}},h('span',null,'Still payable to vendors (all dates)'),h('strong',{style:{color:owedAll.length?'#b42318':'inherit'}},money(sum(owedAll,'outside_bill_amount'))),h('small',{style:{display:'block'}},`${owedAll.length} bill(s) · tap to list`))
+        [['Paid / owed by Samara (period)',samaraPaid,'outside_bill_amount'],['Handling fees (period)',samaraPaid,'outside_handling_fee'],['Charged to Guests (period)',samaraPaid,'approved_amount'],['Still payable to vendors (all dates)',owedAll,'outside_bill_amount']].map(([title,bills,key])=>h('button',{key:title,type:'button',className:'card stat',disabled:rows===null||!!error,style:{textAlign:'left',cursor:'pointer'},onClick:()=>setSummary({title,bills,key,total:sum(bills,key)})},h('span',null,title),h('strong',null,money(sum(bills,key))),h('small',null,`${bills.length} bill(s) · View full details →`)))
       ),
       h('div',{className:'clinical-charge-filters'},
         h('div',{className:'field'},h('label',null,'Search Guest / ID / vendor'),h('input',{type:'search',value:search,placeholder:'At least 3 letters',onChange:e=>setSearch(e.target.value)})),
@@ -129,6 +128,11 @@
       badPeriod&&h('p',{role:'alert',style:{color:'#a00050'}},'Select a valid period. From date must be on or before To date.'),
       !badPeriod&&pFrom&&h('p',null,`Bill dates: ${formatDateIN(pFrom)} to ${formatDateIN(pTo)}${F.status==='Payable to vendor'?' (payables owed from earlier dates are also shown)':''}`),
       rows===null?h('p',{role:'status'},'Loading outside bills…'):list.length?h('div',{className:'stores-expiry-list'},list.map(card)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No outside bills in this view.'),
+      summary&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSummary(null)}},
+        h('section',{className:'card modal',role:'dialog','aria-modal':'true','aria-labelledby':'outside-summary-title',style:{width:'min(920px,96vw)',maxHeight:'90vh',overflowY:'auto'}},
+          h('div',{className:'panel-head'},h('h3',{id:'outside-summary-title'},summary.title),h('button',{type:'button',className:'close','aria-label':'Close bill list',onClick:()=>setSummary(null)},'×')),
+          h('p',null,`${summary.bills.length} bill(s) · Total ${money(summary.total)}. Select any bill for full details.`),
+          summary.bills.length?summary.bills.map(r=>h('div',{key:r.id},h('p',null,`Included amount: ${money(r[summary.key])}`),card(r))):h('p',null,'No bills contribute to this total.'))),
       detail&&h(RowDetailModal,{title:`${detail.service_name||'Outside bill'} · ${stage(detail)}`,subtitle:pLabel(detail.patient_id),fields:fields(detail),onClose:()=>setDetail(null)},
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'10px 0'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>outsideViewBill(detail.id)},'View Bill'),
@@ -140,4 +144,14 @@
         h('div',{className:'field'},h('label',null,'Reference (UTR / cheque no.)'),h('input',{value:pay.ref,onChange:e=>setPay({...pay,ref:e.target.value})})),
         h('button',{className:'btn btn-primary full',disabled:busy||!pay.date},busy?'Saving…':'Save Payment')))
     );
+  }
+
+  function OutsideBillsPage({profile,onNavigate}){
+    React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
+    const [patients]=usePatients();
+    const [refreshKey,setRefreshKey]=React.useState(0);
+    return h('div',{className:'outside-bills-page'},
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Accounts Dashboard')},'← Accounts Dashboard'),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setRefreshKey(k=>k+1)},'↻ Refresh bills'),
+      h(OutsideBillsRegister,{profile,patients,refreshKey}));
   }
