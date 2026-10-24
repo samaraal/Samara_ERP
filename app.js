@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.99';
+  const APP_VERSION = '2.18.100';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1694,6 +1694,7 @@ function initSamaraInaugurationInvitation(){
   const ACCOUNTS_NAV_GROUPS=[
     {label:'',items:['Accounts Dashboard','Accounts Statement']}, // 2.18.54: Statement right under the Dashboard
     {label:'Guest Billing · money in',items:['Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard']},
+    {label:'Outside Bills',items:['Outside Bills Paid by Samara']},
     {label:'Outgoing Payments · money out',items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements']},
     {label:'Reports',items:['Accounts Reports']}
   ];
@@ -1734,7 +1735,7 @@ function initSamaraInaugurationInvitation(){
     { title:'PHYSIOTHERAPY', items:['Physiotherapy Dashboard'] },
     { title:'PHARMACY & STORES', items:['Receive from Vendor','Stock Report','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Accounts Statement','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
+    { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Accounts Statement','Outside Bills Paid by Samara','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
     { title:'COMMUNICATION', items:['Talk to Guest','WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] }, // 2.16.34: Talk to Guest here for Admin / STD (nurses & managers keep it in their nursing menu)
     { title:'MY ACCOUNT', items:['My Profile'] }
   ];
@@ -1742,11 +1743,11 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&(!NURSING_ENTRY_NAV.includes(item)||item==='Physiotherapy')),
-    Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['Outside Bills Paid by Samara','Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
-    Accounts:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Accounts Dashboard','Accounts Statement','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
+    Accounts:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Accounts Dashboard','Accounts Statement','Outside Bills Paid by Samara','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
@@ -14828,6 +14829,7 @@ https://samaraassistedliving.com/`;
           page==='Documents'&&h(Documents,{profile}),
           page==='Accounts Dashboard'&&h(AccountsDashboard,{profile,onNavigate:setPage}),
           page==='Accounts Statement'&&h(AccountsStatement,{profile}),
+          page==='Outside Bills Paid by Samara'&&['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsPage,{profile,onNavigate:setPage}),
           page==='Package Expiry Dashboard'&&h(PackageExpiryDashboard,{profile,onNavigate:setPage}),
           page==='Charge Approvals'&&h(ClinicalCharges,{profile,initialPatientId:chargeApprovalPatientId,key:chargeApprovalPatientId||'all'}),
           page==='Payments'&&h(BillingPayments,{profile}),
@@ -40584,6 +40586,24 @@ function ShiftHandover({profile,onNavigate}){
       .complete-bill-status.paid{background:#fae7f0;color:#7a1247}
       .complete-bill-status.partial{background:#fff4df;color:#9a6700}
       .complete-bill-status.pending{background:#ffeded;color:#b42318}
+      /* Samara baby-pink boxes throughout the Accounts dashboard and outside bills. */
+      .accounts-dashboard .accounts-kpi,.accounts-dashboard .accounts-workflow-card,
+      .accounts-dashboard .accounts-panel,.accounts-dashboard .accounts-status-item,
+      .outside-bills-page .card.stat,.outside-bills-page .stores-ledger-card,
+      .outside-bills-page .card.panel,.outside-bills-page .card.modal,.samara-charge-card{
+        background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%)!important;
+        border:1px solid #edb5ce;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);
+      }
+      .accounts-dashboard .accounts-hero{background:linear-gradient(135deg,#fff0f6,#f6bfd7)!important;color:#651b40;box-shadow:0 10px 24px rgba(143,23,76,.12)}
+      .accounts-dashboard .accounts-kpi strong,.accounts-dashboard .accounts-kpi span,
+      .accounts-dashboard .accounts-kpi small,.accounts-dashboard .accounts-workflow-body strong,
+      .accounts-dashboard .accounts-workflow-body small{color:#651b40}
+      .accounts-dashboard .accounts-kpi::after{background:#f8c7dc}
+      .accounts-dashboard .accounts-bar-fill{background:linear-gradient(90deg,#f4a9ca,#b51660)}
+      .accounts-dashboard .accounts-kpi::before,.accounts-dashboard .accounts-workflow-card::before{background:#b51660}
+      .outside-bills-page .stores-ledger-card{overflow-wrap:anywhere;min-width:0}
+      .outside-bills-page .stores-ledger-card:focus-visible,.outside-bills-page .card.stat:focus-visible,
+      .accounts-dashboard button:focus-visible{outline:3px solid #ae1459;outline-offset:3px}
       @media print{
         .sidebar,.topbar,.mobile-menu,.sound-unlock-button,.accounts-report-actions,.btn{display:none!important}
         .main,.content{margin:0!important;padding:0!important}
@@ -41006,7 +41026,7 @@ function ShiftHandover({profile,onNavigate}){
       ['Average Daily Realised Revenue',averageDailyRevenue,'Accounts Reports','blue','Materialised revenue across realised-revenue days']
     ];
 
-    return h(React.Fragment,null,
+    return h('div',{className:'accounts-dashboard'},
       h('div',{className:'accounts-hero'},
         h('div',null,
           h('small',null,'FINANCE · BILLING · COLLECTIONS'),
@@ -41086,7 +41106,7 @@ function ShiftHandover({profile,onNavigate}){
               ['Unadjusted Advances',money(unadjustedAdvance)],
               ['Refunds',money(refundValue)],
               ['Net Outstanding',money(outstanding)]
-            ].map(([label,value])=>h('div',{className:'accounts-status-item',key:label},h('span',null,label),h('strong',null,value)))
+            ].map(([label,value])=>h('button',{type:'button',className:'accounts-status-item',key:label,onClick:()=>dashboardNavigate(onNavigate,'Accounts Reports',label,{source:'Accounts Dashboard'}),style:{width:'100%',textAlign:'left',font:'inherit',cursor:'pointer'}},h('span',null,label),h('strong',null,value)))
           )
         )
       ),
@@ -41106,6 +41126,7 @@ function ShiftHandover({profile,onNavigate}){
       h(Section,{title:'Accounts Workflow',subtitle:'Open the required financial stage directly'},
         h('div',{className:'accounts-workflow-grid'},
           [
+            ['🧾','Outside Bills Paid by Samara','View outside bills, handling fees, Guest charges and payments due to vendors.','Open','outside-bills'],
             ['🧾','Charge Approvals','Approve, partially approve or reject Nurse-raised charges.',pendingApprovals,'approvals'],
             ['💳','Payments','Receive Cash, UPI, RTGS or Card payments.',todayCollections?money(todayCollections):'Open','payments'],
             ['📑','Final Billing','Resident-wise ledger, discounts and net payable.',finalBills,'final-billing'],
@@ -47606,6 +47627,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       return categoryMatches.length===1?categoryMatches[0]:null;
     };
     const stockDefaults=(category,name)=>{const stockItem=storeCategories.includes(category)?matchingStock(name):null;const masterItem=matchingStoreMaster(category,name,stockItem?.item_id);const rate=Number(masterItem?.charge_rate||0);return {store_item_id:stockItem?.item_id||masterItem?.id||'',charge_item_code:masterItem?.item_code||'',unit:stockItem?.unit||masterItem?.unit||'Service',unit_cost:rate||'',requested_amount:rate||''}};
+    React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -48272,7 +48294,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
-    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
+    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card samara-charge-card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start'}},
         h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('strong',{style:{display:'block',fontSize:'16px',overflowWrap:'anywhere'}},`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'Charge'}`),h('small',{style:{display:'block',marginTop:'3px',overflowWrap:'anywhere'}},pLabel(r.patient_id))),
         h('span',{className:'badge','data-charge-decision':true,tabIndex:-1,'aria-label':`Decision: ${r.approval_status||'Pending'}`,style:{flex:'0 1 auto',whiteSpace:'normal'}},r.approval_status||'Pending')
@@ -48503,7 +48525,6 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         ),
         register
       ),
-      ['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsRegister,{profile,patients,pLabel,refreshKey:rows.length+':'+rows.filter(r=>r.outside_paid_by&&(r.approval_status||'Pending')!=='Pending').length}),
       diagTable,
       chargeDetailModal,
       modal,
@@ -48548,8 +48569,10 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       window.open(r.data.signedUrl,'_blank','noopener,noreferrer');
     }
   }
-  function OutsideBillsRegister({profile,patients,pLabel,refreshKey}){
+  function OutsideBillsRegister({profile,patients,refreshKey}){
     const [rows,setRows]=React.useState(null),[error,setError]=React.useState(''),[detail,setDetail]=React.useState(null),[pay,setPay]=React.useState(null),[busy,setBusy]=React.useState(false);
+    const {pLabel}=usePatientLookup(patients,(rows||[]).map(r=>r.patient_id));
+    const [summary,setSummary]=React.useState(null);
     const today=todayISOIndia();
     const [period,setPeriod]=React.useState('month'),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(today),[to,setTo]=React.useState(today);
     const [status,setStatus]=React.useState('All'),[patient,setPatient]=React.useState(''),[search,setSearch]=React.useState('');
@@ -48605,19 +48628,19 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       setPay(null);setDetail(null);load();
     }
     function fields(r){
-      return [['Guest',pLabel(r.patient_id)],['Item',[r.charge_item_code,r.service_name].filter(Boolean).join(' · ')],['Shop / Lab / Hospital / Vehicle',r.service_provider],
+      return [['Guest',pLabel(r.patient_id)],['Service date',formatDateIN(r.charge_date)],['Quantity',`${r.quantity||1} ${r.unit||''}`],['Approval decision',r.approval_status||'Pending'],['Item',[r.charge_item_code,r.service_name].filter(Boolean).join(' · ')],['Shop / Lab / Hospital / Vehicle',r.service_provider],
         ['From → To',r.outside_route],['Bill',[r.bill_number,r.bill_date&&formatDateIN(r.bill_date)].filter(Boolean).join(' · ')],
         ['Bill amount',r.outside_bill_amount!=null?money(r.outside_bill_amount):money(r.requested_amount)],['Handling fee',r.outside_handling_fee!=null?money(r.outside_handling_fee):''],
         ['Charged to Guest',['Approved','Partially Approved'].includes(r.approval_status)?money(r.approved_amount):''],
         ['Who paid',r.outside_paid_by],['Status',stage(r)],
         ['Paid to vendor',r.outside_settle_date?[formatDateIN(r.outside_settle_date),r.outside_settle_mode,r.outside_settle_ref,r.outside_settled_by_name].filter(Boolean).join(' · '):''],
         ['Petty cash',r.outside_petty_entry_id?'Written into Nursing Manager Petty Cash':''],
-        ['Raised by',[r.raised_by_name,r.raised_at&&formatDateTimeIN(r.raised_at)].filter(Boolean).join(' · ')],
-        ['Verified by (Accounts)',[r.decision_by_name,(r.decision_date||r.approved_at)&&formatDateTimeIN(r.decision_date||r.approved_at)].filter(Boolean).join(' · ')],
-        ['Remarks',[r.remarks,r.approval_remarks].filter(Boolean).join(' · ')]];
+        ['Raised by',[r.raised_by_name,(r.raised_at||r.created_at)&&formatDateTimeIN(r.raised_at||r.created_at)].filter(Boolean).join(' · ')],
+        ['Verified by (Accounts)',[r.decision_by_name,(r.decision_at||r.decision_date||r.approved_at)&&formatDateTimeIN(r.decision_at||r.decision_date||r.approved_at)].filter(Boolean).join(' · ')],
+        ['Remarks',[r.remarks,r.decision_remarks||r.approval_remarks].filter(Boolean).join(' · ')]];
     }
     const canSettle=['Accounts','Admin'].includes(profile?.role);
-    const card=r=>h('article',{key:r.id,className:'stores-ledger-card row-clickable',style:{cursor:'pointer'},onClick:()=>setDetail(r)},
+    const card=r=>h('article',{key:r.id,className:'stores-ledger-card row-clickable',role:'button',tabIndex:0,style:{cursor:'pointer'},onClick:()=>{setSummary(null);setDetail(r)},onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSummary(null);setDetail(r)}}},
       h('div',{className:'stores-ledger-card-head'},h('strong',null,`${r.service_name||'Outside bill'} · ${r.service_provider||''}`),h('span',null,formatDateIN(r.bill_date||r.charge_date))),
       h('div',{className:'stores-ledger-card-fields'},
         h('div',null,h('small',null,'Guest'),h('strong',null,pLabel(r.patient_id))),
@@ -48627,10 +48650,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     return h(Section,{title:'Outside Bills Paid by Samara',subtitle:'Outside pharmacy, lab, scan, ambulance, taxi and hospital bills paid for Guests. Charged to the Guest at actual bill amount plus the Charge Master handling fee. Bills on credit stay here until marked paid.'},
       error&&h('p',{role:'alert',style:{color:'#a00050',fontWeight:700}},error),
       h('div',{className:'grid stats'},
-        h('div',{className:'card stat'},h('span',null,'Paid / owed by Samara (period)'),h('strong',null,money(sum(samaraPaid,'outside_bill_amount')))),
-        h('div',{className:'card stat'},h('span',null,'Handling fees (period)'),h('strong',null,money(sum(samaraPaid,'outside_handling_fee')))),
-        h('div',{className:'card stat'},h('span',null,'Charged to Guests (period)'),h('strong',null,money(sum(samaraPaid,'approved_amount')))),
-        h('button',{type:'button',className:'card stat',style:{textAlign:'left',cursor:'pointer',border:owedAll.length?'1px solid #e9a1a1':'1px solid #e8c3d2'},onClick:()=>{setStatus('Payable to vendor');filters.setNow({status:'Payable to vendor'})}},h('span',null,'Still payable to vendors (all dates)'),h('strong',{style:{color:owedAll.length?'#b42318':'inherit'}},money(sum(owedAll,'outside_bill_amount'))),h('small',{style:{display:'block'}},`${owedAll.length} bill(s) · tap to list`))
+        [['Paid / owed by Samara (period)',samaraPaid,'outside_bill_amount'],['Handling fees (period)',samaraPaid,'outside_handling_fee'],['Charged to Guests (period)',samaraPaid,'approved_amount'],['Still payable to vendors (all dates)',owedAll,'outside_bill_amount']].map(([title,bills,key])=>h('button',{key:title,type:'button',className:'card stat',disabled:rows===null||!!error,style:{textAlign:'left',cursor:'pointer'},onClick:()=>setSummary({title,bills,key,total:sum(bills,key)})},h('span',null,title),h('strong',null,money(sum(bills,key))),h('small',null,`${bills.length} bill(s) · View full details →`)))
       ),
       h('div',{className:'clinical-charge-filters'},
         h('div',{className:'field'},h('label',null,'Search Guest / ID / vendor'),h('input',{type:'search',value:search,placeholder:'At least 3 letters',onChange:e=>setSearch(e.target.value)})),
@@ -48645,6 +48665,11 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       badPeriod&&h('p',{role:'alert',style:{color:'#a00050'}},'Select a valid period. From date must be on or before To date.'),
       !badPeriod&&pFrom&&h('p',null,`Bill dates: ${formatDateIN(pFrom)} to ${formatDateIN(pTo)}${F.status==='Payable to vendor'?' (payables owed from earlier dates are also shown)':''}`),
       rows===null?h('p',{role:'status'},'Loading outside bills…'):list.length?h('div',{className:'stores-expiry-list'},list.map(card)):h('div',{className:'stores-view-only',style:{padding:'20px',textAlign:'center'}},'No outside bills in this view.'),
+      summary&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSummary(null)}},
+        h('section',{className:'card modal',role:'dialog','aria-modal':'true','aria-labelledby':'outside-summary-title',style:{width:'min(920px,96vw)',maxHeight:'90vh',overflowY:'auto'}},
+          h('div',{className:'panel-head'},h('h3',{id:'outside-summary-title'},summary.title),h('button',{type:'button',className:'close','aria-label':'Close bill list',onClick:()=>setSummary(null)},'×')),
+          h('p',null,`${summary.bills.length} bill(s) · Total ${money(summary.total)}. Select any bill for full details.`),
+          summary.bills.length?summary.bills.map(r=>h('div',{key:r.id},h('p',null,`Included amount: ${money(r[summary.key])}`),card(r))):h('p',null,'No bills contribute to this total.'))),
       detail&&h(RowDetailModal,{title:`${detail.service_name||'Outside bill'} · ${stage(detail)}`,subtitle:pLabel(detail.patient_id),fields:fields(detail),onClose:()=>setDetail(null)},
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',margin:'10px 0'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>outsideViewBill(detail.id)},'View Bill'),
@@ -48656,6 +48681,16 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         h('div',{className:'field'},h('label',null,'Reference (UTR / cheque no.)'),h('input',{value:pay.ref,onChange:e=>setPay({...pay,ref:e.target.value})})),
         h('button',{className:'btn btn-primary full',disabled:busy||!pay.date},busy?'Saving…':'Save Payment')))
     );
+  }
+
+  function OutsideBillsPage({profile,onNavigate}){
+    React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
+    const [patients]=usePatients();
+    const [refreshKey,setRefreshKey]=React.useState(0);
+    return h('div',{className:'outside-bills-page'},
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Accounts Dashboard')},'← Accounts Dashboard'),
+      h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setRefreshKey(k=>k+1)},'↻ Refresh bills'),
+      h(OutsideBillsRegister,{profile,patients,refreshKey}));
   }
   // 2.14.99: Charge Master — one dashboard per category (sidebar → CHARGE MASTER → category), same pattern as
   // Pharmacy & Stores: navigable boxes → one section at a time, "← Back to Dashboard" / Close, period filter with
