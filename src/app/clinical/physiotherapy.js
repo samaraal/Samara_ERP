@@ -321,6 +321,7 @@
         h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
+      plan.end_date?formatDateIN(plan.end_date):'Until Dr. Review',
       plan.precautions||plan.special_instructions||'—',
       canEnter?(()=>{const st=physioTodayStatus(plan);
         if(st.allDone)return h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'All of today’s sessions are recorded. Use Session options in Recent Sessions to correct one.'},'✓ All done today');
@@ -338,7 +339,8 @@
         patientLabel(session.patient_id),
         plan.therapy_type||'—',
         [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
-        clockLabel(session.scheduled_time||plan.preferred_time),
+        // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
+        (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',
         session.status||'—',
         session.reason||session.notes||'—',
@@ -352,7 +354,7 @@
       h(LogTable,{
         title:'Physiotherapy Plan',
         subtitle:'Therapy advised at discharge or during patient review',
-        heads:['Patient','Therapy','Physiotherapist Name','Frequency','Preferred Time','Precautions','Action'],
+        heads:['Patient','Therapy','Physiotherapist Name','Frequency','Session Window','Continue until','Precautions','Action'],
         rows:planRows
       }),
       !loading&&!message&&!planRows.length&&h('div',{className:'card panel'},
@@ -361,7 +363,7 @@
       h(LogTable,{
         title:'Recent Physiotherapy Sessions',
         subtitle:'Completion, pending and not-done records entered by the care team',
-        heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Actual Time (IST)','Status','Reason / Notes','Recorded','Action'],
+        heads:['Date','Patient','Therapy','Physiotherapist','Session Window / Time','Actual Time (IST)','Status','Reason / Notes','Recorded','Action'],
         rows:recentRows
       }),
       h(PhysioSessionCounts,{profile,filters}),

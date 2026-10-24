@@ -1,3 +1,8 @@
+## 2.18.111 — Physiotherapy "Until Dr. Review"; session windows on every table
+- Patient Edit → Physiotherapy Plan: "Continue until" = **Until Dr. Review** (default, no end date) or **Until a date** (date picker, required).
+- Physiotherapy plan table: columns "Session Window" (e.g. 7:00–9:00 AM, 4:00–6:00 PM) and "Continue until" (date or Until Dr. Review).
+- Recent Sessions: "Session Window / Time" — plan sessions show their window; rescheduled sessions show their exact set time. Patient file shows the windows and "Until Dr. Review". No SQL.
+
 ## 2.18.110 — Physiotherapy: ended plans shown clearly
 - A plan whose End Date has passed shows "⚠ Plan ended DD-MM-YYYY — no sessions expected, no reminders" on the Physiotherapy plan row (it previously looked active).
 - Session time labels no longer show a double "* *". No SQL.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.110';
+  const APP_VERSION = '2.18.111';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio plan ended warning';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio Until Dr. Review + windows everywhere';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -28806,6 +28806,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
 
         if(editPhysio.required){
           if(!editPhysio.therapy_type.trim())throw new Error('Please enter the therapy or exercise advised.');
+          if(editPhysio.end_mode==='date'&&!editPhysio.end_date)throw new Error('Pick the physiotherapy End Date, or choose “Until Dr. Review”.');
           {const pp=physioTimesProblem(editPhysio.frequency,editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]);if(pp)throw new Error(pp);}
           const physioTimes=(editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]).slice(0,physioSessionsPerDayFor(editPhysio.frequency)).map(t=>String(t||'').slice(0,5)).filter(Boolean).sort();
           const physioPayload={
@@ -30521,7 +30522,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
             h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
-          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(physioWindowLabel).join(', ')||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
+          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(physioWindowLabel).join(', ')||'—'} · ${x.end_date?'until '+formatDateIN(x.end_date):'Until Dr. Review'}${x.precautions?' · '+x.precautions:''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
             // 2.15.34: meals and separate beverage servings, newest first.
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
@@ -30805,7 +30806,9 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
               h(PhysioSessionTimesFields,{frequency:editPhysio.frequency,times:editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time],onChange:t=>setEditPhysio({...editPhysio,session_times:t,preferred_time:t[0]||''})}), // 2.18.94: one time per session
               h('div',{className:'field'},h('label',null,'Advised By'),h('input',{value:editPhysio.advised_by,onChange:e=>setEditPhysio({...editPhysio,advised_by:e.target.value}),placeholder:'Doctor / Physiotherapist'})),
               h('div',{className:'field'},h('label',null,'Start Date'),h(StrictDateInput,{max:todayISOIndia(),value:editPhysio.start_date,onChange:e=>setEditPhysio({...editPhysio,start_date:e.target.value})})),
-              h('div',{className:'field'},h('label',null,'End Date (optional)'),h(StrictDateInput,{min:editPhysio.start_date||undefined,value:editPhysio.end_date,onChange:e=>setEditPhysio({...editPhysio,end_date:e.target.value})})),
+              // 2.18.111: therapy usually continues until the doctor reviews — choose that, or pick an end date.
+              h('div',{className:'field'},h('label',null,'Continue until'),h('select',{'aria-label':'Physiotherapy continue until',value:editPhysio.end_mode||(editPhysio.end_date?'date':'review'),onChange:e=>setEditPhysio({...editPhysio,end_mode:e.target.value,end_date:e.target.value==='review'?'':editPhysio.end_date})},h('option',{value:'review'},'Until Dr. Review'),h('option',{value:'date'},'Until a date (pick below)'))),
+              (editPhysio.end_mode||(editPhysio.end_date?'date':'review'))==='date'&&h('div',{className:'field'},h('label',null,'End Date'),h(StrictDateInput,{min:editPhysio.start_date||undefined,required:true,value:editPhysio.end_date,onChange:e=>setEditPhysio({...editPhysio,end_date:e.target.value})})),
               h('div',{className:'field span-2'},h('label',null,'Precautions / Restrictions'),h('textarea',{rows:3,value:editPhysio.precautions,onChange:e=>setEditPhysio({...editPhysio,precautions:e.target.value}),placeholder:'Weight-bearing restriction, fall precaution, pain limit, oxygen support, etc.'}))
             )
             :h('p',{className:'small-note'},editPhysio.id?'This plan will be marked inactive when the Patient File is saved.':'Enable “Physiotherapy required” to enter the treatment plan.')
@@ -37338,6 +37341,7 @@ function RoomsBeds({profile,onNavigate}){
         h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
+      plan.end_date?formatDateIN(plan.end_date):'Until Dr. Review',
       plan.precautions||plan.special_instructions||'—',
       canEnter?(()=>{const st=physioTodayStatus(plan);
         if(st.allDone)return h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'All of today’s sessions are recorded. Use Session options in Recent Sessions to correct one.'},'✓ All done today');
@@ -37355,7 +37359,8 @@ function RoomsBeds({profile,onNavigate}){
         patientLabel(session.patient_id),
         plan.therapy_type||'—',
         [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
-        clockLabel(session.scheduled_time||plan.preferred_time),
+        // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
+        (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',
         session.status||'—',
         session.reason||session.notes||'—',
@@ -37369,7 +37374,7 @@ function RoomsBeds({profile,onNavigate}){
       h(LogTable,{
         title:'Physiotherapy Plan',
         subtitle:'Therapy advised at discharge or during patient review',
-        heads:['Patient','Therapy','Physiotherapist Name','Frequency','Preferred Time','Precautions','Action'],
+        heads:['Patient','Therapy','Physiotherapist Name','Frequency','Session Window','Continue until','Precautions','Action'],
         rows:planRows
       }),
       !loading&&!message&&!planRows.length&&h('div',{className:'card panel'},
@@ -37378,7 +37383,7 @@ function RoomsBeds({profile,onNavigate}){
       h(LogTable,{
         title:'Recent Physiotherapy Sessions',
         subtitle:'Completion, pending and not-done records entered by the care team',
-        heads:['Date','Patient','Therapy','Physiotherapist','Scheduled Time','Actual Time (IST)','Status','Reason / Notes','Recorded','Action'],
+        heads:['Date','Patient','Therapy','Physiotherapist','Session Window / Time','Actual Time (IST)','Status','Reason / Notes','Recorded','Action'],
         rows:recentRows
       }),
       h(PhysioSessionCounts,{profile,filters}),
