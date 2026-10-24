@@ -1,3 +1,11 @@
+## 2.18.106 — Physiotherapy fees: Samara own team vs Outsourced, Guest fee, statement (SQL 284)
+- Organisations have a Type: **Samara own team** (staff — no per-session fee, payment or statement) or **Outsourced** (fee paid per completed session). Each also has a **Chargeable Guest fee per session**.
+- Guest price per completed session = the Guest's own agreed rate if Admin / Director set one, otherwise the organisation's Guest fee. Saving a Guest fee sends that organisation's waiting sessions to Accounts; "Send waiting sessions to Accounts" does the same for all.
+- Outsourced: "Post all at default fee" posts every unposted session at each physiotherapist's default fee (unmatched ones stay for manual posting). "🖨 Print Statement (PDF)" at the top; the statement now lists sessions by physiotherapist and warns about sessions not yet posted.
+- Admin / Accounts: "₹ Physio unbilled (N)" chip for completed sessions not billed after 24 h, with the reason; red banner in Patient Rates & Billing.
+- Session options warns when the session is already charged to the Guest or its therapist fee is posted (those must be reversed before a correction can be approved).
+- **SQL 284 required** (supabase/sql/284_physio_samara_outsourced_guest_fee.sql). Organisations named "Samara…" are set to Samara own team.
+
 ## 2.18.105 — Physiotherapy: today's progress on each plan, no duplicate sessions
 - Physiotherapy Plan rows show "Today: X of N done (times)". The button names the next session ("Record 5:00 PM session" / "Record 2nd session") and becomes a grey "✓ All done today" when every session is recorded.
 - Twice / Thrice daily plans with a missing session time are flagged "second time missing — Admin please add in Patient Edit" (new plans already require all times).

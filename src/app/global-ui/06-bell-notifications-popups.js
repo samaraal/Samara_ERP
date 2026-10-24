@@ -75,6 +75,20 @@
     },[profile?.id,enabled]);
     return {alerts,notice,dismiss:()=>setNotice(null)};
   }
+  // 2.18.106 (SQL 284): completed physiotherapy sessions not billed to the Guest after 24 h — Admin / Accounts chip.
+  function PhysioUnbilledAlert({profile,onNavigate}){
+    const enabled=['Admin','Accounts'].includes(profile?.role);
+    const [rows,setRows]=React.useState([]);
+    React.useEffect(()=>{
+      if(!enabled||!profile?.id)return;let disposed=false;
+      const refresh=async()=>{try{const {data,error}=await client.rpc('physio_unbilled_alerts');if(!disposed&&!error)setRows(Array.isArray(data)?data:[])}catch(_e){}};
+      refresh();const timer=setInterval(refresh,300000);window.addEventListener('focus',refresh);
+      return()=>{disposed=true;clearInterval(timer);window.removeEventListener('focus',refresh)};
+    },[profile?.id,enabled]);
+    if(!enabled||!rows.length)return null;
+    const open=()=>dashboardNavigate(onNavigate,'Physiotherapy Dashboard','Physio unbilled',{tab:'Patient Rates & Billing'});
+    return h('button',{type:'button',className:'btn btn-secondary',title:rows.slice(0,5).map(r=>`${r.guest_name} · ${formatDateIN(r.session_date)} · ${r.reason}`).join('\n'),'aria-label':`${rows.length} physiotherapy sessions not billed for over 24 hours`,onClick:open},`₹ Physio unbilled (${rows.length})`);
+  }
   function PhysioApprovalNotification({notifications,onNavigate}){
     const rows=notifications.alerts;
     const open=()=>{notifications.dismiss();onNavigate('Physiotherapy')};

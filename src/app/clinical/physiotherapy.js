@@ -3,7 +3,8 @@
     const [plans,setPlans]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [sessions,setSessions]=React.useState([]);
-    const [todaySessions,setTodaySessions]=React.useState([]); // 2.18.105: always today's, whatever period is filtered
+    const [todaySessions,setTodaySessions]=React.useState([]);
+    const [sessionLock,setSessionLock]=React.useState(null); // 2.18.106: already charged to Guest / therapist fee posted // 2.18.105: always today's, whatever period is filtered
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
     const [entryPlan,setEntryPlan]=React.useState(null);
@@ -179,6 +180,8 @@
       const plan=planFor(session.plan_id||session.order_id);
       setEntryPlan(null);setRequestAction('');setRequestReason('');
       setEditingSession(session);
+      setSessionLock(null);
+      client.rpc('physio_session_locks',{p_sessions:[session.id]}).then(({data,error})=>{if(!error&&Array.isArray(data)&&data[0])setSessionLock(data[0])}).catch(()=>{});
       setForm({actual_time:String(session.actual_time||'').slice(0,5),organisation_id:organisationFor(session,plan)?.id||'',physiotherapist_name:attendingName(session,plan),session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
     }
 
@@ -359,6 +362,9 @@
         h('form',{className:'card modal',onSubmit:submitCorrection},
           h('div',{className:'panel-head'},h('h3',null,'Session options'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setEditingSession(null)},'×')),
           h('p',null,patientLabel(editingSession.patient_id)+' · '+formatDateIN(editingSession.session_date)+' · '+editingSession.status),
+          sessionLock&&(sessionLock.guest_charge||sessionLock.fee_posted)&&h('div',{className:'message error',role:'alert'},
+            h('strong',null,'This session is already '+[sessionLock.guest_charge&&(sessionLock.guest_charge==='Approved'?'charged to the Guest’s bill':'sent to Accounts as a Guest charge ('+sessionLock.guest_charge+')'),sessionLock.fee_posted&&'posted as an outsourced physiotherapist fee'].filter(Boolean).join(' and ')+'. '),
+            'Before this correction can be approved: '+[sessionLock.guest_charge&&'Accounts must reject / reverse the Guest charge',sessionLock.fee_posted&&'Admin must reverse the physiotherapist fee (Therapist Accounts → Ledger)'].filter(Boolean).join('; ')+'. You can still submit the request.'),
           h('div',{role:'group','aria-label':'Correction action',className:'actions'},['Delete','Modify','Reschedule'].map(action=>h('button',{type:'button',key:action,className:'btn '+(requestAction===action?'btn-primary':'btn-secondary'),'aria-pressed':requestAction===action,disabled:saving,onClick:()=>setRequestAction(action)},action))),
           requestAction&&h('div',{className:'modal-grid'},
             requestAction!=='Delete'&&h(React.Fragment,null,

@@ -762,6 +762,7 @@
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
           h(PhysioApprovalNotification,{notifications:physioNotifications,onNavigate:setPage}),
+          h(PhysioUnbilledAlert,{profile:engineProfile,onNavigate:setPage}),
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
           canNurseMode&&h('button',{type:'button',className:'btn nurse-mode-switch'+(nurseOn?' on':''),onClick:toggleNurseMode,title:nurseOn?'Return to your Nursing Manager screens':'Use the ERP as a Nurse (same login, manager alerts stay on)',style:{background:nurseOn?'#b01867':'#fff0f7',color:nurseOn?'#fff':'#b01867',border:'1.5px solid #b01867',borderRadius:'999px',padding:'6px 12px',fontWeight:700,whiteSpace:'nowrap'}},nurseOn?'↩ Back to Nursing Manager':'🩺 Switch to Nurse'),
           h('span',{className:'badge'},profile.role)
