@@ -1,3 +1,9 @@
+## 2.18.108 — Physiotherapy: Guest rate case by case only; 5 PM second session; calmer reminders (SQL 286)
+- Guest physiotherapy charges come only from the rate Admin / Director sets for each Guest. The organisation-wide Guest fee (2.18.106) is removed; any Pending charge created from it returns to "waiting for Guest rate".
+- Twice-daily plans holding only one time get 5:00 PM as the 2nd session time.
+- Physiotherapy reminders / escalations count sessions in order: a morning session recorded late (e.g. 11:50) covers the 8:00 AM slot, and the 5:00 PM session is not due before 5 PM. Plan row shows "Next: 5:00 PM" calmly until then.
+- **SQL 286 required** (after 284 / 285).
+
 ## 2.18.107 — Physiotherapist Panel (Salary / Session fee), physiotherapist-wise statements, session details (SQL 285)
 - "Physiotherapists" tab is now the **Physiotherapist Panel**: Paid by (Salary / Session fee), session fee, monthly salary (for records) and balance payable per physiotherapist. Samara own team can mix salaried and per-session physiotherapists; outsourced ones are always per session.
 - Samara per-session physiotherapists get fee posting, payments (choose the physiotherapist), ledger and statement like outsourced ones. Salaried ones never get session fees.

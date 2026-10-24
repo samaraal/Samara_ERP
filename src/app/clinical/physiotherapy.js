@@ -314,13 +314,16 @@
       plan.frequency||'—',
       (()=>{const st=physioTodayStatus(plan);return h('div',null,
         h('div',null,physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time)),
-        h('small',{style:{display:'block',fontWeight:700,color:st.allDone?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
+        h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.precautions||plan.special_instructions||'—',
       canEnter?(()=>{const st=physioTodayStatus(plan);
         if(st.allDone)return h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'All of today’s sessions are recorded. Use Session options in Recent Sessions to correct one.'},'✓ All done today');
         const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
-        return h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEntry(plan)},label);})():h('span',{className:'small-note'},'View only')
+        // 2.18.108: before the next session's time, show it calmly (not as an overdue task).
+        const nowHHMM=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+        const later=st.nextTime&&st.done>0&&st.nextTime>nowHHMM;
+        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session is at '+clockLabel(st.nextTime):undefined},later?`Next: ${clockLabel(st.nextTime)}`:label);})():h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{

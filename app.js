@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.107';
+  const APP_VERSION = '2.18.108';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physiotherapist Panel salary vs session fee + statements';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio Guest rate per Guest only + 5 PM session';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -37314,13 +37314,16 @@ function RoomsBeds({profile,onNavigate}){
       plan.frequency||'—',
       (()=>{const st=physioTodayStatus(plan);return h('div',null,
         h('div',null,physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time)),
-        h('small',{style:{display:'block',fontWeight:700,color:st.allDone?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
+        h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.precautions||plan.special_instructions||'—',
       canEnter?(()=>{const st=physioTodayStatus(plan);
         if(st.allDone)return h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'All of today’s sessions are recorded. Use Session options in Recent Sessions to correct one.'},'✓ All done today');
         const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
-        return h('button',{type:'button',className:'btn btn-primary',onClick:()=>openEntry(plan)},label);})():h('span',{className:'small-note'},'View only')
+        // 2.18.108: before the next session's time, show it calmly (not as an overdue task).
+        const nowHHMM=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+        const later=st.nextTime&&st.done>0&&st.nextTime>nowHHMM;
+        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session is at '+clockLabel(st.nextTime):undefined},later?`Next: ${clockLabel(st.nextTime)}`:label);})():h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{
@@ -37553,7 +37556,7 @@ function RoomsBeds({profile,onNavigate}){
     const button=(label,onClick,primary=false)=>h('button',{type:'button',className:'btn '+(primary?'btn-primary':'btn-secondary'),disabled:busy||loading,onClick},label);
     function begin(kind,row={}){
       setError('');setNotice('');
-      if(kind==='organisation')setForm({kind,id:row.id||crypto.randomUUID(),existing:!!row.id,name:row.name||'',contact_person:row.contact_person||'',phone:row.phone||'',email:row.email||'',address:row.address||'',gst_number:row.gst_number||'',payment_terms:row.payment_terms||'',default_fee:row.default_fee??'',org_type:row.org_type||'Outsourced',guest_fee:row.guest_fee??'',is_active:row.is_active!==false,opening_amount:'0',opening_date:from});
+      if(kind==='organisation')setForm({kind,id:row.id||crypto.randomUUID(),existing:!!row.id,name:row.name||'',contact_person:row.contact_person||'',phone:row.phone||'',email:row.email||'',address:row.address||'',gst_number:row.gst_number||'',payment_terms:row.payment_terms||'',default_fee:row.default_fee??'',org_type:row.org_type||'Outsourced',guest_fee:'',is_active:row.is_active!==false,opening_amount:'0',opening_date:from});
       else if(kind==='practitioner')setForm({kind,id:row.id||crypto.randomUUID(),full_name:row.full_name||'',phone:row.phone||'',qualification:row.qualification||'',default_fee:row.default_fee??'',pay_basis:row.pay_basis||(orgType(org)==='Samara'&&row.default_fee==null&&row.id?'Salary':'Session fee'),monthly_salary:row.monthly_salary??'',is_active:row.is_active!==false});
       else if(kind==='post_fee'){const practitioner=data.practitioners.find(p=>p.is_active&&(p.id===row.practitioner_id||p.full_name.trim().toLowerCase()===String(row.physiotherapist_name||'').trim().toLowerCase()));setForm({kind,session:row,practitioner_id:practitioner?.id||'',rate:(practitioner?.default_fee??org?.default_fee)||'',notes:'',request_key:crypto.randomUUID()});}
       else if(kind==='reverse')setForm({kind,entry:row,reason:'',request_key:crypto.randomUUID()});
@@ -37576,7 +37579,7 @@ function RoomsBeds({profile,onNavigate}){
     const select=(label,key,options)=>h('div',{className:'field'},h('label',null,label),h('select',{'aria-label':label,required:true,value:form[key],onChange:e=>{const value=e.target.value;setForm({...form,[key]:value,...(key==='practitioner_id'?{rate:(data.practitioners.find(row=>row.id===value)?.default_fee??org?.default_fee)||''}:{})})}},h('option',{value:''},'Select…'),options.map(row=>h('option',{key:row.value,value:row.value},row.label))));
     // 2.18.106: Samara own physiotherapists (salaried) vs Outsourced organisations (paid per session).
     const isSamaraOrg=orgType(org)==='Samara';
-    const samaraNote=()=>h('div',{className:'message info'},h('strong',null,org?.name+' is Samara’s own physiotherapy team. '),'All its physiotherapists are on salary, so there are no session fees, payments or statements here. To pay someone per session, open Physiotherapist Panel → Edit and choose “Session fee”. Guests are still charged the Guest fee.');
+    const samaraNote=()=>h('div',{className:'message info'},h('strong',null,org?.name+' is Samara’s own physiotherapy team. '),'All its physiotherapists are on salary, so there are no session fees, payments or statements here. To pay someone per session, open Physiotherapist Panel → Edit and choose “Session fee”.');
     const samaraNoFees=isSamaraOrg&&feePhysios.length===0;
     const practitionerFor=row=>data.practitioners.find(p=>p.is_active&&(p.pay_basis||'Session fee')==='Session fee'&&(p.id===row.practitioner_id||p.full_name.trim().toLowerCase()===String(row.physiotherapist_name||'').trim().toLowerCase()));
     const feeFor=row=>{const p=practitionerFor(row);return Number(p?.default_fee??org?.default_fee??0)};
@@ -37629,7 +37632,7 @@ function RoomsBeds({profile,onNavigate}){
     }
     if(!admin)return h(PhysioSessionCounts,{profile});
     return h('div',null,
-      h('section',{className:'card panel'},h('h3',null,'Physiotherapist Accounts & Fees'),h('p',{className:'small-note'},'Admin access. Two kinds of physiotherapists: Samara own team (staff — no per-session fee) and Outsourced organisations (paid per completed session). Each organisation also has a chargeable Guest fee per session. Payment entries record money already paid; they do not transfer money.'),
+      h('section',{className:'card panel'},h('h3',null,'Physiotherapist Accounts & Fees'),h('p',{className:'small-note'},'Admin access. Samara own team (salary or per-session physiotherapists) and Outsourced organisations (paid per completed session). What the Guest pays is set per Guest by Admin / Director in Patient Rates & Billing. Payment entries record money already paid; they do not transfer money.'),
         error&&h('div',{className:'message error'},error),notice&&h('div',{className:'message success'},notice),
         h('div',{className:'actions'},['Organisations','Physiotherapists','Sessions','Payments','Ledger','Statement','Session Counts'].map(name=>button(name==='Physiotherapists'?'Physiotherapist Panel':name,()=>setTab(name),tab===name))),
         h('div',{className:'form-grid'},h('label',null,'Organisation',h('select',{'aria-label':'Organisation',value:organisation,onChange:e=>{setOrganisation(e.target.value);setForm(null)}},h('option',{value:''},'Select organisation'),data.organisations.map(row=>h('option',{key:row.id,value:row.id},row.name+' · '+(orgType(row)==='Samara'?'Samara own':'Outsourced')+(row.is_active?'':' (inactive)')))))),
@@ -37637,8 +37640,8 @@ function RoomsBeds({profile,onNavigate}){
         h('p',{className:'small-note'},'Organisation report period: '+formatDateIN(from)+' to '+formatDateIN(to)),
         h('div',{className:'actions'},button('Refresh',load),button('Add organisation',()=>begin('organisation')),org&&!samaraNoFees&&button('🖨 Print Statement (PDF)',printPDF,true)),
         org&&!samaraNoFees&&h('div',{className:'samara-filter-row'},h('div',{className:'field'},h('label',null,'Statement for'),h('select',{'aria-label':'Statement for',value:statementFor,onChange:e=>setStatementFor(e.target.value)},h('option',{value:''},'Whole organisation — '+org.name),feePhysios.map(p=>h('option',{key:p.id,value:p.id},'Physiotherapist — '+p.full_name))))),
-        org&&(samaraNoFees?h('p',null,h('strong',null,org.name+' · Samara own team'),' · Guest fee ₹'+(org.guest_fee!=null?money(org.guest_fee):'not set')):h('p',null,h('strong',null,org.name+(statementPhysio?' — '+statementPhysio.full_name:'')+' · '),data.balance<0?'Advance with organisation ₹'+money(-data.balance):'Total payable ₹'+money(data.balance),Number(data.unposted||0)>0&&h('span',{style:{color:'#b42318',fontWeight:700}},' · '+data.unposted+' completed session(s) not yet posted')))),
-      tab==='Organisations'&&h(LogTable,{title:'Physiotherapy Organisations',heads:['Organisation','Type','Fee paid to physiotherapist / session ₹','Chargeable Guest fee / session ₹','Contact person','Phone','GST','Terms','Active','Action'],rows:data.organisations.map(row=>[row.name,orgType(row)==='Samara'?'Samara own team':'Outsourced',orgType(row)==='Samara'?'— (staff)':money(row.default_fee),row.guest_fee!=null?money(row.guest_fee):h('span',{style:{color:'#b42318'}},'Not set'),row.contact_person||'—',row.phone||'—',row.gst_number||'—',row.payment_terms||'—',row.is_active?'Yes':'No',button('Edit details',()=>begin('organisation',row))])}),
+        org&&(samaraNoFees?h('p',null,h('strong',null,org.name+' · Samara own team'),' · all physiotherapists on salary'):h('p',null,h('strong',null,org.name+(statementPhysio?' — '+statementPhysio.full_name:'')+' · '),data.balance<0?'Advance with organisation ₹'+money(-data.balance):'Total payable ₹'+money(data.balance),Number(data.unposted||0)>0&&h('span',{style:{color:'#b42318',fontWeight:700}},' · '+data.unposted+' completed session(s) not yet posted')))),
+      tab==='Organisations'&&h(LogTable,{title:'Physiotherapy Organisations',heads:['Organisation','Type','Fee paid / session ₹','Contact person','Phone','GST','Terms','Active','Action'],rows:data.organisations.map(row=>[row.name,orgType(row)==='Samara'?'Samara own team':'Outsourced',orgType(row)==='Samara'?'Per physiotherapist (Panel)':money(row.default_fee),row.contact_person||'—',row.phone||'—',row.gst_number||'—',row.payment_terms||'—',row.is_active?'Yes':'No',button('Edit details',()=>begin('organisation',row))])}),
       tab==='Physiotherapists'&&h('section',{className:'card panel'},button('Add physiotherapist',()=>begin('practitioner')),
         h(LogTable,{title:'Physiotherapist Panel — '+(org?.name||'Select organisation')+(org?(isSamaraOrg?' (Samara own team)':' (Outsourced)'):''),
           heads:['Name','Phone','Qualification','Paid by','Session fee ₹','Monthly salary ₹','Balance payable ₹','Active','Action'],
@@ -37656,8 +37659,7 @@ function RoomsBeds({profile,onNavigate}){
           form.kind==='organisation'&&h(React.Fragment,null,field('Physiotherapy organisation name','name','text',true),field('Contact person','contact_person'),field('Phone','phone'),field('Email','email','email'),text('Address','address'),field('GST number (if applicable)','gst_number'),field('Payment terms','payment_terms'),
             h('div',{className:'field'},h('label',null,'Type'),h('select',{'aria-label':'Organisation type',value:form.org_type,onChange:e=>setForm({...form,org_type:e.target.value,default_fee:e.target.value==='Samara'?'0':form.default_fee})},h('option',{value:'Outsourced'},'Outsourced (paid per session)'),h('option',{value:'Samara'},'Samara own team (staff)'))),
             form.org_type!=='Samara'&&field('Fee paid to physiotherapist per completed session ₹','default_fee','number',true),
-            field('Chargeable Guest fee per session ₹','guest_fee','number'),
-            h('p',{className:'small-note span-2'},'Guest fee: charged to the Guest for each completed session when no Guest-specific agreed rate is set (a Guest’s own agreed rate always wins). Leave blank to set rates per Guest only. Changes apply to sessions not yet billed; billed sessions keep their price.'),!form.existing&&h(React.Fragment,null,field('Opening payable ₹ (negative for advance)','opening_amount','number'),field('Opening date','opening_date','date')),h('label',null,h('input',{type:'checkbox',checked:form.is_active,onChange:e=>setForm({...form,is_active:e.target.checked})}),' Active organisation')),
+            h('p',{className:'small-note span-2'},'What the Guest pays is not set here — Admin / Director sets it per Guest in Patient Rates & Billing.'),!form.existing&&h(React.Fragment,null,field('Opening payable ₹ (negative for advance)','opening_amount','number'),field('Opening date','opening_date','date')),h('label',null,h('input',{type:'checkbox',checked:form.is_active,onChange:e=>setForm({...form,is_active:e.target.checked})}),' Active organisation')),
           form.kind==='practitioner'&&h(React.Fragment,null,field('Physiotherapist name','full_name','text',true),field('Phone','phone'),field('Qualification / registration','qualification'),isSamaraOrg?h('div',{className:'field'},h('label',null,'Paid by'),h('select',{'aria-label':'Paid by',value:form.pay_basis,onChange:e=>setForm({...form,pay_basis:e.target.value})},h('option',{value:'Salary'},'Salary (monthly)'),h('option',{value:'Session fee'},'Session fee (per completed session)'))):h('p',{className:'small-note span-2'},'Outsourced physiotherapists are paid per completed session through '+(org?.name||'the organisation')+'.'),
             form.pay_basis==='Salary'?field('Monthly salary ₹ (for records)','monthly_salary','number'):field(isSamaraOrg?'Session fee per completed session ₹':'Session fee per completed session ₹ (optional)','default_fee','number',isSamaraOrg),
             h('p',{className:'small-note span-2'},form.pay_basis==='Salary'?'Salaried physiotherapists get no per-session fee or ledger. Salary itself is paid through Payroll.':isSamaraOrg?'Each completed session of this physiotherapist adds this fee to their own payable balance.':'Leave blank to use the organisation default. Changes apply to future postings; posted fees keep their original rate.'),h('label',null,h('input',{type:'checkbox',checked:form.is_active,onChange:e=>setForm({...form,is_active:e.target.checked})}),' Active physiotherapist')),
@@ -37673,7 +37675,7 @@ function RoomsBeds({profile,onNavigate}){
     if(session.request_id)return session.approval_status==='Approved'?'Posted to patient bill':session.approval_status==='Rejected'?'Rejected — Accounts review':session.approval_status||'Pending Accounts approval';
     if(session.manual_charge_exists)return 'Existing charge — reconcile before billing';
     if(clinicalApproval)return 'Clinical approval required';
-    return 'Waiting — no Guest rate and no Guest fee for this physiotherapist'+(session.overdue?' (over 24 h)':'');
+    return 'Waiting — Admin / Director to set this Guest’s rate'+(session.overdue?' (over 24 h)':'');
   }
   function PatientPhysioBilling({profile,onNavigate,embedded=false,filters=null}){
     const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
@@ -37698,11 +37700,6 @@ function RoomsBeds({profile,onNavigate}){
       try{const result=await client.rpc('patient_physio_billing',{p_action:'save_rate',p_data:{patient_id:billingPatient,...form}});if(result.error)throw result.error;setNotice('Patient rate saved. '+result.data.queued+' completed session(s) sent to Accounts for approval.');setForm(null);await load()}
       catch(e){setError(e.message||'Unable to save patient rate')}finally{setBusy(false)}
     }
-    async function queuePending(){
-      if(!admin||busy)return;setBusy(true);setError('');
-      try{const result=await client.rpc('patient_physio_billing',{p_action:'queue_pending'});if(result.error)throw result.error;setNotice((result.data?.queued||0)+' waiting session(s) sent to Accounts for approval.');await load()}
-      catch(e){setError(/Unknown patient physiotherapy billing action/.test(e.message||'')?'Run SQL 284 in Supabase first to enable Guest fees.':e.message||'Unable to send sessions')}finally{setBusy(false)}
-    }
     const orgName=id=>(data.organisations||[]).find(o=>o.id===id)?.name;
     const overdue=data.sessions.filter(s=>!s.request_id&&s.overdue&&(!filters||physioMatchesFilter(s,filters)));
     async function decideSession(session,decision){
@@ -37720,13 +37717,11 @@ function RoomsBeds({profile,onNavigate}){
     return h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
       !embedded&&h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
       error&&h('p',{role:'alert'},error),
-      open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Guest charge per completed session = the Guest’s own agreed rate (if Admin / Director set one) — otherwise the chargeable Guest fee of the physiotherapy organisation (Samara own team or outsourced), set in Therapist Accounts → Organisations. Completed sessions then go to Accounts for approval before appearing in the bill and Collection Breakup. The fee paid to outsourced physiotherapists is separate.'),
-        (data.organisations||[]).length>0&&h('p',null,h('strong',null,'Guest fees: '),(data.organisations||[]).filter(o=>o.is_active!==false).map(o=>`${o.name} (${o.org_type==='Samara'?'Samara own':'Outsourced'}) ${o.guest_fee!=null?money(o.guest_fee):'— not set'}`).join(' · ')),
-        overdue.length>0&&h('div',{className:'message error',role:'alert'},h('strong',null,`${overdue.length} completed session(s) not billed for over 24 hours. `),'Set the Guest fee for the organisation (Therapist Accounts → Organisations) or a Guest rate, then press “Send waiting sessions to Accounts”.'),
+      open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director fixes each Guest’s physiotherapy rate case by case, with an effective date. Completed sessions on or after that date then go to Accounts for approval before appearing in the bill and Collection Breakup. The fee paid to physiotherapists is separate (Therapist Accounts).'),
+        overdue.length>0&&h('div',{className:'message error',role:'alert'},h('strong',null,`${overdue.length} completed session(s) not billed for over 24 hours. `),'Admin / Director: select the Guest and press “Set Guest rate” — waiting sessions are sent to Accounts automatically.'),
         notice&&h('p',{role:'status'},notice),
         h('div',{className:'actions'},!filters&&h('label',null,'Physiotherapy patient ',h('select',{'aria-label':'Physiotherapy patient',value:patient,onChange:e=>{setPatient(e.target.value);setForm(null);setNotice('')}},h('option',{value:''},'Select patient'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id)))),button('Refresh physiotherapy billing',load),
-          admin&&billingPatient&&button('Set Guest agreed rate',beginRate),
-          admin&&button('Send waiting sessions to Accounts',queuePending),
+          admin&&billingPatient&&button('Set Guest rate',beginRate),
           !admin&&h('small',null,'Patient rates can be set only by Admin / Director.'),
           onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))),
         filters&&admin&&!billingPatient&&h('p',null,'Select one patient above to set an agreed rate. The session list follows your patient search and period.'),
@@ -37740,7 +37735,7 @@ function RoomsBeds({profile,onNavigate}){
           h('p',null,'Saving queues unbilled completed sessions on or after this date at this rate. Existing requests keep their original rate. Enter a new later effective date for future changes.'),
           h('div',{className:'actions'},h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save patient rate & queue sessions'),button('Cancel patient rate',()=>setForm(null)))),
         (patient||filters)&&h(LogTable,{title:'Approved patient rate history',heads:[...(filters?['Patient']:[]),'Effective from','Rate per session','Approval notes'],rows:rates.map(r=>[...(filters?[data.patients.find(p=>p.id===r.patient_id)?.full_name||'Patient']:[]),formatDateIN(r.effective_from),money(r.amount),r.notes])}),
-        (patient||filters)&&rates.length===0&&h('p',null,'No Guest-specific rate — the physiotherapy organisation’s Guest fee applies to this Guest’s sessions.'),
+        (patient||filters)&&rates.length===0&&h('p',null,'No rate set for this Guest yet. Admin / Director must set it — completed sessions wait until then (nothing is charged automatically).'),
         (patient||filters)&&h(LogTable,{title:'Completed sessions — patient billing status',heads:['Session date',...(filters?['Patient']:[]),'Physiotherapist','Treatment notes','Charge to Guest','Price from','Billing status',...(profile?.role==='Accounts'?['Accounts decision']:[])],rows:sessions.map(s=>[formatDateIN(s.session_date),...(filters?[data.patients.find(p=>p.id===s.patient_id)?.full_name||'Patient']:[]),s.physiotherapist||'—',s.notes||'—',s.billing_rate==null?'Awaiting rate':money(s.billing_rate),s.fee_source||(s.request_id?'Guest rate':'—'),patientPhysioBillingStatus(s,data.clinical_approval_required),...(profile?.role==='Accounts'?[s.request_id&&s.approval_status==='Pending'?h('div',{className:'actions'},button('Approve agreed rate',()=>decideSession(s,'Approved')),button('Reject charge',()=>decideSession(s,'Rejected'))):'—']:[])])})
       )
     );
