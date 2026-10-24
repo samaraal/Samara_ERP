@@ -21,10 +21,13 @@ begin
     raise exception 'Some of his Vinayaga sessions already have a posted fee — reverse those in Therapist Accounts → Ledger first. Nothing changed.';end if;
   -- Session edits normally need a correction approval; this approved one-time move bypasses that guard only here.
   alter table public.physiotherapy_sessions disable trigger physiotherapy_correction_guard;
+  -- The SQL Editor has no staff login; this script sets the physiotherapist link itself, so the name-link check is paused too.
+  alter table public.physiotherapy_sessions disable trigger a_physio_practitioner_link;
   update public.physiotherapy_sessions x set organisation_id=samara,practitioner_id=sp,physiotherapist_name=(select full_name from public.physio_practitioners where id=sp),updated_at=now()
    where x.organisation_id=vin and (x.practitioner_id=vp or regexp_replace(lower(regexp_replace(coalesce(x.physiotherapist_name,''),'^\s*dr\.?\s*','','i')),'[^a-z]','','g')=norm);
   get diagnostics moved=row_count;
   alter table public.physiotherapy_sessions enable trigger physiotherapy_correction_guard;
+  alter table public.physiotherapy_sessions enable trigger a_physio_practitioner_link;
   if vp is not null then
     if exists(select 1 from public.physio_supplier_ledger where practitioner_id=vp) or exists(select 1 from public.physiotherapy_sessions where practitioner_id=vp)
       then update public.physio_practitioners set is_active=false where id=vp;
