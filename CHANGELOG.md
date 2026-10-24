@@ -1,3 +1,7 @@
+## 2.18.104 — Compact filter rows across the ERP
+- Filter dropdowns no longer stretch across the whole screen. Every filter group (registers, reports, dashboards) shows as one row of short boxes — about 4 per row on a laptop, 2 on a tablet, 1 on a phone — with Apply at the end. Pop-ups and entry forms are unchanged.
+- Bills & Charges Register: new "Search Guest" (3 letters: name / ID / room) narrows the Patient list; Patient, Status, Category and Period change only when Apply is pressed. Quick-view boxes and notifications still apply at once. No SQL.
+
 ## 2.18.103 — Accounts Dashboard boxes open the right view; Outstanding Guest list
 - Outstanding Receivables (and Financial Position › Net Outstanding) opens a Guest-wise list on the dashboard: S.No · Guest Name · Room No. · Outstanding Amount, alphabetical, with total. Tapping a row shows full details (Guest ID, room/bed, admission date, status, charges, discounts, received, refunds, every entry) with Receive Payment / Final Billing buttons.
 - Unadjusted Advances opens the same kind of Guest-wise list (was the blank Payments form).

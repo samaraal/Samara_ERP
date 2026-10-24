@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.103';
+  const APP_VERSION = '2.18.104';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Accounts Dashboard boxes + Outstanding Guest list';
+  const APP_BUILD_DATE = '24-Oct-2026 Compact filter rows ERP-wide';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -47858,6 +47858,15 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All'});
     const [period,setPeriod]=React.useState({mode:'All dates',date:todayISOIndia(),month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia()});
+    // 2.18.104: register filters are a DRAFT until Apply. `filter`/`period` stay the applied values,
+    // so quick views, notifications and menu resets still take effect at once (and refresh the draft).
+    const [draftFilter,setDraftFilter]=React.useState(filter);
+    const [draftPeriod,setDraftPeriod]=React.useState(period);
+    const [guestSearch,setGuestSearch]=React.useState('');
+    const appliedKey=JSON.stringify([filter,period]);
+    React.useEffect(()=>{setDraftFilter(filter);setDraftPeriod(period)},[appliedKey]);
+    const filterDirty=JSON.stringify([draftFilter,draftPeriod])!==appliedKey;
+    const applyRegisterFilters=()=>{setWorkflowRequestId('');setQuickView('All');setFilter({...draftFilter});setPeriod({...draftPeriod})};
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
     const [selectedChargeDetail,setSelectedChargeDetail]=React.useState(null);
@@ -48630,15 +48639,18 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       summary,
       tariffPanel,
       h(Section,{title:'Bills & Charges Register',subtitle:'Doctor, nursing, physiotherapy, laboratory, hospital, transport and other expenses'},
-        h('div',{className:'clinical-charge-filters'},
-          patientSelect(patients,filter.patient_id,v=>{setWorkflowRequestId('');setFilter({...filter,patient_id:v})}),
-          miniSelect('Status',filter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>{setWorkflowRequestId('');setQuickView('All');setFilter({...filter,status:v})}),
-          miniSelect('Category',filter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>{setWorkflowRequestId('');setQuickView('All');setFilter({...filter,category:v})}),
-          miniSelect('Period',period.mode,['All dates','Day','Week','Month','Custom period'],v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,mode:v})}),
-          ['Day','Week'].includes(period.mode)&&miniInput(period.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',period.date,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,date:v})},false,'date'),
-          period.mode==='Month'&&miniInput('Month',period.month,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,month:v})},false,'month'),
-          period.mode==='Custom period'&&miniInput('From date',period.from,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,from:v})},false,'date'),
-          period.mode==='Custom period'&&miniInput('To date',period.to,v=>{setWorkflowRequestId('');setQuickView('All');setPeriod({...period,to:v})},false,'date')
+        h('div',{className:'clinical-charge-filters samara-filter-row'},
+          h('div',{className:'field'},h('label',null,'Search Guest'),h('input',{type:'search',value:guestSearch,onChange:e=>setGuestSearch(e.target.value),placeholder:'Name / ID / Room (3 letters)'})),
+          (()=>{const q=guestSearch.trim().toLowerCase();const list=q.length<3?patients:patients.filter(p=>p.id===draftFilter.patient_id||[p.full_name,p.patient_id,p.room_no,formalName(p)].some(v=>String(v||'').toLowerCase().includes(q)));
+            return patientSelect(list,draftFilter.patient_id,v=>setDraftFilter({...draftFilter,patient_id:v}),q.length>=3?`Patient (${list.length} found)`:'Patient')})(),
+          miniSelect('Status',draftFilter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>setDraftFilter({...draftFilter,status:v})),
+          miniSelect('Category',draftFilter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>setDraftFilter({...draftFilter,category:v})),
+          miniSelect('Period',draftPeriod.mode,['All dates','Day','Week','Month','Custom period'],v=>setDraftPeriod({...draftPeriod,mode:v})),
+          ['Day','Week'].includes(draftPeriod.mode)&&miniInput(draftPeriod.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',draftPeriod.date,v=>setDraftPeriod({...draftPeriod,date:v}),false,'date'),
+          draftPeriod.mode==='Month'&&miniInput('Month',draftPeriod.month,v=>setDraftPeriod({...draftPeriod,month:v}),false,'month'),
+          draftPeriod.mode==='Custom period'&&miniInput('From date',draftPeriod.from,v=>setDraftPeriod({...draftPeriod,from:v}),false,'date'),
+          draftPeriod.mode==='Custom period'&&miniInput('To date',draftPeriod.to,v=>setDraftPeriod({...draftPeriod,to:v}),false,'date'),
+          h(ApplyFilterButton,{dirty:filterDirty,onApply:applyRegisterFilters})
         ),
         periodInvalid&&h('p',{role:'alert',style:{color:'#a00050'}},'Select a valid period. From date must be on or before To date.'),
         !periodInvalid&&periodFrom&&h('p',null,`Charge dates: ${formatDateIN(periodFrom)} to ${formatDateIN(periodTo)} (inclusive)`),

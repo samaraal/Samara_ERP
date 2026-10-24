@@ -2808,3 +2808,35 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .samara-time-entry>input{width:2.8em!important;min-width:2.8em!important;max-width:2.8em!important;flex:0 0 2.8em!important;text-align:center!important;padding-left:2px!important;padding-right:2px!important;box-sizing:border-box!important}
 .samara-time-entry>select{width:74px!important;min-width:74px!important;flex:0 0 74px!important}
 .samara-datetime-entry .samara-time-entry{width:auto!important;flex:0 0 auto!important}
+
+/* 2.18.104 — ERP-wide compact filter rows.
+   Filter dropdowns no longer stretch across the full screen: every filter group becomes one row of
+   short boxes (about 4 per row on a laptop, 2 on a tablet, 1 on a phone) with Apply at the end.
+   Applies to (a) any container whose class contains "filter", and (b) any plain block on a page
+   that holds two or more .field boxes with a dropdown (not inside pop-ups, forms or grid layouts). */
+.panel :is(div,section):not(.field):not(.apply-filter-wrap):not(.form-grid):not(.modal-grid):not([class*="grid"]):not([class*="repeat-row"]):not([class*="row-detail"]):not(.modal *):not(form *):has(> .field + .field):has(> .field > select),
+[class*="filter"]:not(.field):not(.btn):not(.apply-filter-wrap):not(.apply-filter-note):not([class*="filter-summary"]):has(> .field),
+.samara-filter-row{
+  display:flex!important;flex-wrap:wrap!important;gap:10px 14px!important;align-items:flex-end!important;
+  grid-template-columns:none!important;margin-bottom:12px
+}
+.panel :is(div,section):not(.field):not(.apply-filter-wrap):not(.form-grid):not(.modal-grid):not([class*="grid"]):not([class*="repeat-row"]):not([class*="row-detail"]):not(.modal *):not(form *):has(> .field + .field):has(> .field > select) > .field,
+[class*="filter"]:not(.field):not(.btn):not(.apply-filter-wrap):not(.apply-filter-note):not([class*="filter-summary"]):has(> .field) > .field,
+.samara-filter-row > .field{
+  flex:1 1 210px!important;max-width:300px!important;min-width:170px!important;margin:0!important
+}
+.panel :is(div,section):not(.modal *):not(form *) > .field:has(textarea),
+[class*="filter"] > .field:has(textarea),
+.panel :is(div,section):not(.modal *):not(form *) > .field.span-2{flex-basis:100%!important;max-width:none!important}
+[class*="filter"] > .apply-filter-wrap,.samara-filter-row > .apply-filter-wrap,
+.panel :is(div,section):has(> .field + .field) > .apply-filter-wrap{flex:0 0 auto!important;margin:0!important;align-self:flex-end}
+[class*="filter"] > .field select,.samara-filter-row > .field select,
+.panel :is(div,section):has(> .field + .field) > .field select{cursor:pointer}
+@media(max-width:820px){
+  [class*="filter"] > .field,.samara-filter-row > .field,
+  .panel :is(div,section):has(> .field + .field):has(> .field > select) > .field{flex-basis:calc(50% - 14px)!important;max-width:none!important;min-width:140px!important}
+}
+@media(max-width:520px){
+  [class*="filter"] > .field,.samara-filter-row > .field,
+  .panel :is(div,section):has(> .field + .field):has(> .field > select) > .field{flex-basis:100%!important}
+}
