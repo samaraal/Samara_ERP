@@ -187,7 +187,7 @@
       ['Average Daily Realised Revenue',averageDailyRevenue,'Accounts Reports','blue','Materialised revenue across realised-revenue days']
     ];
 
-    return h(React.Fragment,null,
+    return h('div',{className:'accounts-dashboard'},
       h('div',{className:'accounts-hero'},
         h('div',null,
           h('small',null,'FINANCE · BILLING · COLLECTIONS'),
@@ -267,7 +267,7 @@
               ['Unadjusted Advances',money(unadjustedAdvance)],
               ['Refunds',money(refundValue)],
               ['Net Outstanding',money(outstanding)]
-            ].map(([label,value])=>h('div',{className:'accounts-status-item',key:label},h('span',null,label),h('strong',null,value)))
+            ].map(([label,value])=>h('button',{type:'button',className:'accounts-status-item',key:label,onClick:()=>dashboardNavigate(onNavigate,'Accounts Reports',label,{source:'Accounts Dashboard'}),style:{width:'100%',textAlign:'left',font:'inherit',cursor:'pointer'}},h('span',null,label),h('strong',null,value)))
           )
         )
       ),
@@ -287,6 +287,7 @@
       h(Section,{title:'Accounts Workflow',subtitle:'Open the required financial stage directly'},
         h('div',{className:'accounts-workflow-grid'},
           [
+            ['🧾','Outside Bills Paid by Samara','View outside bills, handling fees, Guest charges and payments due to vendors.','Open','outside-bills'],
             ['🧾','Charge Approvals','Approve, partially approve or reject Nurse-raised charges.',pendingApprovals,'approvals'],
             ['💳','Payments','Receive Cash, UPI, RTGS or Card payments.',todayCollections?money(todayCollections):'Open','payments'],
             ['📑','Final Billing','Resident-wise ledger, discounts and net payable.',finalBills,'final-billing'],

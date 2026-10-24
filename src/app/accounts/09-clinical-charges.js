@@ -176,6 +176,7 @@
       return categoryMatches.length===1?categoryMatches[0]:null;
     };
     const stockDefaults=(category,name)=>{const stockItem=storeCategories.includes(category)?matchingStock(name):null;const masterItem=matchingStoreMaster(category,name,stockItem?.item_id);const rate=Number(masterItem?.charge_rate||0);return {store_item_id:stockItem?.item_id||masterItem?.id||'',charge_item_code:masterItem?.item_code||'',unit:stockItem?.unit||masterItem?.unit||'Service',unit_cost:rate||'',requested_amount:rate||''}};
+    React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
@@ -842,7 +843,7 @@
       navCard('Approved Value Today',money(approvedTodayValue),'Approved Today','Actual value approved today')
     );
 
-    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
+    const chargeMobileCard=r=>h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card samara-charge-card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'14px',marginBottom:'10px',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
       h('div',{style:{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start'}},
         h('div',{style:{minWidth:0,flex:'1 1 auto'}},h('strong',{style:{display:'block',fontSize:'16px',overflowWrap:'anywhere'}},`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'Charge'}`),h('small',{style:{display:'block',marginTop:'3px',overflowWrap:'anywhere'}},pLabel(r.patient_id))),
         h('span',{className:'badge','data-charge-decision':true,tabIndex:-1,'aria-label':`Decision: ${r.approval_status||'Pending'}`,style:{flex:'0 1 auto',whiteSpace:'normal'}},r.approval_status||'Pending')
@@ -1073,7 +1074,6 @@
         ),
         register
       ),
-      ['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsRegister,{profile,patients,pLabel,refreshKey:rows.length+':'+rows.filter(r=>r.outside_paid_by&&(r.approval_status||'Pending')!=='Pending').length}),
       diagTable,
       chargeDetailModal,
       modal,
