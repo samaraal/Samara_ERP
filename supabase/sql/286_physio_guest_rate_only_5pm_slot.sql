@@ -1,7 +1,20 @@
 -- 286 — Physiotherapy: Guest charges only by the per-Guest rate (Admin / Director, case by case);
 -- Twice-daily plans with one time get 5:00 PM as the 2nd time; physio reminders count sessions in order.
--- Run once in Supabase SQL Editor after 284 / 285. Safe to re-run.
+-- Run once in Supabase SQL Editor after 284 / 285. Safe to re-run. Includes SQL 282 (plan session times).
 begin;
+-- 0. Plan session times (from SQL 282 — included here because 282 was not yet applied on the live database).
+alter table public.physiotherapy_plans add column if not exists session_times text[];
+comment on column public.physiotherapy_plans.session_times is 'Session times of the day (HH:MM), one per session: Twice daily = 2 times';
+
+create or replace function public.physio_plan_times(p_session_times text[], p_preferred text)
+returns time[] language sql immutable set search_path=public,pg_temp as $$
+  select coalesce(
+    (select array_agg(distinct btrim(t)::time order by btrim(t)::time) from unnest(coalesce(p_session_times,'{}'::text[])) t
+      where btrim(t) ~ '^\d{1,2}:\d{2}(:\d{2})?$'),
+    array[case when btrim(coalesce(p_preferred,'')) ~* '^\d{1,2}:\d{2}(:\d{2})?(\s*(AM|PM))?$' then btrim(p_preferred)::time else time '10:00' end])
+$$;
+
+
 -- 1. No organisation-wide Guest fee. Any charge still Pending that came from one goes back to "waiting for Guest rate".
 update public.physio_organisations set guest_fee=null where guest_fee is not null;
 with undo as(select b.id,b.physiotherapy_session_id from public.bill_charge_requests b
