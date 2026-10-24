@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.118';
+  const APP_VERSION = '2.18.119';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physiotherapist fee per Guest';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio not-posted count per physiotherapist';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -37731,7 +37731,9 @@ function RoomsBeds({profile,onNavigate}){
         h('p',{className:'small-note'},'Organisation report period: '+formatDateIN(from)+' to '+formatDateIN(to)),
         h('div',{className:'actions'},button('Refresh',load),button('Add organisation',()=>begin('organisation')),org&&button('🖨 Print Statement (PDF)',printPDF,true)),
         org&&h('div',{className:'samara-filter-row'},h('div',{className:'field'},h('label',null,'Statement for'),h('select',{'aria-label':'Statement for',value:statementFor,onChange:e=>setStatementFor(e.target.value)},h('option',{value:''},'Whole organisation — '+org.name),data.practitioners.map(p=>h('option',{key:p.id,value:p.id},'Physiotherapist — '+p.full_name+((p.pay_basis||'Session fee')==='Salary'?' (salary)':' (per session)')))))),
-        org&&(workScope?h('p',null,h('strong',null,org.name+(statementPhysio?' — '+statementPhysio.full_name:'')),' · on salary · '+workList.length+' session(s) in period'):h('p',null,h('strong',null,org.name+(statementPhysio?' — '+statementPhysio.full_name:'')+' · '),data.balance<0?'Advance with organisation ₹'+money(-data.balance):'Total payable ₹'+money(data.balance),Number(data.unposted||0)>0&&h('span',{style:{color:'#b42318',fontWeight:700}},' · '+data.unposted+' completed session(s) not yet posted')))),
+        org&&(workScope?h('p',null,h('strong',null,org.name+(statementPhysio?' — '+statementPhysio.full_name:'')),' · on salary · '+workList.length+' session(s) in period'):h('p',null,h('strong',null,org.name+(statementPhysio?' — '+statementPhysio.full_name:'')+' · '),data.balance<0?'Advance with organisation ₹'+money(-data.balance):'Total payable ₹'+money(data.balance),(()=>{ // 2.18.119: count for the selected physiotherapist, or the whole organisation
+          const n=statementPhysio?data.sessions.filter(r=>r.practitioner_id===statementPhysio.id||norm(r.physiotherapist_name)===norm(statementPhysio.full_name)).length:Number(data.unposted||0);
+          return n>0&&h('span',{style:{color:'#b42318',fontWeight:700}},` · ${n} completed session(s) of ${statementPhysio?statementPhysio.full_name:'this organisation'} not yet posted — Sessions tab`);})()))),
       tab==='Organisations'&&h(LogTable,{title:'Physiotherapy Organisations',heads:['Organisation','Type','Fee paid / session ₹','Contact person','Phone','GST','Terms','Active','Action'],rows:data.organisations.map(row=>[row.name,orgType(row)==='Samara'?'Samara own team':'Outsourced',orgType(row)==='Samara'?'Per physiotherapist (Panel)':money(row.default_fee),row.contact_person||'—',row.phone||'—',row.gst_number||'—',row.payment_terms||'—',row.is_active?'Yes':'No',button('Edit details',()=>begin('organisation',row))])}),
       tab==='Physiotherapists'&&h('section',{className:'card panel'},button('Add physiotherapist',()=>begin('practitioner')),
         h(LogTable,{title:'Physiotherapist Panel — '+(org?.name||'Select organisation')+(org?(isSamaraOrg?' (Samara own team)':' (Outsourced)'):''),

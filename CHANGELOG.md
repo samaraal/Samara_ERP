@@ -1,3 +1,6 @@
+## 2.18.119 — Therapist Accounts: "not yet posted" count follows the selected physiotherapist
+- With a physiotherapist selected in "Statement for", the red count shows only that physiotherapist's completed sessions not yet posted (it showed the whole organisation's). No SQL.
+
 ## 2.18.118 — Physiotherapist fee agreed case by case per Guest (SQL 289)
 - Choosing "Session fee" no longer asks for one fixed fee. Admin / Director enters the fee agreed for that Guest when posting the session ("Fee agreed for this Guest").
 - The last fee agreed for the same physiotherapist and Guest is filled in automatically next time; "Post all at agreed fee" posts only sessions whose fee for that Guest is already known.
