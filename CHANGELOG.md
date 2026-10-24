@@ -1,3 +1,6 @@
+## 2.18.116 — Therapist Accounts: clear message when SQL 285 is missing
+- For a Samara own-team organisation, Therapist Accounts now says when SQL 285 is not installed (Samara per-session physiotherapists' sessions cannot be listed before it), instead of showing an empty list. No SQL.
+
 ## 2.18.115 — Finished admissions no longer shown as "Unfinished"
 - An admission draft stayed in "Unfinished Admissions" when the signed-consent step was not completed in the same sitting, even though the admission was saved. Drafts whose Guest admission is already saved are now closed automatically when the list loads. Pending signed consent is still tracked by "Pending Signed Consent". No SQL.
 

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.115';
+  const APP_VERSION = '2.18.116';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Finished admissions leave Unfinished list';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio SQL 285 check';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -37716,6 +37716,8 @@ function RoomsBeds({profile,onNavigate}){
             return [row.full_name,row.phone||'—',row.qualification||'—',salary?'Salary':'Session fee',salary?'—':row.default_fee==null?'Org. default ₹'+money(org?.default_fee):money(row.default_fee),salary?(row.monthly_salary!=null?money(row.monthly_salary):'—'):'—',salary?'—':bal==null?'—':money(bal),row.is_active?'Yes':'No',
               h('div',{className:'actions'},button('Edit',()=>begin('practitioner',row)),!salary&&button('Statement',()=>{setStatementFor(row.id);setTab('Statement')}))]})})),
       ['Sessions','Payments','Ledger','Statement'].includes(tab)&&samaraNoFees&&samaraNote(),
+      // 2.18.116: before SQL 285 the server lists only outsourced sessions — say so instead of an empty list.
+      org&&isSamaraOrg&&!('practitioner_balances' in data)&&h('div',{className:'message error',role:'alert'},h('strong',null,'Samara physiotherapist sessions cannot be listed yet. '),'Run supabase/sql/285_physio_panel_salary_session_fee.sql once in Supabase SQL Editor, then set each Samara physiotherapist to Salary or Session fee in Physiotherapist Panel.'),
       tab==='Sessions'&&!samaraNoFees&&h('section',{className:'card panel'},h('p',{className:'small-note'},'Completed sessions not yet posted. Use “Post all at default fee” to post them together at each physiotherapist’s default fee, or post one by one to change the fee. Posted fees retain their rate and patient details.'),data.sessions.length>0&&h('div',{className:'actions'},button(`✓ Post all at default fee (${data.sessions.filter(row=>practitionerFor(row)&&feeFor(row)>0).length})`,postAllAtDefault,true)),h(LogTable,{title:'Completed sessions awaiting fee posting',heads:['Date','Scheduled time','Actual time (IST)','Patient','Resident ID','Room','Organisation','Recorded physiotherapist','Notes','Action'],rows:data.sessions.map(row=>[formatDateIN(row.date),row.time||'—',row.actual_time||'Not recorded',row.patient_name,row.resident_id,row.room,row.physiotherapy_name,row.physiotherapist_name||'—',row.notes||'—',h('div',null,practitionerFor(row)?h('small',{style:{display:'block'}},'Default ₹'+money(feeFor(row))):h('small',{style:{display:'block',color:'#b42318'}},'Choose physiotherapist'),button('Post session fee',()=>begin('post_fee',row)))])})),
       tab==='Payments'&&!samaraNoFees&&h('section',{className:'card panel'},h('div',{className:'actions'},button('Record payment',()=>begin('payment')),button('Record refund received',()=>begin('refund'))),h(LogTable,{title:'Payments and refunds',heads:['Date','Voucher','Type','Amount ₹','Method','Reference','Recipient / payer','Notes','Action'],rows:data.entries.filter(row=>['Payment','Refund'].includes(row.kind)).map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind,money(Math.abs(row.amount)),row.method,row.reference||'—',row.recipient||'—',row.notes||'—',h('div',{className:'actions'},button('Print voucher',()=>printStatement(row)),!row.reversed_at&&button('Reverse',()=>begin('reverse',row)))])})),
       tab==='Ledger'&&!samaraNoFees&&h('section',{className:'card panel'},h('div',{className:'actions'},button('Export CSV',exportCSV),button('Print / Save PDF',printPDF),button('Send WhatsApp (PDF)',whatsappPDF)),h('p',null,'Period opening payable ₹'+money(data.opening)+' · Closing payable ₹'+money(ledgerRows().at(-1)?.balance??data.opening)),h(LogTable,{title:'Organisation Ledger — '+(org?.name||''),heads:['Date','Voucher','Type','Physiotherapist','Patient / Resident ID','Room','Session date / scheduled time','Actual time (IST)','Rate ₹','Debit / payments ₹','Credit / fees ₹','Balance payable ₹','Reference / notes','Action'],rows:ledgerRows().map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind+(row.reversed_at?' (reversed)':''),row.snapshot?.physiotherapist||'—',[row.snapshot?.patient_name,row.snapshot?.resident_id].filter(Boolean).join(' · ')||'—',row.snapshot?.room||'—',[row.snapshot?.session_date?formatDateIN(row.snapshot.session_date):'',row.snapshot?.session_time].filter(Boolean).join(' · ')||'—',row.snapshot?.actual_time||'Not recorded',row.rate?money(row.rate):'—',row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance),[row.reference,row.notes].filter(Boolean).join(' · ')||'—',row.kind!=='Reversal'&&!row.reversed_at?button('Reverse',()=>begin('reverse',row)):'—'])})),
