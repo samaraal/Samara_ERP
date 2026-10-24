@@ -105,6 +105,7 @@
   const ACCOUNTS_NAV_GROUPS=[
     {label:'',items:['Accounts Dashboard','Accounts Statement']}, // 2.18.54: Statement right under the Dashboard
     {label:'Guest Billing · money in',items:['Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard']},
+    {label:'Outside Bills',items:['Outside Bills Paid by Samara']},
     {label:'Outgoing Payments · money out',items:['Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements']},
     {label:'Reports',items:['Accounts Reports']}
   ];
@@ -145,7 +146,7 @@
     { title:'PHYSIOTHERAPY', items:['Physiotherapy Dashboard'] },
     { title:'PHARMACY & STORES', items:['Receive from Vendor','Stock Report','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Biomedical Equipment','Oxygen Cylinders'] },
     { title:'FOOD & DIET', items:['Food & Diet'] },
-    { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Accounts Statement','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
+    { title:'ACCOUNTS / BILLING', items:['Physiotherapist Accounts','Accounts Dashboard','Accounts Statement','Outside Bills Paid by Samara','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Package Expiry Dashboard','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements','Accounts Reports'] }, // keep in step with ACCOUNTS_NAV_GROUPS
     { title:'COMMUNICATION', items:['Talk to Guest','WhatsApp Inbox','WhatsApp Logs','Feedback','Mail Dashboard'] }, // 2.16.34: Talk to Guest here for Admin / STD (nurses & managers keep it in their nursing menu)
     { title:'MY ACCOUNT', items:['My Profile'] }
   ];
@@ -153,11 +154,11 @@
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&(!NURSING_ENTRY_NAV.includes(item)||item==='Physiotherapy')),
-    Manager:ALL_NAV.filter(item=>!['Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['Outside Bills Paid by Samara','Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
-    Accounts:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Accounts Dashboard','Accounts Statement','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
+    Accounts:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Accounts Dashboard','Accounts Statement','Outside Bills Paid by Samara','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission']
   };
