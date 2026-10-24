@@ -1,3 +1,8 @@
+## 2.18.114 — Admission form: Physiotherapy as its own section
+- Section 6 is now "Risks and special nurse" (the "Physiotherapy advised" tick is removed from it).
+- New **Section 7. Physiotherapy** with a "Physiotherapy required" tick; when ticked: therapy, physiotherapist, frequency, From–To session windows and precautions.
+- "Package, room and activation" becomes Section 8. No SQL.
+
 ## 2.18.113 — Physiotherapy session windows entered as From–To (SQL 288)
 - Admission and Patient Edit → Physiotherapy Plan: each session is entered as a window, **From – To** (e.g. 7:00 AM – 9:00 AM, 4:00 PM – 6:00 PM), instead of one fixed time. "To" must be after "From"; windows must not overlap.
 - Saved as "07:00-09:00" in session_times; existing plans with a single time open as that time ±1 hour until edited.

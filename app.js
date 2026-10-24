@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.113';
+  const APP_VERSION = '2.18.114';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio From-To session windows';
+  const APP_BUILD_DATE = '24-Oct-2026 Admission: Physiotherapy as Section 7';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -25587,7 +25587,7 @@ Please keep these login details confidential.`;
       const effectiveProcs=(procs||[]).filter(nursingProcedureRowComplete);
       {const badProc=(procs||[]).findIndex(r=>String(r.care_type||'').trim()&&!nursingProcedureRowComplete(r));if(badProc>=0){setMsg(`Section 5, Nursing procedure ${badProc+1}: ${nursingProcedureRowProblem(procs[badProc])}`);setBusy(false);return}}
       if(effectiveProcs.length&&!(await nursingProcedureColumnReady())){setMsg(`Section 5 Nursing procedures: ${NURSING_PROC_SQL_HINT}`);setBusy(false);return}
-      if(form.physio_required&&form.therapy_type){const pp=physioTimesProblem(form.physio_frequency,Array.isArray(form.physio_times)&&form.physio_times.length?form.physio_times:[form.physio_time]);if(pp){setMsg(`Section 6 Physiotherapy: ${pp}`);setBusy(false);return}} // 2.18.94
+      if(form.physio_required&&form.therapy_type){const pp=physioTimesProblem(form.physio_frequency,Array.isArray(form.physio_times)&&form.physio_times.length?form.physio_times:[form.physio_time]);if(pp){setMsg(`Section 7 Physiotherapy: ${pp}`);setBusy(false);return}} // 2.18.94
       if(form.undergoing_prescribed_medication==='Yes'&&(!effectiveMeds.length||effectiveMeds.some(m=>!medicineRowComplete(m)))){
         setMsg('Enter and complete every prescribed medicine, including Prescribed Doctor, Strength (number and unit), Time, and the Day of week for weekly medicines.');
         setBusy(false);
@@ -25908,7 +25908,7 @@ Please keep these login details confidential.`;
           :h('li',null,h('strong',null,'Current medicines'),' — enter each medicine in Section 3',
             spotPrefill.medicines?h('div',{style:{whiteSpace:'pre-wrap',marginTop:'4px',padding:'6px 8px',background:'#fff',border:'1px dashed #e0a9c4',borderRadius:'8px'}},`Noted at visit${spotPrefill.medicineSupport?` (${spotPrefill.medicineSupport})`:''}:\n${spotPrefill.medicines}`):null),
           h('li',null,h('strong',null,'Master care plan'),' (Section 4)'),
-          h('li',null,h('strong',null,'Package, room / bed'),' (Section 7)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
+          h('li',null,h('strong',null,'Package, room / bed'),' (Section 8)',[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).length?` — noted at visit: ${[spotPrefill.careLevel,spotPrefill.tariff].filter(Boolean).join(' · ')}`:'')
         ),
         spotPrefill.vitals?h('p',{className:'small-note'},`Vitals at visit: ${spotPrefill.vitals}`):null,
         spotPrefill.photos?h('p',{className:'small-note'},`${spotPrefill.photos} visit photo(s) (wounds, prescription, reports) are kept in the Spot Assessment.`):null,
@@ -26347,10 +26347,14 @@ Please keep these login details confidential.`;
         )
       ),
       h(AdmissionNursingProcedureSection,{rows:procs,setRows:setProcs,setMsg}),
-      h('div',{className:'section-card'},h('h4',null,'6. Risks, special nurse and physiotherapy'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy advised'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2')),form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:PHYSIO_FREQUENCIES.includes(form.physio_frequency)?form.physio_frequency:(/twice/i.test(form.physio_frequency||'')?'Twice daily':/three|thrice/i.test(form.physio_frequency||'')?'Three times daily':'Once daily'),onChange:e=>setForm({...form,physio_frequency:e.target.value})},PHYSIO_FREQUENCIES.map(x=>h('option',{key:x,value:x},x)))),
+      h('div',{className:'section-card'},h('h4',null,'6. Risks and special nurse'),h('div',{className:'check-grid'},riskItems.map(([key,label])=>h('label',{className:'check-card',key},h('input',{type:'checkbox',checked:!!form[key],onChange:e=>setForm({...form,[key]:e.target.checked})}),h('span',null,label))),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.oxygen_required,onChange:e=>setForm({...form,oxygen_required:e.target.checked})}),h('span',null,'Oxygen required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.dressing_required,onChange:e=>setForm({...form,dressing_required:e.target.checked})}),h('span',null,'Wound dressing required')),h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.special_nurse_required,onChange:e=>setForm({...form,special_nurse_required:e.target.checked})}),h('span',null,'Special / dedicated nurse'))),form.special_nurse_required&&h('div',{className:'form-grid'},field('Special nurse name','special_nurse_name',form,setForm,true),selectField('Coverage','special_nurse_shift',form,setForm,['Day Shift','Night Shift','Both shifts / 24-hour coverage']),textareaField('Special nursing instructions','special_nurse_instructions',form,setForm,'span-2'))),
+      // 2.18.114: Physiotherapy is its own section (was inside 6).
+      h('div',{className:'section-card'},h('div',{className:'panel-head'},h('div',null,h('h4',null,'7. Physiotherapy'),h('small',null,'Therapy advised for this Guest — sessions as From–To windows')),h('label',{className:'check-card',style:{margin:0}},h('input',{type:'checkbox',checked:!!form.physio_required,onChange:e=>setForm({...form,physio_required:e.target.checked})}),h('span',null,'Physiotherapy required'))),
+        !form.physio_required&&h('p',{className:'small-note'},'Tick “Physiotherapy required” if the doctor has advised physiotherapy. It can also be added later from Patient Edit.'),
+        form.physio_required&&h('div',{className:'form-grid'},field('Therapy / exercise','therapy_type',form,setForm,true),field('Physiotherapist name','physiotherapist_name',form,setForm,false),h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:PHYSIO_FREQUENCIES.includes(form.physio_frequency)?form.physio_frequency:(/twice/i.test(form.physio_frequency||'')?'Twice daily':/three|thrice/i.test(form.physio_frequency||'')?'Three times daily':'Once daily'),onChange:e=>setForm({...form,physio_frequency:e.target.value})},PHYSIO_FREQUENCIES.map(x=>h('option',{key:x,value:x},x)))),
           h(PhysioSessionTimesFields,{frequency:form.physio_frequency,times:Array.isArray(form.physio_times)&&form.physio_times.length?form.physio_times:[form.physio_time],onChange:t=>setForm({...form,physio_times:t,physio_time:String(t[0]||'').slice(0,5)})}), // 2.18.113: one From–To window per session
           textareaField('Precautions','physio_precautions',form,setForm,'span-2'))),
-      h('div',{className:'section-card'},h('h4',null,'7. Package, room and activation'),
+      h('div',{className:'section-card'},h('h4',null,'8. Package, room and activation'),
         h('div',{className:'form-grid'},
           h('div',{className:'field'},h('label',null,'Billing Option'),h('select',{required:true,value:form.billing_package,onChange:e=>setForm({...form,billing_package:e.target.value})},
             h('option',{value:''},'Select billing option'),
