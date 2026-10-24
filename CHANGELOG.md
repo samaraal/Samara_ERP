@@ -1,3 +1,6 @@
+## 2.18.115 — Finished admissions no longer shown as "Unfinished"
+- An admission draft stayed in "Unfinished Admissions" when the signed-consent step was not completed in the same sitting, even though the admission was saved. Drafts whose Guest admission is already saved are now closed automatically when the list loads. Pending signed consent is still tracked by "Pending Signed Consent". No SQL.
+
 ## 2.18.114 — Admission form: Physiotherapy as its own section
 - Section 6 is now "Risks and special nurse" (the "Physiotherapy advised" tick is removed from it).
 - New **Section 7. Physiotherapy** with a "Physiotherapy required" tick; when ticked: therapy, physiotherapist, frequency, From–To session windows and precautions.

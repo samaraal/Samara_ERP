@@ -266,7 +266,19 @@
     async function loadOpenDrafts(){
       const {data,error}=await client.from('admission_draft_forms').select('id,draft_no,patient_name,mobile,address,room_no,admission_type,files,last_field,linked_patient_id,created_by_name,updated_by,updated_by_name,updated_device,created_at,updated_at').eq('status','Open').order('updated_at',{ascending:false}).limit(50);
       if(error){setDraftsMissing(/does not exist|schema cache|could not find/i.test(String(error.message||'')));setOpenDrafts([]);return []}
-      setDraftsMissing(false);setOpenDrafts(data||[]);return data||[];
+      setDraftsMissing(false);
+      // 2.18.115: a draft whose Guest's admission is already saved (consent stage reached) is finished — close it
+      // so it no longer shows as unfinished. Signed consent is followed up by "Pending Signed Consent", not here.
+      let rows=data||[];
+      const linked=rows.filter(d=>d.linked_patient_id&&String(d.id)!==String(draftIdRef.current)).map(d=>d.linked_patient_id);
+      if(linked.length){
+        const {data:done}=await client.from('patients').select('id,admission_consent_status').in('id',linked);
+        const finished=new Set((done||[]).filter(p=>p.admission_consent_status).map(p=>p.id));
+        const stale=rows.filter(d=>finished.has(d.linked_patient_id)&&String(d.id)!==String(draftIdRef.current));
+        stale.forEach(d=>client.rpc('admission_draft_close',{p_id:d.id,p_status:'Completed',p_reason:'Admission already saved',p_patient_id:d.linked_patient_id}).then(()=>{},()=>{}));
+        rows=rows.filter(d=>!stale.includes(d));
+      }
+      setOpenDrafts(rows);return rows;
     }
     async function continueDraft(d){
       if(busy)return;
