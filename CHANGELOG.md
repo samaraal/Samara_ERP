@@ -1,3 +1,7 @@
+## 2.18.120 — Physiotherapy statement: centred title, WhatsApp button back on top
+- PDF statement heading "Samara Assisted Living" is centred.
+- "📲 Send Statement on WhatsApp (PDF)" sits beside "Print Statement (PDF)" at the top of Therapist Accounts. On phones it shares the PDF to WhatsApp; on a computer it downloads the PDF and opens the WhatsApp chat of the physiotherapist (or organisation) using their saved phone number, with a short message — attach the PDF and send. No SQL.
+
 ## 2.18.119 — Therapist Accounts: "not yet posted" count follows the selected physiotherapist
 - With a physiotherapist selected in "Statement for", the red count shows only that physiotherapist's completed sessions not yet posted (it showed the whole organisation's). No SQL.
 
