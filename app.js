@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.100';
+  const APP_VERSION = '2.18.101';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -40595,6 +40595,15 @@ function ShiftHandover({profile,onNavigate}){
         border:1px solid #edb5ce;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);
       }
       .accounts-dashboard .accounts-hero{background:linear-gradient(135deg,#fff0f6,#f6bfd7)!important;color:#651b40;box-shadow:0 10px 24px rgba(143,23,76,.12)}
+      .accounts-dashboard .accounts-hero h3,.accounts-dashboard .accounts-hero p,.accounts-dashboard .accounts-hero small{
+        color:#651b40!important;opacity:1!important;text-shadow:none!important;
+      }
+      .accounts-dashboard .outside-bills-shortcut{
+        display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
+        width:100%;margin:0 0 16px;text-align:left;font:inherit;cursor:pointer;color:#651b40;
+      }
+      .accounts-dashboard .outside-bills-shortcut strong{display:block;font-size:20px;color:#651b40}
+      .accounts-dashboard .outside-bills-shortcut small{display:block;margin-top:5px;color:#651b40}
       .accounts-dashboard .accounts-kpi strong,.accounts-dashboard .accounts-kpi span,
       .accounts-dashboard .accounts-kpi small,.accounts-dashboard .accounts-workflow-body strong,
       .accounts-dashboard .accounts-workflow-body small{color:#651b40}
@@ -41027,6 +41036,10 @@ function ShiftHandover({profile,onNavigate}){
     ];
 
     return h('div',{className:'accounts-dashboard'},
+      h('button',{type:'button',className:'accounts-panel outside-bills-shortcut',onClick:()=>dashboardNavigate(onNavigate,'Outside Bills Paid by Samara','Outside Bills Paid by Samara',{source:'Accounts Dashboard'})},
+        h('span',null,h('strong',null,'Outside Bills Paid by Samara'),h('small',null,'View bills, handling fees, Guest charges and payments due to vendors.')),
+        h('span',{'aria-hidden':'true'},'Open full details →')
+      ),
       h('div',{className:'accounts-hero'},
         h('div',null,
           h('small',null,'FINANCE · BILLING · COLLECTIONS'),
@@ -41126,7 +41139,6 @@ function ShiftHandover({profile,onNavigate}){
       h(Section,{title:'Accounts Workflow',subtitle:'Open the required financial stage directly'},
         h('div',{className:'accounts-workflow-grid'},
           [
-            ['🧾','Outside Bills Paid by Samara','View outside bills, handling fees, Guest charges and payments due to vendors.','Open','outside-bills'],
             ['🧾','Charge Approvals','Approve, partially approve or reject Nurse-raised charges.',pendingApprovals,'approvals'],
             ['💳','Payments','Receive Cash, UPI, RTGS or Card payments.',todayCollections?money(todayCollections):'Open','payments'],
             ['📑','Final Billing','Resident-wise ledger, discounts and net payable.',finalBills,'final-billing'],
