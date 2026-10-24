@@ -264,7 +264,7 @@
     const fresh=()=>({
       patient_id:'',store_item_id:'',charge_item_code:'',charge_date:todayISOIndia(),service_datetime:localDateTimeValue(),
       category:'Doctor Services',service_name:'General Physician Visit',other_service_name:'',
-      service_provider:'',doctor_name:'',description:'General Physician Visit',
+      service_provider:'Samara',doctor_name:'',description:'General Physician Visit',
       quantity:'1',unit:'Service',unit_cost:'',requested_amount:'',urgency:'Routine',
       billable:true,bill_available:false,bill_number:'',bill_date:'',
       hospital_name:'',visit_reason:'',out_time:'',return_time:'',escort_staff:'',
