@@ -1,3 +1,6 @@
+## 2.18.101 — Readable dashboard banner; Outside Bills at the top
+- Banner heading and supporting text use dark maroon on baby pink. Outside Bills Paid by Samara is a prominent first dashboard box, before the banner and financial totals. No SQL.
+
 ## 2.18.100 — Outside Bills dashboard navigation + baby-pink boxes
 - Outside Bills Paid by Samara moves from Charge Approvals to a separate Accounts Dashboard box and register. Every outside-bill total opens its contributing bills; each bill opens full details and existing actions.
 - Accounts Dashboard and Outside Bills boxes use Samara baby-pink gradients. Access remains Accounts / Admin. No SQL.
