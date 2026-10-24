@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.120';
+  const APP_VERSION = '2.18.121';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio statement title centred + WhatsApp button';
+  const APP_BUILD_DATE = '24-Oct-2026 Phone: physio chips on one line';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7697,13 +7697,13 @@ https://samaraassistedliving.com/`;
     },[profile?.id,enabled]);
     if(!enabled||!rows.length)return null;
     const open=()=>dashboardNavigate(onNavigate,'Physiotherapy Dashboard','Physio unbilled',{tab:'Patient Rates & Billing'});
-    return h('button',{type:'button',className:'btn btn-secondary',title:rows.slice(0,5).map(r=>`${r.guest_name} · ${formatDateIN(r.session_date)} · ${r.reason}`).join('\n'),'aria-label':`${rows.length} physiotherapy sessions not billed for over 24 hours`,onClick:open},`₹ Physio unbilled (${rows.length})`);
+    return h('button',{type:'button',className:'btn btn-secondary physio-topbar-chip',title:rows.slice(0,5).map(r=>`${r.guest_name} · ${formatDateIN(r.session_date)} · ${r.reason}`).join('\n'),'aria-label':`${rows.length} physiotherapy sessions not billed for over 24 hours`,onClick:open,style:{whiteSpace:'nowrap',flex:'0 0 auto',width:'auto',minWidth:'max-content'}},`₹ Physio unbilled (${rows.length})`);
   }
   function PhysioApprovalNotification({notifications,onNavigate}){
     const rows=notifications.alerts;
     const open=()=>{notifications.dismiss();onNavigate('Physiotherapy')};
     return h(React.Fragment,null,
-      rows.length>0&&h('button',{type:'button',className:'btn btn-secondary','aria-label':`${rows.length} physiotherapy corrections awaiting your approval`,onClick:open},`🔔 Physio approvals (${rows.length})`),
+      rows.length>0&&h('button',{type:'button',className:'btn btn-secondary physio-topbar-chip','aria-label':`${rows.length} physiotherapy corrections awaiting your approval`,onClick:open,style:{whiteSpace:'nowrap',flex:'0 0 auto',width:'auto',minWidth:'max-content'}},`🔔 Physio approvals (${rows.length})`),
       notifications.notice&&h('div',{role:'status','aria-live':'polite',style:{position:'fixed',right:'16px',bottom:'18px',zIndex:100050,maxWidth:'min(400px,calc(100vw - 32px))',padding:'16px',background:'#fff8ec',border:'1px solid #d9a54a',borderRadius:'14px',boxShadow:'0 8px 24px #0002'}},
         h('strong',null,'Physiotherapy approval needed'),h('p',null,notifications.notice.text),
         h('button',{type:'button',className:'btn btn-primary',onClick:open},'Review requests'),h('button',{type:'button',className:'btn btn-secondary',onClick:notifications.dismiss},'Dismiss')));

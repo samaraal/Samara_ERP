@@ -2840,3 +2840,7 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
   [class*="filter"] > .field,.samara-filter-row > .field,
   .panel :is(div,section):has(> .field + .field):has(> .field > select) > .field{flex-basis:100%!important}
 }
+
+/* 2.18.121 — topbar chips (Physio approvals / unbilled) never squeeze into a letter-by-letter column on phones */
+.physio-topbar-chip{white-space:nowrap!important;flex:0 0 auto!important;width:auto!important;min-width:max-content!important;writing-mode:horizontal-tb!important}
+@media(max-width:640px){.physio-topbar-chip{font-size:14px!important;padding:8px 12px!important;min-height:40px!important}}
