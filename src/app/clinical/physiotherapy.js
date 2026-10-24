@@ -315,10 +315,10 @@
       (()=>{const st=physioTodayStatus(plan);
         // 2.18.110: a plan whose End Date has passed expects no sessions and sends no reminders — say so plainly.
         if(plan.end_date&&String(plan.end_date).slice(0,10)<todayISOIndia())return h('div',null,
-          h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time)]).filter(Boolean).map(physioWindowLabel).join(', ')),
+          h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time)]).filter(Boolean).map(t=>physioWindowLabel(t,plan)).join(', ')),
           h('small',{style:{display:'block',fontWeight:700,color:'#b42318'}},`⚠ Plan ended ${formatDateIN(plan.end_date)} — no sessions expected, no reminders. To continue, clear or extend End Date in Patient Edit.`));
         return h('div',null,
-        h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
+        h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(t=>physioWindowLabel(t,plan)).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.end_date?formatDateIN(plan.end_date):'Until Dr. Review',
@@ -328,8 +328,8 @@
         const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
         // 2.18.108: before the next session's time, show it calmly (not as an overdue task).
         const nowHHMM=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
-        const later=st.nextTime&&physioWindowStart(st.nextTime)>nowHHMM;
-        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session window: '+physioWindowLabel(st.nextTime):undefined},later?`Next: ${physioWindowLabel(st.nextTime)}`:st.nextTime?`Record ${physioWindowLabel(st.nextTime)} session`:label);})():h('span',{className:'small-note'},'View only')
+        const later=st.nextTime&&physioWindowStart(st.nextTime,plan)>nowHHMM;
+        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session window: '+physioWindowLabel(st.nextTime,plan):undefined},later?`Next: ${physioWindowLabel(st.nextTime,plan)}`:st.nextTime?`Record ${physioWindowLabel(st.nextTime,plan)} session`:label);})():h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{
@@ -340,7 +340,7 @@
         plan.therapy_type||'—',
         [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
         // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
-        (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
+        (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t,plan):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',
         session.status||'—',
         session.reason||session.notes||'—',
@@ -410,7 +410,7 @@
               if(fromPlan)return h('div',{className:'field'},h('label',null,'Session (plan time)'),
                 h('select',{'aria-label':'Scheduled Time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})},
                   h('option',{value:''},st.openTimes.length?'Choose session':'All sessions recorded'),
-                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${physioWindowLabel(t)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
+                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${physioWindowLabel(t,entryPlan)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
                 h('small',{className:'small-note'},'Session window from the plan (any time inside it is on time). Enter when treatment actually happened in “Actual Session Time”. To move it outside the window, choose Reschedule.'));
               return h('div',{className:'field'},h('label',null,'Scheduled Time'),h('input',{'aria-label':'Scheduled Time',type:'time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})}),
                 st.missingTimes&&form.session_date===todayISOIndia()&&h('small',{className:'error-text'},`This ${entryPlan.frequency} plan is missing a session time. Enter the plan time (not the actual time); Admin should add it in Patient Edit.`));

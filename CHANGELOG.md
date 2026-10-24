@@ -1,3 +1,9 @@
+## 2.18.113 — Physiotherapy session windows entered as From–To (SQL 288)
+- Admission and Patient Edit → Physiotherapy Plan: each session is entered as a window, **From – To** (e.g. 7:00 AM – 9:00 AM, 4:00 PM – 6:00 PM), instead of one fixed time. "To" must be after "From"; windows must not overlap.
+- Saved as "07:00-09:00" in session_times; existing plans with a single time open as that time ±1 hour until edited.
+- Reminders / escalations start at each window's own end. Rescheduled sessions keep their exact time.
+- **SQL 288 required** (after 287).
+
 ## 2.18.112 — Physiotherapy approval pop-up shows once per request
 - The "Physiotherapy approval needed" pop-up kept returning after every refresh / reopen. Each request now pops up once per device; the "Physio approvals (N)" top button stays until the requests are approved or rejected. No SQL.
 

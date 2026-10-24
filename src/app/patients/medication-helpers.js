@@ -242,39 +242,57 @@
     if(/twice|two|2\s*times|\bbd\b|\bbid\b/.test(f))return 2;
     return 1;
   }
-  function physioPlanTimes(plan){
-    const list=(Array.isArray(plan?.session_times)?plan.session_times:[]).map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t));
-    if(list.length)return [...new Set(list)].sort();
-    const one=String(plan?.preferred_time||plan?.session_time||'').slice(0,5);
-    return /^\d{2}:\d{2}$/.test(one)?[one]:[];
-  }
-  // 2.18.109: a plan time is the middle of a 2-hour window (8:00 AM → 7:00–9:00 AM). Reminders start only at
-  // the window end (SQL 287). Rescheduled sessions keep their exact time.
+  // 2.18.113: each session of a plan is a WINDOW entered as From–To (e.g. 07:00-09:00), saved in
+  // physiotherapy_plans.session_times as "HH:MM-HH:MM" (SQL 288). Older plain times "HH:MM" mean that time ±1 hour.
+  // The window start is the session key (used as scheduled_time); reminders start at the window end.
   const PHYSIO_WINDOW_MINUTES=60;
   function physioShiftHHMM(t,mins){const [h,m]=String(t||'').slice(0,5).split(':').map(Number);if(Number.isNaN(h)||Number.isNaN(m))return '';const x=((h*60+m+mins)%1440+1440)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
-  function physioWindowStart(t){return physioShiftHHMM(t,-PHYSIO_WINDOW_MINUTES)}
-  function physioWindowEnd(t){return physioShiftHHMM(t,PHYSIO_WINDOW_MINUTES)}
-  function physioWindowLabel(t){
-    const a=physioWindowStart(t),b=physioWindowEnd(t);if(!a||!b)return '—';
-    const part=v=>{const [h,m]=v.split(':').map(Number);return {txt:`${h%12||12}:${String(m).padStart(2,'0')}`,ap:h<12?'AM':'PM'}};
-    const x=part(a),y=part(b);return x.ap===y.ap?`${x.txt}–${y.txt} ${y.ap}`:`${x.txt} ${x.ap}–${y.txt} ${y.ap}`;
+  function physioParseWindow(v){
+    const raw=String(v||'').trim();const m=raw.match(/^(\d{1,2}:\d{2})(?::\d{2})?\s*-\s*(\d{1,2}:\d{2})/);
+    const pad=x=>x.length===4?'0'+x:x;
+    if(m)return {key:pad(m[1]),start:pad(m[1]),end:pad(m[2])};
+    const t=raw.slice(0,5);if(!/^\d{2}:\d{2}$/.test(t))return null;
+    return {key:t,start:physioShiftHHMM(t,-PHYSIO_WINDOW_MINUTES),end:physioShiftHHMM(t,PHYSIO_WINDOW_MINUTES)};
   }
-  // Session time boxes for a plan form: n boxes for the frequency; returns the times array via onChange.
+  function physioPlanWindows(plan){
+    let list=(Array.isArray(plan?.session_times)?plan.session_times:[]).map(physioParseWindow).filter(Boolean);
+    if(!list.length){const w=physioParseWindow(plan?.preferred_time||plan?.session_time);list=w?[w]:[];}
+    const seen=new Set();return list.filter(w=>!seen.has(w.key)&&seen.add(w.key)).sort((a,b)=>a.key.localeCompare(b.key));
+  }
+  function physioPlanTimes(plan){return physioPlanWindows(plan).map(w=>w.key);}
+  function physioWindowFor(t,plan){const key=String(t||'').slice(0,5);return (plan?physioPlanWindows(plan).find(w=>w.key===key):null)||physioParseWindow(key);}
+  function physioWindowStart(t,plan){return physioWindowFor(t,plan)?.start||''}
+  function physioWindowEnd(t,plan){return physioWindowFor(t,plan)?.end||''}
+  function physioClock(v){const [h,m]=String(v).split(':').map(Number);return {txt:`${h%12||12}:${String(m).padStart(2,'0')}`,ap:h<12?'AM':'PM'}}
+  function physioRangeLabel(a,b){if(!a||!b)return '—';const x=physioClock(a),y=physioClock(b);return x.ap===y.ap?`${x.txt}–${y.txt} ${y.ap}`:`${x.txt} ${x.ap}–${y.txt} ${y.ap}`;}
+  function physioWindowLabel(t,plan){const w=physioWindowFor(t,plan);return w?physioRangeLabel(w.start,w.end):'—';}
+  // Plan form: one From–To pair per session of the day. Returns ["07:00-09:00","16:00-18:00"] via onChange.
   function PhysioSessionTimesFields({frequency,times,onChange}){
     const n=physioSessionsPerDayFor(frequency);
-    const list=Array.from({length:n},(_,i)=>String((times||[])[i]||'').slice(0,5));
-    const label=i=>n===1?'Preferred time':`Session ${i+1} time`;
-    return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
-      h('label',null,label(i)), // required mark comes from the field style
-      h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
-      t?h('small',{className:'small-note',style:{display:'block'}},'Window: '+physioWindowLabel(t)+' (1 hour before to 1 hour after)'):null,
-      n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));
+    const list=Array.from({length:n},(_,i)=>{const w=physioParseWindow((times||[])[i]);return w?{start:w.start,end:w.end}:{start:'',end:''}});
+    const emit=next=>onChange(next.map(w=>w.start&&w.end?`${w.start}-${w.end}`:(w.start||'')));
+    const label=i=>n===1?'Session window':`Session ${i+1} window`;
+    return h(React.Fragment,null,list.map((w,i)=>h('div',{className:'field',key:`physio-window-${i}`},
+      h('label',null,label(i)),
+      h('div',{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+        h('span',{className:'small-note'},'From'),h('input',{type:'time','aria-label':`${label(i)} from`,required:true,value:w.start,onChange:e=>{const next=list.map(x=>({...x}));next[i].start=e.target.value;emit(next)}}),
+        h('span',{className:'small-note'},'To'),h('input',{type:'time','aria-label':`${label(i)} to`,required:true,value:w.end,onChange:e=>{const next=list.map(x=>({...x}));next[i].end=e.target.value;emit(next)}})),
+      w.start&&w.end&&w.end<=w.start?h('small',{className:'error-text',style:{display:'block'}},'“To” must be after “From”.'):w.start&&w.end?h('small',{className:'small-note',style:{display:'block'}},'Any time '+physioRangeLabel(w.start,w.end)+' is on time. Reminder only after '+physioClock(w.end).txt+' '+physioClock(w.end).ap+'.'):null)));
+  }
+  // Values to save: session_times as "HH:MM-HH:MM", preferred_time = first window start.
+  function physioWindowsForSave(frequency,times){
+    const n=physioSessionsPerDayFor(frequency);
+    const list=(times||[]).slice(0,n).map(physioParseWindow).filter(Boolean).sort((a,b)=>a.start.localeCompare(b.start));
+    return {session_times:list.map(w=>`${w.start}-${w.end}`),preferred_time:list[0]?.start||null};
   }
   function physioTimesProblem(frequency,times){
-    const n=physioSessionsPerDayFor(frequency);if(n<2)return '';
-    const list=(times||[]).slice(0,n).map(t=>String(t||'').slice(0,5)).filter(t=>/^\d{2}:\d{2}$/.test(t));
-    if(list.length<n)return `Enter all ${n} session times for the ${frequency} physiotherapy plan.`;
-    if(new Set(list).size<n)return 'Each physiotherapy session needs a different time.';
+    const n=physioSessionsPerDayFor(frequency);
+    const raw=(times||[]).slice(0,n);
+    const list=raw.map(physioParseWindow).filter(Boolean);
+    if(list.length<n||raw.some(v=>!/-/.test(String(v||''))&&String(v||'').trim()&&!physioParseWindow(v)))return n>1?`Enter From and To for all ${n} session windows of the ${frequency} physiotherapy plan.`:'Enter the session window (From and To).';
+    if(list.some(w=>w.end<=w.start))return 'Each physiotherapy window needs “To” after “From”.';
+    const sorted=[...list].sort((a,b)=>a.start.localeCompare(b.start));
+    for(let k=1;k<sorted.length;k++)if(sorted[k].start<sorted[k-1].end)return 'Physiotherapy session windows must not overlap.';
     return '';
   }
   // 2.14.75: Strength = amount + unit chosen from a list (avoids typing mistakes such as "500ma").

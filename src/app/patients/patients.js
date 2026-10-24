@@ -660,7 +660,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         physiotherapist_name:existingPhysio.physiotherapist_name||'',
         frequency:existingPhysio.frequency||'Daily',
         preferred_time:existingPhysio.preferred_time||'10:00',
-        session_times:physioPlanTimes(existingPhysio).length?physioPlanTimes(existingPhysio):[String(existingPhysio.preferred_time||'10:00').slice(0,5)], // 2.18.94
+        session_times:Array.isArray(existingPhysio.session_times)&&existingPhysio.session_times.length?existingPhysio.session_times:[String(existingPhysio.preferred_time||'10:00').slice(0,5)], // 2.18.113: keep From–To windows
         precautions:existingPhysio.precautions||'',
         advised_by:existingPhysio.advised_by||row.treating_doctor||row.referring_doctor||'',
         start_date:existingPhysio.start_date||row.admission_date||todayISOIndia(),
@@ -941,14 +941,15 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           if(!editPhysio.therapy_type.trim())throw new Error('Please enter the therapy or exercise advised.');
           if(editPhysio.end_mode==='date'&&!editPhysio.end_date)throw new Error('Pick the physiotherapy End Date, or choose “Until Dr. Review”.');
           {const pp=physioTimesProblem(editPhysio.frequency,editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]);if(pp)throw new Error(pp);}
-          const physioTimes=(editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]).slice(0,physioSessionsPerDayFor(editPhysio.frequency)).map(t=>String(t||'').slice(0,5)).filter(Boolean).sort();
+          const physioWin=physioWindowsForSave(editPhysio.frequency,editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time]); // 2.18.113
+          const physioTimes=physioWin.session_times;
           const physioPayload={
             patient_id:editTarget.id,
             advised_by:editPhysio.advised_by||editForm.treating_doctor||editForm.referring_doctor||null,
             therapy_type:editPhysio.therapy_type.trim(),
             physiotherapist_name:editPhysio.physiotherapist_name||null,
             frequency:editPhysio.frequency||'Daily',
-            preferred_time:physioTimes[0]||editPhysio.preferred_time||null,
+            preferred_time:physioWin.preferred_time||String(editPhysio.preferred_time||'').slice(0,5)||null,
             session_times:physioTimes,
             precautions:editPhysio.precautions||null,
             start_date:editPhysio.start_date||editForm.admission_date||todayISOIndia(),
@@ -2655,7 +2656,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
             h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
-          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(physioWindowLabel).join(', ')||'—'} · ${x.end_date?'until '+formatDateIN(x.end_date):'Until Dr. Review'}${x.precautions?' · '+x.precautions:''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
+          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(t=>physioWindowLabel(t,x)).join(', ')||'—'} · ${x.end_date?'until '+formatDateIN(x.end_date):'Until Dr. Review'}${x.precautions?' · '+x.precautions:''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
             // 2.15.34: meals and separate beverage servings, newest first.
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
@@ -2936,7 +2937,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
               h('div',{className:'field'},h('label',null,'Therapy / Exercise'),h('input',{required:true,value:editPhysio.therapy_type,onChange:e=>setEditPhysio({...editPhysio,therapy_type:e.target.value}),placeholder:'Example: Gait training / ROM exercises'})),
               h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{value:editPhysio.physiotherapist_name,onChange:e=>setEditPhysio({...editPhysio,physiotherapist_name:e.target.value}),placeholder:'Name of physiotherapist'})),
               h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:PHYSIO_FREQUENCIES.includes(editPhysio.frequency)?editPhysio.frequency:(physioSessionsPerDayFor(editPhysio.frequency)===2?'Twice daily':physioSessionsPerDayFor(editPhysio.frequency)===3?'Three times daily':'Once daily'),onChange:e=>setEditPhysio({...editPhysio,frequency:e.target.value})},PHYSIO_FREQUENCIES.map(x=>h('option',{key:x,value:x},x)))),
-              h(PhysioSessionTimesFields,{frequency:editPhysio.frequency,times:editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time],onChange:t=>setEditPhysio({...editPhysio,session_times:t,preferred_time:t[0]||''})}), // 2.18.94: one time per session
+              h(PhysioSessionTimesFields,{frequency:editPhysio.frequency,times:editPhysio.session_times&&editPhysio.session_times.length?editPhysio.session_times:[editPhysio.preferred_time],onChange:t=>setEditPhysio({...editPhysio,session_times:t,preferred_time:String(t[0]||'').slice(0,5)})}), // 2.18.113: From–To windows
               h('div',{className:'field'},h('label',null,'Advised By'),h('input',{value:editPhysio.advised_by,onChange:e=>setEditPhysio({...editPhysio,advised_by:e.target.value}),placeholder:'Doctor / Physiotherapist'})),
               h('div',{className:'field'},h('label',null,'Start Date'),h(StrictDateInput,{max:todayISOIndia(),value:editPhysio.start_date,onChange:e=>setEditPhysio({...editPhysio,start_date:e.target.value})})),
               // 2.18.111: therapy usually continues until the doctor reviews — choose that, or pick an end date.

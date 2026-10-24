@@ -234,7 +234,7 @@
         order,
         time:t,
         slotTime:t,
-        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}${t?` · ${physioWindowLabel(t)}`:''}`,
+        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}${t?` · ${physioWindowLabel(t,order)}`:''}`,
         log:multi?logFor(t):(logs[0]||null)
       }));
     });
