@@ -239,6 +239,13 @@
       .accounts-dashboard .accounts-kpi strong,.accounts-dashboard .accounts-kpi span,
       .accounts-dashboard .accounts-kpi small,.accounts-dashboard .accounts-workflow-body strong,
       .accounts-dashboard .accounts-workflow-body small{color:#651b40}
+      .accounts-dashboard .accounts-kpi.green strong{color:#087c39!important}
+      .accounts-dashboard .accounts-kpi.blue strong{color:#123f8c!important}
+      .accounts-dashboard .accounts-kpi.red strong{color:#c62828!important}
+      .accounts-dashboard .accounts-kpi.pink strong{color:#c2185b!important}
+      .accounts-dashboard .accounts-kpi.purple strong{color:#6b3594!important}
+      .accounts-dashboard .accounts-kpi.orange strong{color:#8c4a00!important}
+      .accounts-dashboard .accounts-kpi.teal strong{color:#076b63!important}
       .accounts-dashboard .accounts-kpi::after{background:#f8c7dc}
       .accounts-dashboard .accounts-bar-fill{background:linear-gradient(90deg,#f4a9ca,#b51660)}
       .accounts-dashboard .accounts-kpi::before,.accounts-dashboard .accounts-workflow-card::before{background:#b51660}
