@@ -1,3 +1,6 @@
+## 2.18.102 — Restore dashboard figures to their individual colors
+- KPI figures use their existing green, blue, red, purple, amber, teal or pink category color. Baby-pink gradient boxes, labels, banner and navigation stay as in 2.18.101. No SQL.
+
 ## 2.18.101 — Readable dashboard banner; Outside Bills at the top
 - Banner heading and supporting text use dark maroon on baby pink. Outside Bills Paid by Samara is a prominent first dashboard box, before the banner and financial totals. No SQL.
 
