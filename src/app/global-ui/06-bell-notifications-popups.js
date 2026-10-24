@@ -54,7 +54,12 @@
     const enabled=profile?.role==='Admin'||isNursingManagerProfile(profile);
     const [alerts,setAlerts]=React.useState([]),[notice,setNotice]=React.useState(null);
     React.useEffect(()=>{
-      let disposed=false,busy=false;const seen=new Set();
+      let disposed=false,busy=false;
+      // 2.18.112: remember (on this device) which requests have already popped up, so a refresh / reopen
+      // does not show the same pop-up again. The "Physio approvals (N)" button stays until they are reviewed.
+      const seenKey='samara-physio-popup-seen-'+(profile?.id||'');
+      const seen=new Set((()=>{try{return JSON.parse(localStorage.getItem(seenKey)||'[]')}catch(_e){return []}})());
+      const saveSeen=ids=>{try{localStorage.setItem(seenKey,JSON.stringify(ids.slice(-200)))}catch(_e){}};
       setAlerts([]);setNotice(null);
       if(!enabled||!profile?.id)return;
       const refresh=async()=>{
@@ -63,7 +68,7 @@
           const {data,error}=await client.rpc('physiotherapy_correction_alerts');
           if(disposed||error)return;
           const rows=Array.isArray(data)?data:[],fresh=rows.filter(row=>!seen.has(row.request_id));
-          rows.forEach(row=>seen.add(row.request_id));setAlerts(rows);
+          rows.forEach(row=>seen.add(row.request_id));saveSeen(rows.map(row=>row.request_id));setAlerts(rows);
           if(fresh.length)setNotice({ids:fresh.map(row=>row.request_id),text:fresh.length===1?`${fresh[0].action} requested by ${fresh[0].requested_by_name}. Review in Physiotherapy.`:`${fresh.length} physiotherapy correction requests need approval.`});
           else setNotice(current=>current&&current.ids.some(id=>rows.some(row=>row.request_id===id))?current:null);
         }catch(_error){/* Retry on the next live event, focus or timer tick. */}finally{busy=false;}

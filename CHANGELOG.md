@@ -1,3 +1,6 @@
+## 2.18.112 — Physiotherapy approval pop-up shows once per request
+- The "Physiotherapy approval needed" pop-up kept returning after every refresh / reopen. Each request now pops up once per device; the "Physio approvals (N)" top button stays until the requests are approved or rejected. No SQL.
+
 ## 2.18.111 — Physiotherapy "Until Dr. Review"; session windows on every table
 - Patient Edit → Physiotherapy Plan: "Continue until" = **Until Dr. Review** (default, no end date) or **Until a date** (date picker, required).
 - Physiotherapy plan table: columns "Session Window" (e.g. 7:00–9:00 AM, 4:00–6:00 PM) and "Continue until" (date or Until Dr. Review).
