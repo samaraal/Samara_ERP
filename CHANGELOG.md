@@ -1,3 +1,10 @@
+## 2.18.107 — Physiotherapist Panel (Salary / Session fee), physiotherapist-wise statements, session details (SQL 285)
+- "Physiotherapists" tab is now the **Physiotherapist Panel**: Paid by (Salary / Session fee), session fee, monthly salary (for records) and balance payable per physiotherapist. Samara own team can mix salaried and per-session physiotherapists; outsourced ones are always per session.
+- Samara per-session physiotherapists get fee posting, payments (choose the physiotherapist), ledger and statement like outsourced ones. Salaried ones never get session fees.
+- "Statement for": whole organisation or one physiotherapist — Print Statement (PDF), WhatsApp and CSV follow it. "Statement" button on each panel row.
+- Session Counts: tap a row to see every session — date, Guest, room, scheduled / actual time, status, notes, recorded by, and (Admin / Accounts) Guest charge and physiotherapist fee. Total row added.
+- **SQL 285 required** (after 284). Existing Samara physiotherapists without a session fee are set to Salary.
+
 ## 2.18.106 — Physiotherapy fees: Samara own team vs Outsourced, Guest fee, statement (SQL 284)
 - Organisations have a Type: **Samara own team** (staff — no per-session fee, payment or statement) or **Outsourced** (fee paid per completed session). Each also has a **Chargeable Guest fee per session**.
 - Guest price per completed session = the Guest's own agreed rate if Admin / Director set one, otherwise the organisation's Guest fee. Saving a Guest fee sends that organisation's waiting sessions to Accounts; "Send waiting sessions to Accounts" does the same for all.
