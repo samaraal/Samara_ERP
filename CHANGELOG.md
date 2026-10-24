@@ -1,3 +1,7 @@
+## 2.18.122 — Physiotherapy approvals no longer at the top
+- Removed the "🔔 Physio approvals (N)" button, its pop-up and the "₹ Physio unbilled" button from the top bar. Pending corrections remain in Notifications and Physiotherapy Dashboard → Physiotherapy Correction Approvals; unbilled sessions remain flagged in Patient Rates & Billing.
+- One-time SQL 291 closes correction requests left Pending although already reviewed (sessions unchanged). No other SQL.
+
 ## 2.18.121 — Phone: "Physio approvals" / "Physio unbilled" buttons on one line
 - On phones the top "🔔 Physio approvals (N)" button was squeezed into a narrow column (one letter per line). It now stays on one line. No SQL.
 

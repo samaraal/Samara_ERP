@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.121';
+  const APP_VERSION = '2.18.122';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Phone: physio chips on one line';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio alerts removed from top bar';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -14760,8 +14760,8 @@ https://samaraassistedliving.com/`;
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
           profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
-          h(PhysioApprovalNotification,{notifications:physioNotifications,onNavigate:setPage}),
-          h(PhysioUnbilledAlert,{profile:engineProfile,onNavigate:setPage}),
+          // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
+          // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
           canNurseMode&&h('button',{type:'button',className:'btn nurse-mode-switch'+(nurseOn?' on':''),onClick:toggleNurseMode,title:nurseOn?'Return to your Nursing Manager screens':'Use the ERP as a Nurse (same login, manager alerts stay on)',style:{background:nurseOn?'#b01867':'#fff0f7',color:nurseOn?'#fff':'#b01867',border:'1.5px solid #b01867',borderRadius:'999px',padding:'6px 12px',fontWeight:700,whiteSpace:'nowrap'}},nurseOn?'↩ Back to Nursing Manager':'🩺 Switch to Nurse'),
           h('span',{className:'badge'},profile.role)
