@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.108';
+  const APP_VERSION = '2.18.109';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio Guest rate per Guest only + 5 PM session';
+  const APP_BUILD_DATE = '24-Oct-2026 Physio 2-hour session window';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -22815,6 +22815,17 @@ Thank you.`;
     const one=String(plan?.preferred_time||plan?.session_time||'').slice(0,5);
     return /^\d{2}:\d{2}$/.test(one)?[one]:[];
   }
+  // 2.18.109: a plan time is the middle of a 2-hour window (8:00 AM → 7:00–9:00 AM). Reminders start only at
+  // the window end (SQL 287). Rescheduled sessions keep their exact time.
+  const PHYSIO_WINDOW_MINUTES=60;
+  function physioShiftHHMM(t,mins){const [h,m]=String(t||'').slice(0,5).split(':').map(Number);if(Number.isNaN(h)||Number.isNaN(m))return '';const x=((h*60+m+mins)%1440+1440)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
+  function physioWindowStart(t){return physioShiftHHMM(t,-PHYSIO_WINDOW_MINUTES)}
+  function physioWindowEnd(t){return physioShiftHHMM(t,PHYSIO_WINDOW_MINUTES)}
+  function physioWindowLabel(t){
+    const a=physioWindowStart(t),b=physioWindowEnd(t);if(!a||!b)return '—';
+    const part=v=>{const [h,m]=v.split(':').map(Number);return {txt:`${h%12||12}:${String(m).padStart(2,'0')}`,ap:h<12?'AM':'PM'}};
+    const x=part(a),y=part(b);return x.ap===y.ap?`${x.txt}–${y.txt} ${y.ap}`:`${x.txt} ${x.ap}–${y.txt} ${y.ap}`;
+  }
   // Session time boxes for a plan form: n boxes for the frequency; returns the times array via onChange.
   function PhysioSessionTimesFields({frequency,times,onChange}){
     const n=physioSessionsPerDayFor(frequency);
@@ -22823,6 +22834,7 @@ Thank you.`;
     return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
       h('label',null,label(i),n>1?' *':''),
       h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
+      t?h('small',{className:'small-note',style:{display:'block'}},'Window: '+physioWindowLabel(t)+' (1 hour before to 1 hour after)'):null,
       n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));
   }
   function physioTimesProblem(frequency,times){
@@ -26660,6 +26672,11 @@ Please keep these login details confidential.`;
     const physioTasks=physio.flatMap(order=>{
       const times=physioPlanTimes(order),multi=times.length>1,list=times.length?times:[''];
       const logs=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);
+      // 2.18.109: sessions count in order (a late morning session still covers the morning window).
+      const todayLogs=logs.filter(x=>x.session_date===today).sort((a,b)=>String(a.scheduled_time||'').localeCompare(String(b.scheduled_time||'')));
+      const exact=new Map();list.forEach(t=>{const m=todayLogs.find(x=>String(x.scheduled_time||'').slice(0,5)===t&&![...exact.values()].includes(x));if(m)exact.set(t,m)});
+      const loose=todayLogs.filter(x=>![...exact.values()].includes(x));
+      const logFor=t=>exact.get(t)||(()=>{const open=list.filter(v=>!exact.has(v));const i=open.indexOf(t);return i>=0&&i<loose.length?loose[i]:null})();
       return list.filter(t=>(!t||shiftForTime(t)===shift)&&(!t||clinicalSlotAfterAdmission(order.patients,today,t))).map(t=>({
         type:'Physiotherapy',
         patient_id:order.patient_id,
@@ -26667,8 +26684,8 @@ Please keep these login details confidential.`;
         order,
         time:t,
         slotTime:t,
-        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}`,
-        log:multi?logs.find(x=>String(x.scheduled_time||'').slice(0,5)===t)||null:(logs[0]||null)
+        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}${t?` · ${physioWindowLabel(t)}`:''}`,
+        log:multi?logFor(t):(logs[0]||null)
       }));
     });
 
@@ -30504,7 +30521,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
             h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
-          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(medicationTimeLabel).join(', ')||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
+          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(physioWindowLabel).join(', ')||'—'} · ${x.precautions||''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
             // 2.15.34: meals and separate beverage servings, newest first.
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
@@ -37313,7 +37330,7 @@ function RoomsBeds({profile,onNavigate}){
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
       (()=>{const st=physioTodayStatus(plan);return h('div',null,
-        h('div',null,physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time)),
+        h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.precautions||plan.special_instructions||'—',
@@ -37322,8 +37339,8 @@ function RoomsBeds({profile,onNavigate}){
         const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
         // 2.18.108: before the next session's time, show it calmly (not as an overdue task).
         const nowHHMM=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
-        const later=st.nextTime&&st.done>0&&st.nextTime>nowHHMM;
-        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session is at '+clockLabel(st.nextTime):undefined},later?`Next: ${clockLabel(st.nextTime)}`:label);})():h('span',{className:'small-note'},'View only')
+        const later=st.nextTime&&physioWindowStart(st.nextTime)>nowHHMM;
+        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session window: '+physioWindowLabel(st.nextTime):undefined},later?`Next: ${physioWindowLabel(st.nextTime)}`:st.nextTime?`Record ${physioWindowLabel(st.nextTime)} session`:label);})():h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{
@@ -37403,8 +37420,8 @@ function RoomsBeds({profile,onNavigate}){
               if(fromPlan)return h('div',{className:'field'},h('label',null,'Session (plan time)'),
                 h('select',{'aria-label':'Scheduled Time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})},
                   h('option',{value:''},st.openTimes.length?'Choose session':'All sessions recorded'),
-                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${clockLabel(t)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
-                h('small',{className:'small-note'},'This is the plan time. Enter when treatment actually happened in “Actual Session Time”.'));
+                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${physioWindowLabel(t)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
+                h('small',{className:'small-note'},'Session window from the plan (any time inside it is on time). Enter when treatment actually happened in “Actual Session Time”. To move it outside the window, choose Reschedule.'));
               return h('div',{className:'field'},h('label',null,'Scheduled Time'),h('input',{'aria-label':'Scheduled Time',type:'time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})}),
                 st.missingTimes&&form.session_date===todayISOIndia()&&h('small',{className:'error-text'},`This ${entryPlan.frequency} plan is missing a session time. Enter the plan time (not the actual time); Admin should add it in Patient Edit.`));
             })(),

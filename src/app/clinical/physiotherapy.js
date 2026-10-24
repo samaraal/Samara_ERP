@@ -313,7 +313,7 @@
       plan.physiotherapist_name||'—',
       plan.frequency||'—',
       (()=>{const st=physioTodayStatus(plan);return h('div',null,
-        h('div',null,physioPlanTimes(plan).map(clockLabel).join(', ')||clockLabel(plan.preferred_time||plan.session_time)),
+        h('div',null,(physioPlanTimes(plan).length?physioPlanTimes(plan):[physioHHMM(plan.preferred_time||plan.session_time)]).filter(Boolean).map(physioWindowLabel).join(', ')||'—'),
         h('small',{style:{display:'block',fontWeight:700,color:st.allDone||st.done>0?'#0a7a45':'#a91653'}},`Today: ${st.done} of ${st.perDay} done`+(st.recorded.length?` (${st.recorded.map(r=>clockLabel(r.actual_time||r.scheduled_time)).join(', ')})`:'')),
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.precautions||plan.special_instructions||'—',
@@ -322,8 +322,8 @@
         const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
         // 2.18.108: before the next session's time, show it calmly (not as an overdue task).
         const nowHHMM=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
-        const later=st.nextTime&&st.done>0&&st.nextTime>nowHHMM;
-        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session is at '+clockLabel(st.nextTime):undefined},later?`Next: ${clockLabel(st.nextTime)}`:label);})():h('span',{className:'small-note'},'View only')
+        const later=st.nextTime&&physioWindowStart(st.nextTime)>nowHHMM;
+        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session window: '+physioWindowLabel(st.nextTime):undefined},later?`Next: ${physioWindowLabel(st.nextTime)}`:st.nextTime?`Record ${physioWindowLabel(st.nextTime)} session`:label);})():h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{
@@ -403,8 +403,8 @@
               if(fromPlan)return h('div',{className:'field'},h('label',null,'Session (plan time)'),
                 h('select',{'aria-label':'Scheduled Time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})},
                   h('option',{value:''},st.openTimes.length?'Choose session':'All sessions recorded'),
-                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${clockLabel(t)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
-                h('small',{className:'small-note'},'This is the plan time. Enter when treatment actually happened in “Actual Session Time”.'));
+                  st.times.map((t,i)=>h('option',{key:t,value:t,disabled:!st.openTimes.includes(t)},`${st.times.length>1?ordinal(i)+' session · ':''}${physioWindowLabel(t)}${st.openTimes.includes(t)?'':' — ✓ recorded'}`))),
+                h('small',{className:'small-note'},'Session window from the plan (any time inside it is on time). Enter when treatment actually happened in “Actual Session Time”. To move it outside the window, choose Reschedule.'));
               return h('div',{className:'field'},h('label',null,'Scheduled Time'),h('input',{'aria-label':'Scheduled Time',type:'time',required:true,value:form.scheduled_time,disabled:form.status==='Reschedule'||pendingLocked,onChange:e=>setForm({...form,scheduled_time:e.target.value})}),
                 st.missingTimes&&form.session_date===todayISOIndia()&&h('small',{className:'error-text'},`This ${entryPlan.frequency} plan is missing a session time. Enter the plan time (not the actual time); Admin should add it in Patient Edit.`));
             })(),

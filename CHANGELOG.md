@@ -1,3 +1,10 @@
+## 2.18.109 — Physiotherapy session window (7–9 AM instead of a fixed 8 AM) (SQL 287)
+- Each plan time is now the middle of a 2-hour window: 8:00 AM → 7:00–9:00 AM, 5:00 PM → 4:00–6:00 PM. Any time inside the window is on time.
+- Reminders / escalations for plan sessions start only at the window end (9:00 AM / 6:00 PM). Reschedule is unchanged — a rescheduled session keeps its exact time.
+- Windows shown on the Physiotherapy plan rows ("Next: 4:00–6:00 PM"), the Record Session form, Shift Tasks, the patient file, and under each time box in Admission / Patient Edit.
+- Shift Tasks count sessions in order, so a late morning session still covers the morning window.
+- **SQL 287 required** (after 286).
+
 ## 2.18.108 — Physiotherapy: Guest rate case by case only; 5 PM second session; calmer reminders (SQL 286)
 - Guest physiotherapy charges come only from the rate Admin / Director sets for each Guest. The organisation-wide Guest fee (2.18.106) is removed; any Pending charge created from it returns to "waiting for Guest rate".
 - Twice-daily plans holding only one time get 5:00 PM as the 2nd session time.

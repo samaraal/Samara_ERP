@@ -248,6 +248,17 @@
     const one=String(plan?.preferred_time||plan?.session_time||'').slice(0,5);
     return /^\d{2}:\d{2}$/.test(one)?[one]:[];
   }
+  // 2.18.109: a plan time is the middle of a 2-hour window (8:00 AM → 7:00–9:00 AM). Reminders start only at
+  // the window end (SQL 287). Rescheduled sessions keep their exact time.
+  const PHYSIO_WINDOW_MINUTES=60;
+  function physioShiftHHMM(t,mins){const [h,m]=String(t||'').slice(0,5).split(':').map(Number);if(Number.isNaN(h)||Number.isNaN(m))return '';const x=((h*60+m+mins)%1440+1440)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
+  function physioWindowStart(t){return physioShiftHHMM(t,-PHYSIO_WINDOW_MINUTES)}
+  function physioWindowEnd(t){return physioShiftHHMM(t,PHYSIO_WINDOW_MINUTES)}
+  function physioWindowLabel(t){
+    const a=physioWindowStart(t),b=physioWindowEnd(t);if(!a||!b)return '—';
+    const part=v=>{const [h,m]=v.split(':').map(Number);return {txt:`${h%12||12}:${String(m).padStart(2,'0')}`,ap:h<12?'AM':'PM'}};
+    const x=part(a),y=part(b);return x.ap===y.ap?`${x.txt}–${y.txt} ${y.ap}`:`${x.txt} ${x.ap}–${y.txt} ${y.ap}`;
+  }
   // Session time boxes for a plan form: n boxes for the frequency; returns the times array via onChange.
   function PhysioSessionTimesFields({frequency,times,onChange}){
     const n=physioSessionsPerDayFor(frequency);
@@ -256,6 +267,7 @@
     return h(React.Fragment,null,list.map((t,i)=>h('div',{className:'field',key:`physio-time-${i}`},
       h('label',null,label(i),n>1?' *':''),
       h('input',{type:'time',required:n>1,value:t,onChange:e=>{const next=[...list];next[i]=e.target.value;onChange(next)}}),
+      t?h('small',{className:'small-note',style:{display:'block'}},'Window: '+physioWindowLabel(t)+' (1 hour before to 1 hour after)'):null,
       n>1&&i===n-1&&new Set(list.filter(Boolean)).size<list.filter(Boolean).length?h('small',{className:'error-text',style:{display:'block'}},'Each session needs a different time.'):null)));
   }
   function physioTimesProblem(frequency,times){

@@ -222,6 +222,11 @@
     const physioTasks=physio.flatMap(order=>{
       const times=physioPlanTimes(order),multi=times.length>1,list=times.length?times:[''];
       const logs=physioLogs.filter(x=>(x.plan_id||x.order_id)===order.id);
+      // 2.18.109: sessions count in order (a late morning session still covers the morning window).
+      const todayLogs=logs.filter(x=>x.session_date===today).sort((a,b)=>String(a.scheduled_time||'').localeCompare(String(b.scheduled_time||'')));
+      const exact=new Map();list.forEach(t=>{const m=todayLogs.find(x=>String(x.scheduled_time||'').slice(0,5)===t&&![...exact.values()].includes(x));if(m)exact.set(t,m)});
+      const loose=todayLogs.filter(x=>![...exact.values()].includes(x));
+      const logFor=t=>exact.get(t)||(()=>{const open=list.filter(v=>!exact.has(v));const i=open.indexOf(t);return i>=0&&i<loose.length?loose[i]:null})();
       return list.filter(t=>(!t||shiftForTime(t)===shift)&&(!t||clinicalSlotAfterAdmission(order.patients,today,t))).map(t=>({
         type:'Physiotherapy',
         patient_id:order.patient_id,
@@ -229,8 +234,8 @@
         order,
         time:t,
         slotTime:t,
-        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}`,
-        log:multi?logs.find(x=>String(x.scheduled_time||'').slice(0,5)===t)||null:(logs[0]||null)
+        label:`${order.therapy_type||'Physiotherapy'}${multi?` (session ${list.indexOf(t)+1} of ${list.length})`:''}${t?` · ${physioWindowLabel(t)}`:''}`,
+        log:multi?logFor(t):(logs[0]||null)
       }));
     });
 
