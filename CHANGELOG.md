@@ -1,3 +1,6 @@
+## 2.18.99 — Editable Provider defaults to Samara
+- New Bills & Charges requests prefill Provider / Organisation as Samara; staff can change it before saving. No SQL.
+
 ## 2.18.98 — Charge requests fit the screen; notifications focus the request
 - Bills & Charges Approval uses responsive request cards on desktop and mobile, keeping amounts, decisions and approval actions visible without a wide table.
 - Charge notifications clear the date filter, highlight and scroll to the matching request, and focus Approve (pending) or Decision (already processed). No SQL.
