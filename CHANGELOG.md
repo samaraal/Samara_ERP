@@ -1,3 +1,6 @@
+## 2.18.136 — Reports popup: PDF opens reliably
+- "Print / Save PDF" in Patient card → Reports (Daily Report for family / Report for Doctors) used to open an empty new tab and fill it after the server answered; browsers often block or leave that tab empty. Now the PDF is prepared first, then "📄 Open PDF" (a normal link) and "⬇ Download PDF" appear in the popup. No SQL, no Edge Function change.
+
 ## 2.18.135 — Doctor's report medication table: one row per medicine
 - Versions of the same medicine (time corrections, doctor's changes) are now one row — doses given / due are added up, times and dose shown from the current version, "(stopped)" only when no version is active. Each version counts only the doses between its own start and stop time. Ranjith Kumar's Emrok (4 versions) and Piptaz (5) were filling the page; the report now fits on one page more often. Scale-to-fit now goes down to 82%. No SQL.
 

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.135';
+  const APP_VERSION = '2.18.136';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -28119,6 +28119,7 @@ Please keep these login details confidential.`;
     const [busy,setBusy]=React.useState('');
     const [note,setNote]=React.useState(null);
     const [prepared,setPrepared]=React.useState(null);
+    const [pdfLink,setPdfLink]=React.useState(null); // 2.18.136 {url,name}: opened by the user's own click (no blocked pop-up)
     React.useEffect(()=>{let live=true;
       client.from('patient_family_communication_preferences').select('recipient_name,recipient_mobile,doctor_recipient_name,doctor_recipient_mobile').eq('patient_id',patient.id).maybeSingle()
         .then(({data})=>{if(!live||!data)return;
@@ -28126,7 +28127,7 @@ Please keep these login details confidential.`;
           if(n)setToName(n);if(m)setToMobile(m)}).catch(()=>{});
       return ()=>{live=false};},[patient?.id,kind]);
     React.useEffect(()=>()=>{if(prepared?.url)URL.revokeObjectURL(prepared.url)},[prepared]);
-    React.useEffect(()=>{setPrepared(null)},[reportDate]);
+    React.useEffect(()=>{setPrepared(null);setPdfLink(null)},[reportDate]);
     // 2.18.131: start preparing the doctor's PDF as soon as the popup opens (or the date changes),
     // so Print / Save PDF is usually ready by the time it is pressed.
     const warm=React.useRef(null);
@@ -28149,15 +28150,22 @@ Please keep these login details confidential.`;
     async function logManual(route){
       try{await client.from('patient_communications').insert({patient_id:patient.id,communication_type:doctor?'Doctor Daily Clinical Report':'Daily Intelligent Patient Report',method:'WhatsApp (existing)',recipient_type:doctor?'Doctor':'Relative',recipient_name:toLabel,recipient_number:number||null,report_date:reportDate,status:route,message_preview:`${reportName} PDF shared through existing WhatsApp`,created_at:new Date().toISOString()})}catch(_e){}
     }
+    // 2.18.136: the PDF is prepared first and then opened by a real link the user clicks —
+    // browsers block a new tab opened after waiting for the server, which left an empty tab.
     async function openPdf(){
-      const tab=window.open('about:blank','_blank');
-      setBusy('open');setNote(null);
+      setBusy('open');setNote(null);setPdfLink(null);
       try{
         const r=await getPdf();
-        if(tab)tab.location.href=r.report_url;else window.open(r.report_url,'_blank','noopener');
-        setNote({type:'success',text:`${reportName} opened in a new tab. Use Print / Save there.${doctor&&!r.ai_observations?' Clinical Observations were not available this time; all records are in the report.':''}`});
-      }catch(error){if(tab)tab.close();setNote({type:'error',text:error.message||String(error)})}
+        setPdfLink({url:r.report_url,name:r.file_name||`${guest} - ${reportName}.pdf`});
+        setNote({type:'success',text:`${reportName} is ready. Tap "Open PDF" to view / print it, or "Download PDF" to save it.${doctor&&!r.ai_observations?' Clinical Observations were not available this time; all records are in the report.':''}`});
+      }catch(error){setNote({type:'error',text:error.message||String(error)})}
       setBusy('');
+    }
+    async function downloadReady(){
+      if(!pdfLink)return;
+      try{const blob=await fetch(pdfLink.url).then(res=>{if(!res.ok)throw new Error('The PDF could not be downloaded.');return res.blob()});
+        const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=pdfLink.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
+      catch(error){setNote({type:'error',text:error.message||String(error)})}
     }
     async function sendApi(){
       if(!number)return setNote({type:'error',text:`Enter the ${who}'s 10-digit WhatsApp number.`});
@@ -28213,7 +28221,9 @@ Please keep these login details confidential.`;
         h('div',{className:'field'},h('label',null,doctor?'Doctor':'Family member'),h('input',{value:toName,placeholder:doctor?'Treating doctor':'Name',onChange:e=>{nameEdited.current=true;setToName(e.target.value)}})),
         h('div',{className:'field'},h('label',null,'WhatsApp number'),h('input',{value:toMobile,inputMode:'tel',placeholder:'10-digit mobile',onChange:e=>setToMobile(e.target.value)}))),
       h('div',{className:'actions',style:{marginTop:'10px'}},
-        h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:openPdf},busy==='open'?(doctor?'Preparing PDF (up to 1 min)…':'Preparing PDF…'):'Print / Save PDF')),
+        h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:openPdf},busy==='open'?(doctor?'Preparing PDF (up to 1 min)…':'Preparing PDF…'):pdfLink?'Prepare again':'Print / Save PDF'),
+        pdfLink&&h('a',{className:'btn btn-primary',href:pdfLink.url,target:'_blank',rel:'noopener'},'📄 Open PDF'),
+        pdfLink&&h('button',{type:'button',className:'btn btn-secondary',onClick:downloadReady},'⬇ Download PDF')),
       canSend&&h('div',{className:'pr-block'},
         h('h4',null,'WhatsApp API (PDF attached)'),
         h('p',null,`Sends the PDF from the Samara WhatsApp number to the ${who}. It is recorded in WhatsApp Inbox${doctor?"; the doctor's reply comes there too":''}.`),
