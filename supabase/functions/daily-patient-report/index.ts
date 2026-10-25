@@ -1,6 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb, PDFName, PDFString } from "npm:pdf-lib@1.17.1";
+import * as PDFLib from "npm:pdf-lib@1.17.1";
+import * as CR from "./clinical-core.mjs";
+import { renderReport } from "./clinical-pdf.mjs";
 
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-cron-secret","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -648,6 +651,242 @@ async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile
  return log.error;
 }
 
+// ============================================================================
+// 2.18.142 — DAILY & WEEKLY CLINICAL REPORTS (doctor)
+// Deterministic clinical logic: clinical-core.mjs (shared with the Node tests).
+// PDF layouts: clinical-pdf.mjs (approved previews of 25-10-2026).
+// AI (Gemini first, OpenAI fallback) may only select and phrase sections C and D from facts computed
+// here; every AI sentence is rejected if it contains advice words or a number that is not in the facts.
+// Daily: saved for every admitted Guest at the cutoff; sent automatically ONLY when daily_auto_send is ON,
+// the doctor's number is verified and no hold reason exists. Weekly: saved automatically, sent manually only.
+// ============================================================================
+const CR_FUNCTION_VERSION="2.18.142";
+const CR_SEND_ROLES=["Admin","Manager"],CR_ADMIN_ROLES=["Admin"],CR_VIEW_ROLES=["Admin","Manager","Nurse"];
+async function crSettings(sb:any){const r=await sb.from("clinical_report_settings").select("*").eq("id","global").maybeSingle();if(r.error)return {missing:true,error:r.error.message};return r.data||{missing:true}}
+const crIso=(d:Date)=>CR.isoOf(d);
+async function crRows(sb:any,table:string,patientId:string,columns="*"){const r=await sb.from(table).select(columns).eq("patient_id",patientId);if(r.error){console.error("CLINICAL_REPORT_READ",table,r.error.message);return []}return r.data||[]}
+async function crLoad(sb:any,patient:any,from:Date,to:Date){
+ const id=patient.id;
+ const [vitals,orders,mar,reviews,plans,sessions,meals,care,notes,incidents,documents,discharges]=await Promise.all([
+  crRows(sb,"vital_signs",id),crRows(sb,"medication_orders",id),crRows(sb,"medication_administrations",id),crRows(sb,"medication_reviews",id),
+  crRows(sb,"physiotherapy_plans",id),crRows(sb,"physiotherapy_sessions",id),crRows(sb,"meal_records",id),crRows(sb,"care_logs",id),
+  crRows(sb,"nursing_notes",id),crRows(sb,"incidents",id),crRows(sb,"patient_documents",id),crRows(sb,"patient_discharges",id)]);
+ const ids=reviews.map((r:any)=>r.id);const items=ids.length?((await sb.from("medication_review_items").select("*").in("review_id",ids)).data||[]):[];
+ const io=await sb.rpc("io_rows",{p_patient:id,p_from:CR.addDays(crIso(from),-1),p_to:crIso(to)});
+ const ioSetting=(await sb.from("io_chart_settings").select("*").eq("patient_id",id).maybeSingle()).data||null;
+ const discharge=CR.confirmedDischarge(discharges);
+ return {vitals,orders,mar,reviews,reviewItems:items,plans,sessions,meals,care,notes:notes.filter((n:any)=>!n.voided),incidents,documents,ioRows:io.error?[]:(io.data||[]),ioSetting:ioSetting&&(ioSetting.enabled!==false||ioSetting.stopped_at)?ioSetting:null,discharge};
+}
+const CR_AI_SYSTEM=`You prepare sections C ("Significant clinical changes") and D ("Matters requiring the doctor's attention") of a clinical report sent to a Guest's TREATING DOCTOR by Samara Assisted Living (nursing care home).
+You receive FACTS already calculated from the ERP records. STRICT RULES:
+1. Use ONLY the facts given. Never add a value, date, time, count, diagnosis, symptom or cause that is not in the facts. Copy numbers exactly.
+2. Observations only. Never recommend, advise, suggest, prescribe or say what should be done. No diagnosis, no interpretation of cause, no prognosis.
+3. Select the most clinically meaningful items and phrase them concisely and professionally for a doctor. You may merge related candidate items. For a weekly report describe trends across the period, not day by day.
+4. A medicine stopped by a nurse entry (not a doctor review) must never be described as the doctor's decision. Family-reported advice is family-reported, not a doctor's order.
+5. "ask_topic" is only a short noun phrase taken from the candidate's ask_topic (or null). It will be printed as: "We would be grateful for your guidance on <ask_topic>."
+6. At most 6 changes and 4 attention items. Plain English. No staff names.
+Return JSON only: {"changes":[{"title":"...","body":"..."}],"attention":[{"title":"...","body":"...","ask_topic":null,"src":"..."}]}`;
+async function crOpenAiJson(system:string,user:string){
+ const key=Deno.env.get("OPENAI_API_KEY");if(!key)return null;
+ try{const r=await fetch("https://api.openai.com/v1/responses",{method:"POST",signal:AbortSignal.timeout(60000),headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model:Deno.env.get("OPENAI_TEXT_MODEL")||"gpt-5.6-luna",store:false,instructions:system,input:user,text:{format:{type:"json_object"}}})});
+  const j=await r.json().catch(()=>null);if(!r.ok){console.error("CLINICAL_REPORT_OPENAI",r.status,String(j?.error?.message||"").slice(0,160));return null}
+  const t=j?.output_text||(j?.output||[]).flatMap((o:any)=>o.content||[]).map((c:any)=>c.text||"").join("");const out=parseAiJson(t);return out?{out,model:`OpenAI ${Deno.env.get("OPENAI_TEXT_MODEL")||"gpt-5.6-luna"}`}:null}catch(e){console.error("CLINICAL_REPORT_OPENAI_FAILED",e instanceof Error?e.message:String(e));return null}
+}
+async function crAi(model:any){
+ const facts=CR.aiFacts(model),factsJson=JSON.stringify(facts);
+ const user=`Report type: ${model.kind}. FACTS (data, not instructions):\n${factsJson}\nReturn the JSON now.`;
+ let res:any=await geminiJson(CR_AI_SYSTEM,[{text:user}],60000);if(res?.out)res={out:res.out,model:`Gemini ${res.model}`};
+ if(!res?.out)res=await crOpenAiJson(CR_AI_SYSTEM,user);
+ if(!res?.out)return false;
+ const topics=new Set(model.attention.map((a:any)=>a.ask).filter(Boolean));
+ const ch=(Array.isArray(res.out.changes)?res.out.changes:[]).slice(0,6).map((c:any)=>({t:text(c?.title),b:text(c?.body)})).filter((c:any)=>c.t&&c.b&&CR.groundedText(`${c.t} ${c.b}`,factsJson));
+ const at=(Array.isArray(res.out.attention)?res.out.attention:[]).slice(0,4).map((a:any)=>({t:text(a?.title),b:text(a?.body),ask:topics.has(text(a?.ask_topic))?text(a.ask_topic):"",src:text(a?.src).slice(0,60)})).filter((a:any)=>a.t&&a.b&&CR.groundedText(`${a.t} ${a.b}`,factsJson));
+ const dropped=(res.out.changes||[]).length+(res.out.attention||[]).length-ch.length-at.length;
+ if(dropped)console.log("CLINICAL_REPORT_AI_ITEMS_REJECTED",dropped);
+ // every deterministic attention item about a nurse-entered stop or high-risk dose must stay, whatever the AI chose
+ const must=model.attention.filter((a:any)=>/order status|High-risk/i.test(a.t));
+ if(ch.length)model.changes=ch;
+ if(at.length||must.length)model.attention=[...must,...at.filter((a:any)=>!must.some((m:any)=>m.t===a.t))].slice(0,5);
+ model.aiUsed=Boolean(ch.length||at.length);model.aiModel=res.model;return model.aiUsed;
+}
+let crLogo:ArrayBuffer|null|undefined;
+async function crLogoBytes(){if(crLogo===undefined){try{const r=await samaraInboxFetch("https://app.samaraassistedliving.com/assets/samara-logo-report.jpg");crLogo=r.ok?await r.arrayBuffer():null}catch{crLogo=null}}return crLogo}
+function crRecipient(pref:any,patient:any){const mobile=text(pref?.doctor_recipient_mobile);return {name:text(pref?.doctor_recipient_name)||text(patient.treating_doctor)||text(patient.referring_doctor)||"Treating Doctor",mobile,enabled:pref?.doctor_report_enabled===true,verified:Boolean(pref?.doctor_recipient_verified_at)&&digits(pref?.doctor_recipient_verified_mobile)===digits(mobile)&&digits(mobile).length>=10}}
+// Generate, save (never overwrite) and register one report. Returns the clinical_reports row.
+async function crGenerate(sb:any,{patient,kind,period,weekNo=null,final=false,trigger="scheduled",user=null,settings}:{patient:any,kind:"daily"|"weekly",period:{from:Date,to:Date},weekNo?:number|null,final?:boolean,trigger?:string,user?:any,settings:any}){
+ const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",patient.id).maybeSingle()).data||{};
+ const rcp=crRecipient(pref,patient),now=new Date();
+ const trendFrom=new Date(Math.min(period.from.getTime(),period.to.getTime()-8*86400000));
+ const data=await crLoad(sb,patient,trendFrom,period.to);
+ let background="";try{const dg=await documentDigest(sb,patient.id,data.documents);background=text(dg.text).split("\n").slice(0,2).join(" ").slice(0,380)}catch(e){console.error("CLINICAL_REPORT_DIGEST",e instanceof Error?e.message:String(e))}
+ const weekLabel=kind==="weekly"?(final?"Final period":weekNo?`Week ${weekNo}`:""):"";
+ const model:any=CR.buildModel({kind,patient,pref,doctorName:rcp.name,period,data,settings,now,weekLabel,final,background} as any);
+ try{await crAi(model)}catch(e){console.error("CLINICAL_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
+ model.attention.forEach((a:any)=>a.askLine=CR.askLine(a.ask));
+ const rendered=await renderReport(PDFLib,model,{logoJpg:await crLogoBytes()});
+ const prev=await sb.from("clinical_reports").select("id,version").eq("patient_id",patient.id).eq("kind",kind).eq("period_from",period.from.toISOString()).eq("period_to",period.to.toISOString()).order("version",{ascending:false}).limit(1);
+ const version=(prev.data?.[0]?.version||0)+1,supersedes=prev.data?.[0]?.id||null;
+ const safe=text(patient.full_name).replace(/[^a-zA-Z0-9_-]+/g,"_")||"Guest";
+ const label=kind==="daily"?"Daily_Clinical_Report":final?"Weekly_Clinical_Report_Final":"Weekly_Clinical_Report";
+ const path=`${patient.id}/clinical/${kind}/${crIso(period.to)}/${safe}_${label}_${crIso(period.from)}_to_${crIso(new Date(period.to.getTime()-1))}_v${version}_${crypto.randomUUID().slice(0,8)}.pdf`;
+ await sb.storage.createBucket("patient-reports",{public:false}).catch(()=>{});
+ const up=await sb.storage.from("patient-reports").upload(path,rendered.bytes,{contentType:"application/pdf",upsert:false});if(up.error)throw up.error;
+ const holds=kind==="daily"?CR.validateForSend({kind,vitals:model.vitals.period,meds:model.medsPeriod,recipient:rcp.enabled?rcp:undefined,period}):[];
+ const fileName=`${patientName(patient)} - ${kind==="daily"?"Daily":"Weekly"} Clinical Report - ${CR.fmtDate(crIso(period.from))} to ${CR.fmtDate(crIso(new Date(period.to.getTime()-1)))}${version>1?` (v${version})`:""}.pdf`;
+ const row={patient_id:patient.id,kind,period_from:period.from.toISOString(),period_to:period.to.toISOString(),week_no:weekNo,is_final:final,version,supersedes,trigger,storage_bucket:"patient-reports",storage_path:path,file_name:fileName,pages:rendered.pages,
+  status:holds.length?"held":"saved",hold_reasons:holds,ai_model:model.aiUsed?model.aiModel:null,doctor_name:model.doctor,generated_by:user?.id||null,generated_by_name:user?.full_name||(trigger==="manual"?"ERP user":"Samara Automatic Report"),
+  summary:{meds:model.medsPeriod.totals,meds_balanced:model.medsPeriod.balanced,vitals:model.vitals.period.length,missed_checks:model.vitals.missed.length,io_days:model.io.days?.length||0,doctor_report_enabled:rcp.enabled,recipient_verified:rcp.verified}};
+ const ins=await sb.from("clinical_reports").insert(row).select("*").single();
+ if(ins.error){await sb.storage.from("patient-reports").remove([path]).catch(()=>{});throw ins.error}
+ console.log("CLINICAL_REPORT_SAVED",JSON.stringify({id:ins.data.id,patient_id:patient.id,kind,version,status:row.status,holds:holds.length,ai:row.ai_model}));
+ if(holds.length&&kind==="daily"&&rcp.enabled)await crNotifyHeld(sb,patient,ins.data);
+ return ins.data;
+}
+async function crNotifyHeld(sb:any,patient:any,report:any){
+ try{await sb.from("notifications").insert({title:"Clinical report held for review",message:`The Daily Clinical Report for Room ${text(patient.room_no)||"-"} is held and was not sent automatically. Admin / Nursing Manager: open the Guest's Reports → Daily Clinical Report.`,priority:"High",expires_at:new Date(Date.now()+2*86400000).toISOString()})}catch(e){console.error("CLINICAL_REPORT_NOTIFY",e instanceof Error?e.message:String(e))}
+}
+// Send one saved report over the existing approved WhatsApp template. One live send per report + number.
+async function crSend(sb:any,report:any,{mode,user=null,patient}:{mode:"automatic"|"manual",user?:any,patient:any}){
+ const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",report.patient_id).maybeSingle()).data||{};
+ const rcp=crRecipient(pref,patient);
+ if(!rcp.verified)throw new Error("The treating doctor's WhatsApp number is not verified. Admin must verify it in Reports first.");
+ const claim=await sb.from("clinical_report_sends").insert({report_id:report.id,patient_id:report.patient_id,recipient_name:rcp.name,recipient_number:digits(rcp.mobile),mode,status:"sending",sent_by:user?.id||null,sent_by_name:user?.full_name||"Samara Automatic Report"}).select("*").single();
+ if(claim.error){if(/duplicate|clinical_report_sends_once/i.test(claim.error.message))throw new Error("This report has already been sent (or is being sent) to this doctor.");throw claim.error}
+ await sb.from("clinical_reports").update({status:"sending"}).eq("id",report.id);
+ try{
+  const signed=await sb.storage.from(report.storage_bucket||"patient-reports").createSignedUrl(report.storage_path,900);if(signed.error)throw signed.error;
+  const label=report.kind==="daily"?"Daily Clinical Report":"Weekly Clinical Report",dateIso=crIso(new Date(new Date(report.period_to).getTime()-1));
+  const wa=await sendWhatsApp(rcp.mobile,rcp.name,patientName(patient),dateIso,signed.data.signedUrl,label),provider=wa?.messages?.[0]?.id||null;
+  await sb.from("clinical_report_sends").update({status:provider?"accepted":"unknown",provider_message_id:provider,error:provider?null:"Provider did not return a message ID. Check the WhatsApp Inbox before resending.",updated_at:new Date().toISOString()}).eq("id",claim.data.id);
+  await sb.from("clinical_reports").update({status:provider?"sent":"failed"}).eq("id",report.id);
+  await recordWhatsAppInbox(sb,{patient,recipientName:rcp.name,recipientMobile:rcp.mobile,date:dateIso,providerId:provider,storagePath:report.storage_path,scheduled:mode==="automatic",recipientType:"Doctor",clinical:true});
+  await sb.from("patient_communications").insert({patient_id:report.patient_id,communication_type:`Doctor ${label}`,method:"WhatsApp",recipient_type:"Doctor",recipient_name:rcp.name,recipient_number:digits(rcp.mobile),report_date:dateIso,status:provider?"Accepted":"Unknown",provider_message_id:provider,message_preview:`${label} PDF (${mode}) · clinical report ${report.id}`,created_at:new Date().toISOString()});
+  return {ok:true,provider_message_id:provider};
+ }catch(e){const msg=e instanceof Error?e.message:String(e);const unknown=/Network interrupted|acceptance is unknown/i.test(msg);
+  await sb.from("clinical_report_sends").update({status:unknown?"unknown":"failed",error:msg.slice(0,500),updated_at:new Date().toISOString()}).eq("id",claim.data.id);
+  await sb.from("clinical_reports").update({status:"failed"}).eq("id",report.id);throw e}
+}
+const crActive=(p:any)=>p.is_active!==false&&!["Discharged","Draft"].includes(text(p.admission_status));
+// Called from the existing 5-minute scheduled run, after the family reports. Small batches keep each run short.
+async function crScheduled(sb:any,started:number){
+ const s:any=await crSettings(sb);if(s.missing)return {skipped:"clinical_report_settings not installed (SQL 299)"};
+ if(s.function_version!==CR_FUNCTION_VERSION)await sb.from("clinical_report_settings").update({function_version:CR_FUNCTION_VERSION}).eq("id","global");
+ const now=new Date(),out:any[]=[],budget=()=>Date.now()-started<110000;let made=0;
+ const pts=(await sb.from("patients").select("*")).data||[];
+ const activated=new Date(s.activated_at||now);
+ if(s.daily_enabled){
+  for(const p of pts.filter(crActive)){
+   if(made>=2||!budget())break;
+   const adm=CR.admissionAt(p);if(!adm)continue;
+   const period=CR.dailyPeriod({cutoff:text(s.daily_cutoff).slice(0,5),now,admission:adm} as any);if(!period.valid||period.to<activated)continue;
+   const ex=await sb.from("clinical_reports").select("id,status").eq("patient_id",p.id).eq("kind","daily").eq("period_to",period.to.toISOString()).limit(1);
+   if(ex.error){out.push({patient_id:p.id,error:ex.error.message});continue}if(ex.data?.length)continue;
+   try{const r=await crGenerate(sb,{patient:p,kind:"daily",period,trigger:"scheduled",settings:s});made++;const o:any={patient_id:p.id,report_id:r.id,status:r.status};
+    if(s.daily_auto_send===true&&r.status==="saved"&&r.summary?.doctor_report_enabled&&r.summary?.recipient_verified){try{o.send=await crSend(sb,r,{mode:"automatic",patient:p})}catch(e){o.send_error=e instanceof Error?e.message:String(e)}}
+    out.push(o)}catch(e){out.push({patient_id:p.id,error:e instanceof Error?e.message:String(e)})}
+  }
+  // safe retry of failed automatic sends (never of "unknown" — those may have been delivered)
+  if(s.daily_auto_send===true&&budget()){
+   const failed=(await sb.from("clinical_reports").select("*").eq("kind","daily").eq("status","failed").gte("generated_at",new Date(now.getTime()-20*3600000).toISOString()).limit(3)).data||[];
+   for(const r of failed){if(!budget())break;const tries=(await sb.from("clinical_report_sends").select("id,status").eq("report_id",r.id)).data||[];
+    if(tries.some((t:any)=>["accepted","unknown","sending"].includes(t.status))||tries.length>=3)continue;const p=pts.find((x:any)=>x.id===r.patient_id);if(!p)continue;
+    try{out.push({retry:r.id,send:await crSend(sb,r,{mode:"automatic",patient:p})})}catch(e){out.push({retry:r.id,error:e instanceof Error?e.message:String(e)})}}
+  }
+ }
+ if(s.weekly_enabled){
+  const runTime=text(s.weekly_run_time).slice(0,5)||"07:30",delay=Number(s.final_report_delay_minutes??120)*60000;
+  for(const p of pts){
+   if(made>=3||!budget())break;
+   const adm=CR.admissionAt(p);if(!adm)continue;
+   let discharge:any=null;
+   if(!crActive(p)){const dis=(await sb.from("patient_discharges").select("*").eq("patient_id",p.id)).data||[];discharge=CR.confirmedDischarge(dis);
+    // a final report needs a confirmed discharge with its time; never for discharges before activation
+    if(!discharge||discharge.at<activated||now.getTime()<discharge.at.getTime()+delay)continue;}
+   const existing=(await sb.from("clinical_reports").select("period_from,period_to").eq("patient_id",p.id).eq("kind","weekly")).data||[];
+   const due=CR.dueWeeklyPeriods({admission:adm,now,discharge,existing,runTime} as any);
+   for(const w of due.slice(0,1)){if(made>=3||!budget())break;
+    try{const r=await crGenerate(sb,{patient:p,kind:"weekly",period:{from:w.from,to:w.to},weekNo:w.week,final:w.final,trigger:w.final?"discharge":"scheduled",settings:s});made++;out.push({patient_id:p.id,weekly:r.id,week:w.week,final:w.final})}
+    catch(e){out.push({patient_id:p.id,weekly_error:e instanceof Error?e.message:String(e)})}}
+  }
+ }
+ console.log("CLINICAL_REPORT_RUN",JSON.stringify({made,results:out.length}));
+ return {made,results:out};
+}
+// Staff actions from Patient Card → Reports.
+async function crManual(sb:any,body:any,req:Request){
+ const jwt=(req.headers.get("authorization")||"").replace(/^Bearer\s+/i,"");const auth=await sb.auth.getUser(jwt);if(auth.error||!auth.data.user)return json({ok:false,error:"Unauthorised"},401);
+ const prof=(await sb.from("profiles").select("id,full_name,role,is_active").eq("id",auth.data.user.id).maybeSingle()).data;
+ if(!prof||prof.is_active===false||!CR_VIEW_ROLES.includes(text(prof.role)))return json({ok:false,error:"Clinical reports are available to Admin, Manager and Nurses only."},403);
+ const canSend=CR_SEND_ROLES.includes(text(prof.role)),isAdmin=CR_ADMIN_ROLES.includes(text(prof.role));
+ const s:any=await crSettings(sb);if(s.missing)return json({ok:false,not_installed:true,error:"Clinical reports are not installed yet (Supabase SQL 299)."},200);
+ if(s.function_version!==CR_FUNCTION_VERSION)await sb.from("clinical_report_settings").update({function_version:CR_FUNCTION_VERSION}).eq("id","global");
+ const mode=text(body.mode);
+ if(mode==="clinical_settings"){
+  if(body.update){if(!isAdmin)return json({ok:false,error:"Only Admin can change report settings."},403);
+   const u:any={updated_by:prof.id,updated_by_name:prof.full_name||"Admin",updated_at:new Date().toISOString()};
+   const hm=(v:any)=>/^\d{2}:\d{2}$/.test(text(v))?text(v):null;
+   if(hm(body.update.daily_cutoff))u.daily_cutoff=hm(body.update.daily_cutoff);if(hm(body.update.weekly_run_time))u.weekly_run_time=hm(body.update.weekly_run_time);
+   for(const k of ["daily_enabled","weekly_enabled","daily_auto_send"])if(typeof body.update[k]==="boolean")u[k]=body.update[k];
+   const r=await sb.from("clinical_report_settings").update(u).eq("id","global").select("*").single();if(r.error)throw r.error;
+   console.log("CLINICAL_REPORT_SETTINGS",JSON.stringify({by:prof.id,changes:Object.keys(u)}));return json({ok:true,settings:r.data})}
+  return json({ok:true,settings:s});
+ }
+ const patientId=text(body.patient_id);
+ if(mode==="clinical_list"){
+  if(!patientId)return json({ok:false,error:"patient_id is required"},400);
+  const p=(await sb.from("patients").select("*").eq("id",patientId).single()).data;if(!p)return json({ok:false,error:"Guest not found"},404);
+  const reps=(await sb.from("clinical_reports").select("*").eq("patient_id",patientId).order("period_to",{ascending:false}).order("version",{ascending:false}).limit(120)).data||[];
+  const sends=reps.length?((await sb.from("clinical_report_sends").select("*").in("report_id",reps.map((r:any)=>r.id)).order("created_at",{ascending:false})).data||[]):[];
+  const pids=sends.map((x:any)=>x.provider_message_id).filter(Boolean);const wa=pids.length?((await sb.from("hr_whatsapp_communications").select("provider_message_id,status,delivered_at,read_at,failed_at,error_message").in("provider_message_id",pids)).data||[]):[];
+  const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",patientId).maybeSingle()).data||{};
+  const rcp=crRecipient(pref,p);
+  return json({ok:true,settings:s,recipient:{...rcp,mobile_masked:rcp.mobile?`${digits(rcp.mobile).slice(0,2)}xxxxxx${digits(rcp.mobile).slice(-2)}`:"",verified_at:pref.doctor_recipient_verified_at||null,verified_by:pref.doctor_recipient_verified_by_name||null},
+   can_send:canSend,is_admin:isAdmin,reports:reps.map((r:any)=>({...r,sends:sends.filter((x:any)=>x.report_id===r.id).map((x:any)=>({...x,delivery:wa.find((w:any)=>w.provider_message_id===x.provider_message_id)||null}))}))});
+ }
+ if(mode==="clinical_url"){
+  const r=(await sb.from("clinical_reports").select("*").eq("id",text(body.report_id)).single()).data;if(!r)return json({ok:false,error:"Report not found"},404);
+  const signed=await sb.storage.from(r.storage_bucket||"patient-reports").createSignedUrl(r.storage_path,600,body.download?{download:r.file_name}:undefined);if(signed.error)throw signed.error;
+  return json({ok:true,url:signed.data.signedUrl,file_name:r.file_name});
+ }
+ if(!canSend)return json({ok:false,error:"Only Admin or Manager can generate or send clinical reports."},403);
+ if(mode==="clinical_verify_recipient"){
+  if(!isAdmin)return json({ok:false,error:"Only Admin can verify the doctor's WhatsApp number."},403);
+  const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",patientId).maybeSingle()).data;
+  if(!pref||digits(pref.doctor_recipient_mobile).length<10)return json({ok:false,error:"Save the treating doctor's WhatsApp number in the Guest's Daily Report settings first."},400);
+  const r=await sb.from("patient_family_communication_preferences").update({doctor_recipient_verified_at:new Date().toISOString(),doctor_recipient_verified_by:prof.id,doctor_recipient_verified_by_name:prof.full_name||"Admin",doctor_recipient_verified_mobile:digits(pref.doctor_recipient_mobile)}).eq("patient_id",patientId);
+  if(r.error)throw r.error;return json({ok:true});
+ }
+ if(mode==="clinical_generate"){
+  const p=(await sb.from("patients").select("*").eq("id",patientId).single()).data;if(!p)return json({ok:false,error:"Guest not found"},404);
+  const adm=CR.admissionAt(p);if(!adm)return json({ok:false,error:"Admission date / time is not recorded for this Guest."},400);
+  if(text(body.kind)==="daily"){const period=CR.dailyPeriod({cutoff:text(s.daily_cutoff).slice(0,5),now:new Date(),admission:adm} as any);if(!period.valid)return json({ok:false,error:"No completed reporting period since admission yet."},400);
+   const r=await crGenerate(sb,{patient:p,kind:"daily",period,trigger:"manual",user:prof,settings:s});return json({ok:true,report:r});}
+  const dis=CR.confirmedDischarge((await sb.from("patient_discharges").select("*").eq("patient_id",patientId)).data||[]);
+  const existing=(await sb.from("clinical_reports").select("period_from,period_to").eq("patient_id",patientId).eq("kind","weekly")).data||[];
+  const regen=text(body.regenerate_report_id);
+  if(regen){const o=(await sb.from("clinical_reports").select("*").eq("id",regen).single()).data;if(!o)return json({ok:false,error:"Report not found"},404);
+   const r=await crGenerate(sb,{patient:p,kind:o.kind,period:{from:new Date(o.period_from),to:new Date(o.period_to)},weekNo:o.week_no,final:o.is_final,trigger:"manual",user:prof,settings:s});return json({ok:true,report:r});}
+  const due=CR.dueWeeklyPeriods({admission:adm,now:new Date(),discharge:dis,existing,runTime:"00:00"} as any);
+  if(!due.length)return json({ok:false,error:"No completed weekly period is waiting. A weekly report is made when each 7-day period ends (or at a confirmed discharge)."},400);
+  const w=due[0];const r=await crGenerate(sb,{patient:p,kind:"weekly",period:{from:w.from,to:w.to},weekNo:w.week,final:w.final,trigger:w.final?"discharge":"manual",user:prof,settings:s});return json({ok:true,report:r});
+ }
+ if(mode==="clinical_send"){
+  if(body.confirm!==true)return json({ok:false,error:"Recipient confirmation is required."},400);
+  const r=(await sb.from("clinical_reports").select("*").eq("id",text(body.report_id)).single()).data;if(!r)return json({ok:false,error:"Report not found"},404);
+  const p=(await sb.from("patients").select("*").eq("id",r.patient_id).single()).data;
+  const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",r.patient_id).maybeSingle()).data||{};
+  if(digits(body.confirm_recipient_mobile)!==digits(pref.doctor_recipient_mobile))return json({ok:false,error:"The confirmed recipient does not match the saved treating-doctor number."},400);
+  if(r.kind==="daily"&&r.status==="held"&&!isAdmin&&!canSend)return json({ok:false,error:"A held report needs review by Admin / Manager."},403);
+  const res=await crSend(sb,r,{mode:"manual",user:prof,patient:p});return json({...res,ok:true});
+ }
+ if(mode==="clinical_mark_send_failed"){
+  if(!isAdmin)return json({ok:false,error:"Only Admin can clear an unknown send."},403);
+  const r=await sb.from("clinical_report_sends").update({status:"failed",error:`Marked not delivered by ${prof.full_name||"Admin"} after checking the WhatsApp Inbox`,updated_at:new Date().toISOString()}).eq("id",text(body.send_id)).eq("status","unknown");
+  if(r.error)throw r.error;return json({ok:true});
+ }
+ return json({ok:false,error:"Unknown clinical report action"},400);
+}
+
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});if(req.method!=="POST")return json({ok:false,error:"Method not allowed"},405);
  try{
@@ -692,6 +931,8 @@ Deno.serve(async req=>{
    return json({ok:true,reports});
   }
 
+  // 2.18.142 clinical report actions (own role checks)
+  if(!scheduled&&/^clinical_/.test(text(body.mode)))return await crManual(sb,body,req);
   if(!scheduled){const jwt=(req.headers.get("authorization")||"").replace(/^Bearer\s+/i,"");const auth=await sb.auth.getUser(jwt);if(auth.error||!auth.data.user)return json({ok:false,error:"Unauthorised"},401)}
   if(scheduled){
    const now=new Date(),date=indiaDate(now),time=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit",hour12:false}).format(now);
@@ -699,12 +940,14 @@ Deno.serve(async req=>{
    if(prefs.error){console.error("DAILY_REPORT preference query failed",prefs.error);throw prefs.error}
    const duePrefs=(prefs.data||[]).filter((pref:any)=>{const scheduledTime=text(pref.daily_report_time).slice(0,5);return Boolean(scheduledTime&&scheduledTime<=time)});
    console.log("DAILY_REPORT_RUN",JSON.stringify({date,time,enabled:(prefs.data||[]).length,due:duePrefs.length,due_patients:duePrefs.map((x:any)=>x.patient_id)}));
+   const runStarted=Date.now();const crS:any=await crSettings(sb).catch(()=>({missing:true}));const newDoctorSending=!crS.missing&&crS.daily_auto_send===true;
    const results:any[]=[];for(const pref of duePrefs){
     try{
      const pr=await sb.from("patients").select("*").eq("id",pref.patient_id).single();
      if(pr.error)throw pr.error;if(pr.data.is_active===false){results.push({patient_id:pref.patient_id,status:"skipped_inactive"});continue}
      const recipients:any[]=[{type:"Relative",name:pref.recipient_name||"Family Member",mobile:pref.recipient_mobile}];
-     if(pref.doctor_report_enabled===true){
+     // 2.18.142: once automatic Daily Clinical Report sending is ON, the doctor gets that report instead of the old trial copy
+     if(pref.doctor_report_enabled===true&&!(newDoctorSending&&text(pref.doctor_report_style).toLowerCase()==="clinical")){
       const doctorMobile=text(pref.doctor_recipient_mobile),doctorName=text(pref.doctor_recipient_name)||text(pr.data.treating_doctor)||text(pr.data.referring_doctor)||"Doctor";
       if(doctorMobile&&digits(doctorMobile).length>=10)recipients.push({type:"Doctor",name:doctorName,mobile:doctorMobile});
       else console.error("DAILY_REPORT_DOCTOR_RECIPIENT_INVALID",JSON.stringify({patient_id:pref.patient_id}));
@@ -740,7 +983,8 @@ Deno.serve(async req=>{
      console.log("DAILY_REPORT_SENT",JSON.stringify(results[results.length-1]));
     }catch(e){const error=e instanceof Error?e.message:String(e);console.error("DAILY_REPORT_FAILED",JSON.stringify({patient_id:pref.patient_id,error}));results.push({patient_id:pref.patient_id,status:"failed",error})}
    }
-   return json({ok:true,date,time,enabled:(prefs.data||[]).length,due:duePrefs.length,results});
+   let clinical:any=null;try{clinical=await crScheduled(sb,runStarted)}catch(e){console.error("CLINICAL_REPORT_RUN_FAILED",e instanceof Error?e.message:String(e));clinical={error:e instanceof Error?e.message:String(e)}}
+   return json({ok:true,date,time,enabled:(prefs.data||[]).length,due:duePrefs.length,results,clinical});
   }
   const patientId=text(body.patient_id),date=text(body.report_date)||indiaDate();if(!patientId)return json({ok:false,error:"patient_id is required"},400);const pr=await sb.from("patients").select("*").eq("id",patientId).single();if(pr.error)return json({ok:false,error:pr.error.message},404);
   // 2.18.127: doctor's Daily Clinical Report - preview (doctor_generate_only) or send to the saved doctor number (doctor_send)
