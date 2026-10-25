@@ -222,7 +222,7 @@ STRICT RULES — any breach makes the output unusable:
 3. Never make a new diagnosis, interpretation of cause, or prognosis. Name a condition only if it appears in the diagnosis field or in an attached document, and say where it is documented.
 4. PATIENT- and DISEASE-SPECIFIC: group observations by the Guest's own documented conditions / body systems (e.g. Neurology, Orthopaedics, Cardiovascular, Diabetes, Respiratory, Renal, Wound care, Nutrition, Mobility). For each condition, report the recorded data that relates to it: the relevant vital-sign or sugar trend over the period, the medicines for that condition and whether doses were given, physiotherapy findings for that condition, nursing notes and incidents. Skip generic statements that would fit any patient.
 5. Quote real numbers with dates (DD-MM-YYYY or DD-MM) and times (AM/PM). Be factual and neutral. No exaggeration ("significant", "worrying", "excellent").
-6. At most 4 groups, at most 4 observations per group, each observation at most 30 words. Plain English for a doctor.
+6. "area" is a short label of 1-2 words, at most 16 characters (e.g. "Orthopaedics", "Oncology", "Vascular", "Rehabilitation"). At most 4 groups, at most 4 observations per group, each observation at most 30 words. Plain English for a doctor.
 
 Return JSON only:
 {"groups":[{"area":"Neurology","condition":"Left MCA infarct with right hemiparesis","documented_in":"Discharge summary dated 21-10-2026","observations":["..."]}],"sources_used":["Discharge summary (21-10-2026)","Active prescription (7 medicines)","9 vital-sign records"]}`;
@@ -277,7 +277,7 @@ async function aiObservations(sb:any,facts:any,documents:any[]){
    let dropped=0;
    const groups=out.groups.slice(0,4).map((g:any)=>{
     const obs=(Array.isArray(g?.observations)?g.observations:[]).map((x:any)=>pdfText(x)).filter((x:string)=>{if(!x)return false;if(ADVICE_RE.test(x)){dropped++;return false}return true}).slice(0,4);
-    const condition=pdfText(g?.condition);const area=pdfText(g?.area).slice(0,24)||"Clinical";
+    const condition=pdfText(g?.condition);const area=pdfText(g?.area).slice(0,32)||"Clinical";
     return {area,condition:ADVICE_RE.test(condition)?"":condition,documented:pdfText(g?.documented_in),observations:obs};
    }).filter((g:any)=>g.observations.length);
    if(dropped)console.log("DOCTOR_REPORT_AI_ADVICE_LINES_REMOVED",dropped);
@@ -416,7 +416,9 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   const blocks=(ai?.groups||[]).map((g:any)=>{const lines:{t:string,b:boolean,indent:number}[]=[];
    if(g.condition)wrapW(`${g.condition}${g.documented?` (${g.documented})`:""}`,size,textW,bold).forEach(t=>lines.push({t,b:true,indent:0}));
    g.observations.forEach((o:string)=>wrapW(o,size,textW-9).forEach((t,i)=>lines.push({t:(i?"":"- ")+t,b:false,indent:i?9:0})));
-   return {g,lines,h:Math.max(15,lines.length*lh)+5}});
+   // chip label wraps to at most 3 lines so long areas (e.g. "Rehabilitation & Mobility") never spill out
+   const label=String(g.area).toUpperCase(),chip=wrapW(label,6.8,chipW-8,bold).slice(0,3);
+   return {g,lines,chip,h:Math.max(chip.length*8.2+7,lines.length*lh,15)+5}});
   const srcLines=ai?wrapW(`Prepared by AI (Gemini) from Samara records${ai.sources?.length?`: ${ai.sources.join("; ")}`:""}. These are observations of recorded data only - not a diagnosis and not a recommendation. Please verify against the records below.`,6.6,W-2*M-2*pad,italic):
    wrapW("Clinical observations could not be prepared for this report. All recorded data is given in the sections below.",7.4,W-2*M-2*pad,italic);
   const innerH=22+blocks.reduce((a:number,b:any)=>a+b.h,0)+srcLines.length*8.4+6;
@@ -426,8 +428,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   const badge="AI-assisted | observations only";const bw=tw(badge,6.8,bold)+12;page.drawRectangle({x:W-M-pad-bw,y:top-18,width:bw,height:12,color:head,borderColor:pink,borderWidth:.6});T(badge,W-M-pad-bw+6,top-14.2,6.8,bold,mag);
   let yy=top-25;
   blocks.forEach((b:any,i:number)=>{if(i)page.drawLine({start:{x:M+pad,y:yy+2},end:{x:W-M-pad,y:yy+2},thickness:.4,color:pink,dashArray:[1.5,1.5]});
-   const label=b.g.area.toUpperCase();let ls=7.6;while(ls>5.8&&tw(label,ls,bold)>chipW-8)ls-=.2;
-   page.drawRectangle({x:M+pad,y:yy-12,width:chipW,height:13,color:aiChipColour(b.g.area)});centre(label,M+pad+chipW/2,yy-8.2,ls,bold,white);
+   const ch=b.chip.length*8.2+5;page.drawRectangle({x:M+pad,y:yy-ch+1,width:chipW,height:ch,color:aiChipColour(b.g.area)});b.chip.forEach((l:string,li:number)=>centre(l,M+pad+chipW/2,yy-7.6-li*8.2,6.8,bold,white));
    b.lines.forEach((l:any,li:number)=>T(l.t,textX+l.indent,yy-8.4-li*lh,size,l.b?bold:regular,l.b?deep:ink));yy-=b.h});
   srcLines.forEach((l,i)=>T(l,M+pad,yy-6-i*8.4,ai?6.6:7.4,italic,grey));
   y=top-innerH-8;

@@ -1,3 +1,7 @@
+## 2.18.130 — Doctor's report: condition labels fit their boxes
+- Clinical Observations: long condition labels (e.g. "Rehabilitation & Mobility") now wrap inside the coloured label instead of spilling out; Gemini is asked for short 1-2 word labels. Edge Function daily-patient-report only. No SQL.
+- Checked live: SQL 295 run (Ranjith Kumar → clinical report, Dr. Kenny Robert); doctor report generated for 25-10-2026 with AI observations.
+
 ## 2.18.129 — Patient card: one "Reports" button
 - At the top of the Patient card, "📑 Reports" (Admin, Manager, Nurse) opens:
   1. Daily Report (for family) — the same daily Intelligent Patient Report the family gets; Print / Save PDF, WhatsApp API to the family (Admin / Manager), existing WhatsApp. Report itself unchanged.
