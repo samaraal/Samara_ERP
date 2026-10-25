@@ -116,6 +116,13 @@ function ShiftHandover({profile,onNavigate}){
           h(React.Fragment,null,
             miniSelect('Outgoing shift',form.shift,['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)'],v=>setForm({...form,shift:v})),
             textareaSimple('Patient summary',form.patient_summary,v=>setForm({...form,patient_summary:v})),
+            // 2.18.139: bring this shift's Nursing Notes into the summary (no typing twice)
+            h('button',{type:'button',className:'btn btn-secondary',style:{justifySelf:'start'},onClick:async()=>{
+              try{const text=await nursingNotesShiftSummary(form.patient_id,form.shift);
+                if(!text){showToast('error','No nursing notes are recorded for this Guest in the selected shift.');return}
+                setForm(cur=>({...cur,patient_summary:[String(cur.patient_summary||'').trim(),`Nursing notes (${cur.shift}):\n${text}`].filter(Boolean).join('\n')}));
+              }catch(err){showToast('error',err.message||'Nursing notes could not be loaded.')}
+            }},'📝 Add this shift\'s Nursing Notes to the summary'),
             textareaSimple('Pending tasks',form.pending_tasks,v=>setForm({...form,pending_tasks:v})),
             textareaSimple('Special instructions',form.special_instructions,v=>setForm({...form,special_instructions:v})),
             miniSelect('Priority',form.priority,['Routine','Important','Critical'],v=>setForm({...form,priority:v})),

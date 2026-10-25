@@ -334,10 +334,11 @@ async function aiObservations(sb:any,facts:any,documents:any[],patientId:string,
 }
 
 async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,generatedAt=new Date()){
- const [vitals,orders,mar,meals,physioPlans,physio,incidents,documents,medReviews,medReviewItems,careLogs,ioEntries,staffResult]=await Promise.all([
+ const [vitals,orders,mar,meals,physioPlans,physio,incidents,documents,medReviews,medReviewItems,careLogs,ioEntries,staffResult,nursingNotes,noteAddenda]=await Promise.all([
   rows(sb,"vital_signs",patient.id),rows(sb,"medication_orders",patient.id),rows(sb,"medication_administrations",patient.id),rows(sb,"meal_records",patient.id),
   rows(sb,"physiotherapy_plans",patient.id),rows(sb,"physiotherapy_sessions",patient.id),rows(sb,"incidents",patient.id),rows(sb,"patient_documents",patient.id),
-  rows(sb,"medication_reviews",patient.id),allRows(sb,"medication_review_items"),rows(sb,"care_logs",patient.id),rows(sb,"io_entries",patient.id),sb.from("profiles").select("id,full_name,role")
+  rows(sb,"medication_reviews",patient.id),allRows(sb,"medication_review_items"),rows(sb,"care_logs",patient.id),rows(sb,"io_entries",patient.id),sb.from("profiles").select("id,full_name,role"),
+  rows(sb,"nursing_notes",patient.id),rows(sb,"nursing_note_addenda",patient.id) // 2.18.139 Nursing Notes (SQL 297) — doctor's report only, never the family report
  ]);
  const staff=staffResult.error?[]:(staffResult.data||[]),staffName=(id:any)=>text(staff.find((x:any)=>x.id===id)?.full_name);
  const admission=isoOf(patient.admission_date)||date,from=admission>addDays(date,-6)?admission:addDays(date,-6),days:string[]=[];for(let d=from;d<=date;d=addDays(d,1))days.push(d);
@@ -406,6 +407,15 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   if(!items&&!text(r.clinical_notes))return "";
   return `${displayDate(isoOf(r.reviewed_at||r.created_at))} - ${drName(r.doctor_name)}: ${text(r.clinical_notes)||text(r.review_type)||"Review recorded"}${items?`. Changes: ${items}`:""}`}).filter(Boolean);
 
+ // ---- 2.18.139 nursing notes (DAR / quick) in the period ----
+ const noteText=(n:any)=>text(n.note_mode)==="Quick"?text(n.quick_text):[text(n.data_text)?`D: ${text(n.data_text)}`:"",text(n.action_text)?`A: ${text(n.action_text)}`:"",text(n.response_text)?`R: ${text(n.response_text)}`:""].filter(Boolean).join(" ");
+ const wNotes=nursingNotes.filter((x:any)=>inWindow(x.observed_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.observed_at||a.created_at)-+new Date(b.observed_at||b.created_at));
+ const notesAdd=(id:any)=>noteAddenda.filter((a:any)=>a.note_id===id).map((a:any)=>`Addendum ${displayDateTime(a.created_at)}: ${text(a.addendum_text)}`);
+ const noteFacts=wNotes.slice(-30).map((n:any)=>({at:displayDateTime(n.observed_at||n.created_at),focus:text(n.focus),note:noteText(n),alert:Boolean(n.is_alert),addenda:notesAdd(n.id)}));
+ // report table: alert notes first, then the latest ones (6 rows at most), shown in time order
+ const pickNotes=[...wNotes.filter((n:any)=>n.is_alert).slice(-4)];for(const n of [...wNotes].reverse()){if(pickNotes.length>=6)break;if(!pickNotes.includes(n))pickNotes.push(n)}
+ pickNotes.sort((a:any,b:any)=>+new Date(a.observed_at||a.created_at)-+new Date(b.observed_at||b.created_at));
+
  // ---- AI observations (facts only from the records above) ----
  const facts={guest:{age:ageOf(patient),gender:text(patient.gender),diagnosis:text(patient.diagnosis),allergies:text(patient.allergies),admitted_on:displayDate(admission),referring_hospital:text(patient.hospital_name),treating_doctor:text(patient.treating_doctor)},
   period:{from:displayDate(from),to:displayDate(date),data_until:`${displayDate(date)} ${hhmm12(cutoff)}`},
@@ -414,7 +424,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   doses_given_late_with_reason:lateDoses,
   physiotherapy_plan:activePlans.map((p:any)=>({therapy:text(p.therapy_type),frequency:text(p.frequency),windows:p.session_times,precautions:text(p.precautions),advised_by:text(p.advised_by),ends:text(p.end_date)?displayDate(isoOf(p.end_date)):"until doctor review"})),
   physiotherapy_sessions:physioRows,doctor_reviews:reviewLines,intake_output_daily:ioDays.map(x=>({date:displayDate(x.d),intake_ml:x.intake,output_ml:x.output,stools:x.stool})),
-  meals:mealCounts,nursing_care_notes:careNotes,incidents:wInc.map((x:any)=>({at:displayDateTime(x.incident_at||x.created_at),type:text(x.incident_type||x.category),description:text(x.description),action:text(x.immediate_action)}))};
+  meals:mealCounts,nursing_care_notes:careNotes,nursing_notes:noteFacts,incidents:wInc.map((x:any)=>({at:displayDateTime(x.incident_at||x.created_at),type:text(x.incident_type||x.category),description:text(x.description),action:text(x.immediate_action)}))};
  let ai:any=null;try{ai=await aiObservations(sb,facts,documents,patient.id,date)}catch(e){console.error("DOCTOR_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
 
  // ======================= PDF =======================
@@ -560,6 +570,15 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   if(st)T(`Stools: ${st}`,lx,ly,6.8,regular,ink);
   T("Balance per day (intake - output) is shown under each date. Chart day = 7 AM to 7 AM.",M+2,base-24,6,italic,grey);
   y=base-30;
+ }
+
+ // ---- 5c. Nursing notes (2.18.139) ----
+ if(pickNotes.length){
+  sectionTitle(`Nursing notes - ${wNotes.length} recorded in the period`,30);
+  table([{h:"Date / time",w:80},{h:"Focus",w:74},{h:"Note (D = data, A = action, R = response)",w:312},{h:"By",w:73}],
+   pickNotes.map((n:any)=>{const ad=notesAdd(n.id),t=noteText(n)+(ad.length?` | ${ad.join(" | ")}`:"");
+    return [displayDateTime(n.observed_at||n.created_at),{t:text(n.focus)||"-",c:n.is_alert?red:undefined,b:Boolean(n.is_alert)},t.length>330?t.slice(0,327)+"...":t,text(n.recorded_by_name)||"-"]}),6.9);
+  if(wNotes.length>pickNotes.length)note(`Showing ${pickNotes.length} of ${wNotes.length} notes (alert notes first, then the latest). All notes are kept in the Samara ERP and can be shared on request.`,6.4);
  }
 
  // ---- 6. Nursing ----

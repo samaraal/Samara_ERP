@@ -89,6 +89,12 @@ Deno.serve(async (req) => {
         out.push({ key: "MEAL_INTAKE_NOW", label: "Poor intake - please review", audience: "both" });
         return out;
       }
+      // ERP 2.18.139 (SQL 297): a Nursing Note with Focus Fall / Incident (or "Inform Nursing Manager now")
+      // goes to Managers + Admins at once, one message only, until it is closed in Clinical Escalations.
+      if (String(a.alert_type || "").toLowerCase() === "nursing note alert") {
+        out.push({ key: "NOTE_ALERT_NOW", label: "Nursing note - please review now", audience: "both" });
+        return out;
+      }
       if (vital) {
         if (overdue >= 60) out.push({ key: "VITALS_60_MANAGER", label: "Escalated", audience: "manager" });
         if (overdue >= 90) out.push({ key: "VITALS_90_ADMIN", label: "Critical pending", audience: "admin" });

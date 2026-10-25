@@ -822,6 +822,7 @@
           page==='Daily Care'&&h(DailyCare,{profile,onNavigate:setPage}),
           page==='Vital Signs'&&h(VitalSigns,{profile,onNavigate:setPage}),
           page==='Intake / Output'&&h(IntakeOutput,{profile,onNavigate:setPage}),
+          page==='Nursing Notes'&&h(NursingNotesPage,{profile,onNavigate:setPage}), // 2.18.139 (SQL 297)
           page==='Medicines'&&h(Medicines,{profile,onNavigate:setPage}),
           page==='Patient Consumables'&&h(PatientConsumables,{profile}),
           page==='Raise Indent'&&h(PatientConsumables,{profile,initialView:'raise'}),

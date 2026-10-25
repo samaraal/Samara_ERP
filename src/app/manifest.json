@@ -401,6 +401,10 @@
    "lines": 157
   },
   {
+   "file": "nursing/nursing-notes.js",
+   "about": "2.18.139 Nursing Notes (SQL 297): DAR / Quick note switch, Tamil/English voice assistant, shift board (min 2 per Guest per shift), single-click Guest view, addenda, print"
+  },
+  {
    "file": "clinical/incidents-documents.js",
    "about": "Incidents, documents",
    "lines": 222

@@ -85,6 +85,8 @@
     const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
     const [showDischargeSummary,setShowDischargeSummary]=React.useState(false); // 2.15.83
     const [showReportsMenu,setShowReportsMenu]=React.useState(false); // 2.18.129 Patient card → Reports
+    const [showNursingNotes,setShowNursingNotes]=React.useState(false); // 2.18.139 Patient card → Nursing Notes (single click)
+    React.useEffect(()=>{setShowNursingNotes(false)},[selected?.id]);
     const [reportKind,setReportKind]=React.useState(''); // 'family' | 'doctor'
     const [medCorrection,setMedCorrection]=React.useState(null); // 2.18.133 {mode,order}
     React.useEffect(()=>{setShowDischargeSummary(false);setShowReportsMenu(false);setReportKind('');setMedCorrection(null)},[selected?.id]);
@@ -2465,6 +2467,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           // 2.16.0: also for Nurses (beside Admission Details / Consent); sending stays Admin / Manager inside the summary
           // 2.18.129: one "Reports" button → 1. Daily Report (family) 2. Report for Doctors 3. Discharge Summary (sending: Admin / Manager inside each popup)
           ['Admin','Manager','Nurse'].includes(profile?.role)?h('button',{type:'button',className:'btn btn-secondary',title:'Daily Report (family) · Report for Doctors · Discharge Summary',onClick:()=>setShowReportsMenu(true)},'📑 Reports'):null,
+          nnCanUse(profile)?h('button',{type:'button',className:'btn btn-secondary',title:'Nursing Notes of this Guest — view and add',onClick:()=>setShowNursingNotes(true)},'📝 Nursing Notes'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×')),
           completedPatientDischarge()?h('div',{className:'patient-discharge-stamp','aria-label':'Patient discharged'},
@@ -2826,6 +2829,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
       medCorrection&&selected&&h(MedicineCorrectionDialog,{patient:selected,order:medCorrection.order,mode:medCorrection.mode,onClose:()=>setMedCorrection(null),onSaved:()=>{setMedCorrection(null);openPatient(selected,'Medicines')}}),
       showReportsMenu&&selected&&h(PatientReportsMenu,{patient:selected,discharged:!!completedPatientDischarge(),onClose:()=>setShowReportsMenu(false),onPick:key=>{setShowReportsMenu(false);if(key==='discharge')setShowDischargeSummary(true);else setReportKind(key)}}),
       reportKind&&selected&&h(PatientReportPdfDialog,{kind:reportKind,patient:selected,profile,onClose:()=>setReportKind('')}),
+      showNursingNotes&&selected&&h(NursingNotesViewer,{patient:selected,profile,onClose:()=>setShowNursingNotes(false)}),
       showDischargeSummary&&selected&&details&&completedPatientDischarge()&&h(DischargeSummaryDialog,{patient:selected,discharge:completedPatientDischarge(),familyAccess:details.familyAccess||[],profile,onClose:()=>setShowDischargeSummary(false),onUpdated:patch=>{const id=completedPatientDischarge()?.id;setDetails(cur=>cur?{...cur,discharges:(cur.discharges||[]).map(row=>row.id===id?{...row,...patch}:row)}:cur)}}),
       showFamilyDetails&&selected&&details&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowFamilyDetails(false)}},h('div',{className:'card modal',style:{maxWidth:'680px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Family Details'),h('small',null,`${formalName(selected)||selected.full_name||'Resident'} · Authorised family contact`)),h('button',{type:'button',className:'close',onClick:()=>setShowFamilyDetails(false)},'×')),

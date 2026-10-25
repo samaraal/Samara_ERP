@@ -1,3 +1,15 @@
+## 2.18.139 — Nursing Notes (separate from Shift Handover)
+- New **NURSING → Nursing Notes** page (Nurse, Caregiver, Nursing Manager, Admin): a card for every Guest showing this shift's notes "n / 2" (green when done), the last note, and **＋ Add Note** / **📖 View Notes**. Second tab "All notes (register)" with Guest / Today / Last 3 days / This Week / This Month / period / Focus filters + Apply; every note opens its full details. Print / PDF (Samara logo, signature lines).
+- **Single click from the Patient card**: "📝 Nursing Notes" beside Reports — timeline grouped date → Day / Night shift, this-shift count, ＋ Add Note, Print / PDF.
+- Note form with a switch **D · A · R** (Focus · Data · Action · Response) or **Quick note**; Focus list (General condition, Sleep, Pain, Fall, Incident, Behaviour, Breathing, Skin / Wound, Bowel / Bladder, Eating, Mobility, Medication response, Family, Doctor, Other); late entry within 24 hours with its real time.
+- **Voice assistant**: 🎤 Speak in Tamil / English for the whole note — Gemini writes it in simple English and arranges it into D / A / R (nothing invented); the nurse checks every field (unfilled ones yellow) before Save. The heard speech is kept with the note. If the new voice function is not deployed yet, the existing Tamil → English voice service fills "Data".
+- **Minimum 2 notes per Guest per shift** (1 if admitted more than 6 h into the shift): nurse reminder 5 PM / 5 AM, Managers + Admin escalation 6 PM / 6 AM (pop-up, voice, phone notification, WhatsApp), closed automatically when the notes are written. Starts from the first shift after SQL 297 is run.
+- **Fall / Incident** focus or "Inform the Nursing Manager now" → Nursing Manager + Admin / Director alerted at once (Clinical Escalations, phone, WhatsApp stage NOTE_ALERT_NOW).
+- Notes are **never edited or deleted** — corrections are Addenda (text, reason, who, when). Notes are internal: not in the Family Portal or the family Daily Report.
+- **Doctor's Daily Clinical Report**: new "Nursing notes" section (alert notes first, then the latest, with addenda) and the notes are given to the AI observations.
+- Shift Handover: "📝 Add this shift's Nursing Notes to the summary".
+- **SQL 297 required. Edge Functions: new nursing-note-voice; redeploy daily-patient-report and clinical-escalation-dispatch.**
+
 ## 2.18.138 — Doctor's report: website in the header, Intake / Output chart
 - Top right: the email line is replaced by the website samaraassistedliving.com with a small globe icon (clickable in the PDF).
 - Guests on I/O charting get an "Intake / Output chart" section: daily intake vs output bars for the report period, the balance (intake - output) under each date, and days charted, average intake / output, net balance and stools beside it. Edge Function daily-patient-report. No SQL.

@@ -159,6 +159,7 @@
       ['Medicines','◐','Medication','Give / record'],
       ['Vital Signs','∿','Vitals','Enter observations'],
       ['Intake / Output','💧','Intake / Output','Fluid chart'],
+      ['Nursing Notes','📝','Nursing Notes','2 per shift · voice'],
       ['Daily Care','♡','Daily Care','Complete care'],
       ['Food & Diet','♨','Food & Beverages','Record intake'],
       ['Shift Tasks','☷','Tasks','Current shift'],

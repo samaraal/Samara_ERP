@@ -98,6 +98,7 @@
 
     const historyTarget=type=>{
       const t=String(type||'').toLowerCase();
+      if(t.includes('nursing note'))return 'Nursing Notes'; // 2.18.139
       if(t.includes('med'))return 'Medicines';
       if(t.includes('vital'))return 'Vital Signs';
       if(t.includes('care'))return 'Daily Care';
@@ -398,6 +399,7 @@
     const canView=['Admin','Manager'].includes(profile?.role);
     const targetForType=type=>{
       const t=String(type||'').toLowerCase();
+      if(t.includes('nursing note'))return 'Nursing Notes'; // 2.18.139
       if(t.includes('med'))return 'Medicines';
       if(t.includes('vital'))return 'Vital Signs';
       if(t.includes('care'))return 'Daily Care';
@@ -475,7 +477,7 @@
             r.priority||'—',fmt(r.created_at),r.resolved_at?'—':`${elapsed} min`,r.escalation_reason||'—',
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});onNavigate(target)}},'Open Source'),
+              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
               !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved'),
               !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             )

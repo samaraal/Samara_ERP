@@ -208,7 +208,10 @@
       // 2.17.10: Food & Meals (SQL 249) — "Meal Due: Lunch" and "Poor Meal Intake: Lunch — Refused".
       const isMealPoor=title.includes('poor meal intake')||String(a?.alert_type||'').toLowerCase()==='meal intake';
       const isMeal=!isMealPoor&&(title.includes('meal due')||String(a?.alert_type||'').toLowerCase()==='meal');
-      return {title,patient,room,details,overdue,isMedication,isVitals,isCare,isPhysio,isMeal,isMealPoor};
+      // 2.18.139: Nursing Notes (SQL 297) — "Nursing Notes Due: 0 of 2 …" and "Nursing Note: Fall".
+      const isNoteAlert=String(a?.alert_type||'').toLowerCase()==='nursing note alert';
+      const isNotes=!isNoteAlert&&(title.includes('nursing notes due')||String(a?.alert_type||'').toLowerCase()==='nursing notes');
+      return {title,patient,room,details,overdue,isMedication,isVitals,isCare:isCare&&!isNotes&&!isNoteAlert,isPhysio,isMeal,isMealPoor,isNotes,isNoteAlert};
     }
     function actualOverdueMinutes(a){
       const serverValue=Math.max(0,Number(a?.overdue_minutes||0));
@@ -610,6 +613,13 @@
         }
         return [{text:`${staffPrefix} ${meal} இன்னும் பதிவு செய்யப்படவில்லை. கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. தயவு செய்து உணவு கொடுத்து பதிவு செய்யவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
+      if(d.isNoteAlert){
+        const fall=String(d.title||'').toLowerCase().includes('fall');
+        return [{text:`${staffPrefix} நர்சிங் நோட் அலர்ட். ${fall?'கெஸ்ட் கீழே விழுந்தது பதிவு செய்யப்பட்டுள்ளது':'முக்கியமான நர்சிங் நோட் பதிவு செய்யப்பட்டுள்ளது'}. கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. தயவு செய்து உடனே பார்க்கவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+      }
+      if(d.isNotes){
+        return [{text:`${staffPrefix} நர்சிங் நோட்ஸ் பெண்டிங். கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. தயவு செய்து நர்சிங் நோட் எழுதவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+      }
       if(d.isVitals){
         return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
@@ -640,6 +650,11 @@
         const meal=String(d.title||'').replace(/^\s*Meal Due\s*:\s*/i,'').trim()||'Meal';
         return [{text:`Dear staff. ${meal} is not yet recorded for Guest ${patient}.${roomText} Please serve and record. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
       }
+      if(d.isNoteAlert){
+        const what=String(d.title||'').replace(/^\s*Nursing Note\s*:\s*/i,'').trim()||'Important note';
+        return [{text:`Dear staff. Nursing note alert: ${what} recorded for Guest ${patient}.${roomText} Please review now. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+      }
+      if(d.isNotes)return [{text:`Dear staff. Nursing notes are pending for ${patient}.${roomText} Please write the nursing note. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
       const label=d.isVitals?'Vitals':d.isCare?'Daily care':d.isPhysio?'Physiotherapy':'Clinical task';
       return [{text:`Dear staff. ${label} is pending for ${patient}.${roomText} Thank you.`,lang:'en-IN',rate:.84,pause:0}];
     }
@@ -1158,7 +1173,7 @@
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
