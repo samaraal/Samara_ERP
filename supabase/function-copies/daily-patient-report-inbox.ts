@@ -267,8 +267,14 @@ Extract ONLY what is written: diagnoses, procedures / surgeries with dates, rele
 No interpretation, no advice, no recommendations. Short factual points.
 Return JSON only: {"background":[{"source":"Discharge summary, Apollo Hospitals, 21-10-2026","points":["..."]}]}`;
 async function sha(v:string){const d=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,32)}
-async function readCache(sb:any,path:string){try{const r=await sb.storage.from("patient-reports").download(path);if(r.error||!r.data)return null;return JSON.parse(await r.data.text())}catch{return null}}
-async function writeCache(sb:any,path:string,value:unknown){try{await sb.storage.from("patient-reports").upload(path,new Blob([JSON.stringify(value)],{type:"application/json"}),{contentType:"application/json",upsert:true})}catch(e){console.error("DOCTOR_REPORT_CACHE_WRITE",path,e instanceof Error?e.message:String(e))}}
+// caches live in their own private bucket (the report bucket may accept PDFs only)
+const CACHE_BUCKET="doctor-report-cache";let cacheBucketReady=false;
+async function readCache(sb:any,path:string){try{const r=await sb.storage.from(CACHE_BUCKET).download(path);if(r.error||!r.data)return null;return JSON.parse(await r.data.text())}catch{return null}}
+async function writeCache(sb:any,path:string,value:unknown){try{
+ if(!cacheBucketReady){await sb.storage.createBucket(CACHE_BUCKET,{public:false}).catch(()=>{});cacheBucketReady=true}
+ const up=await sb.storage.from(CACHE_BUCKET).upload(path,new TextEncoder().encode(JSON.stringify(value)),{contentType:"application/json",upsert:true});
+ if(up.error)console.error("DOCTOR_REPORT_CACHE_WRITE",path,up.error.message||String(up.error));
+}catch(e){console.error("DOCTOR_REPORT_CACHE_WRITE",path,e instanceof Error?e.message:String(e))}}
 async function geminiJson(system:string,parts:any[],timeoutMs:number){
  const key=Deno.env.get("GEMINI_API_KEY");if(!key)return null;
  const models=[...new Set([Deno.env.get("DOCTOR_REPORT_MODEL"),"gemini-3.8-flash","gemini-3.5-flash","gemini-2.5-flash"].filter((m):m is string=>!!m&&!!m.trim()))];
