@@ -1,3 +1,7 @@
+## 2.18.144 — 26-10-2026
+- Weekly Clinical Report on request ("Generate report for the last 7 days") now covers the 7 days before the moment it is generated: from admission if the Guest has been here less than 7 days, and up to the recorded departure time for a discharged Guest. Labelled "Last 7 days" / "Since admission" in the PDF. The automatic weekly saves (7-day windows from admission, and the final report after a confirmed discharge) are unchanged and are not affected by on-request reports. Never sent automatically.
+- Edge Function daily-patient-report 2.18.144 (redeploy index.ts).
+
 ## 2.18.143 — 26-10-2026
 - Weekly Clinical Report: "Generate completed weekly report" no longer shows a red "Action failed" when the current week is still in progress; it explains which week is running and when it will be saved. The panel now always shows the next weekly report (week, period, save date/time).
 

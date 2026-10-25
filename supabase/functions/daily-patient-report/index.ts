@@ -660,7 +660,7 @@ async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile
 // Daily: saved for every admitted Guest at the cutoff; sent automatically ONLY when daily_auto_send is ON,
 // the doctor's number is verified and no hold reason exists. Weekly: saved automatically, sent manually only.
 // ============================================================================
-const CR_FUNCTION_VERSION="2.18.143";
+const CR_FUNCTION_VERSION="2.18.144";
 const CR_SEND_ROLES=["Admin","Manager"],CR_ADMIN_ROLES=["Admin"],CR_VIEW_ROLES=["Admin","Manager","Nurse"];
 async function crSettings(sb:any){const r=await sb.from("clinical_report_settings").select("*").eq("id","global").maybeSingle();if(r.error)return {missing:true,error:r.error.message};return r.data||{missing:true}}
 const crIso=(d:Date)=>CR.isoOf(d);
@@ -713,13 +713,13 @@ let crLogo:ArrayBuffer|null|undefined;
 async function crLogoBytes(){if(crLogo===undefined){try{const r=await samaraInboxFetch("https://app.samaraassistedliving.com/assets/samara-logo-report.jpg");crLogo=r.ok?await r.arrayBuffer():null}catch{crLogo=null}}return crLogo}
 function crRecipient(pref:any,patient:any){const mobile=text(pref?.doctor_recipient_mobile);return {name:text(pref?.doctor_recipient_name)||text(patient.treating_doctor)||text(patient.referring_doctor)||"Treating Doctor",mobile,enabled:pref?.doctor_report_enabled===true,verified:Boolean(pref?.doctor_recipient_verified_at)&&digits(pref?.doctor_recipient_verified_mobile)===digits(mobile)&&digits(mobile).length>=10}}
 // Generate, save (never overwrite) and register one report. Returns the clinical_reports row.
-async function crGenerate(sb:any,{patient,kind,period,weekNo=null,final=false,trigger="scheduled",user=null,settings}:{patient:any,kind:"daily"|"weekly",period:{from:Date,to:Date},weekNo?:number|null,final?:boolean,trigger?:string,user?:any,settings:any}){
+async function crGenerate(sb:any,{patient,kind,period,weekNo=null,final=false,trigger="scheduled",user=null,settings,periodLabel=""}:{patient:any,kind:"daily"|"weekly",period:{from:Date,to:Date},weekNo?:number|null,final?:boolean,trigger?:string,user?:any,settings:any,periodLabel?:string}){
  const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",patient.id).maybeSingle()).data||{};
  const rcp=crRecipient(pref,patient),now=new Date();
  const trendFrom=new Date(Math.min(period.from.getTime(),period.to.getTime()-8*86400000));
  const data=await crLoad(sb,patient,trendFrom,period.to);
  let background="";try{const dg=await documentDigest(sb,patient.id,data.documents);background=text(dg.text).split("\n").slice(0,2).join(" ").slice(0,380)}catch(e){console.error("CLINICAL_REPORT_DIGEST",e instanceof Error?e.message:String(e))}
- const weekLabel=kind==="weekly"?(final?"Final period":weekNo?`Week ${weekNo}`:""):"";
+ const weekLabel=kind==="weekly"?(periodLabel||(final?"Final period":weekNo?`Week ${weekNo}`:"")):"";
  const model:any=CR.buildModel({kind,patient,pref,doctorName:rcp.name,period,data,settings,now,weekLabel,final,background} as any);
  try{await crAi(model)}catch(e){console.error("CLINICAL_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
  model.attention.forEach((a:any)=>a.askLine=CR.askLine(a.ask));
@@ -805,7 +805,7 @@ async function crScheduled(sb:any,started:number){
    if(!crActive(p)){const dis=(await sb.from("patient_discharges").select("*").eq("patient_id",p.id)).data||[];discharge=CR.confirmedDischarge(dis);
     // a final report needs a confirmed discharge with its time; never for discharges before activation
     if(!discharge||discharge.at<activated||now.getTime()<discharge.at.getTime()+delay)continue;}
-   const existing=(await sb.from("clinical_reports").select("period_from,period_to").eq("patient_id",p.id).eq("kind","weekly")).data||[];
+   const existing=((await sb.from("clinical_reports").select("period_from,period_to,week_no,is_final").eq("patient_id",p.id).eq("kind","weekly")).data||[]).filter((r:any)=>r.week_no!=null||r.is_final); // on-request (last-7-days) reports do not change the automatic weekly windows
    const due=CR.dueWeeklyPeriods({admission:adm,now,discharge,existing,runTime} as any);
    for(const w of due.slice(0,1)){if(made>=3||!budget())break;
     try{const r=await crGenerate(sb,{patient:p,kind:"weekly",period:{from:w.from,to:w.to},weekNo:w.week,final:w.final,trigger:w.final?"discharge":"scheduled",settings:s});made++;out.push({patient_id:p.id,weekly:r.id,week:w.week,final:w.final})}
@@ -865,13 +865,15 @@ async function crManual(sb:any,body:any,req:Request){
   if(text(body.kind)==="daily"){const period=CR.dailyPeriod({cutoff:text(s.daily_cutoff).slice(0,5),now:new Date(),admission:adm} as any);if(!period.valid)return json({ok:false,error:"No completed reporting period since admission yet."},400);
    const r=await crGenerate(sb,{patient:p,kind:"daily",period,trigger:"manual",user:prof,settings:s});return json({ok:true,report:r});}
   const dis=CR.confirmedDischarge((await sb.from("patient_discharges").select("*").eq("patient_id",patientId)).data||[]);
-  const existing=(await sb.from("clinical_reports").select("period_from,period_to").eq("patient_id",patientId).eq("kind","weekly")).data||[];
   const regen=text(body.regenerate_report_id);
   if(regen){const o=(await sb.from("clinical_reports").select("*").eq("id",regen).single()).data;if(!o)return json({ok:false,error:"Report not found"},404);
    const r=await crGenerate(sb,{patient:p,kind:o.kind,period:{from:new Date(o.period_from),to:new Date(o.period_to)},weekNo:o.week_no,final:o.is_final,trigger:"manual",user:prof,settings:s});return json({ok:true,report:r});}
-  const due=CR.dueWeeklyPeriods({admission:adm,now:new Date(),discharge:dis,existing,runTime:"00:00"} as any);
-  if(!due.length){const nx=crNextWeekly(p,s,new Date());return json({ok:true,info:nx?`No completed week is waiting yet. Week ${nx.week} (${CR.fmtDate(crIso(nx.from))} to ${CR.fmtDate(crIso(new Date(nx.to.getTime()-1)))}) is still in progress; it will be saved automatically on ${CR.fmtDT(nx.due)}.`:"No completed week is waiting yet.",next_weekly:nx})}
-  const w=due[0];const r=await crGenerate(sb,{patient:p,kind:"weekly",period:{from:w.from,to:w.to},weekNo:w.week,final:w.final,trigger:w.final?"discharge":"manual",user:prof,settings:s});return json({ok:true,report:r});
+  // 2.18.144: on-demand weekly report = the 7 days before now (from admission if the stay is shorter; up to the
+  // recorded departure for a discharged Guest). Automatic weekly reports keep the consecutive 7-day windows.
+  const now=new Date(),end=dis&&!crActive(p)&&dis.at<now?dis.at:now,from=new Date(Math.max(end.getTime()-7*86400000,adm.getTime()));
+  if(end<=from)return json({ok:false,error:"No recorded stay in the last 7 days."},400);
+  const short=end.getTime()-from.getTime()<7*86400000-60000;
+  const r=await crGenerate(sb,{patient:p,kind:"weekly",period:{from,to:end},trigger:"manual",user:prof,settings:s,periodLabel:(short?"Since admission":"Last 7 days")+(end<now?" to discharge":"")});return json({ok:true,report:r});
  }
  if(mode==="clinical_send"){
   if(body.confirm!==true)return json({ok:false,error:"Recipient confirmation is required."},400);
