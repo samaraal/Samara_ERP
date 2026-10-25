@@ -660,7 +660,7 @@ async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile
 // Daily: saved for every admitted Guest at the cutoff; sent automatically ONLY when daily_auto_send is ON,
 // the doctor's number is verified and no hold reason exists. Weekly: saved automatically, sent manually only.
 // ============================================================================
-const CR_FUNCTION_VERSION="2.18.142";
+const CR_FUNCTION_VERSION="2.18.143";
 const CR_SEND_ROLES=["Admin","Manager"],CR_ADMIN_ROLES=["Admin"],CR_VIEW_ROLES=["Admin","Manager","Nurse"];
 async function crSettings(sb:any){const r=await sb.from("clinical_report_settings").select("*").eq("id","global").maybeSingle();if(r.error)return {missing:true,error:r.error.message};return r.data||{missing:true}}
 const crIso=(d:Date)=>CR.isoOf(d);
@@ -766,6 +766,9 @@ async function crSend(sb:any,report:any,{mode,user=null,patient}:{mode:"automati
   await sb.from("clinical_report_sends").update({status:unknown?"unknown":"failed",error:msg.slice(0,500),updated_at:new Date().toISOString()}).eq("id",claim.data.id);
   await sb.from("clinical_reports").update({status:"failed"}).eq("id",report.id);throw e}
 }
+// The weekly window now in progress for an admitted Guest, and when its report will be saved.
+function crNextWeekly(p:any,s:any,now:Date){const adm=CR.admissionAt(p);if(!adm)return null;const w=(CR.weeklyWindows(adm,new Date(now.getTime()+8*86400000)) as any[]).find((x:any)=>x.to>now);if(!w)return null;
+ return {week:w.week,from:w.from,to:w.to,due:CR.at(crIso(w.to),text(s.weekly_run_time).slice(0,5)||"07:30")}}
 const crActive=(p:any)=>p.is_active!==false&&!["Discharged","Draft"].includes(text(p.admission_status));
 // Called from the existing 5-minute scheduled run, after the family reports. Small batches keep each run short.
 async function crScheduled(sb:any,started:number){
@@ -840,7 +843,7 @@ async function crManual(sb:any,body:any,req:Request){
   const pids=sends.map((x:any)=>x.provider_message_id).filter(Boolean);const wa=pids.length?((await sb.from("hr_whatsapp_communications").select("provider_message_id,status,delivered_at,read_at,failed_at,error_message").in("provider_message_id",pids)).data||[]):[];
   const pref=(await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",patientId).maybeSingle()).data||{};
   const rcp=crRecipient(pref,p);
-  return json({ok:true,settings:s,recipient:{...rcp,mobile_masked:rcp.mobile?`${digits(rcp.mobile).slice(0,2)}xxxxxx${digits(rcp.mobile).slice(-2)}`:"",verified_at:pref.doctor_recipient_verified_at||null,verified_by:pref.doctor_recipient_verified_by_name||null},
+  return json({ok:true,settings:s,next_weekly:crActive(p)?crNextWeekly(p,s,new Date()):null,recipient:{...rcp,mobile_masked:rcp.mobile?`${digits(rcp.mobile).slice(0,2)}xxxxxx${digits(rcp.mobile).slice(-2)}`:"",verified_at:pref.doctor_recipient_verified_at||null,verified_by:pref.doctor_recipient_verified_by_name||null},
    can_send:canSend,is_admin:isAdmin,reports:reps.map((r:any)=>({...r,sends:sends.filter((x:any)=>x.report_id===r.id).map((x:any)=>({...x,delivery:wa.find((w:any)=>w.provider_message_id===x.provider_message_id)||null}))}))});
  }
  if(mode==="clinical_url"){
@@ -867,7 +870,7 @@ async function crManual(sb:any,body:any,req:Request){
   if(regen){const o=(await sb.from("clinical_reports").select("*").eq("id",regen).single()).data;if(!o)return json({ok:false,error:"Report not found"},404);
    const r=await crGenerate(sb,{patient:p,kind:o.kind,period:{from:new Date(o.period_from),to:new Date(o.period_to)},weekNo:o.week_no,final:o.is_final,trigger:"manual",user:prof,settings:s});return json({ok:true,report:r});}
   const due=CR.dueWeeklyPeriods({admission:adm,now:new Date(),discharge:dis,existing,runTime:"00:00"} as any);
-  if(!due.length)return json({ok:false,error:"No completed weekly period is waiting. A weekly report is made when each 7-day period ends (or at a confirmed discharge)."},400);
+  if(!due.length){const nx=crNextWeekly(p,s,new Date());return json({ok:true,info:nx?`No completed week is waiting yet. Week ${nx.week} (${CR.fmtDate(crIso(nx.from))} to ${CR.fmtDate(crIso(new Date(nx.to.getTime()-1)))}) is still in progress; it will be saved automatically on ${CR.fmtDT(nx.due)}.`:"No completed week is waiting yet.",next_weekly:nx})}
   const w=due[0];const r=await crGenerate(sb,{patient:p,kind:"weekly",period:{from:w.from,to:w.to},weekNo:w.week,final:w.final,trigger:w.final?"discharge":"manual",user:prof,settings:s});return json({ok:true,report:r});
  }
  if(mode==="clinical_send"){

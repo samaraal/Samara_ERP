@@ -1,3 +1,6 @@
+## 2.18.143 — 26-10-2026
+- Weekly Clinical Report: "Generate completed weekly report" no longer shows a red "Action failed" when the current week is still in progress; it explains which week is running and when it will be saved. The panel now always shows the next weekly report (week, period, save date/time).
+
 ## 2.18.142 — 26-10-2026 — Daily & Weekly Clinical Reports (treating doctor)
 - Patient Card → Reports now has **Daily Clinical Report** and **Weekly Clinical Report** (history, View / Download PDF, WhatsApp with recipient confirmation, sending history and delivery status). Family Daily Report and Discharge Summary unchanged.
 - Daily: made automatically at the configured cutoff (default 08:00 PM India time) for the exact previous 24 h (from admission for a new Guest); 2-page approved layout. Sent automatically ONLY when Admin switches "automatic sending" ON, the doctor's number is verified, and no hold reason exists (no vitals, unresolved high-risk dose, stop without a doctor's order, totals not reconciling, recipient missing/unverified) — otherwise held for review with a notification. Default: automatic sending OFF.
