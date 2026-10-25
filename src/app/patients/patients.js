@@ -84,8 +84,9 @@
     const [dailyQuickEditMsg,setDailyQuickEditMsg]=React.useState('');
     const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
     const [showDischargeSummary,setShowDischargeSummary]=React.useState(false); // 2.15.83
-    const [showDoctorReport,setShowDoctorReport]=React.useState(false); // 2.18.128 Doctor's Daily Clinical Report
-    React.useEffect(()=>{setShowDischargeSummary(false);setShowDoctorReport(false)},[selected?.id]);
+    const [showReportsMenu,setShowReportsMenu]=React.useState(false); // 2.18.129 Patient card → Reports
+    const [reportKind,setReportKind]=React.useState(''); // 'family' | 'doctor'
+    React.useEffect(()=>{setShowDischargeSummary(false);setShowReportsMenu(false);setReportKind('')},[selected?.id]);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
@@ -2454,9 +2455,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTab('Consent')},'Consent'),
           // 2.16.0: also for Nurses (beside Admission Details / Consent); sending stays Admin / Manager inside the summary
-          ['Admin','Manager','Nurse'].includes(profile?.role)&&completedPatientDischarge()?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowDischargeSummary(true)},'Discharge Summary'):null,
-          // 2.18.128: Doctor's Daily Clinical Report — Print / Save PDF and WhatsApp (sending: Admin / Manager inside the popup)
-          ['Admin','Manager','Nurse'].includes(profile?.role)&&!completedPatientDischarge()?h('button',{type:'button',className:'btn btn-secondary',title:"Daily Clinical Report for the treating doctor",onClick:()=>setShowDoctorReport(true)},"🩺 Doctor's Report"):null,
+          // 2.18.129: one "Reports" button → 1. Daily Report (family) 2. Report for Doctors 3. Discharge Summary (sending: Admin / Manager inside each popup)
+          ['Admin','Manager','Nurse'].includes(profile?.role)?h('button',{type:'button',className:'btn btn-secondary',title:'Daily Report (family) · Report for Doctors · Discharge Summary',onClick:()=>setShowReportsMenu(true)},'📑 Reports'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×')),
           completedPatientDischarge()?h('div',{className:'patient-discharge-stamp','aria-label':'Patient discharged'},
@@ -2804,7 +2804,8 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'Close Patient File')
         )
       )),
-      showDoctorReport&&selected&&h(DoctorReportDialog,{patient:selected,profile,onClose:()=>setShowDoctorReport(false)}),
+      showReportsMenu&&selected&&h(PatientReportsMenu,{patient:selected,discharged:!!completedPatientDischarge(),onClose:()=>setShowReportsMenu(false),onPick:key=>{setShowReportsMenu(false);if(key==='discharge')setShowDischargeSummary(true);else setReportKind(key)}}),
+      reportKind&&selected&&h(PatientReportPdfDialog,{kind:reportKind,patient:selected,profile,onClose:()=>setReportKind('')}),
       showDischargeSummary&&selected&&details&&completedPatientDischarge()&&h(DischargeSummaryDialog,{patient:selected,discharge:completedPatientDischarge(),familyAccess:details.familyAccess||[],profile,onClose:()=>setShowDischargeSummary(false),onUpdated:patch=>{const id=completedPatientDischarge()?.id;setDetails(cur=>cur?{...cur,discharges:(cur.discharges||[]).map(row=>row.id===id?{...row,...patch}:row)}:cur)}}),
       showFamilyDetails&&selected&&details&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowFamilyDetails(false)}},h('div',{className:'card modal',style:{maxWidth:'680px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Family Details'),h('small',null,`${formalName(selected)||selected.full_name||'Resident'} · Authorised family contact`)),h('button',{type:'button',className:'close',onClick:()=>setShowFamilyDetails(false)},'×')),

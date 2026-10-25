@@ -1,3 +1,10 @@
+## 2.18.129 — Patient card: one "Reports" button
+- At the top of the Patient card, "📑 Reports" (Admin, Manager, Nurse) opens:
+  1. Daily Report (for family) — the same daily Intelligent Patient Report the family gets; Print / Save PDF, WhatsApp API to the family (Admin / Manager), existing WhatsApp. Report itself unchanged.
+  2. Report for Doctors — the Doctor's Daily Clinical Report; Print / Save PDF, WhatsApp API to the doctor (Admin / Manager), existing WhatsApp.
+  3. Discharge Summary — the existing popup (enabled after the final discharge).
+- Replaces the separate "Discharge Summary" and "🩺 Doctor's Report" buttons in the card header. No SQL beyond 295.
+
 ## 2.18.128 — Doctor's Report in the Patient card: Print PDF / WhatsApp
 - Patient card (active Guests): new "🩺 Doctor's Report" button beside Admission Details / Consent (Admin, Manager, Nurse). The popup has a report date, the doctor's name and WhatsApp number (taken from the Guest's daily-report settings), and:
   - Print / Save PDF,

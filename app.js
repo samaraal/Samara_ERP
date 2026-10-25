@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.128';
+  const APP_VERSION = '2.18.129';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -28087,14 +28087,15 @@ Please keep these login details confidential.`;
     ));
   }
   // ---------------------------------------------------------------------------------------------
-  // 2.18.128 Doctor's Daily Clinical Report — Patient card popup.
-  // Built by the Edge Function "daily-patient-report" (modes doctor_generate_only / doctor_send).
-  // The family's Daily Intelligent Report is NOT touched by anything here.
-  //   * Print / Save PDF (Admin, Manager, Nurse)
-  //   * Send PDF by WhatsApp API to the doctor (Admin, Manager)
-  //   * Existing WhatsApp: share the PDF into the doctor's chat (phones) or download + open the chat
+  // 2.18.129 Patient card → "Reports": one button opening
+  //   1. Daily Report (for family)  — the existing Daily Intelligent Patient Report, unchanged
+  //   2. Report for Doctors         — Doctor's Daily Clinical Report (2.18.127)
+  //   3. Discharge Summary          — existing popup (after the final discharge)
+  // Both daily reports are built by the Edge Function "daily-patient-report":
+  //   family: generate_only / manual (unchanged modes) · doctor: doctor_generate_only / doctor_send
+  // Each report popup offers Print / Save PDF, WhatsApp API (Admin, Manager) and existing WhatsApp.
   // ---------------------------------------------------------------------------------------------
-  async function callDoctorReport(body){
+  async function callDailyReportFunction(body){
     const {data:{session}}=await client.auth.getSession();
     if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
     const response=await fetch(`${cfg.supabaseUrl}/functions/v1/daily-patient-report`,{
@@ -28103,68 +28104,80 @@ Please keep these login details confidential.`;
       body:JSON.stringify(body)
     });
     const result=await response.json().catch(()=>({ok:false,error:`The report service did not answer (${response.status}).`}));
-    if(!response.ok||result?.ok===false||!result?.report_url)throw new Error(result?.error||`Doctor's report failed (${response.status})`);
+    if(!response.ok||result?.ok===false||!result?.report_url)throw new Error(result?.error||`Report failed (${response.status})`);
     return result;
   }
 
-  function DoctorReportDialog({patient,profile,onClose}){
+  // kind: 'family' | 'doctor'
+  function PatientReportPdfDialog({kind,patient,profile,onClose}){
+    const doctor=kind==='doctor';
     const canSend=['Admin','Manager'].includes(profile?.role);
     const todayIso=(()=>{try{return todayISOIndia()}catch(_e){return new Date().toISOString().slice(0,10)}})();
     const [reportDate,setReportDate]=React.useState(todayIso);
-    const [doctorName,setDoctorName]=React.useState(patient?.treating_doctor||patient?.referring_doctor||'');
-    const [doctorMobile,setDoctorMobile]=React.useState(patient?.doctor_phone||'');
+    const [toName,setToName]=React.useState(doctor?(patient?.treating_doctor||patient?.referring_doctor||''):(patient?.attendant_name||''));
+    const [toMobile,setToMobile]=React.useState(doctor?(patient?.doctor_phone||''):(patient?.attendant_phone||''));
     const [busy,setBusy]=React.useState('');
     const [note,setNote]=React.useState(null);
     const [prepared,setPrepared]=React.useState(null);
     React.useEffect(()=>{let live=true;
-      client.from('patient_family_communication_preferences').select('doctor_recipient_name,doctor_recipient_mobile').eq('patient_id',patient.id).maybeSingle()
-        .then(({data})=>{if(!live||!data)return;if(data.doctor_recipient_name)setDoctorName(data.doctor_recipient_name);if(data.doctor_recipient_mobile)setDoctorMobile(data.doctor_recipient_mobile)}).catch(()=>{});
-      return ()=>{live=false};},[patient?.id]);
+      client.from('patient_family_communication_preferences').select('recipient_name,recipient_mobile,doctor_recipient_name,doctor_recipient_mobile').eq('patient_id',patient.id).maybeSingle()
+        .then(({data})=>{if(!live||!data)return;
+          const n=doctor?data.doctor_recipient_name:data.recipient_name,m=doctor?data.doctor_recipient_mobile:data.recipient_mobile;
+          if(n)setToName(n);if(m)setToMobile(m)}).catch(()=>{});
+      return ()=>{live=false};},[patient?.id,kind]);
     React.useEffect(()=>()=>{if(prepared?.url)URL.revokeObjectURL(prepared.url)},[prepared]);
     React.useEffect(()=>{setPrepared(null)},[reportDate]);
     const guest=formalName(patient)||patient?.full_name||'Guest';
-    const doctorLabel=String(doctorName||'').trim()?(/^dr(\.|\s)/i.test(String(doctorName).trim())?String(doctorName).trim():`Dr. ${String(doctorName).trim()}`):'Doctor';
-    const number=normalizeWhatsAppRecipient(doctorMobile||'');
+    const cleanName=String(toName||'').trim();
+    const toLabel=doctor?(cleanName?(/^dr(\.|\s)/i.test(cleanName)?cleanName:`Dr. ${cleanName}`):'Doctor'):(cleanName||'Family Member');
+    const number=normalizeWhatsAppRecipient(toMobile||'');
+    const title=doctor?'Report for Doctors — Daily Clinical Report':'Daily Report (for family)';
+    const reportName=doctor?'Daily Clinical Report':'Daily Intelligent Patient Report';
+    const who=doctor?'doctor':'family';
     const canShareFiles=(()=>{try{return Boolean(navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.pdf',{type:'application/pdf'})]}))}catch(_e){return false}})();
-    const messageText=()=>`Dear ${doctorLabel},\n\nPlease find attached the Daily Clinical Report of ${guest} dated ${formatDateIN(reportDate)} from Samara Assisted Living.\n\nYou may reply here with any instructions.`;
-    const body=mode=>({mode,patient_id:patient.id,report_date:reportDate,doctor_name:String(doctorName||'').trim()||undefined});
+    const messageText=()=>doctor
+      ?`Dear ${toLabel},\n\nPlease find attached the Daily Clinical Report of ${guest} dated ${formatDateIN(reportDate)} from Samara Assisted Living.\n\nYou may reply here with any instructions.`
+      :`Dear ${toLabel},\n\nPlease find attached the Daily Report of ${guest} dated ${formatDateIN(reportDate)} from Samara Assisted Living.`;
+    const genBody=()=>doctor?{mode:'doctor_generate_only',patient_id:patient.id,report_date:reportDate,doctor_name:cleanName||undefined}:{mode:'generate_only',patient_id:patient.id,report_date:reportDate};
     async function logManual(route){
-      try{await client.from('patient_communications').insert({patient_id:patient.id,communication_type:'Doctor Daily Clinical Report',method:'WhatsApp (existing)',recipient_type:'Doctor',recipient_name:doctorLabel,recipient_number:number||null,report_date:reportDate,status:route,message_preview:'Daily Clinical Report PDF shared through existing WhatsApp',created_at:new Date().toISOString()})}catch(_e){}
+      try{await client.from('patient_communications').insert({patient_id:patient.id,communication_type:doctor?'Doctor Daily Clinical Report':'Daily Intelligent Patient Report',method:'WhatsApp (existing)',recipient_type:doctor?'Doctor':'Relative',recipient_name:toLabel,recipient_number:number||null,report_date:reportDate,status:route,message_preview:`${reportName} PDF shared through existing WhatsApp`,created_at:new Date().toISOString()})}catch(_e){}
     }
     async function openPdf(){
       const tab=window.open('about:blank','_blank');
       setBusy('open');setNote(null);
       try{
-        const r=await callDoctorReport(body('doctor_generate_only'));
+        const r=await callDailyReportFunction(genBody());
         if(tab)tab.location.href=r.report_url;else window.open(r.report_url,'_blank','noopener');
-        setNote({type:'success',text:`Daily Clinical Report opened in a new tab. Use Print / Save there.${r.ai_observations?'':' Clinical Observations were not available this time; all records are in the report.'}`});
+        setNote({type:'success',text:`${reportName} opened in a new tab. Use Print / Save there.${doctor&&!r.ai_observations?' Clinical Observations were not available this time; all records are in the report.':''}`});
       }catch(error){if(tab)tab.close();setNote({type:'error',text:error.message||String(error)})}
       setBusy('');
     }
     async function sendApi(){
-      if(!number)return setNote({type:'error',text:"Enter the doctor's 10-digit WhatsApp number."});
-      if(!confirm(`Send the Daily Clinical Report of ${guest} (${formatDateIN(reportDate)}) to ${doctorLabel} on ${doctorMobile}?`))return;
+      if(!number)return setNote({type:'error',text:`Enter the ${who}'s 10-digit WhatsApp number.`});
+      if(!confirm(`Send the ${reportName} of ${guest} (${formatDateIN(reportDate)}) to ${toLabel} on ${toMobile}?`))return;
       setBusy('api');setNote(null);
       try{
-        const r=await callDoctorReport({...body('doctor_send'),recipient_mobile:number});
-        setNote({type:'success',text:`Daily Clinical Report PDF accepted by Meta for ${doctorLabel} (${doctorMobile}). It is recorded in WhatsApp Inbox.${r.ai_observations?'':' (Sent without Clinical Observations this time.)'}`});
+        const r=await callDailyReportFunction(doctor
+          ?{mode:'doctor_send',patient_id:patient.id,report_date:reportDate,doctor_name:cleanName||undefined,recipient_mobile:number}
+          :{mode:'manual',patient_id:patient.id,report_date:reportDate,recipient_mobile:number,recipient_name:toLabel});
+        setNote({type:'success',text:`${reportName} PDF accepted by Meta for ${toLabel} (${toMobile}). It is recorded in WhatsApp Inbox.${doctor&&!r.ai_observations?' (Sent without Clinical Observations this time.)':''}`});
       }catch(error){setNote({type:'error',text:error.message||String(error)})}
       setBusy('');
     }
     async function preparePdf(){
       setBusy('prepare');setNote(null);
       try{
-        const r=await callDoctorReport(body('doctor_generate_only'));
+        const r=await callDailyReportFunction(genBody());
         const blob=await fetch(r.report_url).then(res=>{if(!res.ok)throw new Error('The PDF could not be downloaded.');return res.blob()});
-        const file=new File([blob],r.file_name||`${guest} - Daily Clinical Report.pdf`,{type:'application/pdf'});
+        const file=new File([blob],r.file_name||`${guest} - ${reportName}.pdf`,{type:'application/pdf'});
         setPrepared({file,url:URL.createObjectURL(blob),name:file.name});
-        setNote({type:'success',text:canShareFiles?"PDF ready. Tap \"Share PDF to WhatsApp\" and choose the doctor's chat.":"PDF ready. Download it, then open the doctor's WhatsApp chat and attach the PDF."});
+        setNote({type:'success',text:canShareFiles?`PDF ready. Tap "Share PDF to WhatsApp" and choose the ${who}'s chat.`:`PDF ready. Download it, then open the ${who}'s WhatsApp chat and attach the PDF.`});
       }catch(error){setNote({type:'error',text:error.message||String(error)})}
       setBusy('');
     }
     async function sharePdf(){
       if(!prepared)return;
-      try{await navigator.share({files:[prepared.file],title:prepared.name,text:messageText()});await logManual('Shared');setNote({type:'success',text:"Shared. Check that it reached the doctor's chat."})}
+      try{await navigator.share({files:[prepared.file],title:prepared.name,text:messageText()});await logManual('Shared');setNote({type:'success',text:`Shared. Check that it reached the ${who}'s chat.`})}
       catch(error){if(error?.name!=='AbortError')setNote({type:'error',text:`Sharing failed: ${error.message||error}. Use Download PDF instead.`})}
     }
     function downloadPdf(){
@@ -28172,39 +28185,62 @@ Please keep these login details confidential.`;
       const a=document.createElement('a');a.href=prepared.url;a.download=prepared.name;document.body.appendChild(a);a.click();a.remove();
     }
     function openChat(){
-      if(!number)return setNote({type:'error',text:"Enter the doctor's 10-digit WhatsApp number."});
+      if(!number)return setNote({type:'error',text:`Enter the ${who}'s 10-digit WhatsApp number.`});
       window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(messageText()))}`,'_blank','noopener');
       logManual('Opened');
     }
-    return h('div',{className:'modal-backdrop doctor-report-backdrop',style:{zIndex:12000},onClick:e=>{if(e.target===e.currentTarget)onClose()}},h('div',{className:'card modal doctor-report-modal',style:{maxWidth:'640px'}},
-      h('style',null,`.doctor-report-modal .dr-block{border-top:1px solid #f0dbe5;padding-top:12px;margin-top:12px}
-.doctor-report-modal .dr-block h4{margin:0 0 4px;color:#7a0c43;font-size:14px}
-.doctor-report-modal .dr-block p{margin:0 0 8px;color:#6b5560;font-size:13px}
-.doctor-report-modal .dr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
-.doctor-report-modal .actions{flex-wrap:wrap}`),
+    return h('div',{className:'modal-backdrop patient-report-backdrop',style:{zIndex:12000},onClick:e=>{if(e.target===e.currentTarget)onClose()}},h('div',{className:'card modal patient-report-modal',style:{maxWidth:'640px'}},
+      h('style',null,`.patient-report-modal .pr-block{border-top:1px solid #f0dbe5;padding-top:12px;margin-top:12px}
+.patient-report-modal .pr-block h4{margin:0 0 4px;color:#7a0c43;font-size:14px}
+.patient-report-modal .pr-block p{margin:0 0 8px;color:#6b5560;font-size:13px}
+.patient-report-modal .pr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.patient-report-modal .actions{flex-wrap:wrap}`),
       h('div',{className:'panel-head'},
-        h('div',null,h('h3',null,"Doctor's Daily Clinical Report"),h('small',null,`${guest} · ${patient?.patient_id||''}`)),
+        h('div',null,h('h3',null,title),h('small',null,`${guest} · ${patient?.patient_id||''}`)),
         h('button',{type:'button',className:'close',onClick:onClose},'×')),
-      h('p',{className:'small-note',style:{marginTop:0}},"For the treating doctor only: up to 7-day trends of vitals, medicines, physiotherapy and nursing, with AI clinical observations (observations only, no advice). The family's Daily Report is separate and unchanged."),
-      h('div',{className:'dr-grid'},
+      h('p',{className:'small-note',style:{marginTop:0}},doctor
+        ?"For the treating doctor only: up to 7-day trends of vitals, medicines, physiotherapy and nursing, with AI clinical observations (observations only, no advice). The family's Daily Report is separate and unchanged."
+        :'The same Daily Intelligent Patient Report the family receives every day (2 pages).'),
+      h('div',{className:'pr-grid'},
         h('div',{className:'field'},h('label',null,'Report date'),h('input',{type:'date',value:reportDate,min:'2026-08-27',max:todayIso,onChange:e=>setReportDate(e.target.value||todayIso)})),
-        h('div',{className:'field'},h('label',null,'Doctor'),h('input',{value:doctorName,placeholder:'Treating doctor',onChange:e=>setDoctorName(e.target.value)})),
-        h('div',{className:'field'},h('label',null,'Doctor WhatsApp'),h('input',{value:doctorMobile,inputMode:'tel',placeholder:'10-digit mobile',onChange:e=>setDoctorMobile(e.target.value)}))),
+        h('div',{className:'field'},h('label',null,doctor?'Doctor':'Family member'),h('input',{value:toName,placeholder:doctor?'Treating doctor':'Name',onChange:e=>setToName(e.target.value)})),
+        h('div',{className:'field'},h('label',null,'WhatsApp number'),h('input',{value:toMobile,inputMode:'tel',placeholder:'10-digit mobile',onChange:e=>setToMobile(e.target.value)}))),
       h('div',{className:'actions',style:{marginTop:'10px'}},
-        h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:openPdf},busy==='open'?'Preparing PDF (up to 1 min)…':'Print / Save PDF')),
-      canSend&&h('div',{className:'dr-block'},
+        h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:openPdf},busy==='open'?(doctor?'Preparing PDF (up to 1 min)…':'Preparing PDF…'):'Print / Save PDF')),
+      canSend&&h('div',{className:'pr-block'},
         h('h4',null,'WhatsApp API (PDF attached)'),
-        h('p',null,"Sends the PDF from the Samara WhatsApp number to the doctor. It is recorded in WhatsApp Inbox; the doctor's reply comes there too."),
-        h('button',{type:'button',className:'btn btn-whatsapp',disabled:!!busy||!number,onClick:sendApi},busy==='api'?'Preparing & sending PDF…':'Send PDF to Doctor · WhatsApp API')),
-      h('div',{className:'dr-block'},
+        h('p',null,`Sends the PDF from the Samara WhatsApp number to the ${who}. It is recorded in WhatsApp Inbox${doctor?"; the doctor's reply comes there too":''}.`),
+        h('button',{type:'button',className:'btn btn-whatsapp',disabled:!!busy||!number,onClick:sendApi},busy==='api'?'Preparing & sending PDF…':`Send PDF to ${doctor?'Doctor':'Family'} · WhatsApp API`)),
+      h('div',{className:'pr-block'},
         h('h4',null,'Existing WhatsApp'),
-        h('p',null,canShareFiles?"Prepare the PDF, then share it straight into the doctor's WhatsApp chat from this phone.":"Prepare the PDF, download it, then open the doctor's chat in WhatsApp Web and attach it."),
+        h('p',null,canShareFiles?`Prepare the PDF, then share it straight into the ${who}'s WhatsApp chat from this phone.`:`Prepare the PDF, download it, then open the ${who}'s chat in WhatsApp Web and attach it.`),
         h('div',{className:'actions'},
           !prepared&&h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:preparePdf},busy==='prepare'?'Preparing PDF…':'Prepare PDF'),
           prepared&&canShareFiles&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:sharePdf},'Share PDF to WhatsApp'),
           prepared&&h('button',{type:'button',className:'btn btn-secondary',onClick:downloadPdf},'Download PDF'),
-          prepared&&h('button',{type:'button',className:'btn btn-secondary',disabled:!number,onClick:openChat},"Open doctor's WhatsApp chat"))),
+          prepared&&h('button',{type:'button',className:'btn btn-secondary',disabled:!number,onClick:openChat},`Open ${who}'s WhatsApp chat`))),
       note&&h('div',{className:`message ${note.type}`,style:{marginTop:'12px'}},note.text),
+      h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
+    ));
+  }
+
+  // The "Reports" chooser in the Patient card.
+  function PatientReportsMenu({patient,discharged,onPick,onClose}){
+    const item=(n,key,label,sub,enabled=true)=>h('button',{type:'button',className:`patient-reports-item${enabled?'':' disabled'}`,disabled:!enabled,onClick:()=>onPick(key)},
+      h('span',{className:'patient-reports-no'},n),h('span',null,h('strong',null,label),h('small',null,sub)));
+    return h('div',{className:'modal-backdrop patient-reports-backdrop',style:{zIndex:11990},onClick:e=>{if(e.target===e.currentTarget)onClose()}},h('div',{className:'card modal patient-reports-menu',style:{maxWidth:'480px'}},
+      h('style',null,`.patient-reports-menu .patient-reports-list{display:grid;gap:10px;margin-top:6px}
+.patient-reports-menu .patient-reports-item{display:flex;gap:12px;align-items:center;text-align:left;width:100%;padding:14px 16px;border:1px solid #f0c9da;border-radius:14px;background:linear-gradient(135deg,#fff7fa,#fde7f0);cursor:pointer;font:inherit}
+.patient-reports-menu .patient-reports-item:hover{border-color:#b8055a;box-shadow:0 2px 10px rgba(184,5,90,.12)}
+.patient-reports-menu .patient-reports-item.disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.patient-reports-menu .patient-reports-item strong{display:block;color:#7a0c43;font-size:15px}
+.patient-reports-menu .patient-reports-item small{display:block;color:#7a5e6d;font-size:12px;margin-top:2px}
+.patient-reports-menu .patient-reports-no{flex:0 0 30px;height:30px;border-radius:50%;background:#b8055a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}`),
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,'Reports'),h('small',null,formalName(patient)||patient?.full_name||'')),h('button',{type:'button',className:'close',onClick:onClose},'×')),
+      h('div',{className:'patient-reports-list'},
+        item(1,'family','Daily Report (for family)','The daily Intelligent Patient Report · Print / WhatsApp'),
+        item(2,'doctor','Report for Doctors','Daily Clinical Report with AI clinical observations · Print / WhatsApp'),
+        item(3,'discharge','Discharge Summary',discharged?'Whole stay summary · Print / WhatsApp':'Available after the final discharge',discharged)),
       h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
     ));
   }
@@ -28294,8 +28330,9 @@ Please keep these login details confidential.`;
     const [dailyQuickEditMsg,setDailyQuickEditMsg]=React.useState('');
     const [showFamilyDetails,setShowFamilyDetails]=React.useState(false);
     const [showDischargeSummary,setShowDischargeSummary]=React.useState(false); // 2.15.83
-    const [showDoctorReport,setShowDoctorReport]=React.useState(false); // 2.18.128 Doctor's Daily Clinical Report
-    React.useEffect(()=>{setShowDischargeSummary(false);setShowDoctorReport(false)},[selected?.id]);
+    const [showReportsMenu,setShowReportsMenu]=React.useState(false); // 2.18.129 Patient card → Reports
+    const [reportKind,setReportKind]=React.useState(''); // 'family' | 'doctor'
+    React.useEffect(()=>{setShowDischargeSummary(false);setShowReportsMenu(false);setReportKind('')},[selected?.id]);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
@@ -30664,9 +30701,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
           h('button',{className:'btn btn-secondary',onClick:()=>setTab('Admission Details')},'Admission Details'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setTab('Consent')},'Consent'),
           // 2.16.0: also for Nurses (beside Admission Details / Consent); sending stays Admin / Manager inside the summary
-          ['Admin','Manager','Nurse'].includes(profile?.role)&&completedPatientDischarge()?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowDischargeSummary(true)},'Discharge Summary'):null,
-          // 2.18.128: Doctor's Daily Clinical Report — Print / Save PDF and WhatsApp (sending: Admin / Manager inside the popup)
-          ['Admin','Manager','Nurse'].includes(profile?.role)&&!completedPatientDischarge()?h('button',{type:'button',className:'btn btn-secondary',title:"Daily Clinical Report for the treating doctor",onClick:()=>setShowDoctorReport(true)},"🩺 Doctor's Report"):null,
+          // 2.18.129: one "Reports" button → 1. Daily Report (family) 2. Report for Doctors 3. Discharge Summary (sending: Admin / Manager inside each popup)
+          ['Admin','Manager','Nurse'].includes(profile?.role)?h('button',{type:'button',className:'btn btn-secondary',title:'Daily Report (family) · Report for Doctors · Discharge Summary',onClick:()=>setShowReportsMenu(true)},'📑 Reports'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>setShowFamilyDetails(true)},'Family Details'):null,
           canEdit?h('button',{className:'btn btn-secondary',onClick:()=>openEditPatient(selected)},'Edit Patient'):h('span',{className:'pill'},'View only'),h('button',{className:'close',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'×')),
           completedPatientDischarge()?h('div',{className:'patient-discharge-stamp','aria-label':'Patient discharged'},
@@ -31014,7 +31050,8 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'Close Patient File')
         )
       )),
-      showDoctorReport&&selected&&h(DoctorReportDialog,{patient:selected,profile,onClose:()=>setShowDoctorReport(false)}),
+      showReportsMenu&&selected&&h(PatientReportsMenu,{patient:selected,discharged:!!completedPatientDischarge(),onClose:()=>setShowReportsMenu(false),onPick:key=>{setShowReportsMenu(false);if(key==='discharge')setShowDischargeSummary(true);else setReportKind(key)}}),
+      reportKind&&selected&&h(PatientReportPdfDialog,{kind:reportKind,patient:selected,profile,onClose:()=>setReportKind('')}),
       showDischargeSummary&&selected&&details&&completedPatientDischarge()&&h(DischargeSummaryDialog,{patient:selected,discharge:completedPatientDischarge(),familyAccess:details.familyAccess||[],profile,onClose:()=>setShowDischargeSummary(false),onUpdated:patch=>{const id=completedPatientDischarge()?.id;setDetails(cur=>cur?{...cur,discharges:(cur.discharges||[]).map(row=>row.id===id?{...row,...patch}:row)}:cur)}}),
       showFamilyDetails&&selected&&details&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setShowFamilyDetails(false)}},h('div',{className:'card modal',style:{maxWidth:'680px'}},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Family Details'),h('small',null,`${formalName(selected)||selected.full_name||'Resident'} · Authorised family contact`)),h('button',{type:'button',className:'close',onClick:()=>setShowFamilyDetails(false)},'×')),
