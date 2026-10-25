@@ -1,7 +1,7 @@
-## 2.18.139 — Nursing Notes (separate from Shift Handover)
-
 ## 2.18.140 — 25-10-2026
 - Bills & Charges Approval: request cards made compact — item + status on one line, one info line (Guest · date · qty · category · provider), amount line (Requested / Approved / by), remarks only when they add something. Duplicate Patient/Service rows removed; full details still open on tap.
+
+## 2.18.139 — Nursing Notes (separate from Shift Handover)
 
 - New **NURSING → Nursing Notes** page (Nurse, Caregiver, Nursing Manager, Admin): a card for every Guest showing this shift's notes "n / 2" (green when done), the last note, and **＋ Add Note** / **📖 View Notes**. Second tab "All notes (register)" with Guest / Today / Last 3 days / This Week / This Month / period / Focus filters + Apply; every note opens its full details. Print / PDF (Samara logo, signature lines).
 - **Single click from the Patient card**: "📝 Nursing Notes" beside Reports — timeline grouped date → Day / Night shift, this-shift count, ＋ Add Note, Print / PDF.
