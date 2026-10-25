@@ -56,7 +56,7 @@
     const who=doctor?'doctor':'family';
     const canShareFiles=(()=>{try{return Boolean(navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.pdf',{type:'application/pdf'})]}))}catch(_e){return false}})();
     const messageText=()=>doctor
-      ?`Dear ${toLabel},\n\nPlease find attached the Daily Clinical Report of ${guest} dated ${formatDateIN(reportDate)} from Samara Assisted Living.\n\nYou may reply here with any instructions.`
+      ?`Dear ${toLabel},\n\nPlease find attached the Daily Clinical Report of ${guest} dated ${formatDateIN(reportDate)} from Samara Assisted Living.\n\nWe would be grateful for any instructions you may wish to give; kindly reply here at your convenience. Thank you for your guidance.`
       :`Dear ${toLabel},\n\nPlease find attached the Daily Report of ${guest} dated ${formatDateIN(reportDate)} from Samara Assisted Living.`;
     const genBody=()=>doctor?{mode:'doctor_generate_only',patient_id:patient.id,report_date:reportDate,doctor_name:cleanName||undefined}:{mode:'generate_only',patient_id:patient.id,report_date:reportDate};
     async function logManual(route){

@@ -531,9 +531,9 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  table([{h:"Meals (period)",w:120},{h:"Intake / output (last 3 days)",w:170},{h:"Incidents",w:130},{h:"Nursing care",w:110}],[[mealText,ioText,{t:incText,c:wInc.length?red:undefined},`${wCare.length} care record(s)${careNotes.length?`; notes: ${careNotes.slice(-3).join("; ")}`:""}`]],7.2);
 
  // ---- reply box + footer ----
- const replyLines=wrapW("Reply on this WhatsApp chat with any instructions. Your reply reaches the Samara nursing team in the ERP WhatsApp Inbox.",7.6,W-2*M-16);
+ const replyLines=wrapW(`Respected Doctor, we would be grateful for any instructions you may wish to give for ${patientLabel}. Kindly reply on this WhatsApp chat at your convenience; your message will reach our nursing team promptly. Thank you for your guidance. - Samara Assisted Living`,7.6,W-2*M-16);
  const rh=replyLines.length*10+10;ensure(rh+6);page.drawRectangle({x:M,y:y-rh,width:W-2*M,height:rh,color:rgb(1,.98,.99),borderColor:mag,borderWidth:.9,borderDashArray:[3,2]});
- replyLines.forEach((l,i)=>T(l,M+8,y-12-i*10,7.6,i?regular:bold,i?ink:deep));y-=rh+6;
+ replyLines.forEach((l,i)=>T(l,M+8,y-12-i*10,7.6,regular,deep));y-=rh+6;
  const pages=pdf.getPages();pages.forEach((p,i)=>{p.drawLine({start:{x:M,y:40},end:{x:W-M,y:40},thickness:.5,color:pink});
   p.drawText(pdfText(`Samara Assisted Living | Daily Clinical Report | data till ${displayDate(date)} ${hhmm12(cutoff)}`),{x:M,y:30,size:6.4,font:regular,color:grey});
   const r=`Confidential - for the treating doctor | ${i+1} / ${pages.length}`;p.drawText(r,{x:W-M-regular.widthOfTextAtSize(r,6.4),y:30,size:6.4,font:regular,color:grey})});

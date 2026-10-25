@@ -1,3 +1,6 @@
+## 2.18.137 — Doctor's report: courteous closing note
+- The reply note at the bottom of the doctor's report now reads: "Respected Doctor, we would be grateful for any instructions you may wish to give for <Guest>. Kindly reply on this WhatsApp chat at your convenience; your message will reach our nursing team promptly. Thank you for your guidance. - Samara Assisted Living". The existing-WhatsApp message text to the doctor uses the same tone. Edge Function daily-patient-report + Patient card. No SQL.
+
 ## 2.18.136 — Reports popup: PDF opens reliably
 - "Print / Save PDF" in Patient card → Reports (Daily Report for family / Report for Doctors) used to open an empty new tab and fill it after the server answered; browsers often block or leave that tab empty. Now the PDF is prepared first, then "📄 Open PDF" (a normal link) and "⬇ Download PDF" appear in the popup. No SQL, no Edge Function change.
 
