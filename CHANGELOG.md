@@ -1,3 +1,10 @@
+## 2.18.128 — Doctor's Report in the Patient card: Print PDF / WhatsApp
+- Patient card (active Guests): new "🩺 Doctor's Report" button beside Admission Details / Consent (Admin, Manager, Nurse). The popup has a report date, the doctor's name and WhatsApp number (taken from the Guest's daily-report settings), and:
+  - Print / Save PDF,
+  - Send PDF to Doctor · WhatsApp API (Admin / Manager; recorded in WhatsApp Inbox),
+  - Existing WhatsApp: share the PDF into the doctor's chat on a phone, or download it and open the chat.
+- The family's Daily Intelligent Report is unchanged. Needs SQL 295 and the daily-patient-report Edge Function from 2.18.127.
+
 ## 2.18.127 — Doctor's Daily Clinical Report (trial: Ranjith Kumar)
 - New report for the Guest's treating doctor, separate from the family's Intelligent Report: title "Daily Clinical Report" (centred), larger Samara logo with "Centre for Nursing Excellence" beneath, Dr. name (bold), Patient Name and Report Period on separate lines, Samara address and phone numbers at top right. No Vitals box at the top.
 - Sections: Clinical Observations (AI) · Vital signs trend (up to 7 days; out-of-range values in red) · Medication doses given / due with doses not given and why · Physiotherapy in detail (plan, every session, therapist, status, notes) · Doctor reviews in the period · Nursing summary (meals, intake/output, incidents, care notes) · reply-on-WhatsApp note. One A4 page; a 2nd page only when the records need it.

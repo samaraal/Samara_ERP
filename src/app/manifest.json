@@ -284,6 +284,11 @@
    "lines": 145
   },
   {
+   "file": "patients/doctor-report.js",
+   "about": "2.18.128 Doctor's Daily Clinical Report popup in the Patient card: Print / Save PDF, WhatsApp API, existing WhatsApp",
+   "lines": 122
+  },
+  {
    "file": "patients/patients.js",
    "about": "Patients page",
    "lines": 2803
