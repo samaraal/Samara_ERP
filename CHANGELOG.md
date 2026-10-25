@@ -1,3 +1,9 @@
+## 2.18.131 — Doctor's report: much faster Print / Save PDF
+- The Guest's documents (prescription, discharge summary, lab reports) are now read by Gemini once and kept as a short fact list; they are read again only when documents are added or changed.
+- The Clinical Observations for a date are saved and reused while the records are unchanged, so opening, printing and sending the same report again takes a few seconds.
+- The Reports → Report for Doctors popup starts preparing the PDF as soon as it opens, so it is usually ready when Print / Save PDF is pressed.
+- Edge Function daily-patient-report + Patient card. No SQL.
+
 ## 2.18.130 — Doctor's report: condition labels fit their boxes
 - Clinical Observations: long condition labels (e.g. "Rehabilitation & Mobility") now wrap inside the coloured label instead of spilling out; Gemini is asked for short 1-2 word labels. Edge Function daily-patient-report only. No SQL.
 - Checked live: SQL 295 run (Ranjith Kumar → clinical report, Dr. Kenny Robert); doctor report generated for 25-10-2026 with AI observations.

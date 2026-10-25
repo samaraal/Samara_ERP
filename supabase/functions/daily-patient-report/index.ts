@@ -218,8 +218,8 @@ const AI_SYSTEM=`You are a clinical documentation assistant at Samara Assisted L
 
 STRICT RULES — any breach makes the output unusable:
 1. OBSERVATIONS ONLY. State what the records show. Never recommend, advise, suggest, propose, prescribe, or say what should/must/could be done — not to the doctor, not to the patient, not to the staff. No words like "recommend", "advise", "suggest", "consider", "should", "need to", "monitor", "follow-up", "review", "adjust", "evaluate".
-2. Use ONLY the data given (records JSON and attached documents). Never invent values, dates, diagnoses, symptoms or examinations. If something is not recorded, do not mention it.
-3. Never make a new diagnosis, interpretation of cause, or prognosis. Name a condition only if it appears in the diagnosis field or in an attached document, and say where it is documented.
+2. Use ONLY the data given (records JSON and the facts extracted from the Guest's documents). Never invent values, dates, diagnoses, symptoms or examinations. If something is not recorded, do not mention it.
+3. Never make a new diagnosis, interpretation of cause, or prognosis. Name a condition only if it appears in the diagnosis field or in the document facts, and say where it is documented.
 4. PATIENT- and DISEASE-SPECIFIC: group observations by the Guest's own documented conditions / body systems (e.g. Neurology, Orthopaedics, Cardiovascular, Diabetes, Respiratory, Renal, Wound care, Nutrition, Mobility). For each condition, report the recorded data that relates to it: the relevant vital-sign or sugar trend over the period, the medicines for that condition and whether doses were given, physiotherapy findings for that condition, nursing notes and incidents. Skip generic statements that would fit any patient.
 5. Quote real numbers with dates (DD-MM-YYYY or DD-MM) and times (AM/PM). Be factual and neutral. No exaggeration ("significant", "worrying", "excellent").
 6. "area" is a short label of 1-2 words, at most 16 characters (e.g. "Orthopaedics", "Oncology", "Vascular", "Rehabilitation"). At most 4 groups, at most 4 observations per group, each observation at most 30 words. Plain English for a doctor.
@@ -259,34 +259,71 @@ async function clinicalDocuments(sb:any,documents:any[]){
  return {parts,names};
 }
 
-async function aiObservations(sb:any,facts:any,documents:any[]){
+// 2.18.131 speed: (1) the Guest's documents are read by Gemini ONCE and kept as a short text digest
+// (re-read only when documents are added/changed); (2) the observations for a date are cached and
+// reused while the records are unchanged, so Print / Save PDF is fast after the first time.
+const DOC_DIGEST_SYSTEM=`You read a Guest's medical documents (prescription, discharge summary, lab / scan reports) for a nursing home.
+Extract ONLY what is written: diagnoses, procedures / surgeries with dates, relevant history, key investigation findings with values and dates, medicines listed, and stated precautions. Name the document each point comes from.
+No interpretation, no advice, no recommendations. Short factual points.
+Return JSON only: {"background":[{"source":"Discharge summary, Apollo Hospitals, 21-10-2026","points":["..."]}]}`;
+async function sha(v:string){const d=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,32)}
+async function readCache(sb:any,path:string){try{const r=await sb.storage.from("patient-reports").download(path);if(r.error||!r.data)return null;return JSON.parse(await r.data.text())}catch{return null}}
+async function writeCache(sb:any,path:string,value:unknown){try{await sb.storage.from("patient-reports").upload(path,new Blob([JSON.stringify(value)],{type:"application/json"}),{contentType:"application/json",upsert:true})}catch(e){console.error("DOCTOR_REPORT_CACHE_WRITE",path,e instanceof Error?e.message:String(e))}}
+async function geminiJson(system:string,parts:any[],timeoutMs:number){
  const key=Deno.env.get("GEMINI_API_KEY");if(!key)return null;
- const docs=await clinicalDocuments(sb,documents);
- const parts=[{text:`Records JSON for the report period:\n${JSON.stringify(facts)}`},...docs.parts,{text:"Write the Clinical Observations JSON now. Observations only - no advice of any kind."}];
  const models=[...new Set([Deno.env.get("DOCTOR_REPORT_MODEL"),"gemini-3.8-flash","gemini-3.5-flash","gemini-2.5-flash"].filter((m):m is string=>!!m&&!!m.trim()))];
  for(const model of models){
   try{
-   const cfg:Record<string,unknown>={responseMimeType:"application/json",temperature:0,maxOutputTokens:8192};
-   if(/^gemini-2\./i.test(model))cfg.thinkingConfig={thinkingBudget:2048};
-   const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",signal:AbortSignal.timeout(90000),headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:AI_SYSTEM}]},contents:[{role:"user",parts}],generationConfig:cfg})});
-   const j=await r.json().catch(()=>null);
+   const call=async(thinking:boolean)=>{const cfg:Record<string,unknown>={responseMimeType:"application/json",temperature:0,maxOutputTokens:8192};
+    if(/^gemini-2\./i.test(model))cfg.thinkingConfig={thinkingBudget:512};else if(thinking)cfg.thinkingConfig={thinkingLevel:"low"};
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",signal:AbortSignal.timeout(timeoutMs),headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:"user",parts}],generationConfig:cfg})});
+    return {r,j:await r.json().catch(()=>null)}};
+   let {r,j}=await call(true);
+   if(r.status===400&&/thinking/i.test(String(j?.error?.message||"")))({r,j}=await call(false));
    if(r.status===404){console.error("DOCTOR_REPORT_MODEL_NOT_AVAILABLE",model);continue}
    if(!r.ok){console.error("DOCTOR_REPORT_GEMINI",model,r.status,String(j?.error?.message||"").slice(0,160));continue}
    const out=parseAiJson((j?.candidates?.[0]?.content?.parts||[]).filter((p:any)=>!p.thought).map((p:any)=>p.text||"").join(""));
-   if(!out||!Array.isArray(out.groups)){console.error("DOCTOR_REPORT_AI_UNREADABLE",model);continue}
-   let dropped=0;
-   const groups=out.groups.slice(0,4).map((g:any)=>{
-    const obs=(Array.isArray(g?.observations)?g.observations:[]).map((x:any)=>pdfText(x)).filter((x:string)=>{if(!x)return false;if(ADVICE_RE.test(x)){dropped++;return false}return true}).slice(0,4);
-    const condition=pdfText(g?.condition);const area=pdfText(g?.area).slice(0,32)||"Clinical";
-    return {area,condition:ADVICE_RE.test(condition)?"":condition,documented:pdfText(g?.documented_in),observations:obs};
-   }).filter((g:any)=>g.observations.length);
-   if(dropped)console.log("DOCTOR_REPORT_AI_ADVICE_LINES_REMOVED",dropped);
-   if(!groups.length)return null;
-   const sources=(Array.isArray(out.sources_used)?out.sources_used:[]).map((x:any)=>pdfText(x)).filter(Boolean).slice(0,8);
-   return {groups,sources:sources.length?sources:docs.names,model};
+   if(out)return {out,model};console.error("DOCTOR_REPORT_AI_UNREADABLE",model);
   }catch(e){console.error("DOCTOR_REPORT_AI_FAILED",model,e instanceof Error?e.message:String(e))}
  }
  return null;
+}
+async function documentDigest(sb:any,patientId:string,documents:any[]){
+ const wanted=/prescription|discharge|transfer|lab|scan|test|investigat|referral|other medical|medical/i,skip=/photo|identity|aadhaar|consent|id proof/i;
+ const relevant=documents.filter((d:any)=>wanted.test(text(d.document_type))&&!skip.test(text(d.document_type))&&text(d.storage_path));
+ if(!relevant.length)return {key:"none",text:"",names:[] as string[]};
+ const key=await sha(relevant.map((d:any)=>`${d.id}|${text(d.storage_path)}|${text(d.created_at)}`).sort().join(";"));
+ const path=`${patientId}/doctor-cache/documents-digest.json`,hit=await readCache(sb,path);
+ if(hit&&hit.key===key)return {key,text:String(hit.text||""),names:hit.names||[]};
+ const docs=await clinicalDocuments(sb,documents);if(!docs.parts.length)return {key,text:"",names:[] as string[]};
+ const res=await geminiJson(DOC_DIGEST_SYSTEM,[...docs.parts,{text:"Return the JSON now."}],80000);
+ const bg=Array.isArray(res?.out?.background)?res!.out.background:[];
+ const digestText=bg.map((b:any)=>`${pdfText(b?.source)}: ${(Array.isArray(b?.points)?b.points:[]).map((p:any)=>pdfText(p)).join("; ")}`).join("\n").slice(0,6000);
+ if(digestText)await writeCache(sb,path,{key,text:digestText,names:docs.names,model:res?.model,made_at:new Date().toISOString()});
+ return {key,text:digestText,names:docs.names};
+}
+async function aiObservations(sb:any,facts:any,documents:any[],patientId:string,date:string){
+ if(!Deno.env.get("GEMINI_API_KEY"))return null;
+ const digest=await documentDigest(sb,patientId,documents);
+ const stable={...facts,period:{...facts.period,data_until:undefined}};
+ const hash=await sha(JSON.stringify(stable)+"|"+digest.key+"|v2");
+ const cachePath=`${patientId}/${date}/doctor/ai-cache.json`,hit=await readCache(sb,cachePath);
+ if(hit&&hit.hash===hash&&hit.ai){console.log("DOCTOR_REPORT_AI_CACHE_HIT",patientId,date);return hit.ai}
+ const parts=[{text:`Records JSON for the report period:\n${JSON.stringify(facts)}`},{text:digest.text?`Facts extracted earlier from the Guest's documents (${digest.names.join("; ")}):\n${digest.text}`:"No clinical documents are uploaded."},{text:"Write the Clinical Observations JSON now. Observations only - no advice of any kind."}];
+ const res=await geminiJson(AI_SYSTEM,parts,60000);const out=res?.out;
+ if(!out||!Array.isArray(out.groups))return null;
+ let dropped=0;
+ const groups=out.groups.slice(0,4).map((g:any)=>{
+  const obs=(Array.isArray(g?.observations)?g.observations:[]).map((x:any)=>pdfText(x)).filter((x:string)=>{if(!x)return false;if(ADVICE_RE.test(x)){dropped++;return false}return true}).slice(0,4);
+  const condition=pdfText(g?.condition);const area=pdfText(g?.area).slice(0,32)||"Clinical";
+  return {area,condition:ADVICE_RE.test(condition)?"":condition,documented:pdfText(g?.documented_in),observations:obs};
+ }).filter((g:any)=>g.observations.length);
+ if(dropped)console.log("DOCTOR_REPORT_AI_ADVICE_LINES_REMOVED",dropped);
+ if(!groups.length)return null;
+ const sources=(Array.isArray(out.sources_used)?out.sources_used:[]).map((x:any)=>pdfText(x)).filter(Boolean).slice(0,8);
+ const ai={groups,sources:sources.length?sources:digest.names,model:res!.model};
+ await writeCache(sb,cachePath,{hash,ai,made_at:new Date().toISOString()});
+ return ai;
 }
 
 async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,generatedAt=new Date()){
@@ -357,7 +394,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   physiotherapy_plan:activePlans.map((p:any)=>({therapy:text(p.therapy_type),frequency:text(p.frequency),windows:p.session_times,precautions:text(p.precautions),advised_by:text(p.advised_by),ends:text(p.end_date)?displayDate(isoOf(p.end_date)):"until doctor review"})),
   physiotherapy_sessions:physioRows,doctor_reviews:reviewLines,intake_output_daily:ioDays.map(x=>({date:displayDate(x.d),intake_ml:x.intake,output_ml:x.output,stools:x.stool})),
   meals:mealCounts,nursing_care_notes:careNotes,incidents:wInc.map((x:any)=>({at:displayDateTime(x.incident_at||x.created_at),type:text(x.incident_type||x.category),description:text(x.description),action:text(x.immediate_action)}))};
- let ai:any=null;try{ai=await aiObservations(sb,facts,documents)}catch(e){console.error("DOCTOR_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
+ let ai:any=null;try{ai=await aiObservations(sb,facts,documents,patient.id,date)}catch(e){console.error("DOCTOR_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
 
  // ======================= PDF =======================
  const pdf=await PDFDocument.create();const regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),italic=await pdf.embedFont(StandardFonts.HelveticaOblique);

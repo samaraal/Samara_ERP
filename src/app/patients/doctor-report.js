@@ -39,6 +39,13 @@
       return ()=>{live=false};},[patient?.id,kind]);
     React.useEffect(()=>()=>{if(prepared?.url)URL.revokeObjectURL(prepared.url)},[prepared]);
     React.useEffect(()=>{setPrepared(null)},[reportDate]);
+    // 2.18.131: start preparing the doctor's PDF as soon as the popup opens (or the date changes),
+    // so Print / Save PDF is usually ready by the time it is pressed.
+    const warm=React.useRef(null);
+    React.useEffect(()=>{if(!doctor)return;const p=callDailyReportFunction({mode:'doctor_generate_only',patient_id:patient.id,report_date:reportDate});p.catch(()=>{});warm.current={date:reportDate,p};},[patient?.id,reportDate,doctor]);
+    // the early PDF uses the doctor saved for this Guest; if the name is edited here, a fresh PDF is made
+    const nameEdited=React.useRef(false);
+    const getPdf=()=>{const w=warm.current;if(doctor&&w&&w.date===reportDate&&!nameEdited.current)return w.p.catch(()=>callDailyReportFunction(genBody()));return callDailyReportFunction(genBody())};
     const guest=formalName(patient)||patient?.full_name||'Guest';
     const cleanName=String(toName||'').trim();
     const toLabel=doctor?(cleanName?(/^dr(\.|\s)/i.test(cleanName)?cleanName:`Dr. ${cleanName}`):'Doctor'):(cleanName||'Family Member');
@@ -58,7 +65,7 @@
       const tab=window.open('about:blank','_blank');
       setBusy('open');setNote(null);
       try{
-        const r=await callDailyReportFunction(genBody());
+        const r=await getPdf();
         if(tab)tab.location.href=r.report_url;else window.open(r.report_url,'_blank','noopener');
         setNote({type:'success',text:`${reportName} opened in a new tab. Use Print / Save there.${doctor&&!r.ai_observations?' Clinical Observations were not available this time; all records are in the report.':''}`});
       }catch(error){if(tab)tab.close();setNote({type:'error',text:error.message||String(error)})}
@@ -79,7 +86,7 @@
     async function preparePdf(){
       setBusy('prepare');setNote(null);
       try{
-        const r=await callDailyReportFunction(genBody());
+        const r=await getPdf();
         const blob=await fetch(r.report_url).then(res=>{if(!res.ok)throw new Error('The PDF could not be downloaded.');return res.blob()});
         const file=new File([blob],r.file_name||`${guest} - ${reportName}.pdf`,{type:'application/pdf'});
         setPrepared({file,url:URL.createObjectURL(blob),name:file.name});
@@ -115,7 +122,7 @@
         :'The same Daily Intelligent Patient Report the family receives every day (2 pages).'),
       h('div',{className:'pr-grid'},
         h('div',{className:'field'},h('label',null,'Report date'),h('input',{type:'date',value:reportDate,min:'2026-08-27',max:todayIso,onChange:e=>setReportDate(e.target.value||todayIso)})),
-        h('div',{className:'field'},h('label',null,doctor?'Doctor':'Family member'),h('input',{value:toName,placeholder:doctor?'Treating doctor':'Name',onChange:e=>setToName(e.target.value)})),
+        h('div',{className:'field'},h('label',null,doctor?'Doctor':'Family member'),h('input',{value:toName,placeholder:doctor?'Treating doctor':'Name',onChange:e=>{nameEdited.current=true;setToName(e.target.value)}})),
         h('div',{className:'field'},h('label',null,'WhatsApp number'),h('input',{value:toMobile,inputMode:'tel',placeholder:'10-digit mobile',onChange:e=>setToMobile(e.target.value)}))),
       h('div',{className:'actions',style:{marginTop:'10px'}},
         h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:openPdf},busy==='open'?(doctor?'Preparing PDF (up to 1 min)…':'Preparing PDF…'):'Print / Save PDF')),
