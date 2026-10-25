@@ -1,3 +1,6 @@
+## 2.18.135 — Doctor's report medication table: one row per medicine
+- Versions of the same medicine (time corrections, doctor's changes) are now one row — doses given / due are added up, times and dose shown from the current version, "(stopped)" only when no version is active. Each version counts only the doses between its own start and stop time. Ranjith Kumar's Emrok (4 versions) and Piptaz (5) were filling the page; the report now fits on one page more often. Scale-to-fit now goes down to 82%. No SQL.
+
 ## 2.18.134 — Doctor's report fits on ONE page
 - When the report runs a little over one A4 page, it is now drawn slightly smaller (down to 87%) so it fits on one page. Only when it still does not fit does a 2nd page appear (at normal size). Edge Function daily-patient-report. No SQL.
 

@@ -358,18 +358,30 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  const relevantOrders=orders.filter((o:any)=>{const s=isoOf(o.start_date||o.effective_from||o.created_at)||from,e=isoOf(o.stopped_at||o.end_date||o.discharge_closed_at)||"9999-12-31";return s<=date&&e>=from})
   .sort((a:any,b:any)=>text(a.medicine_name).localeCompare(text(b.medicine_name)));
  const wm=mar.filter((x:any)=>inWindow(x.scheduled_date||x.administered_at||x.created_at,from,date));
- const medRows=relevantOrders.map((o:any)=>{
+ const medRowsRaw=relevantOrders.map((o:any)=>{
   const times=(Array.isArray(o.scheduled_times)?o.scheduled_times:text(o.scheduled_times).replace(/[{}]/g,"").split(",")).map((t:any)=>text(t).slice(0,5)).filter(Boolean);
   const own=wm.filter((x:any)=>x.order_id===o.id),given=own.filter((x:any)=>text(x.status).toLowerCase()==="given").length;
   const notGiven=own.filter((x:any)=>text(x.status).toLowerCase()!=="given");
   const daily=!o.is_prn&&times.length&&!o.dose_weekday&&!o.dose_month_day&&!/alternate|weekly|monthly|sos|prn|once a week/i.test(text(o.frequency));
   // doses due: on the admission / start day only times after the Guest's first recorded entry that day count
-  let due:number|null=null;if(daily){due=0;const s=isoOf(o.start_date||o.effective_from)||from,e=isoOf(o.stopped_at||o.end_date)||date;for(const d of days){if(d<s||d>e)continue;const first=d===s||d===admission?firstEntry(d):"00:00";for(const t of times){if(d===date&&t>cutoff)continue;if(t<first)continue;due++}}}
+  // a version counts only the doses between its own start (effective time) and its stop time
+  let due:number|null=null;if(daily){due=0;const s=isoOf(o.effective_from||o.start_date)||from,e=isoOf(o.stopped_at||o.end_date)||date;
+   const startHm=o.effective_from?hm(o.effective_from):"00:00",stopHm=o.stopped_at?hm(o.stopped_at):"24:00";
+   for(const d of days){if(d<s||d>e)continue;let first=d===admission?firstEntry(d):"00:00";if(d===s&&startHm>first)first=startHm;
+    for(const t of times){if(d===date&&t>cutoff)continue;if(t<first)continue;if(d===e&&o.stopped_at&&t>=stopHm)continue;due++}}}
   const stopped=o.is_active===false||Boolean(o.stopped_at);
   return {name:`${text(o.medicine_name)}${text(o.strength)?` ${text(o.strength)}`:""}`,dose:[text(o.dose),text(o.route)].filter(Boolean).join(", "),
    times:o.is_prn?"PRN / as needed":times.map((t:any)=>hhmm12(t)).join(", ")||text(o.frequency)||"-",freq:text(o.frequency),given,due,stopped,
    exceptions:notGiven.map((x:any)=>`${text(x.status)} ${displayDate(isoOf(x.scheduled_date||x.created_at)).slice(0,5)}${text(x.withhold_reason)?` (${text(x.withhold_reason)}${text(x.withhold_reading)?` ${text(x.withhold_reading)}`:""})`:text(x.remarks)?` (${text(x.remarks)})`:""}`)};
  });
+ // 2.18.135: one row per medicine — versions of the same medicine (time corrections, doctor changes) are merged:
+ // doses given / due are added up; times and dose come from the latest version; "(stopped)" only when every version is stopped.
+ const medKey=(m:any)=>`${m.name}`.toLowerCase().replace(/[^a-z0-9]/g,"");
+ const medRows:any[]=[];
+ for(const m of medRowsRaw){const ex=medRows.find((x:any)=>medKey(x)===medKey(m));
+  if(!ex){medRows.push({...m,exceptions:[...m.exceptions]});continue}
+  ex.given+=m.given;ex.due=ex.due===null||m.due===null?(ex.due??m.due):ex.due+m.due;ex.exceptions.push(...m.exceptions);
+  if(!m.stopped){ex.times=m.times;ex.dose=m.dose;ex.freq=m.freq}ex.stopped=ex.stopped&&m.stopped;ex.versions=(ex.versions||1)+1}
  const lateDoses=wm.filter((x:any)=>text(x.late_given_reason)).length;
 
  // ---- physiotherapy ----
@@ -405,7 +417,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
 
  // ======================= PDF =======================
  // 2.18.134: one A4 page whenever possible — the page is drawn at a slightly larger virtual size and
- // scaled down to A4 (k = 1, 0.93, 0.87); only if it still does not fit does a 2nd page appear.
+ // scaled down to A4 (k = 1, 0.93, 0.87, 0.82); only if it still does not fit does a 2nd page appear.
  const fetched=new Map<string,ArrayBuffer|null>();
  const getBytes=async(u:string)=>{if(!fetched.has(u)){try{const r=await samaraInboxFetch(u);fetched.set(u,r.ok?await r.arrayBuffer():null)}catch{fetched.set(u,null)}}return fetched.get(u)!};
  const renderPdf=async(k:number)=>{
@@ -528,7 +540,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  return pdf;
  };
  let pdf:any=null;
- for(const k of [1,0.93,0.87]){pdf=await renderPdf(k);if(pdf.getPageCount()===1){if(k!==1)pdf.getPages().forEach((p:any)=>p.scale(k,k));break}}
+ for(const k of [1,0.93,0.87,0.82]){pdf=await renderPdf(k);if(pdf.getPageCount()===1){if(k!==1)pdf.getPages().forEach((p:any)=>p.scale(k,k));break}}
  if(pdf.getPageCount()>1)pdf=await renderPdf(1); // does not fit even when smaller: keep normal size on 2 pages
  return {bytes:await pdf.save(),ai:Boolean(ai),model:ai?.model||null};
 }
