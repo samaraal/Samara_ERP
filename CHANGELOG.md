@@ -1,3 +1,6 @@
+## 2.18.134 — Doctor's report fits on ONE page
+- When the report runs a little over one A4 page, it is now drawn slightly smaller (down to 87%) so it fits on one page. Only when it still does not fit does a 2nd page appear (at normal size). Edge Function daily-patient-report. No SQL.
+
 ## 2.18.133 — Admission Prescription vs Modification History; Edit with reason
 - Patient card → Medicines: the old combined "Prescription / Modification History" is split:
   - **Admission Prescription** — medicines entered at admission, with a list of **Corrections to admission entries** (who, when, old → new, reason).

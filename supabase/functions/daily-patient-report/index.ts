@@ -404,8 +404,13 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  let ai:any=null;try{ai=await aiObservations(sb,facts,documents,patient.id,date)}catch(e){console.error("DOCTOR_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
 
  // ======================= PDF =======================
+ // 2.18.134: one A4 page whenever possible — the page is drawn at a slightly larger virtual size and
+ // scaled down to A4 (k = 1, 0.93, 0.87); only if it still does not fit does a 2nd page appear.
+ const fetched=new Map<string,ArrayBuffer|null>();
+ const getBytes=async(u:string)=>{if(!fetched.has(u)){try{const r=await samaraInboxFetch(u);fetched.set(u,r.ok?await r.arrayBuffer():null)}catch{fetched.set(u,null)}}return fetched.get(u)!};
+ const renderPdf=async(k:number)=>{
  const pdf=await PDFDocument.create();const regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),italic=await pdf.embedFont(StandardFonts.HelveticaOblique);
- const W=595.28,H=841.89,M=28,mag=rgb(.72,.02,.34),deep=rgb(.33,.05,.2),pink=rgb(.95,.78,.86),pale=rgb(1,.96,.975),head=rgb(.99,.89,.93),ink=rgb(.18,.09,.15),grey=rgb(.42,.33,.38),red=rgb(.75,.07,.13),green=rgb(.03,.48,.26),white=rgb(1,1,1);
+ const W=595.28/k,H=841.89/k,M=28,mag=rgb(.72,.02,.34),deep=rgb(.33,.05,.2),pink=rgb(.95,.78,.86),pale=rgb(1,.96,.975),head=rgb(.99,.89,.93),ink=rgb(.18,.09,.15),grey=rgb(.42,.33,.38),red=rgb(.75,.07,.13),green=rgb(.03,.48,.26),white=rgb(1,1,1);
  let page=pdf.addPage([W,H]),y=0,pageNo=1;
  const T=(s:string,x:number,yy:number,size:number,f=regular,color=ink)=>page.drawText(pdfKeep(s),{x,y:yy,size,font:f,color});
  const tw=(s:string,size:number,f=regular)=>f.widthOfTextAtSize(pdfKeep(s),size);
@@ -420,9 +425,9 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  try{
   // 2.18.132: small pre-cropped JPEG logo (36 KB) — the full 1536 px PNG made the PDF slow to open
   let logo:any=null,box={x:0,y:0,w:0,h:0};
-  try{const r=await samaraInboxFetch("https://app.samaraassistedliving.com/assets/samara-logo-report.jpg");if(r.ok){logo=await pdf.embedJpg(await r.arrayBuffer());box={x:0,y:0,w:logo.width,h:logo.height}}}catch{/* fall back */}
+  try{const jb=await getBytes("https://app.samaraassistedliving.com/assets/samara-logo-report.jpg");if(jb){logo=await pdf.embedJpg(jb);box={x:0,y:0,w:logo.width,h:logo.height}}}catch{/* fall back */}
   if(!logo){let bytes:ArrayBuffer|null=null,fromErp=false;
-   for(const u of ["https://app.samaraassistedliving.com/assets/samara-logo.png","https://samaraassistedliving.com/assets/samara-logo.png"]){try{const r=await samaraInboxFetch(u);if(r.ok){bytes=await r.arrayBuffer();fromErp=u.includes("app.");break}}catch{/* next */}}
+   for(const u of ["https://app.samaraassistedliving.com/assets/samara-logo.png","https://samaraassistedliving.com/assets/samara-logo.png"]){const pb=await getBytes(u);if(pb){bytes=pb;fromErp=u.includes("app.");break}}
    if(!bytes)throw new Error("logo");logo=await pdf.embedPng(bytes);
    // samara-logo.png (1536x1024) has transparent margins: visible content box x 111-1421, y 131-847.
    box=fromErp&&logo.width===1536&&logo.height===1024?{x:111,y:131,w:1310,h:716}:{x:0,y:0,w:logo.width,h:logo.height}}
@@ -520,6 +525,11 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  const pages=pdf.getPages();pages.forEach((p,i)=>{p.drawLine({start:{x:M,y:40},end:{x:W-M,y:40},thickness:.5,color:pink});
   p.drawText(pdfText(`Samara Assisted Living | Daily Clinical Report | data till ${displayDate(date)} ${hhmm12(cutoff)}`),{x:M,y:30,size:6.4,font:regular,color:grey});
   const r=`Confidential - for the treating doctor | ${i+1} / ${pages.length}`;p.drawText(r,{x:W-M-regular.widthOfTextAtSize(r,6.4),y:30,size:6.4,font:regular,color:grey})});
+ return pdf;
+ };
+ let pdf:any=null;
+ for(const k of [1,0.93,0.87]){pdf=await renderPdf(k);if(pdf.getPageCount()===1){if(k!==1)pdf.getPages().forEach((p:any)=>p.scale(k,k));break}}
+ if(pdf.getPageCount()>1)pdf=await renderPdf(1); // does not fit even when smaller: keep normal size on 2 pages
  return {bytes:await pdf.save(),ai:Boolean(ai),model:ai?.model||null};
 }
 
