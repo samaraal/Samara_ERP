@@ -104,27 +104,59 @@
         h('button',{type:'button',className:'btn btn-primary',onClick:open},'Review requests'),h('button',{type:'button',className:'btn btn-secondary',onClick:notifications.dismiss},'Dismiss')));
   }
 
-  function ClinicalAlertBell({engine,onOpen}){
+  // 2.18.126: physiotherapy reschedule / correction requests — each opens only that request (Approve / Reject).
+  function physioRequestLabel(a){return [a?.patient_name,a?.action,a?.session_date?formatDateIN(a.session_date):''].filter(Boolean).join(' · ')}
+  function openPhysioRequest(a){openRecord('Physiotherapy',{id:a?.request_id,kind:'physio_request',label:physioRequestLabel(a)})}
+  function PhysioApprovalList({alerts=[],compact=false}){
+    if(!alerts.length)return null;
+    return h('section',{className:'physio-approval-list'+(compact?' compact':'')},
+      h('h4',null,`🧘 Physiotherapy approvals waiting (${alerts.length})`),
+      alerts.map(a=>h('button',{key:a.request_id,type:'button',className:'physio-approval-item',onClick:()=>openPhysioRequest(a)},
+        h('strong',{'data-no-translate':'true'},a.patient_name||'Guest'),
+        h('span',null,`${a.action||'Change'} · ${a.session_date?formatDateIN(a.session_date):''}${a.reason?' · '+a.reason:''}`),
+        h('small',null,`Requested by ${a.requested_by_name||'Care team'} · ${a.requested_at?new Date(a.requested_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).replace(/\//g,'-'):''} · Tap to review →`))));
+  }
+  ;(function(){
+    if(document.getElementById('physio-approval-css'))return;
+    const st=document.createElement('style');st.id='physio-approval-css';
+    st.textContent=`
+      .physio-approval-list{margin:0 0 18px;padding:12px;border:1px solid #f0c7da;border-radius:14px;background:linear-gradient(135deg,#fff6fa,#ffe9f2)}
+      .physio-approval-list h4{margin:0 0 8px;color:#8e1b4f}
+      .physio-approval-item{display:block;width:100%;text-align:left;border:1px solid #f0d6e3;background:#fff;border-radius:12px;padding:10px 12px;margin:6px 0;cursor:pointer;touch-action:manipulation}
+      .physio-approval-item:hover{border-color:#d9739f;background:#fffafd}
+      .physio-approval-item strong{display:block;color:#382734}
+      .physio-approval-item span{display:block;color:#5b2a9a}
+      .physio-approval-item small{display:block;color:#725d68}
+      .physio-approval-list.compact{margin:0;padding:8px;border-radius:10px}
+      .physio-approval-list.compact h4{font-size:13px}
+    `;
+    document.head.appendChild(st);
+  })();
+
+  function ClinicalAlertBell({engine,onOpen,physioAlerts=[]}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
       const rank={Critical:3,Urgent:2,Routine:1};
       return (rank[b.priority]||0)-(rank[a.priority]||0)||Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0);
     });
-    if(!rows.length)return null;
+    const physioCount=physioAlerts.length; // 2.18.126: physio approvals counted in the bell (no separate top pop-up)
+    if(!rows.length&&!physioCount)return null;
     const escalationMinutes=Number(engine?.settings?.manager_escalation_minutes||30);
     const escalated=rows.filter(a=>Number(a.overdue_minutes||0)>=escalationMinutes).length;
     const openFull=()=>{
       setPreview(false);
+      if(!rows.length&&physioCount===1){openPhysioRequest(physioAlerts[0]);return;}
       try{sessionStorage.setItem('samaraClinicalAlertFilter',escalated>0?'Escalated':'All')}catch(_){}
       onOpen('Clinical Alerts');
     };
     return h('div',{className:'topbar-alert-centre',onMouseEnter:()=>setPreview(true),onMouseLeave:()=>setPreview(false)},
-      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts. Tap to open escalated alerts.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length}`),
+      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts${physioCount?`, ${physioCount} physiotherapy approvals`:''}. Tap to open.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length+physioCount}`),
       preview&&h('div',{className:'topbar-alert-preview',onClick:e=>e.stopPropagation()},
         h('div',{className:'topbar-alert-preview-head'},
           h('div',null,h('strong',null,'Clinical Alerts'),h('small',null,escalated?`${escalated} escalated · ${rows.length} total unresolved`:`${rows.length} unresolved · none escalated yet`)),
           h('button',{type:'button',className:'topbar-alert-open-all',onClick:openFull},'Open all')
         ),
+        physioCount>0&&h(PhysioApprovalList,{alerts:physioAlerts.slice(0,3),compact:true}),
         h('div',{className:'topbar-alert-preview-list'},rows.slice(0,5).map(a=>h('button',{type:'button',className:`topbar-alert-preview-item ${String(a.priority||'Routine').toLowerCase()}`,key:a.key||`${a.alert_type}-${a.source_id}`,onClick:openFull},
           h('span',{className:'alert-preview-priority'},a.priority||'Routine'),
           h('strong',null,a.patient_name||'Patient'),
@@ -245,7 +277,7 @@
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Notifications'),h('small',null,nursingManager?'Pharmacy & Stores requests and 30-minute nursing escalations.':cutoffAdmin?'Bills & Charges not attended by Accounts, food cutoff attempts and clinical items requiring attention.':'Clinical items requiring attention.')),h('button',{type:'button',className:'btn btn-primary',disabled:loading,onClick:loadNotifications},loading?'Refreshing…':'↻ Refresh')),
       message?h('div',{className:'message error'},message):null,
       (profile?.role==='Admin'||isNursingManagerProfile(profile))&&h('section',{style:{marginBottom:'20px'}},h('h4',null,'Physiotherapy Corrections Awaiting Approval'),
-        physioAlerts.length?physioAlerts.map(alert=>h('button',{key:alert.request_id,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',marginBottom:'8px'},onClick:()=>navigate('Physiotherapy')},`${alert.patient_name} · ${alert.action} · ${formatDateIN(alert.session_date)} · ${alert.requested_by_name}: ${alert.reason}`)):h('p',{className:'small-note'},'No physiotherapy corrections awaiting your approval.')),
+        physioAlerts.length?physioAlerts.map(alert=>h('button',{key:alert.request_id,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',marginBottom:'8px'},onClick:()=>openPhysioRequest(alert)},`${alert.patient_name} · ${alert.action} · ${formatDateIN(alert.session_date)} · ${alert.requested_by_name}: ${alert.reason}`)):h('p',{className:'small-note'},'No physiotherapy corrections awaiting your approval.')),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
       staffReturnAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Staff Back on Duty after Leave'),h('small',null,cutoffAdmin?'Not back = leave has ended but no Manager has marked her back on duty 2 hours after her rostered shift started (10 AM if no roster). Back on duty = marked in the last 24 hours. Tap a row to open that leave.':'Staff of your department whose leave has ended but who are not marked back on duty. Tap a row, then Mark Back on Duty once she reports.'),

@@ -1,4 +1,4 @@
-  function ClinicalAlertsPage({engine,setPage}){
+  function ClinicalAlertsPage({engine,setPage,physioAlerts=[]}){
     const mobileClinicalDevice=isMobileClinicalDevice();
     const [filter,setFilter]=React.useState(()=>{
       try{
@@ -180,6 +180,7 @@
     const rangeLabel=isLive?'':(rangeFrom===rangeTo?formatDateIN(rangeFrom):`${formatDateIN(rangeFrom)} to ${formatDateIN(rangeTo)}`);
 
     return h('div',{className:'director-office-theme'},
+      h(PhysioApprovalList,{alerts:physioAlerts}), // 2.18.126: tapping the bell on a phone lands here
       h('style',null,`
         .director-office-theme{
           background:

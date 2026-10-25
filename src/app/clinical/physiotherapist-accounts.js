@@ -337,6 +337,7 @@
     const tabs=['Overview',...(access.clinical?['Sessions']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
     const [tab,setTab]=React.useState(()=>{const intent=typeof readDashboardIntent==='function'?readDashboardIntent('Physiotherapy Dashboard'):null;const want=intent?.extra?.tab||initialTab;return tabs.includes(want)?want:'Overview'});
     const selected=tabs.includes(tab)?tab:'Overview';
+    React.useEffect(()=>{const on=e=>{if(e.detail?.page==='Physiotherapy'&&tabs.includes('Sessions'))setTab('Sessions')};window.addEventListener('samara-record-focus',on);return()=>window.removeEventListener('samara-record-focus',on)},[tabs.join('|')]); // 2.18.126
     const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
     const [selection,setSelection]=React.useState({patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7),from:todayISOIndia().slice(0,8)+'01',to:todayISOIndia()});
     const [patientOptions,setPatientOptions]=React.useState([]),[patientError,setPatientError]=React.useState('');

@@ -10,6 +10,11 @@
     const [entryPlan,setEntryPlan]=React.useState(null);
     const [editingSession,setEditingSession]=React.useState(null);
     const canReview=profile?.role==='Admin'||isNursingManagerProfile(profile);
+    // 2.18.126: a notification opens only that correction request (with Approve / Reject).
+    const [requestFocus,clearRequestFocus]=useRecordFocus('Physiotherapy');
+    const focusedRequestId=requestFocus?.kind==='physio_request'?requestFocus.id:'';
+    const myIds=[profile?.id,profile?.auth_user_id].filter(Boolean);
+    const ownRequest=request=>myIds.includes(request.requested_by);
     const [requests,setRequests]=React.useState([]);
     const [requestAction,setRequestAction]=React.useState('');
     const [requestReason,setRequestReason]=React.useState('');
@@ -295,11 +300,12 @@
       try{const {error}=await client.rpc('restore_physiotherapy_deletion',{p_request:request.id});if(error)throw error;showToast('success','Original session restored.');await load();}
       catch(error){showToast('error',error.message||'Unable to restore session.');}finally{setSaving(false);}
     }
-    const requestRows=requests.filter(r=>!filters||physioMatchesFilter(r.original||{},filters)).map(request=>[
+    const requestRows=requests.filter(r=>focusedRequestId?r.id===focusedRequestId:(!filters||physioMatchesFilter(r.original||{},filters))).map(request=>[
       patientLabel(request.original.patient_id),formatDateIN(request.original.session_date),
       request.action,request.original.status+' / '+clockLabel(request.original.scheduled_time)+(request.original.actual_time?' · Actual: '+clockLabel(request.original.actual_time):''),
       request.action==='Delete'?'Remove incorrect entry':formatDateIN(request.proposed.session_date)+' / '+clockLabel(request.proposed.scheduled_time)+' / '+(request.action==='Reschedule'?'Pending':request.proposed.status)+(request.action==='Modify'&&request.proposed.status==='Completed'?' · Actual: '+clockLabel(request.proposed.actual_time):''),
       request.reason,request.state,fmt(request.requested_at),
+      canReview&&request.state==='Pending'&&ownRequest(request)?h('span',{className:'badge',style:{background:'#fff4e0',color:'#8a5300'},title:'You cannot approve your own request'},profile?.role==='Admin'?'Your request — waiting for Nursing Manager':'Your request — waiting for Admin'): // 2.18.126
       canReview&&request.state==='Pending'?h('div',null,
         h('input',{'aria-label':'Review note',value:reviewNotes[request.id]||'',placeholder:'Reason required to reject',onChange:e=>setReviewNotes({...reviewNotes,[request.id]:e.target.value})}),
         h('button',{type:'button',className:'btn btn-primary',disabled:saving,onClick:()=>reviewRequest(request,true)},'Approve'),
@@ -354,6 +360,11 @@
       ];
     });
 
+    if(focusedRequestId)return h(React.Fragment,null, // 2.18.126: only the request the notification points at
+      message&&h('div',{className:'message error'},message),
+      h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
+      loading?h('p',{className:'small-note'},'Loading request…'):!requestRows.length?h('div',{className:'message'},'This request is no longer available. Press Show all to see every request.'):
+      h('div',{id:'physio-request-focus'},h(LogTable,{title:'Physiotherapy Correction Request',subtitle:'Approve or reject here. The original session stays unchanged until approval.',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows})));
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
       h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125

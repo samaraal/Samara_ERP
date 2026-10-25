@@ -1,3 +1,8 @@
+## 2.18.126 — Physio reschedule / correction requests: notifications that open the request
+- Nursing Manager and Admin: pending physiotherapy requests are counted in the 🔔 bell and listed at the top of Clinical Alerts and in Notifications. Tapping one opens only that request with Approve / Reject ("Show all" returns to the full page). No top pop-up (owner's choice of 24-Oct kept).
+- Phone notification (SQL 294 + Edge Function physio-approval-alert-dispatch): sent once per request to Admin and Nursing Manager phones; tapping it opens that request. The requester never gets it — the Nursing Manager's own request goes to Admin only.
+- The Nursing Manager's own request now shows "Your request — waiting for Admin" instead of an Approve button that failed.
+
 ## 2.18.125 — All physiotherapist numbers; On Duty Today without repeated names
 - On Duty Today: staff shown under "On duty now" are no longer listed again under their shift.
 - New "All physiotherapists" list (On Duty Today, and "📞 Physiotherapist phone numbers" at the top of the Physiotherapy page): every active physiotherapist and desk with Call / WhatsApp, so staff can pick anyone.

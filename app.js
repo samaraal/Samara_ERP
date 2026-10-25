@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.125';
+  const APP_VERSION = '2.18.126';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '25-Oct-2026 All physio numbers, no duplicate duty names';
+  const APP_BUILD_DATE = '25-Oct-2026 Physio approval notifications open the request';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -4970,7 +4970,7 @@ https://samaraassistedliving.com/`;
     return {alerts,settings,setSettings,soundUnlocked,pushEnabled,unlockSound,toggleSound,requestNotifications,disableNotifications,refreshPushEnabled,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
   }
 
-  function ClinicalAlertsPage({engine,setPage}){
+  function ClinicalAlertsPage({engine,setPage,physioAlerts=[]}){
     const mobileClinicalDevice=isMobileClinicalDevice();
     const [filter,setFilter]=React.useState(()=>{
       try{
@@ -5152,6 +5152,7 @@ https://samaraassistedliving.com/`;
     const rangeLabel=isLive?'':(rangeFrom===rangeTo?formatDateIN(rangeFrom):`${formatDateIN(rangeFrom)} to ${formatDateIN(rangeTo)}`);
 
     return h('div',{className:'director-office-theme'},
+      h(PhysioApprovalList,{alerts:physioAlerts}), // 2.18.126: tapping the bell on a phone lands here
       h('style',null,`
         .director-office-theme{
           background:
@@ -7814,27 +7815,59 @@ https://samaraassistedliving.com/`;
         h('button',{type:'button',className:'btn btn-primary',onClick:open},'Review requests'),h('button',{type:'button',className:'btn btn-secondary',onClick:notifications.dismiss},'Dismiss')));
   }
 
-  function ClinicalAlertBell({engine,onOpen}){
+  // 2.18.126: physiotherapy reschedule / correction requests — each opens only that request (Approve / Reject).
+  function physioRequestLabel(a){return [a?.patient_name,a?.action,a?.session_date?formatDateIN(a.session_date):''].filter(Boolean).join(' · ')}
+  function openPhysioRequest(a){openRecord('Physiotherapy',{id:a?.request_id,kind:'physio_request',label:physioRequestLabel(a)})}
+  function PhysioApprovalList({alerts=[],compact=false}){
+    if(!alerts.length)return null;
+    return h('section',{className:'physio-approval-list'+(compact?' compact':'')},
+      h('h4',null,`🧘 Physiotherapy approvals waiting (${alerts.length})`),
+      alerts.map(a=>h('button',{key:a.request_id,type:'button',className:'physio-approval-item',onClick:()=>openPhysioRequest(a)},
+        h('strong',{'data-no-translate':'true'},a.patient_name||'Guest'),
+        h('span',null,`${a.action||'Change'} · ${a.session_date?formatDateIN(a.session_date):''}${a.reason?' · '+a.reason:''}`),
+        h('small',null,`Requested by ${a.requested_by_name||'Care team'} · ${a.requested_at?new Date(a.requested_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).replace(/\//g,'-'):''} · Tap to review →`))));
+  }
+  ;(function(){
+    if(document.getElementById('physio-approval-css'))return;
+    const st=document.createElement('style');st.id='physio-approval-css';
+    st.textContent=`
+      .physio-approval-list{margin:0 0 18px;padding:12px;border:1px solid #f0c7da;border-radius:14px;background:linear-gradient(135deg,#fff6fa,#ffe9f2)}
+      .physio-approval-list h4{margin:0 0 8px;color:#8e1b4f}
+      .physio-approval-item{display:block;width:100%;text-align:left;border:1px solid #f0d6e3;background:#fff;border-radius:12px;padding:10px 12px;margin:6px 0;cursor:pointer;touch-action:manipulation}
+      .physio-approval-item:hover{border-color:#d9739f;background:#fffafd}
+      .physio-approval-item strong{display:block;color:#382734}
+      .physio-approval-item span{display:block;color:#5b2a9a}
+      .physio-approval-item small{display:block;color:#725d68}
+      .physio-approval-list.compact{margin:0;padding:8px;border-radius:10px}
+      .physio-approval-list.compact h4{font-size:13px}
+    `;
+    document.head.appendChild(st);
+  })();
+
+  function ClinicalAlertBell({engine,onOpen,physioAlerts=[]}){
     const [preview,setPreview]=React.useState(false);
     const rows=(engine?.alerts||[]).slice().sort((a,b)=>{
       const rank={Critical:3,Urgent:2,Routine:1};
       return (rank[b.priority]||0)-(rank[a.priority]||0)||Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0);
     });
-    if(!rows.length)return null;
+    const physioCount=physioAlerts.length; // 2.18.126: physio approvals counted in the bell (no separate top pop-up)
+    if(!rows.length&&!physioCount)return null;
     const escalationMinutes=Number(engine?.settings?.manager_escalation_minutes||30);
     const escalated=rows.filter(a=>Number(a.overdue_minutes||0)>=escalationMinutes).length;
     const openFull=()=>{
       setPreview(false);
+      if(!rows.length&&physioCount===1){openPhysioRequest(physioAlerts[0]);return;}
       try{sessionStorage.setItem('samaraClinicalAlertFilter',escalated>0?'Escalated':'All')}catch(_){}
       onOpen('Clinical Alerts');
     };
     return h('div',{className:'topbar-alert-centre',onMouseEnter:()=>setPreview(true),onMouseLeave:()=>setPreview(false)},
-      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts. Tap to open escalated alerts.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length}`),
+      h('button',{type:'button',className:'topbar-clinical-alert-badge',onClick:openFull,'aria-label':`${rows.length} unresolved clinical alerts${physioCount?`, ${physioCount} physiotherapy approvals`:''}. Tap to open.`,'aria-expanded':preview?'true':'false'},`🔔 ${rows.length+physioCount}`),
       preview&&h('div',{className:'topbar-alert-preview',onClick:e=>e.stopPropagation()},
         h('div',{className:'topbar-alert-preview-head'},
           h('div',null,h('strong',null,'Clinical Alerts'),h('small',null,escalated?`${escalated} escalated · ${rows.length} total unresolved`:`${rows.length} unresolved · none escalated yet`)),
           h('button',{type:'button',className:'topbar-alert-open-all',onClick:openFull},'Open all')
         ),
+        physioCount>0&&h(PhysioApprovalList,{alerts:physioAlerts.slice(0,3),compact:true}),
         h('div',{className:'topbar-alert-preview-list'},rows.slice(0,5).map(a=>h('button',{type:'button',className:`topbar-alert-preview-item ${String(a.priority||'Routine').toLowerCase()}`,key:a.key||`${a.alert_type}-${a.source_id}`,onClick:openFull},
           h('span',{className:'alert-preview-priority'},a.priority||'Routine'),
           h('strong',null,a.patient_name||'Patient'),
@@ -7955,7 +7988,7 @@ https://samaraassistedliving.com/`;
       h('div',{className:'panel-head'},h('div',null,h('h3',null,'Notifications'),h('small',null,nursingManager?'Pharmacy & Stores requests and 30-minute nursing escalations.':cutoffAdmin?'Bills & Charges not attended by Accounts, food cutoff attempts and clinical items requiring attention.':'Clinical items requiring attention.')),h('button',{type:'button',className:'btn btn-primary',disabled:loading,onClick:loadNotifications},loading?'Refreshing…':'↻ Refresh')),
       message?h('div',{className:'message error'},message):null,
       (profile?.role==='Admin'||isNursingManagerProfile(profile))&&h('section',{style:{marginBottom:'20px'}},h('h4',null,'Physiotherapy Corrections Awaiting Approval'),
-        physioAlerts.length?physioAlerts.map(alert=>h('button',{key:alert.request_id,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',marginBottom:'8px'},onClick:()=>navigate('Physiotherapy')},`${alert.patient_name} · ${alert.action} · ${formatDateIN(alert.session_date)} · ${alert.requested_by_name}: ${alert.reason}`)):h('p',{className:'small-note'},'No physiotherapy corrections awaiting your approval.')),
+        physioAlerts.length?physioAlerts.map(alert=>h('button',{key:alert.request_id,type:'button',className:'btn btn-secondary',style:{display:'block',width:'100%',textAlign:'left',marginBottom:'8px'},onClick:()=>openPhysioRequest(alert)},`${alert.patient_name} · ${alert.action} · ${formatDateIN(alert.session_date)} · ${alert.requested_by_name}: ${alert.reason}`)):h('p',{className:'small-note'},'No physiotherapy corrections awaiting your approval.')),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(165px,1fr))',gap:'12px',marginBottom:'18px'}},nursingManager?metric('Store Requests',awaitingApproval.length,'Patient Consumables'):null,nursingManager?metric('Awaiting Handover',awaitingHandover.length,'Patient Consumables'):null,metric('Medication > 30 min',medicineAlerts.length,'Clinical Escalations','#efb6b6'),metric('Care > 30 min',careAlerts.length,'Clinical Escalations','#efcf9c'),nursingManager?metric('Store Discrepancies',discrepancies.length,'Patient Consumables','#efb6b6'):null),
       nursingManager?h('section',{style:{marginBottom:'20px'}},h('h4',null,'Pharmacy & Stores Requests'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Item','Quantity','Status','Requested'].map(x=>h('th',{key:x},x)))),h('tbody',null,storeRequests.map(r=>h('tr',{key:r.id,role:'button',tabIndex:0,onClick:()=>navigate('Patient Consumables'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,patientName(r)),h('td',null,r.item_name||'Consumable'),h('td',null,`${r.requested_qty||'—'} ${r.unit||''}`),h('td',null,h('span',{className:'badge'},r.status)),h('td',null,fmt(r.created_at)))),storeRequests.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No open Pharmacy & Stores requests.')):null)))):null,
       staffReturnAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Staff Back on Duty after Leave'),h('small',null,cutoffAdmin?'Not back = leave has ended but no Manager has marked her back on duty 2 hours after her rostered shift started (10 AM if no roster). Back on duty = marked in the last 24 hours. Tap a row to open that leave.':'Staff of your department whose leave has ended but who are not marked back on duty. Tap a row, then Mark Back on Duty once she reports.'),
@@ -14778,7 +14811,10 @@ https://samaraassistedliving.com/`;
             ?pushPage
             :(allowedPages.includes(savedPage)?savedPage:(homePageForProfile(data)||allowedPages[0]||'Notifications'));
           setPage(pageToRestore);
-          if(pushPage){try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}}
+          if(pushPage){
+            try{const q=new URLSearchParams(window.location.search),fid=q.get('push_focus_id');
+              if(fid&&allowedPages.includes(pushPage))sessionStorage.setItem(RECORD_FOCUS_KEY,JSON.stringify({page:pushPage,id:fid,kind:q.get('push_focus_kind')||'',label:q.get('push_focus_label')||'selected request',at:Date.now()}));}catch(_){} // 2.18.126
+            try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}}
         }else if(!allowedPages.includes(currentPageRef.current)){
           setPage(homePageForProfile(data)||allowedPages[0]||'Notifications');
         }
@@ -14905,7 +14941,7 @@ https://samaraassistedliving.com/`;
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
-          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
           // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
           // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
@@ -14947,7 +14983,7 @@ https://samaraassistedliving.com/`;
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Talk to Guest'&&allowed.includes('Talk to Guest')&&h(TalkToGuest),
-          page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),
+          page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage,physioAlerts:physioNotifications.alerts}),
           page==='My To-Do & Follow-up'&&h(ManagerPersonalTodo,{profile}),
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
@@ -37216,6 +37252,11 @@ function RoomsBeds({profile,onNavigate}){
     const [entryPlan,setEntryPlan]=React.useState(null);
     const [editingSession,setEditingSession]=React.useState(null);
     const canReview=profile?.role==='Admin'||isNursingManagerProfile(profile);
+    // 2.18.126: a notification opens only that correction request (with Approve / Reject).
+    const [requestFocus,clearRequestFocus]=useRecordFocus('Physiotherapy');
+    const focusedRequestId=requestFocus?.kind==='physio_request'?requestFocus.id:'';
+    const myIds=[profile?.id,profile?.auth_user_id].filter(Boolean);
+    const ownRequest=request=>myIds.includes(request.requested_by);
     const [requests,setRequests]=React.useState([]);
     const [requestAction,setRequestAction]=React.useState('');
     const [requestReason,setRequestReason]=React.useState('');
@@ -37501,11 +37542,12 @@ function RoomsBeds({profile,onNavigate}){
       try{const {error}=await client.rpc('restore_physiotherapy_deletion',{p_request:request.id});if(error)throw error;showToast('success','Original session restored.');await load();}
       catch(error){showToast('error',error.message||'Unable to restore session.');}finally{setSaving(false);}
     }
-    const requestRows=requests.filter(r=>!filters||physioMatchesFilter(r.original||{},filters)).map(request=>[
+    const requestRows=requests.filter(r=>focusedRequestId?r.id===focusedRequestId:(!filters||physioMatchesFilter(r.original||{},filters))).map(request=>[
       patientLabel(request.original.patient_id),formatDateIN(request.original.session_date),
       request.action,request.original.status+' / '+clockLabel(request.original.scheduled_time)+(request.original.actual_time?' · Actual: '+clockLabel(request.original.actual_time):''),
       request.action==='Delete'?'Remove incorrect entry':formatDateIN(request.proposed.session_date)+' / '+clockLabel(request.proposed.scheduled_time)+' / '+(request.action==='Reschedule'?'Pending':request.proposed.status)+(request.action==='Modify'&&request.proposed.status==='Completed'?' · Actual: '+clockLabel(request.proposed.actual_time):''),
       request.reason,request.state,fmt(request.requested_at),
+      canReview&&request.state==='Pending'&&ownRequest(request)?h('span',{className:'badge',style:{background:'#fff4e0',color:'#8a5300'},title:'You cannot approve your own request'},profile?.role==='Admin'?'Your request — waiting for Nursing Manager':'Your request — waiting for Admin'): // 2.18.126
       canReview&&request.state==='Pending'?h('div',null,
         h('input',{'aria-label':'Review note',value:reviewNotes[request.id]||'',placeholder:'Reason required to reject',onChange:e=>setReviewNotes({...reviewNotes,[request.id]:e.target.value})}),
         h('button',{type:'button',className:'btn btn-primary',disabled:saving,onClick:()=>reviewRequest(request,true)},'Approve'),
@@ -37560,6 +37602,11 @@ function RoomsBeds({profile,onNavigate}){
       ];
     });
 
+    if(focusedRequestId)return h(React.Fragment,null, // 2.18.126: only the request the notification points at
+      message&&h('div',{className:'message error'},message),
+      h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
+      loading?h('p',{className:'small-note'},'Loading request…'):!requestRows.length?h('div',{className:'message'},'This request is no longer available. Press Show all to see every request.'):
+      h('div',{id:'physio-request-focus'},h(LogTable,{title:'Physiotherapy Correction Request',subtitle:'Approve or reject here. The original session stays unchanged until approval.',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows})));
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
       h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125
@@ -38021,6 +38068,7 @@ function RoomsBeds({profile,onNavigate}){
     const tabs=['Overview',...(access.clinical?['Sessions']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
     const [tab,setTab]=React.useState(()=>{const intent=typeof readDashboardIntent==='function'?readDashboardIntent('Physiotherapy Dashboard'):null;const want=intent?.extra?.tab||initialTab;return tabs.includes(want)?want:'Overview'});
     const selected=tabs.includes(tab)?tab:'Overview';
+    React.useEffect(()=>{const on=e=>{if(e.detail?.page==='Physiotherapy'&&tabs.includes('Sessions'))setTab('Sessions')};window.addEventListener('samara-record-focus',on);return()=>window.removeEventListener('samara-record-focus',on)},[tabs.join('|')]); // 2.18.126
     const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
     const [selection,setSelection]=React.useState({patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7),from:todayISOIndia().slice(0,8)+'01',to:todayISOIndia()});
     const [patientOptions,setPatientOptions]=React.useState([]),[patientError,setPatientError]=React.useState('');

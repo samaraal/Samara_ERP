@@ -633,7 +633,10 @@
             ?pushPage
             :(allowedPages.includes(savedPage)?savedPage:(homePageForProfile(data)||allowedPages[0]||'Notifications'));
           setPage(pageToRestore);
-          if(pushPage){try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}}
+          if(pushPage){
+            try{const q=new URLSearchParams(window.location.search),fid=q.get('push_focus_id');
+              if(fid&&allowedPages.includes(pushPage))sessionStorage.setItem(RECORD_FOCUS_KEY,JSON.stringify({page:pushPage,id:fid,kind:q.get('push_focus_kind')||'',label:q.get('push_focus_label')||'selected request',at:Date.now()}));}catch(_){} // 2.18.126
+            try{history.replaceState(null,'',window.location.pathname+window.location.hash)}catch(_){}}
         }else if(!allowedPages.includes(currentPageRef.current)){
           setPage(homePageForProfile(data)||allowedPages[0]||'Notifications');
         }
@@ -760,7 +763,7 @@
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
-          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage}),
+          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
           // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
           // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
@@ -802,7 +805,7 @@
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Talk to Guest'&&allowed.includes('Talk to Guest')&&h(TalkToGuest),
-          page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage}),
+          page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage,physioAlerts:physioNotifications.alerts}),
           page==='My To-Do & Follow-up'&&h(ManagerPersonalTodo,{profile}),
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
