@@ -376,6 +376,7 @@
             a.description||'—',
             h('div',{className:'employee-actions'},
               h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
+              a.target_page==='Physiotherapy'&&a.source_id&&h(PhysioPlanContact,{planId:a.source_id}), // 2.18.124: call the physio from the alert
               a.alert_type!=='Regularisation'&&!a.isEscalated&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
               a.alert_type==='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},'Regularise Backlog')
             )
@@ -474,7 +475,8 @@
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
             h('div',{className:'employee-actions'},
               h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});onNavigate(target)}},'Open Source'),
-              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved')
+              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved'),
+              !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             )
           ];
         })

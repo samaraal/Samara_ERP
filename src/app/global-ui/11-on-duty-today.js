@@ -20,6 +20,29 @@
   function odtNowIndia(){const d=new Date(Date.now()+19800000);return {date:d.toISOString().slice(0,10),mins:d.getUTCHours()*60+d.getUTCMinutes()}}
   function odtAddDays(iso,n){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 
+  // 2.18.124 (SQL 292): today's physiotherapy — which physiotherapist sees which Guest, with Call / WhatsApp.
+  function OdtPhysioToday(){
+    const contacts=usePhysioContacts();
+    if(!contacts)return h('section',{className:'odt-section'},h('h4',null,'Physiotherapy today'),h('p',{className:'small-note'},'Loading…'));
+    const rows=contacts.today||[];if(!rows.length)return null;
+    const groups=new Map();
+    rows.forEach(r=>{
+      const name=r.physiotherapist_name||r.last_physiotherapist||'';
+      const same=physioNormName(name)===physioNormName(r.last_physiotherapist);
+      const found=resolvePhysioContact(contacts,{name,organisationId:r.last_organisation_id,practitionerId:same?r.last_practitioner_id:null});
+      const key=found?.person?.id||found?.org?.id||physioNormName(name)||'unassigned';
+      if(!groups.has(key))groups.set(key,{name:found?.person?.full_name||name||'Physiotherapist not set',org:found?.org,person:found?.person,orgId:found?.org?.id||r.last_organisation_id,guests:[]});
+      groups.get(key).guests.push(r);
+    });
+    const when=r=>{const t=physioPlanTimes(r);return t.length?t.map(x=>physioWindowLabel(x,r)).join(', '):'';};
+    return h('section',{className:'odt-section'},h('h4',null,`Physiotherapy today (${rows.length} Guest${rows.length===1?'':'s'})`),
+      [...groups.entries()].map(([key,g])=>h('div',{key,className:'odt-person physio-today-row'},
+        h('div',null,h('strong',{'data-no-translate':'true'},g.name),
+          g.org&&g.person?h('small',null,g.org.name):null,
+          h('ul',null,g.guests.map(r=>h('li',{key:r.plan_id},h('small',{className:'odt-task','data-no-translate':'true'},[r.guest,r.room?'Room '+r.room:'',when(r)].filter(Boolean).join(' · ')))))),
+        key==='unassigned'?h('small',{className:'odt-nophone'},'Physiotherapist not set in plan'):h(PhysioContact,{organisationId:g.orgId,practitionerId:g.person?.id,name:g.name}))));
+  }
+
   function OnDutyToday({profile}){
     const allowed=['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)); // 2.16.7: Nurses / Caregivers too
     const [open,setOpen]=React.useState(false),[data,setData]=React.useState(null),[err,setErr]=React.useState(''),[dept,setDept]=React.useState('All'),[day,setDay]=React.useState('');
@@ -89,9 +112,10 @@
         data.today&&h('section',{className:'odt-section odt-now'},h('h4',null,`On duty now (${onNowUnique.length})`),
           onNowUnique.length?onNowUnique.map(d=>person(d,odtShiftGroup(d.shift)+(String(d.duty_date).slice(0,10)!==data.date?' · until 7 AM':''))):h('p',{className:'small-note'},'Nobody is marked on duty at this time.')),
         keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):h('p',{className:'small-note'},'No duty assigned for this day.'),
+        data.today&&h(OdtPhysioToday,null),
         offShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`Weekly off (${offShown.length})`),offShown.map(d=>person(d))):null,
         leaveShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`On leave / permission (${leaveShown.length})`),leaveShown.map(l=>person(l.employee_id,`${l.request_type||'Leave'}${l.leave_type?` · ${l.leave_type}`:''} · ${formatDateIN(l.from_date)}${l.to_date&&l.to_date!==l.from_date?` – ${formatDateIN(l.to_date)}`:''}`))):null,
-        h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty.')
+        h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.')
       );
     }
     return h(React.Fragment,null,button,

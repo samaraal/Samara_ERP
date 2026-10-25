@@ -115,9 +115,12 @@
       try{
         const action=form.kind==='organisation'?'save_organisation':form.kind==='practitioner'?'save_practitioner':form.kind;
         const {kind,session,entry,existing,...fields}=form;
+        if((kind==='organisation'||kind==='practitioner')&&String(fields.phone||'').trim()){ // 2.18.124: staff call / WhatsApp this number
+          const digits=physioPhoneDigits(fields.phone);if(!digits)throw new Error('Phone: enter a 10-digit mobile number (e.g. 9840115962).');fields.phone=digits;}
         const payload={...fields,organisation_id:kind==='organisation'?form.id:organisation,...(session?{session_id:session.id}:{}),...(entry?{entry_id:entry.id}:{})};
         const {data:result,error}=await client.rpc('physio_accounts',{p_action:action,p_data:payload});
         if(error)throw error;
+        if(kind==='organisation'||kind==='practitioner')physioContactCache=null; // 2.18.124: staff see the new number at once
         setForm(null);if(kind==='organisation')setOrganisation(result.id);
         setNotice(result.voucher?'Saved '+voucher({voucher_number:result.voucher}):'Details saved.');await load();
       }catch(error){setError(error.code==='23505'?'An organisation, physiotherapist, or active session fee with these details already exists. Refresh before retrying.':error.message||'Unable to save.');}finally{setBusy(false);}

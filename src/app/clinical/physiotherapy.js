@@ -33,7 +33,8 @@
     const nameMatches=()=>String(form.physiotherapist_name||'').trim().length<3?[]:practitioners.filter(row=>row.organisation_id===form.organisation_id&&row.full_name.toLowerCase().includes(form.physiotherapist_name.trim().toLowerCase()));
     const organisationFields=()=>h(React.Fragment,null,
       h('div',{className:'field'},h('label',null,'Physiotherapy Organisation'),h('select',{'aria-label':'Physiotherapy Organisation',required:form.status!=='Reschedule',value:form.organisation_id||'',onChange:e=>{setForm({...form,organisation_id:e.target.value,physiotherapist_name:''});setNameSuggestionsOpen(false)}},h('option',{value:''},'Choose organisation'),organisations.map(row=>h('option',{key:row.id,value:row.id},row.name)))),
-      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',role:'combobox','aria-autocomplete':'list','aria-expanded':nameSuggestionsOpen&&nameMatches().length>0,'aria-controls':'physio-name-options',autoComplete:'off',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Type 3 letters or enter a new name',onFocus:()=>setNameSuggestionsOpen(true),onChange:e=>{setForm({...form,physiotherapist_name:e.target.value});setNameSuggestionsOpen(true)}}),nameSuggestionsOpen&&nameMatches().length>0&&h('div',{id:'physio-name-options',role:'listbox','aria-label':'Recorded physiotherapists',className:'actions'},nameMatches().map(row=>h('button',{type:'button',key:row.id,role:'option','aria-selected':form.physiotherapist_name===row.full_name,className:'btn btn-secondary',onClick:()=>{setForm({...form,physiotherapist_name:row.full_name});setNameSuggestionsOpen(false)}},row.full_name))),h('small',{className:'small-note'},'Choose a recorded name after typing 3 letters, or enter a new name. New names are saved for Admin when the session is saved.'))); 
+      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',role:'combobox','aria-autocomplete':'list','aria-expanded':nameSuggestionsOpen&&nameMatches().length>0,'aria-controls':'physio-name-options',autoComplete:'off',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Type 3 letters or enter a new name',onFocus:()=>setNameSuggestionsOpen(true),onChange:e=>{setForm({...form,physiotherapist_name:e.target.value});setNameSuggestionsOpen(true)}}),nameSuggestionsOpen&&nameMatches().length>0&&h('div',{id:'physio-name-options',role:'listbox','aria-label':'Recorded physiotherapists',className:'actions'},nameMatches().map(row=>h('button',{type:'button',key:row.id,role:'option','aria-selected':form.physiotherapist_name===row.full_name,className:'btn btn-secondary',onClick:()=>{setForm({...form,physiotherapist_name:row.full_name});setNameSuggestionsOpen(false)}},row.full_name))),h('small',{className:'small-note'},'Choose a recorded name after typing 3 letters, or enter a new name. New names are saved for Admin when the session is saved.')),
+      (form.organisation_id||form.physiotherapist_name)&&h('div',{className:'field span-2'},h(PhysioContact,{organisationId:form.organisation_id,name:form.physiotherapist_name,showName:true}))); // 2.18.124: call the physiotherapist from the form 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
       const h12=hour%12||12;
@@ -310,7 +311,9 @@
     const planRows=plans.filter(p=>!filters||(!filters.error&&(filters.patientIds===null||filters.patientIds.includes(p.patient_id))&&(!p.start_date||p.start_date<=filters.to)&&(!p.end_date||p.end_date>=filters.from))).map(plan=>[
       patientLabel(plan.patient_id),
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
-      plan.physiotherapist_name||'—',
+      (()=>{const last=[...todaySessions,...sessions].find(row=>(row.plan_id||row.order_id)===plan.id&&(row.organisation_id||row.physiotherapist_name)); // 2.18.124
+        const name=plan.physiotherapist_name||last?.physiotherapist_name||'';const same=physioNormName(name)===physioNormName(last?.physiotherapist_name);
+        return h('div',null,h('div',null,name||'—'),h(PhysioContact,{name,organisationId:last?.organisation_id,practitionerId:same?last?.practitioner_id:null}));})(),
       plan.frequency||'—',
       (()=>{const st=physioTodayStatus(plan);
         // 2.18.110: a plan whose End Date has passed expects no sessions and sends no reminders — say so plainly.
@@ -338,7 +341,9 @@
         formatDateIN(session.session_date),
         patientLabel(session.patient_id),
         plan.therapy_type||'—',
-        [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
+        session.status==='Pending'&&!session.session_at
+          ?h('div',null,h('div',null,[organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—'),h(PhysioContact,{organisationId:session.organisation_id,practitionerId:session.practitioner_id,name:session.physiotherapist_name||plan.physiotherapist_name})) // 2.18.124
+          :[organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
         // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
         (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t,plan):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',

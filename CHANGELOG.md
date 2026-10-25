@@ -1,3 +1,8 @@
+## 2.18.124 — Physiotherapist phone numbers: 📞 Call / 💬 WhatsApp
+- Staff (Nurses, Nursing Manager, Admin, STD) can call or WhatsApp the physiotherapist from: Physiotherapy plan list, pending sessions, the Record Session form, the Guest file → Physiotherapy tab, physiotherapy alerts / escalations, and a new "Physiotherapy today" list in On Duty Today. Outsourced organisations show the therapist's mobile and the desk number.
+- On a phone "Call" dials; on a laptop the number is shown and a click copies it. WhatsApp opens the staff member's own WhatsApp.
+- Numbers stay in Physiotherapy → Therapist Accounts (Admin only); a phone must be a 10-digit mobile. SQL 292 (run once): staff phone lookup + numbers for Dr. Lukkysh Kumar, Dr. Hemavathi, Dr. Anisha and Vinayaga Physio Point.
+
 ## 2.18.123 — Physiotherapy: recording the 2nd session of the day is clear
 - When the morning session is already done, the Record form now says "Session 1 of 2 is already done today … This form records the next session — 4:00–6:00 PM. Enter the Actual Session Time and press Save Session." The "Open Session options" button (which opened the morning session for correction) is no longer shown there; it appears only for a real duplicate, renamed "Correct this entry". No SQL.
 

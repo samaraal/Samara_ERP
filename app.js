@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.123';
+  const APP_VERSION = '2.18.124';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '24-Oct-2026 Physio 2nd session form clearer';
+  const APP_BUILD_DATE = '25-Oct-2026 Physio phone Call / WhatsApp';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -3614,6 +3614,101 @@ https://samaraassistedliving.com/`;
     }
     return {readPrescription,readId,readBill,prescriptionToMedicines,idToGuest,ScanButton,withTimer,noteStyle:scanNoteStyle,LABEL,timesFor,baseName};
   })();
+  // 2.18.124 (SQL 292): physiotherapist phone numbers for staff — 📞 Call / 💬 WhatsApp.
+  // Numbers are kept in Physiotherapy → Therapist Accounts (Admin). Staff read names + phones only (no fees).
+  // On a phone "Call" dials; on a laptop the number is shown large and a click copies it. WhatsApp opens the
+  // staff member's own WhatsApp (app or WhatsApp Web) with that physiotherapist.
+  let physioContactCache=null,physioContactPromise=null;
+  const physioContactListeners=new Set();
+  function physioNormName(s){return String(s||'').replace(/^\s*dr\.?\s*/i,'').toLowerCase().replace(/[^a-z]/g,'')}
+  function physioPhoneDigits(p){let d=String(p||'').replace(/\D/g,'');if(d.length===12&&d.startsWith('91'))d=d.slice(2);if(d.length===11&&d.startsWith('0'))d=d.slice(1);return /^[6-9]\d{9}$/.test(d)?d:''}
+  function physioOnPhoneDevice(){try{return window.matchMedia('(pointer:coarse)').matches||/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent||'')}catch(_e){return false}}
+  function loadPhysioContacts(){
+    if(physioContactPromise)return physioContactPromise;
+    physioContactPromise=Promise.all([
+      client.rpc('physio_contact_directory'),
+      client.rpc('physio_today_contacts',{p_date:todayISOIndia()})
+    ]).then(([dir,today])=>{
+      physioContactCache={
+        organisations:dir.error?[]:(dir.data?.organisations||[]),
+        practitioners:dir.error?[]:(dir.data?.practitioners||[]),
+        today:today.error||!Array.isArray(today.data)?[]:today.data,
+        date:todayISOIndia(),at:Date.now(),error:dir.error?.message||''
+      };
+      physioContactListeners.forEach(f=>f(physioContactCache));
+      return physioContactCache;
+    }).catch(e=>({organisations:[],practitioners:[],today:[],error:e?.message||'Unable to load phone numbers'}))
+      .finally(()=>{physioContactPromise=null});
+    return physioContactPromise;
+  }
+  function usePhysioContacts(){
+    const [contacts,setContacts]=React.useState(physioContactCache);
+    React.useEffect(()=>{
+      let alive=true;const update=v=>{if(alive)setContacts(v)};
+      physioContactListeners.add(update);
+      const stale=!physioContactCache||Date.now()-physioContactCache.at>10*60000||physioContactCache.date!==todayISOIndia();
+      if(stale)loadPhysioContacts().then(update);
+      return()=>{alive=false;physioContactListeners.delete(update)};
+    },[]);
+    return contacts;
+  }
+  // Finds the physiotherapist (and their organisation) from a session / plan: ids first, then the name.
+  function resolvePhysioContact(contacts,{organisationId,practitionerId,name}={}){
+    if(!contacts)return null;
+    const n=physioNormName(name),orgs=contacts.organisations||[],people=contacts.practitioners||[];
+    let person=people.find(p=>p.id===practitionerId)||null;
+    if(!person&&n)person=people.find(p=>(!organisationId||p.organisation_id===organisationId)&&physioNormName(p.full_name)===n)||people.find(p=>physioNormName(p.full_name)===n)||null;
+    let org=orgs.find(o=>o.id===(organisationId||person?.organisation_id))||null;
+    if(!org&&n)org=orgs.find(o=>physioNormName(o.name)===n||(n.startsWith('vinayaga')&&physioNormName(o.name).startsWith('vinayaga')))||null;
+    return person||org?{person,org}:null;
+  }
+  function PhysioPhoneButtons({label,phone}){
+    const [copied,setCopied]=React.useState(false);
+    const d=physioPhoneDigits(phone);if(!d)return null;
+    const shown=d.slice(0,5)+' '+d.slice(5),stop=e=>e.stopPropagation();
+    const copy=e=>{e.stopPropagation();try{navigator.clipboard.writeText(d).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),1600)}).catch(()=>{})}catch(_e){}};
+    return h('span',{className:'physio-contact-line','data-no-translate':'true'},
+      label?h('small',{className:'physio-contact-label'},label):null,
+      physioOnPhoneDevice()
+        ?h('a',{className:'btn btn-secondary physio-call',href:'tel:+91'+d,onClick:stop,'aria-label':'Call '+(label||'physiotherapist')},'📞 Call '+shown)
+        :h('button',{type:'button',className:'btn btn-secondary physio-call',onClick:copy,title:'Click to copy the number'},copied?'✓ Copied':'📞 '+shown),
+      h('a',{className:'btn btn-secondary physio-wa',href:'https://wa.me/91'+d,target:'_blank',rel:'noopener noreferrer',onClick:stop,'aria-label':'WhatsApp '+(label||'physiotherapist')},'💬 WhatsApp'));
+  }
+  // showName: print the physiotherapist's name beside the buttons (when it isn't already shown nearby).
+  function PhysioContact({organisationId,practitionerId,name,showName=false}){
+    const contacts=usePhysioContacts();
+    const found=resolvePhysioContact(contacts,{organisationId,practitionerId,name});
+    if(!found)return null;
+    const {person,org}=found,pPhone=physioPhoneDigits(person?.phone),oPhone=physioPhoneDigits(org?.phone);
+    if(!pPhone&&!oPhone)return h('small',{className:'physio-nophone'},'📵 No phone saved'+(person?.full_name&&showName?' for '+person.full_name:''));
+    return h('div',{className:'physio-contact'},
+      pPhone?h(PhysioPhoneButtons,{phone:pPhone,label:showName?person.full_name:''}):null,
+      oPhone&&oPhone!==pPhone?h(PhysioPhoneButtons,{phone:oPhone,label:(pPhone||person?'Desk · ':'')+org.name}):null);
+  }
+  // For an alert / task that knows only the plan id: uses today's plan list (assigned name, else last session's).
+  function PhysioPlanContact({planId,showName=true}){
+    const contacts=usePhysioContacts();
+    const row=(contacts?.today||[]).find(r=>r.plan_id===planId);
+    if(!row)return null;
+    const name=row.physiotherapist_name||row.last_physiotherapist,sameAsLast=physioNormName(name)===physioNormName(row.last_physiotherapist);
+    return h(PhysioContact,{name,organisationId:row.last_organisation_id,practitionerId:sameAsLast?row.last_practitioner_id:null,showName});
+  }
+  ;(function(){
+    if(document.getElementById('physio-contact-css'))return;
+    const st=document.createElement('style');st.id='physio-contact-css';
+    st.textContent=`
+      .physio-contact{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+      .physio-contact-line{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+      .physio-contact-label{color:#725d68;font-weight:600}
+      .physio-contact .btn.physio-call,.physio-contact .btn.physio-wa{padding:4px 10px;min-height:32px;font-size:13px;white-space:nowrap;text-decoration:none}
+      .physio-contact .btn.physio-call{font-weight:700;letter-spacing:.3px}
+      .physio-contact .btn.physio-wa{border-color:#9fd8b4;color:#0a6b3c;background:#f3fbf6}
+      .physio-nophone{display:block;color:#a08a95}
+      .physio-today-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+      .physio-today-row ul{margin:4px 0 0;padding-left:18px}
+    `;
+    document.head.appendChild(st);
+  })();
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
     patient='Patient',
@@ -5245,6 +5340,7 @@ https://samaraassistedliving.com/`;
             a.description||'—',
             h('div',{className:'employee-actions'},
               h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
+              a.target_page==='Physiotherapy'&&a.source_id&&h(PhysioPlanContact,{planId:a.source_id}), // 2.18.124: call the physio from the alert
               a.alert_type!=='Regularisation'&&!a.isEscalated&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
               a.alert_type==='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},'Regularise Backlog')
             )
@@ -5343,7 +5439,8 @@ https://samaraassistedliving.com/`;
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
             h('div',{className:'employee-actions'},
               h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});onNavigate(target)}},'Open Source'),
-              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved')
+              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved'),
+              !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             )
           ];
         })
@@ -12686,6 +12783,29 @@ https://samaraassistedliving.com/`;
   function odtNowIndia(){const d=new Date(Date.now()+19800000);return {date:d.toISOString().slice(0,10),mins:d.getUTCHours()*60+d.getUTCMinutes()}}
   function odtAddDays(iso,n){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 
+  // 2.18.124 (SQL 292): today's physiotherapy — which physiotherapist sees which Guest, with Call / WhatsApp.
+  function OdtPhysioToday(){
+    const contacts=usePhysioContacts();
+    if(!contacts)return h('section',{className:'odt-section'},h('h4',null,'Physiotherapy today'),h('p',{className:'small-note'},'Loading…'));
+    const rows=contacts.today||[];if(!rows.length)return null;
+    const groups=new Map();
+    rows.forEach(r=>{
+      const name=r.physiotherapist_name||r.last_physiotherapist||'';
+      const same=physioNormName(name)===physioNormName(r.last_physiotherapist);
+      const found=resolvePhysioContact(contacts,{name,organisationId:r.last_organisation_id,practitionerId:same?r.last_practitioner_id:null});
+      const key=found?.person?.id||found?.org?.id||physioNormName(name)||'unassigned';
+      if(!groups.has(key))groups.set(key,{name:found?.person?.full_name||name||'Physiotherapist not set',org:found?.org,person:found?.person,orgId:found?.org?.id||r.last_organisation_id,guests:[]});
+      groups.get(key).guests.push(r);
+    });
+    const when=r=>{const t=physioPlanTimes(r);return t.length?t.map(x=>physioWindowLabel(x,r)).join(', '):'';};
+    return h('section',{className:'odt-section'},h('h4',null,`Physiotherapy today (${rows.length} Guest${rows.length===1?'':'s'})`),
+      [...groups.entries()].map(([key,g])=>h('div',{key,className:'odt-person physio-today-row'},
+        h('div',null,h('strong',{'data-no-translate':'true'},g.name),
+          g.org&&g.person?h('small',null,g.org.name):null,
+          h('ul',null,g.guests.map(r=>h('li',{key:r.plan_id},h('small',{className:'odt-task','data-no-translate':'true'},[r.guest,r.room?'Room '+r.room:'',when(r)].filter(Boolean).join(' · ')))))),
+        key==='unassigned'?h('small',{className:'odt-nophone'},'Physiotherapist not set in plan'):h(PhysioContact,{organisationId:g.orgId,practitionerId:g.person?.id,name:g.name}))));
+  }
+
   function OnDutyToday({profile}){
     const allowed=['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)); // 2.16.7: Nurses / Caregivers too
     const [open,setOpen]=React.useState(false),[data,setData]=React.useState(null),[err,setErr]=React.useState(''),[dept,setDept]=React.useState('All'),[day,setDay]=React.useState('');
@@ -12755,9 +12875,10 @@ https://samaraassistedliving.com/`;
         data.today&&h('section',{className:'odt-section odt-now'},h('h4',null,`On duty now (${onNowUnique.length})`),
           onNowUnique.length?onNowUnique.map(d=>person(d,odtShiftGroup(d.shift)+(String(d.duty_date).slice(0,10)!==data.date?' · until 7 AM':''))):h('p',{className:'small-note'},'Nobody is marked on duty at this time.')),
         keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):h('p',{className:'small-note'},'No duty assigned for this day.'),
+        data.today&&h(OdtPhysioToday,null),
         offShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`Weekly off (${offShown.length})`),offShown.map(d=>person(d))):null,
         leaveShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`On leave / permission (${leaveShown.length})`),leaveShown.map(l=>person(l.employee_id,`${l.request_type||'Leave'}${l.leave_type?` · ${l.leave_type}`:''} · ${formatDateIN(l.from_date)}${l.to_date&&l.to_date!==l.from_date?` – ${formatDateIN(l.to_date)}`:''}`))):null,
-        h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty.')
+        h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.')
       );
     }
     return h(React.Fragment,null,button,
@@ -30562,7 +30683,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             // 2.18.26: Nursing Procedures — planned (add / stop after admission) + every procedure record
             h(PatientNursingProcedurePanel,{key:`nproc-${selected.id}`,patient:selected,orders:details.care,logs:details.careLogs,charges:details.nursingProcedures||[],canManage:canEdit||nursingManagerView,onChanged:()=>openPatient(selected,'Nursing')})),
           tab==='Vitals'&&h('div',{className:'section-card'},h('h4',null,'Vital Signs History'),details.vitals.length?details.vitals.map(v=>h('div',{className:'timeline-item',key:v.id},h('strong',null,`${fmt(v.recorded_at)} · BP ${v.systolic||'—'}/${v.diastolic||'—'}`),h('span',{className:'patient-file-detail'},` · Pulse ${v.pulse||'—'} · SpO₂ ${v.spo2||'—'} · Temp ${v.temperature||'—'} · Sugar ${v.blood_sugar_type||'Not Taken'} ${v.blood_sugar||'—'} · ${v.alert_level||'Normal'}`))):sectionEmpty('No vital signs recorded.')),
-          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(t=>physioWindowLabel(t,x)).join(', ')||'—'} · ${x.end_date?'until '+formatDateIN(x.end_date):'Until Dr. Review'}${x.precautions?' · '+x.precautions:''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}))):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
+          tab==='Physiotherapy'&&h('div',{className:'section-card'},h('h4',null,'Physiotherapy Plan'),details.physio.length?details.physio.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,x.therapy_type),h('span',null,`${x.frequency||'—'} · ${physioPlanTimes(x).map(t=>physioWindowLabel(t,x)).join(', ')||'—'} · ${x.end_date?'until '+formatDateIN(x.end_date):'Until Dr. Review'}${x.precautions?' · '+x.precautions:''}`),h(TamilAssist,{text:x.precautions,context:'Physiotherapy Precaution'}),(()=>{const last=(details.physioSessions||[]).find(r=>(r.plan_id||r.order_id)===x.id&&(r.organisation_id||r.physiotherapist_name));const name=x.physiotherapist_name||last?.physiotherapist_name;return name||last?.organisation_id?h(PhysioContact,{name,organisationId:last?.organisation_id,practitionerId:physioNormName(name)===physioNormName(last?.physiotherapist_name)?last?.practitioner_id:null,showName:true}):null;})())):sectionEmpty('No physiotherapy order.'),h('h4',{style:{marginTop:'18px'}},'Sessions'),details.physioSessions.length?details.physioSessions.map(x=>h('div',{className:'timeline-item',key:x.id},h('strong',null,`${formatDateIN(x.session_date)} · ${x.status}`),h('span',null,x.notes||'—'),h(TamilAssist,{text:x.notes,context:'Physiotherapy Note'}))):sectionEmpty('No physiotherapy sessions.')),
           tab==='Diet'&&h('div',{className:'section-card'},h('h4',null,`Diet Plan: ${selected.diet_plan||'Not recorded'}`),canEdit?h('button',{type:'button',className:'btn btn-primary',onClick:()=>setDietEditPatient(selected)},'Edit diet plan'):null,h('p',{style:{whiteSpace:'pre-wrap'}},selected.feeding_plan?admissionFeedingSummary(selected.feeding_plan):(selected.feeding_instruction||'No special feeding instruction.')),h('h4',{style:{marginTop:'18px'}},'Food & Beverage Records'),(()=>{
             // 2.15.34: meals and separate beverage servings, newest first.
             const items=[...(details.meals||[]).map(x=>({k:`m${x.id}`,at:x.served_at||x.meal_date,x,t:'meal'})),...(details.beverages||[]).map(x=>({k:`b${x.id}`,at:x.given_at,x,t:'bev'}))].sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
@@ -37093,7 +37214,8 @@ function RoomsBeds({profile,onNavigate}){
     const nameMatches=()=>String(form.physiotherapist_name||'').trim().length<3?[]:practitioners.filter(row=>row.organisation_id===form.organisation_id&&row.full_name.toLowerCase().includes(form.physiotherapist_name.trim().toLowerCase()));
     const organisationFields=()=>h(React.Fragment,null,
       h('div',{className:'field'},h('label',null,'Physiotherapy Organisation'),h('select',{'aria-label':'Physiotherapy Organisation',required:form.status!=='Reschedule',value:form.organisation_id||'',onChange:e=>{setForm({...form,organisation_id:e.target.value,physiotherapist_name:''});setNameSuggestionsOpen(false)}},h('option',{value:''},'Choose organisation'),organisations.map(row=>h('option',{key:row.id,value:row.id},row.name)))),
-      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',role:'combobox','aria-autocomplete':'list','aria-expanded':nameSuggestionsOpen&&nameMatches().length>0,'aria-controls':'physio-name-options',autoComplete:'off',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Type 3 letters or enter a new name',onFocus:()=>setNameSuggestionsOpen(true),onChange:e=>{setForm({...form,physiotherapist_name:e.target.value});setNameSuggestionsOpen(true)}}),nameSuggestionsOpen&&nameMatches().length>0&&h('div',{id:'physio-name-options',role:'listbox','aria-label':'Recorded physiotherapists',className:'actions'},nameMatches().map(row=>h('button',{type:'button',key:row.id,role:'option','aria-selected':form.physiotherapist_name===row.full_name,className:'btn btn-secondary',onClick:()=>{setForm({...form,physiotherapist_name:row.full_name});setNameSuggestionsOpen(false)}},row.full_name))),h('small',{className:'small-note'},'Choose a recorded name after typing 3 letters, or enter a new name. New names are saved for Admin when the session is saved.'))); 
+      h('div',{className:'field'},h('label',null,'Physiotherapist Name'),h('input',{'aria-label':'Physiotherapist Name',role:'combobox','aria-autocomplete':'list','aria-expanded':nameSuggestionsOpen&&nameMatches().length>0,'aria-controls':'physio-name-options',autoComplete:'off',required:form.status==='Completed',value:form.physiotherapist_name||'',placeholder:'Type 3 letters or enter a new name',onFocus:()=>setNameSuggestionsOpen(true),onChange:e=>{setForm({...form,physiotherapist_name:e.target.value});setNameSuggestionsOpen(true)}}),nameSuggestionsOpen&&nameMatches().length>0&&h('div',{id:'physio-name-options',role:'listbox','aria-label':'Recorded physiotherapists',className:'actions'},nameMatches().map(row=>h('button',{type:'button',key:row.id,role:'option','aria-selected':form.physiotherapist_name===row.full_name,className:'btn btn-secondary',onClick:()=>{setForm({...form,physiotherapist_name:row.full_name});setNameSuggestionsOpen(false)}},row.full_name))),h('small',{className:'small-note'},'Choose a recorded name after typing 3 letters, or enter a new name. New names are saved for Admin when the session is saved.')),
+      (form.organisation_id||form.physiotherapist_name)&&h('div',{className:'field span-2'},h(PhysioContact,{organisationId:form.organisation_id,name:form.physiotherapist_name,showName:true}))); // 2.18.124: call the physiotherapist from the form 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
       const h12=hour%12||12;
@@ -37370,7 +37492,9 @@ function RoomsBeds({profile,onNavigate}){
     const planRows=plans.filter(p=>!filters||(!filters.error&&(filters.patientIds===null||filters.patientIds.includes(p.patient_id))&&(!p.start_date||p.start_date<=filters.to)&&(!p.end_date||p.end_date>=filters.from))).map(plan=>[
       patientLabel(plan.patient_id),
       plan.therapy_type||plan.therapy||plan.exercise_name||'—',
-      plan.physiotherapist_name||'—',
+      (()=>{const last=[...todaySessions,...sessions].find(row=>(row.plan_id||row.order_id)===plan.id&&(row.organisation_id||row.physiotherapist_name)); // 2.18.124
+        const name=plan.physiotherapist_name||last?.physiotherapist_name||'';const same=physioNormName(name)===physioNormName(last?.physiotherapist_name);
+        return h('div',null,h('div',null,name||'—'),h(PhysioContact,{name,organisationId:last?.organisation_id,practitionerId:same?last?.practitioner_id:null}));})(),
       plan.frequency||'—',
       (()=>{const st=physioTodayStatus(plan);
         // 2.18.110: a plan whose End Date has passed expects no sessions and sends no reminders — say so plainly.
@@ -37398,7 +37522,9 @@ function RoomsBeds({profile,onNavigate}){
         formatDateIN(session.session_date),
         patientLabel(session.patient_id),
         plan.therapy_type||'—',
-        [organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
+        session.status==='Pending'&&!session.session_at
+          ?h('div',null,h('div',null,[organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—'),h(PhysioContact,{organisationId:session.organisation_id,practitionerId:session.practitioner_id,name:session.physiotherapist_name||plan.physiotherapist_name})) // 2.18.124
+          :[organisations.find(row=>row.id===session.organisation_id)?.name,session.physiotherapist_name||plan.physiotherapist_name].filter(Boolean).join(' · ')||'—',
         // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
         (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t,plan):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',
@@ -37647,9 +37773,12 @@ function RoomsBeds({profile,onNavigate}){
       try{
         const action=form.kind==='organisation'?'save_organisation':form.kind==='practitioner'?'save_practitioner':form.kind;
         const {kind,session,entry,existing,...fields}=form;
+        if((kind==='organisation'||kind==='practitioner')&&String(fields.phone||'').trim()){ // 2.18.124: staff call / WhatsApp this number
+          const digits=physioPhoneDigits(fields.phone);if(!digits)throw new Error('Phone: enter a 10-digit mobile number (e.g. 9840115962).');fields.phone=digits;}
         const payload={...fields,organisation_id:kind==='organisation'?form.id:organisation,...(session?{session_id:session.id}:{}),...(entry?{entry_id:entry.id}:{})};
         const {data:result,error}=await client.rpc('physio_accounts',{p_action:action,p_data:payload});
         if(error)throw error;
+        if(kind==='organisation'||kind==='practitioner')physioContactCache=null; // 2.18.124: staff see the new number at once
         setForm(null);if(kind==='organisation')setOrganisation(result.id);
         setNotice(result.voucher?'Saved '+voucher({voucher_number:result.voucher}):'Details saved.');await load();
       }catch(error){setError(error.code==='23505'?'An organisation, physiotherapist, or active session fee with these details already exists. Refresh before retrying.':error.message||'Unable to save.');}finally{setBusy(false);}
