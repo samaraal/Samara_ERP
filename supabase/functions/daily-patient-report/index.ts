@@ -60,7 +60,7 @@ async function makeReport(sb:any,patient:any,date:string){
   const dayPhysio=physio.filter((x:any)=>sameDay(x.session_at||x.created_at||x.session_date,date));
   const dayIncidents=incidents.filter((x:any)=>sameDay(x.incident_at||x.created_at,date));
   const dayHandovers=handovers.filter((x:any)=>sameDay(x.created_at||x.handover_date,date));
-  const dayReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&sameDay(x.reviewed_at||x.created_at,date)); // 2.18.133: corrections of admission entries are not doctor reviews
+  const dayReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&!x.not_doctor_review&&sameDay(x.reviewed_at||x.created_at,date)); // 2.18.133: corrections of admission entries are not doctor reviews
   const dayProcedures=nursingProcedures.filter((x:any)=>text(x.category).toLowerCase()==="nursing procedures"&&sameDay(x.service_datetime||x.charge_date||x.raised_at||x.created_at,date));
   const staff=staffResult.error?[]:(staffResult.data||[]),staffName=(id:any)=>text(staff.find((x:any)=>x.id===id)?.full_name)||"Not recorded";
   const latest=[...dayVitals].sort((a:any,b:any)=>+new Date(b.recorded_at||b.created_at)-+new Date(a.recorded_at||a.created_at))[0];
@@ -224,6 +224,7 @@ STRICT RULES — any breach makes the output unusable:
 4. PATIENT- and DISEASE-SPECIFIC: group observations by the Guest's own documented conditions / body systems (e.g. Neurology, Orthopaedics, Cardiovascular, Diabetes, Respiratory, Renal, Wound care, Nutrition, Mobility). For each condition, report the recorded data that relates to it: the relevant vital-sign or sugar trend over the period, the medicines for that condition and whether doses were given, physiotherapy findings for that condition, nursing notes and incidents. Skip generic statements that would fit any patient.
 5. Quote real numbers with dates (DD-MM-YYYY or DD-MM) and times (AM/PM). Be factual and neutral. No exaggeration ("significant", "worrying", "excellent").
 6. "area" is a short label of 1-2 words, at most 16 characters (e.g. "Orthopaedics", "Oncology", "Vascular", "Rehabilitation"). At most 4 groups, at most 4 observations per group, each observation at most 30 words. Plain English for a doctor.
+7. A medicine with "not_doctor_stop_note" was NOT stopped by a doctor. Never write that a doctor stopped, discontinued or reviewed it; state the note as recorded.
 
 Return JSON only:
 {"groups":[{"area":"Neurology","condition":"Left MCA infarct with right hemiparesis","documented_in":"Discharge summary dated 21-10-2026","observations":["..."]}],"sources_used":["Discharge summary (21-10-2026)","Active prescription (7 medicines)","9 vital-sign records"]}`;
@@ -372,8 +373,10 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
    for(const d of days){if(d<s||d>e)continue;let first=d===admission?firstEntry(d):"00:00";if(d===s&&startHm>first)first=startHm;
     for(const t of times){if(d===date&&t>cutoff)continue;if(t<first)continue;if(d===e&&o.stopped_at&&t>=stopHm)continue;due++}}}
   const stopped=o.is_active===false||Boolean(o.stopped_at);
+  const nonDoctor=o.stopped_by_review_id?medReviews.find((r:any)=>r.id===o.stopped_by_review_id&&r.not_doctor_review):null; // 2.18.141 (SQL 298)
   return {name:`${text(o.medicine_name)}${text(o.strength)?` ${text(o.strength)}`:""}`,dose:[text(o.dose),text(o.route)].filter(Boolean).join(", "),
    times:o.is_prn?"PRN / as needed":times.map((t:any)=>hhmm12(t)).join(", ")||text(o.frequency)||"-",freq:text(o.frequency),given,due,stopped,
+   nonDoctorNote:nonDoctor?text(nonDoctor.non_doctor_note)||"Not given (not a doctor review)":"",
    exceptions:notGiven.map((x:any)=>`${text(x.status)} ${displayDate(isoOf(x.scheduled_date||x.created_at)).slice(0,5)}${text(x.withhold_reason)?` (${text(x.withhold_reason)}${text(x.withhold_reading)?` ${text(x.withhold_reading)}`:""})`:text(x.remarks)?` (${text(x.remarks)})`:""}`)};
  });
  // 2.18.135: one row per medicine — versions of the same medicine (time corrections, doctor changes) are merged:
@@ -381,7 +384,8 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  const medKey=(m:any)=>`${m.name}`.toLowerCase().replace(/[^a-z0-9]/g,"");
  const medRows:any[]=[];
  for(const m of medRowsRaw){const ex=medRows.find((x:any)=>medKey(x)===medKey(m));
-  if(!ex){medRows.push({...m,exceptions:[...m.exceptions]});continue}
+  if(!ex){medRows.push({...m,exceptions:[...m.exceptions,...(m.nonDoctorNote?[m.nonDoctorNote]:[])]});continue}
+  if(m.nonDoctorNote){ex.exceptions.push(m.nonDoctorNote);ex.nonDoctorNote=ex.nonDoctorNote||m.nonDoctorNote}
   ex.given+=m.given;ex.due=ex.due===null||m.due===null?(ex.due??m.due):ex.due+m.due;ex.exceptions.push(...m.exceptions);
   if(!m.stopped){ex.times=m.times;ex.dose=m.dose;ex.freq=m.freq}ex.stopped=ex.stopped&&m.stopped;ex.versions=(ex.versions||1)+1}
  const lateDoses=wm.filter((x:any)=>text(x.late_given_reason)).length;
@@ -402,7 +406,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  const wInc=incidents.filter((x:any)=>inWindow(x.incident_at||x.created_at,from,date));
  const wCare=careLogs.filter((x:any)=>inWindow(x.care_date||x.completed_at||x.created_at,from,date));
  const careNotes=wCare.filter((x:any)=>text(x.remarks)).slice(-8).map((x:any)=>`${displayDate(isoOf(x.care_date||x.created_at)).slice(0,5)}: ${text(x.remarks)}`);
- const wReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&inWindow(x.reviewed_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.reviewed_at||a.created_at)-+new Date(b.reviewed_at||b.created_at));
+ const wReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&!x.not_doctor_review&&inWindow(x.reviewed_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.reviewed_at||a.created_at)-+new Date(b.reviewed_at||b.created_at));
  const reviewLines=wReviews.map((r:any)=>{const items=medReviewItems.filter((x:any)=>x.review_id===r.id&&text(x.action)!=="Continue").slice(0,6).map((x:any)=>`${({Add:"Added",Modify:"Modified",Stop:"Stopped"} as any)[text(x.action)]||text(x.action)||"Change"} ${text(x.medicine_name)}${text(x.strength||x.dose)?` ${text(x.strength||x.dose)}`:""}`).join("; ");
   if(!items&&!text(r.clinical_notes))return "";
   return `${displayDate(isoOf(r.reviewed_at||r.created_at))} - ${drName(r.doctor_name)}: ${text(r.clinical_notes)||text(r.review_type)||"Review recorded"}${items?`. Changes: ${items}`:""}`}).filter(Boolean);
@@ -420,7 +424,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  const facts={guest:{age:ageOf(patient),gender:text(patient.gender),diagnosis:text(patient.diagnosis),allergies:text(patient.allergies),admitted_on:displayDate(admission),referring_hospital:text(patient.hospital_name),treating_doctor:text(patient.treating_doctor)},
   period:{from:displayDate(from),to:displayDate(date),data_until:`${displayDate(date)} ${hhmm12(cutoff)}`},
   vitals:wv.map((x:any)=>({at:displayDateTime(x.recorded_at||x.created_at),bp:num(x.systolic)?`${num(x.systolic)}/${num(x.diastolic)??"-"}`:null,pulse:num(x.pulse),spo2:num(x.spo2),temp_f:num(x.temperature),resp:num(x.respiration),sugar:num(x.blood_sugar)?`${text(x.blood_sugar_type)||"RBS"} ${num(x.blood_sugar)}`:null,pain:num(x.pain_score),remarks:text(x.remarks)||null})),
-  medicines:medRows.map((m:any)=>({medicine:m.name,dose:m.dose,times:m.times,frequency:m.freq,doses_given:m.given,doses_due:m.due,stopped:m.stopped,not_given:m.exceptions})),
+  medicines:medRows.map((m:any)=>({medicine:m.name,dose:m.dose,times:m.times,frequency:m.freq,doses_given:m.given,doses_due:m.due,stopped:m.stopped,stopped_by_doctor:m.stopped&&!m.nonDoctorNote,not_doctor_stop_note:m.nonDoctorNote||null,not_given:m.exceptions})),
   doses_given_late_with_reason:lateDoses,
   physiotherapy_plan:activePlans.map((p:any)=>({therapy:text(p.therapy_type),frequency:text(p.frequency),windows:p.session_times,precautions:text(p.precautions),advised_by:text(p.advised_by),ends:text(p.end_date)?displayDate(isoOf(p.end_date)):"until doctor review"})),
   physiotherapy_sessions:physioRows,doctor_reviews:reviewLines,intake_output_daily:ioDays.map(x=>({date:displayDate(x.d),intake_ml:x.intake,output_ml:x.output,stools:x.stool})),
@@ -531,7 +535,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  // ---- 3. Medication adherence ----
  sectionTitle("Medication - doses given in the period");
  table([{h:"Medicine",w:130},{h:"Dose / route",w:80},{h:"Times",w:96},{h:"Given",w:52},{h:"Not given / held (date, reason)",w:181}],
-  medRows.length?medRows.map((m:any)=>[{t:`${m.name}${m.stopped?" (stopped)":""}`,b:true},m.dose||"-",m.times,{t:m.due!==null?`${m.given} / ${m.due}`:String(m.given),c:m.due!==null&&m.given<m.due?red:green,b:true},{t:m.exceptions.join("; ")||"None",c:m.exceptions.length?red:undefined}]):[["No medicine orders in the period","-","-","-","-"]],7.2);
+  medRows.length?medRows.map((m:any)=>[{t:`${m.name}${m.stopped?(m.nonDoctorNote?" (not given - see note)":" (stopped)"):""}`,b:true},m.dose||"-",m.times,{t:m.due!==null?`${m.given} / ${m.due}`:String(m.given),c:m.due!==null&&m.given<m.due?red:green,b:true},{t:m.exceptions.join("; ")||"None",c:m.exceptions.length?red:undefined}]):[["No medicine orders in the period","-","-","-","-"]],7.2);
  if(lateDoses)note(`${lateDoses} dose(s) were given 30 minutes or more after the scheduled time; the reason is recorded in the MAR.`,6.6);
 
  // ---- 4. Physiotherapy ----

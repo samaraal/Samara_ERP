@@ -2621,10 +2621,11 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             (()=>{
               const reviews=details.medicationReviews||[];
               const isCorrectionReview=id=>Boolean(id&&reviews.some(r=>r.id===id&&r.is_admission_correction));
+              const notDoctorStop=id=>id?reviews.find(r=>r.id===id&&r.not_doctor_review):null; // 2.18.141: stop entered without a doctor's review (SQL 298)
               const admissionOrders=[...(details.medHistory||[])].filter(o=>o.change_action==='Admission Prescription'||(!o.review_id&&Number(o.version_no||1)===1))
                 .sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
               const corrections=details.medCorrections||[];
-              const statusOf=o=>o.is_active===false?(o.status==='Removed'?'Removed (wrong entry)':o.stopped_by_review_id&&!isCorrectionReview(o.stopped_by_review_id)?`Stopped by Dr. review ${fmt(o.stopped_at)}`:`Replaced / corrected ${o.stopped_at?fmt(o.stopped_at):''}`):'Active';
+              const statusOf=o=>o.is_active===false?(o.status==='Removed'?'Removed (wrong entry)':notDoctorStop(o.stopped_by_review_id)?(notDoctorStop(o.stopped_by_review_id).non_doctor_note||`Not given from ${fmt(o.stopped_at)} (not a doctor review)`):o.stopped_by_review_id&&!isCorrectionReview(o.stopped_by_review_id)?`Stopped by Dr. review ${fmt(o.stopped_at)}`:`Replaced / corrected ${o.stopped_at?fmt(o.stopped_at):''}`):'Active';
               const timesOf=o=>(Array.isArray(o.scheduled_times)?o.scheduled_times:String(o.scheduled_times||'').replace(/[{}]/g,'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—';
               return h('div',{className:'section-card'},
                 h('h4',null,'Admission Prescription'),
@@ -2649,7 +2650,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               h('p',{className:'small-note'},"Only changes ordered by the doctor: medicines added, modified or stopped after a Doctor's Review."),
               details.medicationReviewError?h('div',{className:'message warning'},'Medication review history could not be loaded. The medication review database upgrade may need verification.'):null,
               (()=>{
-                const real=(details.medicationReviews||[]).filter(r=>!r.is_admission_correction).map(r=>({r,items:(details.medicationReviewItems||[]).filter(i=>i.review_id===r.id&&i.action!=='Continue')})).filter(x=>x.items.length||x.r.clinical_notes);
+                const real=(details.medicationReviews||[]).filter(r=>!r.is_admission_correction&&!r.not_doctor_review).map(r=>({r,items:(details.medicationReviewItems||[]).filter(i=>i.review_id===r.id&&i.action!=='Continue')})).filter(x=>x.items.length||x.r.clinical_notes);
                 return real.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-review-table'},
                   h('thead',null,h('tr',null,['Reviewed','Doctor','Effective From','Order Type','Changes','Clinical Note'].map(x=>h('th',{key:x},x)))),
                   h('tbody',null,real.map(({r,items})=>h('tr',{key:`review-${r.id}`},

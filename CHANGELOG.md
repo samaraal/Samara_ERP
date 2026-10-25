@@ -1,3 +1,8 @@
+## 2.18.141 — 25-10-2026
+- Medicines: an entry made through Doctor Review that was NOT a doctor's decision can be re-marked "not a doctor review" (SQL 298). It no longer appears in Modification History, the Doctor Reviews list or the reports as a doctor's stop; the medicine shows the recorded note instead.
+- Mr. RANJITHKUMAR: Inj. Clexane 60 mg (25-10) re-marked — "not given from 25-10: not supplied by family; family reported the doctor advised 3 days only". Original entry kept for audit.
+- daily-patient-report Edge Function: doctor and family reports skip such entries; doctor report shows the note on the medicine row; AI told never to call it a doctor's stop. Needs redeploy.
+
 ## 2.18.140 — 25-10-2026
 - Bills & Charges Approval: request cards made compact — item + status on one line, one info line (Guest · date · qty · category · provider), amount line (Requested / Approved / by), remarks only when they add something. Duplicate Patient/Service rows removed; full details still open on tap.
 
