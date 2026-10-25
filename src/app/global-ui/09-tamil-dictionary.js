@@ -3080,6 +3080,7 @@
 "Add / Modify Medicines": "மருந்து சேர் / மாற்று",
 "Dose / Strength": "டோஸ் / அளவு",
 "Food / Instruction": "உணவு / அறிவுறுத்தல்",
+"Sl. No.": "வ. எண்",
 "No active medicine orders.": "தற்போதைய மருந்து உத்தரவுகள் இல்லை.",
 "Prescription / Modification History": "மருந்துச் சீட்டு / மாற்ற வரலாறு",
 "Dose": "டோஸ்",
