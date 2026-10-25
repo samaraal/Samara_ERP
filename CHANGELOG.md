@@ -1,3 +1,7 @@
+## 2.18.138 — Doctor's report: website in the header, Intake / Output chart
+- Top right: the email line is replaced by the website samaraassistedliving.com with a small globe icon (clickable in the PDF).
+- Guests on I/O charting get an "Intake / Output chart" section: daily intake vs output bars for the report period, the balance (intake - output) under each date, and days charted, average intake / output, net balance and stools beside it. Edge Function daily-patient-report. No SQL.
+
 ## 2.18.137 — Doctor's report: courteous closing note
 - The reply note at the bottom of the doctor's report now reads: "Respected Doctor, we would be grateful for any instructions you may wish to give for <Guest>. Kindly reply on this WhatsApp chat at your convenience; your message will reach our nursing team promptly. Thank you for your guidance. - Samara Assisted Living". The existing-WhatsApp message text to the doctor uses the same tone. Edge Function daily-patient-report + Patient card. No SQL.
 

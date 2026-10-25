@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { PDFDocument, StandardFonts, rgb, PDFName, PDFString } from "npm:pdf-lib@1.17.1";
 
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-cron-secret","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -202,7 +202,8 @@ async function makeReport(sb:any,patient:any,date:string){
 // ============================================================================
 // pdfText trims; header pieces drawn side by side need their spaces kept
 const pdfKeep=(v:unknown)=>{const t=String(v??"");const lead=t.match(/^\s*/)![0].length?" ":"",tail=/\s$/.test(t)?" ":"";return lead+pdfText(t)+tail};
-const SAMARA_ADDRESS=["RBK VILLA, No. 23-A, Reddipalayam Road,","Jeswant Nagar Phase 1, Mogappair West,","Chennai 600037","Ph: +91 99767 35577 | +91 73959 61616","care@samaraassistedliving.com"];
+const SAMARA_ADDRESS=["RBK VILLA, No. 23-A, Reddipalayam Road,","Jeswant Nagar Phase 1, Mogappair West,","Chennai 600037","Ph: +91 99767 35577 | +91 73959 61616"];
+const SAMARA_WEB="samaraassistedliving.com",SAMARA_WEB_URL="https://samaraassistedliving.com/";
 const addDays=(iso:string,n:number)=>{const d=new Date(`${iso}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const isoOf=(v:unknown)=>{if(!v)return "";const s=String(v);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;try{return indiaDate(new Date(s))}catch{return ""}};
 const inWindow=(v:unknown,from:string,to:string)=>{const d=isoOf(v);return Boolean(d&&d>=from&&d<=to)};
@@ -392,6 +393,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
 
  // ---- nursing ----
  const wio=ioEntries.filter((x:any)=>inWindow(x.io_date||x.entry_at,from,date));
+ const ioAll=days.map(d=>{const r=wio.filter((x:any)=>isoOf(x.io_date||x.entry_at)===d);const sum=(dir:string)=>r.filter((x:any)=>x.direction===dir).reduce((a:number,x:any)=>a+Number(x.volume_ml||0),0);return {d,n:r.length,intake:sum("Intake"),output:sum("Output"),stool:r.reduce((a:number,x:any)=>a+Number(x.stool_count||0),0)}});
  const ioDays=days.slice(-3).map(d=>{const r=wio.filter((x:any)=>isoOf(x.io_date||x.entry_at)===d);const sum=(dir:string)=>r.filter((x:any)=>x.direction===dir).reduce((a:number,x:any)=>a+Number(x.volume_ml||0),0);
   return {d,n:r.length,intake:sum("Intake"),output:sum("Output"),stool:r.reduce((a:number,x:any)=>a+Number(x.stool_count||0),0)}}).filter(x=>x.n);
  const wMeals=meals.filter((x:any)=>inWindow(x.meal_date||x.served_at,from,date));
@@ -455,6 +457,16 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  let px=cx-(tw(pA,pSize)+tw(pB,pSize,bold)+tw(pC,pSize))/2;T(pA,px,H-79,pSize,regular,ink);px+=tw(pA,pSize);T(pB,px,H-79,pSize,bold,deep);px+=tw(pB,pSize,bold);T(pC,px,H-79,pSize,regular,ink);
  const rA="Report Period: ",rB=`${displayDate(from)} to ${displayDate(date)}`,rC=from===admission?"  (since admission)":"  (last 7 days)",rW=tw(rA,9)+tw(rB,9,bold)+tw(rC,9);let rx=cx-rW/2;T(rA,rx,H-93,9);rx+=tw(rA,9);T(rB,rx,H-93,9,bold,deep);rx+=tw(rB,9,bold);T(rC,rx,H-93,9,regular,grey);
  const ax=W-M;T("Samara Assisted Living",ax-tw("Samara Assisted Living",9,bold),H-30,9,bold,mag);SAMARA_ADDRESS.forEach((l,i)=>T(l,ax-tw(l,7.4),H-42-i*10.2,7.4,regular,grey));
+ // 2.18.138: website with a small globe icon (replaces the email), clickable in the PDF
+ {const wy=H-42-SAMARA_ADDRESS.length*10.2,ww=tw(SAMARA_WEB,7.6,bold),wx=ax-ww,gx=wx-7.5,gy=wy+2.7,r=3.6;
+  T(SAMARA_WEB,wx,wy,7.6,bold,mag);
+  page.drawCircle({x:gx,y:gy,size:r,borderColor:mag,borderWidth:.6});
+  page.drawEllipse({x:gx,y:gy,xScale:r*.45,yScale:r,borderColor:mag,borderWidth:.5});
+  page.drawLine({start:{x:gx-r,y:gy},end:{x:gx+r,y:gy},thickness:.5,color:mag});
+  page.drawLine({start:{x:gx-r*.85,y:gy+r*.5},end:{x:gx+r*.85,y:gy+r*.5},thickness:.35,color:mag});
+  page.drawLine({start:{x:gx-r*.85,y:gy-r*.5},end:{x:gx+r*.85,y:gy-r*.5},thickness:.35,color:mag});
+  try{const ctx=pdf.context,link=ctx.register(ctx.obj({Type:"Annot",Subtype:"Link",Rect:[gx-r-1,wy-2,ax,wy+8],Border:[0,0,0],A:{Type:"Action",S:"URI",URI:PDFString.of(SAMARA_WEB_URL)}}));
+   const annots=page.node.lookup(PDFName.of("Annots"));if(annots)annots.push(link);else page.node.set(PDFName.of("Annots"),ctx.obj([link]))}catch{/* link optional */}}
  y=Math.min(logoBottom-18,H-104);page.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1.4,color:pink});y-=9;
 
  // ---- generic helpers ----
@@ -523,10 +535,37 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  // ---- 5. Doctor reviews ----
  if(reviewLines.length){sectionTitle("Doctor reviews recorded in the period",20);reviewLines.forEach((l:any)=>note(l,7.4,ink,regular))}
 
+ // ---- 5b. Intake / Output chart (Guests on I/O charting) ----
+ if(ioAll.some(x=>x.n)){
+  sectionTitle(`Intake / Output chart - ${days.length} day${days.length>1?"s":""}`,96);
+  const ch=78,top=y-4,base=top-ch+16,left=M+30,right=W-M-150,plotW=right-left,maxV=Math.max(500,...ioAll.map(x=>Math.max(x.intake,x.output)));
+  const step=maxV>2500?1000:500,ymax=Math.ceil(maxV/step)*step,sc=(ch-30)/ymax;
+  for(let v=0;v<=ymax;v+=step){const yy=base+v*sc;page.drawLine({start:{x:left,y:yy},end:{x:right,y:yy},thickness:.3,color:pink});const lbl=String(v);T(lbl,left-4-tw(lbl,5.8),yy-2,5.8,regular,grey)}
+  T("ml",M,top-6,5.8,regular,grey);
+  const gw=plotW/ioAll.length,bw=Math.min(16,gw*.28),cIn=rgb(.16,.45,.72),cOut=rgb(.85,.27,.5);
+  ioAll.forEach((x,i)=>{const cx=left+gw*i+gw/2;
+   if(x.n){page.drawRectangle({x:cx-bw-1,y:base,width:bw,height:x.intake*sc,color:cIn});page.drawRectangle({x:cx+1,y:base,width:bw,height:x.output*sc,color:cOut});
+    const a=String(x.intake),b=String(x.output);T(a,cx-1-bw/2-tw(a,5.6)/2,base+x.intake*sc+2,5.6,bold,cIn);T(b,cx+1+bw/2-tw(b,5.6)/2,base+x.output*sc+2,5.6,bold,cOut)}
+   const dl=displayDate(x.d).slice(0,5);T(dl,cx-tw(dl,6.2)/2,base-8,6.2,regular,ink);
+   const bal=x.n?`${x.intake-x.output>=0?"+":""}${x.intake-x.output}`:"not charted";T(bal,cx-tw(bal,5.8)/2,base-15,5.8,x.n?bold:italic,x.n?(x.intake-x.output<0?red:green):grey)});
+  // legend + totals
+  const lx=right+14;let ly=top-12;
+  page.drawRectangle({x:lx,y:ly-1,width:7,height:7,color:cIn});T("Intake (ml)",lx+10,ly,7,regular,ink);ly-=11;
+  page.drawRectangle({x:lx,y:ly-1,width:7,height:7,color:cOut});T("Output (ml)",lx+10,ly,7,regular,ink);ly-=13;
+  const charted=ioAll.filter(x=>x.n),tin=charted.reduce((a,x)=>a+x.intake,0),tout=charted.reduce((a,x)=>a+x.output,0),st=charted.reduce((a,x)=>a+x.stool,0);
+  T(`Days charted: ${charted.length}`,lx,ly,6.8,regular,ink);ly-=9;
+  T(`Avg intake: ${charted.length?Math.round(tin/charted.length):0} ml/day`,lx,ly,6.8,regular,ink);ly-=9;
+  T(`Avg output: ${charted.length?Math.round(tout/charted.length):0} ml/day`,lx,ly,6.8,regular,ink);ly-=9;
+  T(`Net balance: ${tin-tout>=0?"+":""}${tin-tout} ml`,lx,ly,6.8,bold,tin-tout<0?red:green);ly-=9;
+  if(st)T(`Stools: ${st}`,lx,ly,6.8,regular,ink);
+  T("Balance per day (intake - output) is shown under each date. Chart day = 7 AM to 7 AM.",M+2,base-24,6,italic,grey);
+  y=base-30;
+ }
+
  // ---- 6. Nursing ----
  sectionTitle("Nursing summary");
  const mealText=Object.keys(mealCounts).length?Object.entries(mealCounts).map(([k,v])=>`${k}: ${v}`).join(", "):"No meal records";
- const ioText=ioDays.length?ioDays.map(x=>`${displayDate(x.d).slice(0,5)}: in ${x.intake} ml / out ${x.output} ml${x.stool?` / stool ${x.stool}`:""}`).join("; "):"Not charted";
+ const ioText=ioAll.some(x=>x.n)?"See the Intake / Output chart above":ioDays.length?ioDays.map(x=>`${displayDate(x.d).slice(0,5)}: in ${x.intake} ml / out ${x.output} ml${x.stool?` / stool ${x.stool}`:""}`).join("; "):"Not charted";
  const incText=wInc.length?wInc.map((x:any)=>`${displayDateTime(x.incident_at||x.created_at)} ${text(x.incident_type||x.category)}: ${text(x.description)}`).join("; "):"No incidents recorded";
  table([{h:"Meals (period)",w:120},{h:"Intake / output (last 3 days)",w:170},{h:"Incidents",w:130},{h:"Nursing care",w:110}],[[mealText,ioText,{t:incText,c:wInc.length?red:undefined},`${wCare.length} care record(s)${careNotes.length?`; notes: ${careNotes.slice(-3).join("; ")}`:""}`]],7.2);
 
