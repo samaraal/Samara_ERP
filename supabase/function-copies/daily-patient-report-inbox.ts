@@ -417,12 +417,14 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  page.drawRectangle({x:0,y:H-5,width:W,height:5,color:mag});
  const logoW=128,logoTop=H-16;let logoBottom=logoTop-80;
  try{
-  let bytes:ArrayBuffer|null=null,fromErp=false;
-  for(const u of ["https://app.samaraassistedliving.com/assets/samara-logo.png","https://samaraassistedliving.com/assets/samara-logo.png"]){try{const r=await samaraInboxFetch(u);if(r.ok){bytes=await r.arrayBuffer();fromErp=u.includes("app.");break}}catch{/* next */}}
-  if(!bytes)throw new Error("logo");
-  const logo=await pdf.embedPng(bytes);
-  // samara-logo.png (1536x1024) has transparent margins: visible content box x 111-1421, y 131-847.
-  const box=fromErp&&logo.width===1536&&logo.height===1024?{x:111,y:131,w:1310,h:716}:{x:0,y:0,w:logo.width,h:logo.height};
+  // 2.18.132: small pre-cropped JPEG logo (36 KB) — the full 1536 px PNG made the PDF slow to open
+  let logo:any=null,box={x:0,y:0,w:0,h:0};
+  try{const r=await samaraInboxFetch("https://app.samaraassistedliving.com/assets/samara-logo-report.jpg");if(r.ok){logo=await pdf.embedJpg(await r.arrayBuffer());box={x:0,y:0,w:logo.width,h:logo.height}}}catch{/* fall back */}
+  if(!logo){let bytes:ArrayBuffer|null=null,fromErp=false;
+   for(const u of ["https://app.samaraassistedliving.com/assets/samara-logo.png","https://samaraassistedliving.com/assets/samara-logo.png"]){try{const r=await samaraInboxFetch(u);if(r.ok){bytes=await r.arrayBuffer();fromErp=u.includes("app.");break}}catch{/* next */}}
+   if(!bytes)throw new Error("logo");logo=await pdf.embedPng(bytes);
+   // samara-logo.png (1536x1024) has transparent margins: visible content box x 111-1421, y 131-847.
+   box=fromErp&&logo.width===1536&&logo.height===1024?{x:111,y:131,w:1310,h:716}:{x:0,y:0,w:logo.width,h:logo.height}}
   const s=logoW/box.w,contentH=box.h*s;logoBottom=logoTop-contentH;
   page.drawImage(logo,{x:M-box.x*s,y:logoBottom-(logo.height-box.y-box.h)*s,width:logo.width*s,height:logo.height*s});
  }catch{T("Samara",M+18,H-55,26,bold,mag);T("assisted living",M+30,H-70,10,regular,mag);logoBottom=H-80}

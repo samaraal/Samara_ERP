@@ -1,3 +1,6 @@
+## 2.18.132 — Doctor's report PDF opens fast (page 2 no longer slow)
+- The report used the full-size Samara logo (1536 px PNG with transparency), making the PDF ~400 KB and slow to draw in the PDF viewer. It now uses a small pre-cropped logo (assets/samara-logo-report.jpg, 36 KB): the PDF is ~45 KB and both pages open at once. Same look. Edge Function daily-patient-report. No SQL.
+
 ## 2.18.131 — Doctor's report: much faster Print / Save PDF
 - The Guest's documents (prescription, discharge summary, lab reports) are now read by Gemini once and kept as a short fact list; they are read again only when documents are added or changed.
 - The Clinical Observations for a date are saved and reused while the records are unchanged, so opening, printing and sending the same report again takes a few seconds.
