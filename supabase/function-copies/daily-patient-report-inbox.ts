@@ -60,7 +60,7 @@ async function makeReport(sb:any,patient:any,date:string){
   const dayPhysio=physio.filter((x:any)=>sameDay(x.session_at||x.created_at||x.session_date,date));
   const dayIncidents=incidents.filter((x:any)=>sameDay(x.incident_at||x.created_at,date));
   const dayHandovers=handovers.filter((x:any)=>sameDay(x.created_at||x.handover_date,date));
-  const dayReviews=medReviews.filter((x:any)=>sameDay(x.reviewed_at||x.created_at,date));
+  const dayReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&sameDay(x.reviewed_at||x.created_at,date)); // 2.18.133: corrections of admission entries are not doctor reviews
   const dayProcedures=nursingProcedures.filter((x:any)=>text(x.category).toLowerCase()==="nursing procedures"&&sameDay(x.service_datetime||x.charge_date||x.raised_at||x.created_at,date));
   const staff=staffResult.error?[]:(staffResult.data||[]),staffName=(id:any)=>text(staff.find((x:any)=>x.id===id)?.full_name)||"Not recorded";
   const latest=[...dayVitals].sort((a:any,b:any)=>+new Date(b.recorded_at||b.created_at)-+new Date(a.recorded_at||a.created_at))[0];
@@ -387,9 +387,10 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  const wInc=incidents.filter((x:any)=>inWindow(x.incident_at||x.created_at,from,date));
  const wCare=careLogs.filter((x:any)=>inWindow(x.care_date||x.completed_at||x.created_at,from,date));
  const careNotes=wCare.filter((x:any)=>text(x.remarks)).slice(-8).map((x:any)=>`${displayDate(isoOf(x.care_date||x.created_at)).slice(0,5)}: ${text(x.remarks)}`);
- const wReviews=medReviews.filter((x:any)=>inWindow(x.reviewed_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.reviewed_at||a.created_at)-+new Date(b.reviewed_at||b.created_at));
- const reviewLines=wReviews.map((r:any)=>{const items=medReviewItems.filter((x:any)=>x.review_id===r.id).slice(0,5).map((x:any)=>`${text(x.action)||"Change"} ${text(x.medicine_name)}${text(x.strength||x.dose)?` ${text(x.strength||x.dose)}`:""}`).join("; ");
-  return `${displayDate(isoOf(r.reviewed_at||r.created_at))} - ${drName(r.doctor_name)}: ${text(r.clinical_notes)||text(r.review_type)||"Review recorded"}${items?`. Changes: ${items}`:""}`});
+ const wReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&inWindow(x.reviewed_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.reviewed_at||a.created_at)-+new Date(b.reviewed_at||b.created_at));
+ const reviewLines=wReviews.map((r:any)=>{const items=medReviewItems.filter((x:any)=>x.review_id===r.id&&text(x.action)!=="Continue").slice(0,6).map((x:any)=>`${({Add:"Added",Modify:"Modified",Stop:"Stopped"} as any)[text(x.action)]||text(x.action)||"Change"} ${text(x.medicine_name)}${text(x.strength||x.dose)?` ${text(x.strength||x.dose)}`:""}`).join("; ");
+  if(!items&&!text(r.clinical_notes))return "";
+  return `${displayDate(isoOf(r.reviewed_at||r.created_at))} - ${drName(r.doctor_name)}: ${text(r.clinical_notes)||text(r.review_type)||"Review recorded"}${items?`. Changes: ${items}`:""}`}).filter(Boolean);
 
  // ---- AI observations (facts only from the records above) ----
  const facts={guest:{age:ageOf(patient),gender:text(patient.gender),diagnosis:text(patient.diagnosis),allergies:text(patient.allergies),admitted_on:displayDate(admission),referring_hospital:text(patient.hospital_name),treating_doctor:text(patient.treating_doctor)},

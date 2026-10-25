@@ -1,3 +1,12 @@
+## 2.18.133 — Admission Prescription vs Modification History; Edit with reason
+- Patient card → Medicines: the old combined "Prescription / Modification History" is split:
+  - **Admission Prescription** — medicines entered at admission, with a list of **Corrections to admission entries** (who, when, old → new, reason).
+  - **Modification History (after Doctor's Review)** — only real doctor's changes, showing just Added / Modified / Stopped (no long "Continue" lists).
+- **Edit with reason** for wrong admission entries — Nurse, Nursing Manager, Admin — within **48 hours of admission**: Edit (medicine, strength, frequency, route, time, food, instruction), "+ Add medicine missed at admission", Remove (wrong entry). The order keeps its MAR link; nothing is called a doctor's review. After 48 hours every change goes through "Doctor's Review — Add / Modify" (button renamed).
+- SQL 296: correction table + functions (48-hour check in the database), and Ranjith Kumar's 12 entries of 22–24 Oct (saved as Doctor Review by mistake) re-marked as admission corrections — nothing deleted.
+- Doctor's Daily Clinical Report, family Daily Report, Discharge Summary and the Medicines → Prescription History register no longer count admission corrections as doctor reviews; the doctor's report shows only real changes.
+- **SQL 296 required. Edge Functions daily-patient-report and discharge-summary redeployed.**
+
 ## 2.18.132 — Doctor's report PDF opens fast (page 2 no longer slow)
 - The report used the full-size Samara logo (1536 px PNG with transparency), making the PDF ~400 KB and slow to draw in the PDF viewer. It now uses a small pre-cropped logo (assets/samara-logo-report.jpg, 36 KB): the PDF is ~45 KB and both pages open at once. Same look. Edge Function daily-patient-report. No SQL.
 

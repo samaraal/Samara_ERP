@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.132';
+  const APP_VERSION = '2.18.133';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -28251,6 +28251,96 @@ Please keep these login details confidential.`;
       h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
     ));
   }
+  // ---------------------------------------------------------------------------------------------
+  // 2.18.133 Admission prescription corrections ("Edit with reason").
+  // A wrong medicine entry made at admission is corrected here — by Nurse, Nursing Manager or Admin,
+  // within 48 hours of admission — instead of through Doctor Review / Modify. Every correction keeps
+  // old → new values, the reason, who and when (table medication_entry_corrections, SQL 296).
+  // Changes after 48 hours, and every real doctor's change, still go through Doctor Review.
+  // ---------------------------------------------------------------------------------------------
+  const MED_CORRECTION_FREQUENCIES=['Once Daily (OD)','Twice Daily (BD)','Three Times Daily (TDS)','Four Times Daily (QID)','HS','STAT','SOS / PRN','Alternate Days','Weekly','Monthly'];
+  const MED_CORRECTION_ROUTES=['Oral','NG / Ryles Tube','IV','IM','Subcutaneous','Topical','Inhalation','Nasal','Other'];
+  const MED_CORRECTION_FOOD=['Before food','After food','With food','No restriction'];
+  const medCorrectionTimes=v=>(Array.isArray(v)?v:String(v||'').replace(/[{}"]/g,'').split(',')).map(x=>normalizeMedicationTime(String(x).trim().slice(0,5))).filter(Boolean);
+
+  // Is this order still an admission entry (never changed by a real doctor's review)?
+  function isAdmissionEntryOrder(order,reviews){
+    if(!order||order.is_active===false)return false;
+    if(!order.review_id)return true;
+    const r=(reviews||[]).find(x=>x.id===order.review_id);
+    return Boolean(r&&r.is_admission_correction);
+  }
+
+  // Short "old → new" text for the correction log
+  function medicineCorrectionSummary(row){
+    const o=row.old_snapshot||{},n=row.new_snapshot||{};
+    if(row.action==='Re-marked from Doctor Review'){
+      const ch=Array.isArray(n.changes)?n.changes:[];
+      return ch.length?ch.map(c=>`${c.action} ${c.medicine||''} ${c.strength||''}`.trim()).join('; '):'—';
+    }
+    if(row.action==='Added (missed at admission)')return [n.medicine_name,n.strength||n.dose,n.frequency,medCorrectionTimes(n.scheduled_times).map(medicationTimeLabel).join(', ')].filter(Boolean).join(' · ');
+    if(row.action==='Removed (wrong entry)')return [o.medicine_name,o.strength||o.dose,o.frequency].filter(Boolean).join(' · ');
+    const parts=[];
+    const cmp=(label,a,b)=>{if(String(a??'')!==String(b??''))parts.push(`${label}: ${a||'—'} → ${b||'—'}`)};
+    cmp('Medicine',o.medicine_name,n.medicine_name);cmp('Strength',o.strength||o.dose,n.strength||n.dose);cmp('Frequency',o.frequency,n.frequency);cmp('Route',o.route,n.route);
+    cmp('Time',medCorrectionTimes(o.scheduled_times).map(medicationTimeLabel).join(', '),medCorrectionTimes(n.scheduled_times).map(medicationTimeLabel).join(', '));
+    cmp('Food',o.food_instruction,n.food_instruction);cmp('Instruction',o.special_instruction,n.special_instruction);
+    return parts.join(' · ')||'No field changed';
+  }
+
+  // mode: 'correct' | 'add' | 'remove'
+  function MedicineCorrectionDialog({patient,order,mode,onClose,onSaved}){
+    const start=order||{};
+    const [f,setF]=React.useState({
+      medicine_name:start.medicine_name||'',strength:start.strength||start.dose||'',
+      frequency:start.frequency||'Once Daily (OD)',route:start.route||'Oral',
+      times:medCorrectionTimes(start.scheduled_times).join(', ')||(mode==='add'?'08:00':''),
+      food_instruction:start.food_instruction||'After food',special_instruction:start.special_instruction||'',
+      prescribed_by_doctor:''
+    });
+    const [reason,setReason]=React.useState('');
+    const [busy,setBusy]=React.useState(false);
+    const [error,setError]=React.useState('');
+    const set=(k,v)=>setF(cur=>({...cur,[k]:v}));
+    const title=mode==='add'?'Add a medicine missed at admission':mode==='remove'?'Remove a wrong admission entry':'Edit admission entry (with reason)';
+    async function save(e){
+      e?.preventDefault?.();
+      if(busy)return;
+      if(String(reason).trim().length<3)return setError('Please write the reason for this correction.');
+      if(mode!=='remove'){
+        if(!String(f.medicine_name).trim())return setError('Medicine name is required.');
+        if(!['SOS / PRN','STAT'].includes(f.frequency)&&!medCorrectionTimes(f.times).length)return setError('Select at least one time.');
+      }
+      if(mode==='remove'&&!confirm(`Remove ${start.medicine_name||'this medicine'} from the admission prescription? It will stop appearing in the MAR.`))return;
+      setBusy(true);setError('');
+      const med=mode==='remove'?null:{medicine_name:String(f.medicine_name).trim(),strength:String(f.strength).trim(),dose:String(f.strength).trim(),frequency:f.frequency,route:f.route,
+        scheduled_times:medCorrectionTimes(f.times),food_instruction:f.food_instruction,special_instruction:String(f.special_instruction).trim(),prescribed_by_doctor:String(f.prescribed_by_doctor).trim()};
+      const {error:err}=await client.rpc('correct_admission_medicine',{p_action:mode,p_patient:patient.id,p_order_id:order?.id||null,p_med:med,p_reason:String(reason).trim()});
+      setBusy(false);
+      if(err)return setError(/correct_admission_medicine|does not exist/i.test(err.message)?'Admission corrections are not installed yet (SQL 296).':err.message);
+      onSaved?.();
+    }
+    return h('div',{className:'modal-backdrop',style:{zIndex:12000},onClick:e=>{if(e.target===e.currentTarget&&!busy)onClose()}},h('form',{className:'card modal',style:{maxWidth:'680px'},onSubmit:save},
+      h('div',{className:'panel-head'},h('div',null,h('h3',null,title),h('small',null,`${formalName(patient)||patient?.full_name||''} · ${patient?.patient_id||''}`)),h('button',{type:'button',className:'close',onClick:onClose},'×')),
+      h('p',{className:'small-note',style:{marginTop:0}},'For mistakes made while entering the admission prescription. This is not a doctor\'s change — any change ordered by the doctor must go through Doctor Review / Modify. Old and new values, your reason and your name are saved.'),
+      mode==='remove'
+        ?h('div',{className:'message warning'},`${start.medicine_name||'Medicine'} ${start.strength||start.dose||''} · ${start.frequency||''} · ${medCorrectionTimes(start.scheduled_times).map(medicationTimeLabel).join(', ')}`)
+        :h('div',{className:'modal-grid'},
+          h('div',{className:'field'},h('label',null,'Medicine *'),h('input',{value:f.medicine_name,onChange:e=>set('medicine_name',e.target.value),required:true})),
+          h(MedicationStrengthInput,{label:'Strength / Dose',value:f.strength,onChange:v=>set('strength',v)}),
+          h('div',{className:'field'},h('label',null,'Frequency'),h('select',{value:f.frequency,onChange:e=>{const v=e.target.value;setF(cur=>({...cur,frequency:v,times:medicationTimesForFrequency(v,cur.times)}))}},MED_CORRECTION_FREQUENCIES.map(x=>h('option',{key:x,value:x},x)))),
+          h('div',{className:'field'},h('label',null,'Route'),h('select',{value:f.route,onChange:e=>set('route',e.target.value)},MED_CORRECTION_ROUTES.map(x=>h('option',{key:x,value:x},x)))),
+          h(MedicationTimeSelector,{label:'Time',value:f.times,frequency:f.frequency,onChange:v=>set('times',v)}),
+          h('div',{className:'field'},h('label',null,'Food'),h('select',{value:f.food_instruction,onChange:e=>set('food_instruction',e.target.value)},MED_CORRECTION_FOOD.map(x=>h('option',{key:x,value:x},x)))),
+          h('div',{className:'field',style:{gridColumn:'1 / -1'}},h('label',null,'Special instruction'),h('input',{value:f.special_instruction,onChange:e=>set('special_instruction',e.target.value)})),
+          mode==='add'&&h('div',{className:'field'},h('label',null,'Prescribed doctor (as on the admission prescription)'),h('input',{value:f.prescribed_by_doctor,onChange:e=>set('prescribed_by_doctor',e.target.value)}))),
+      h('div',{className:'field',style:{marginTop:'10px'}},h('label',null,'Reason for correction *'),h('textarea',{rows:2,value:reason,placeholder:'e.g. Time entered wrongly at admission; prescription says 12 AM / 12 PM',onChange:e=>setReason(e.target.value),required:true})),
+      error&&h('div',{className:'message error',style:{marginTop:'8px'}},error),
+      h('div',{className:'modal-bottom-actions'},
+        h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:onClose},'Cancel'),
+        h('button',{type:'submit',className:`btn ${mode==='remove'?'btn-danger':'btn-primary'}`,disabled:busy},busy?'Saving…':mode==='remove'?'Remove entry':mode==='add'?'Add medicine':'Save correction'))
+    ));
+  }
   function patientDietUpdatePayload(form){
     const issue=admissionFeedingPlanError(form.feeding_plan);if(issue)throw new Error(issue);
     return {diet_plan:form.diet_plan||null,feeding_plan:form.feeding_plan?normaliseAdmissionFeedingPlan(form.feeding_plan):null,feeding_instruction:form.feeding_plan?admissionFeedingSummary(form.feeding_plan):(form.feeding_instruction||'')};
@@ -28339,7 +28429,8 @@ Please keep these login details confidential.`;
     const [showDischargeSummary,setShowDischargeSummary]=React.useState(false); // 2.15.83
     const [showReportsMenu,setShowReportsMenu]=React.useState(false); // 2.18.129 Patient card → Reports
     const [reportKind,setReportKind]=React.useState(''); // 'family' | 'doctor'
-    React.useEffect(()=>{setShowDischargeSummary(false);setShowReportsMenu(false);setReportKind('')},[selected?.id]);
+    const [medCorrection,setMedCorrection]=React.useState(null); // 2.18.133 {mode,order}
+    React.useEffect(()=>{setShowDischargeSummary(false);setShowReportsMenu(false);setReportKind('');setMedCorrection(null)},[selected?.id]);
     const [momentBusy,setMomentBusy]=React.useState(false);
     const [momentCaption,setMomentCaption]=React.useState('');
     const [momentFamilyVisible,setMomentFamilyVisible]=React.useState(true);
@@ -28438,6 +28529,12 @@ Please keep these login details confidential.`;
       if(seq!==openPatientSeqRef.current)return; // another patient was opened meanwhile
       const reviewIds=(mr?.data||[]).map(x=>x.id).filter(Boolean);
       if(reviewIds.length){const r=await client.from('medication_review_items').select('*').in('review_id',reviewIds).order('created_at',{ascending:false});mri.data=r.data||[];mri.error=r.error||null}
+      // 2.18.133: admission-entry corrections (SQL 296) and whether the 48-hour correction window is open
+      const [medCorr,medCorrOpen]=await Promise.all([
+        client.from('medication_entry_corrections').select('*').eq('patient_id',p.id).order('corrected_at',{ascending:false}).then(r=>r,()=>({data:[]})),
+        client.rpc('admission_medicine_correction_open',{p_patient:p.id}).then(r=>r,()=>({data:false})),
+      ]);
+      const medCorrUntil=await client.rpc('admission_medicine_moment',{p_patient:p.id}).then(r=>r?.data?new Date(new Date(r.data).getTime()+48*3600000).toISOString():'',()=>'');
       const momentRows=await Promise.all((mom?.data||[]).map(async row=>{
         const {data:signed}=await client.storage.from('patient-daily-moments').createSignedUrl(row.storage_path,900);
         return {...row,signed_url:signed?.signedUrl||''};
@@ -28450,6 +28547,7 @@ Please keep these login details confidential.`;
         medHistory:allMedicationOrders,
         medicationReviews:mr?.data||[],
         medicationReviewItems:(mri?.data||[]).filter(item=>(mr?.data||[]).some(review=>review.id===item.review_id)),
+        medCorrections:medCorr?.error?[]:(medCorr?.data||[]),medCorrectionOpen:medCorrOpen?.error?false:Boolean(medCorrOpen?.data),medCorrectionUntil:medCorrUntil,
         medicationReviewError:[mr?.error,mri?.error].filter(Boolean).map(error=>error.message).join(' | '),
         mar:todayMar,
         allMar:ma.data||[],
@@ -30835,60 +30933,71 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               // Personal details stay view-only for nurses; medicines are changed only through Doctor Review (history kept).
               h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},
                 h('h4',{style:{margin:0}},'Current Prescription'),
-                ['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>{saveTaskNavigationContext({page:'Medicines',patient_id:selected.id,return_page:'Patients',doctor_review:true});onNavigate?.('Medicines')}},'Add / Modify Medicines')
+                h('div',{className:'actions',style:{flexWrap:'wrap',gap:'8px'}},
+                  ['Admin','Manager','Nurse'].includes(profile?.role)&&details.medCorrectionOpen&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMedCorrection({mode:'add',order:null})},'+ Add medicine missed at admission'),
+                  ['Admin','Manager','Nurse'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>{saveTaskNavigationContext({page:'Medicines',patient_id:selected.id,return_page:'Patients',doctor_review:true});onNavigate?.('Medicines')}},"Doctor's Review — Add / Modify"))
               ),
+              // 2.18.133: wrong admission entries are corrected here (with reason) — not through Doctor Review
+              ['Admin','Manager','Nurse'].includes(profile?.role)&&h('p',{className:'small-note',style:{margin:'6px 0'}},details.medCorrectionOpen
+                ?`Wrong entry made at admission? Use "Edit with reason" on that medicine (open until ${details.medCorrectionUntil?fmt(details.medCorrectionUntil):'48 hours after admission'}). Changes ordered by the doctor: use "Doctor's Review — Add / Modify".`
+                :"Admission-entry corrections are closed (48 hours after admission). Every change now goes through \"Doctor's Review — Add / Modify\"."),
               details.meds.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table'},
-                h('thead',null,h('tr',null,['Medicine','Dose / Strength','Frequency','Route','Time','Food / Instruction'].map(x=>h('th',{key:x},x)))),
+                h('thead',null,h('tr',null,['Medicine','Dose / Strength','Frequency','Route','Time','Food / Instruction',...(details.medCorrectionOpen&&['Admin','Manager','Nurse'].includes(profile?.role)?['Correction']:[])].map(x=>h('th',{key:x},x)))),
                 h('tbody',null,details.meds.map(m=>h('tr',{key:m.id},
                   h('td',null,h('strong',null,m.medicine_name||'Medicine'),h('small',null,`V${m.version_no||1}`)),
                   h('td',null,m.strength||m.dose||'—'),
                   h('td',null,m.frequency||'—'),
                   h('td',null,m.route||'—'),
                   h('td',null,(Array.isArray(m.scheduled_times)?m.scheduled_times:String(m.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—'),
-                  h('td',null,[m.food_instruction,m.special_instruction||m.special_instructions].filter(Boolean).join(' · ')||'—')
+                  h('td',null,[m.food_instruction,m.special_instruction||m.special_instructions].filter(Boolean).join(' · ')||'—'),
+                  details.medCorrectionOpen&&['Admin','Manager','Nurse'].includes(profile?.role)?h('td',null,isAdmissionEntryOrder(m,details.medicationReviews)
+                    ?h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},h('button',{type:'button',className:'btn btn-secondary btn-sm',onClick:()=>setMedCorrection({mode:'correct',order:m})},'Edit with reason'),h('button',{type:'button',className:'btn btn-secondary btn-sm',onClick:()=>setMedCorrection({mode:'remove',order:m})},'Remove'))
+                    :h('small',null,"Changed by Dr. review")):null
                 )))
               )):sectionEmpty('No active medicine orders.')
             ),
+            // 2.18.133: split — (1) Admission Prescription with its corrections (Edit with reason, 48 h),
+            //           (2) Modification History = ONLY changes after a real Doctor's Review.
+            (()=>{
+              const reviews=details.medicationReviews||[];
+              const isCorrectionReview=id=>Boolean(id&&reviews.some(r=>r.id===id&&r.is_admission_correction));
+              const admissionOrders=[...(details.medHistory||[])].filter(o=>o.change_action==='Admission Prescription'||(!o.review_id&&Number(o.version_no||1)===1))
+                .sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
+              const corrections=details.medCorrections||[];
+              const statusOf=o=>o.is_active===false?(o.status==='Removed'?'Removed (wrong entry)':o.stopped_by_review_id&&!isCorrectionReview(o.stopped_by_review_id)?`Stopped by Dr. review ${fmt(o.stopped_at)}`:`Replaced / corrected ${o.stopped_at?fmt(o.stopped_at):''}`):'Active';
+              const timesOf=o=>(Array.isArray(o.scheduled_times)?o.scheduled_times:String(o.scheduled_times||'').replace(/[{}]/g,'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—';
+              return h('div',{className:'section-card'},
+                h('h4',null,'Admission Prescription'),
+                h('p',{className:'small-note'},'Medicines entered at the time of admission. Wrong entries are corrected with "Edit with reason" (Nurse, Nursing Manager, Admin) within 48 hours of admission; each correction is listed below with its reason.'),
+                admissionOrders.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-history-table'},
+                  h('thead',null,h('tr',null,['Entered','Medicine','Dose','Frequency / Route','Time','Doctor','Status'].map(x=>h('th',{key:x},x)))),
+                  h('tbody',null,admissionOrders.map(o=>h('tr',{key:`adm-${o.id}`},
+                    h('td',null,fmt(o.created_at)),h('td',null,h('strong',null,o.medicine_name||'Medicine')),h('td',null,o.strength||o.dose||'—'),
+                    h('td',null,[o.frequency,o.route].filter(Boolean).join(' · ')||'—'),h('td',null,timesOf(o)),h('td',null,o.prescribed_by_doctor||'—'),h('td',null,statusOf(o)))))
+                )):sectionEmpty('No admission prescription recorded.'),
+                h('h4',{style:{marginTop:'14px'}},`Corrections to admission entries (${corrections.length})`),
+                corrections.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table'},
+                  h('thead',null,h('tr',null,['When','By','Correction','Medicine / change','Reason'].map(x=>h('th',{key:x},x)))),
+                  h('tbody',null,corrections.map(c=>h('tr',{key:`corr-${c.id}`},
+                    h('td',null,fmt(c.corrected_at)),h('td',null,c.corrected_by_name||'—'),h('td',null,c.action),
+                    h('td',null,h('strong',null,c.medicine_name&&c.action!=='Re-marked from Doctor Review'?`${c.medicine_name}: `:''),medicineCorrectionSummary(c)),
+                    h('td',null,c.reason||'—'))))
+                )):sectionEmpty('No corrections.'));
+            })(),
             h('div',{className:'section-card'},
-              h('h4',null,'Prescription / Modification History'),
-              h('p',{className:'small-note'},'Original prescription and every later addition, modification or stoppage are shown in one chronological table.'),
-              (details.medHistory||[]).length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-history-table'},
-                h('thead',null,h('tr',null,['Date & Time','Action','Medicine','Dose','Frequency / Route','Time','Doctor','Status'].map(x=>h('th',{key:x},x)))),
-                h('tbody',null,[...(details.medHistory||[])].sort((a,b)=>String(a.effective_from||a.created_at||'').localeCompare(String(b.effective_from||b.created_at||''))).map(order=>{
-                  const version=Number(order.version_no||1);
-                  const rawAction=String(order.change_action||'').trim();
-                  const action=/add/i.test(rawAction)?'Added':(version===1?'Original':(rawAction||'Modified'));
-                  const status=order.stopped_at?`Stopped ${fmt(order.stopped_at)}`:(order.is_active===false?(order.status||'Stopped'):(order.status||'Active'));
-                  return h('tr',{key:`history-${order.id}`},
-                    h('td',null,order.effective_from?fmt(order.effective_from):(order.start_date?formatDateIN(order.start_date):fmt(order.created_at))),
-                    h('td',null,h('span',{className:`review-action ${String(action).toLowerCase()}`},action),h('small',null,`V${version}`)),
-                    h('td',null,h('strong',null,order.medicine_name||'Medicine')),
-                    h('td',null,order.strength||order.dose||'—'),
-                    h('td',null,[order.frequency,order.route].filter(Boolean).join(' · ')||'—'),
-                    h('td',null,(Array.isArray(order.scheduled_times)?order.scheduled_times:String(order.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')||'—'),
-                    h('td',null,order.prescribed_by_doctor||'—'),
-                    h('td',null,status)
-                  );
-                }))
-              )):sectionEmpty('No prescription history available.')
-            ),
-            h('div',{className:'section-card'},
-              h('h4',null,'Doctor Review / Change Record'),
+              h('h4',null,"Modification History (after Doctor's Review)"),
+              h('p',{className:'small-note'},"Only changes ordered by the doctor: medicines added, modified or stopped after a Doctor's Review."),
               details.medicationReviewError?h('div',{className:'message warning'},'Medication review history could not be loaded. The medication review database upgrade may need verification.'):null,
-              (details.medicationReviews||[]).length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-review-table'},
-                h('thead',null,h('tr',null,['Reviewed','Doctor','Effective From','Order Type','Medication Changes','Clinical Note'].map(x=>h('th',{key:x},x)))),
-                h('tbody',null,(details.medicationReviews||[]).map(review=>{
-                  const items=(details.medicationReviewItems||[]).filter(item=>item.review_id===review.id);
-                  return h('tr',{key:`review-${review.id}`},
-                    h('td',null,fmt(review.reviewed_at)),
-                    h('td',null,h('strong',null,review.doctor_name||'—')),
-                    h('td',null,fmt(review.effective_from)),
-                    h('td',null,review.order_mode||review.review_type||'Review'),
-                    h('td',null,items.length?h('div',{className:'patient-med-change-lines'},items.map(item=>h('div',{key:item.id},h('b',null,`${item.action||'Change'}: `),[item.medicine_name,item.strength||item.dose,item.frequency,item.route,(Array.isArray(item.scheduled_times)?item.scheduled_times:String(item.scheduled_times||'').split(',')).filter(Boolean).map(medicationTimeLabel).join(', ')].filter(Boolean).join(' · ')))):'—'),
-                    h('td',null,review.clinical_notes||'—')
-                  );
-                }))
-              )):sectionEmpty('No doctor medication review has been recorded yet.')
+              (()=>{
+                const real=(details.medicationReviews||[]).filter(r=>!r.is_admission_correction).map(r=>({r,items:(details.medicationReviewItems||[]).filter(i=>i.review_id===r.id&&i.action!=='Continue')})).filter(x=>x.items.length||x.r.clinical_notes);
+                return real.length?h('div',{className:'patient-med-table-wrap'},h('table',{className:'patient-med-table patient-med-review-table'},
+                  h('thead',null,h('tr',null,['Reviewed','Doctor','Effective From','Order Type','Changes','Clinical Note'].map(x=>h('th',{key:x},x)))),
+                  h('tbody',null,real.map(({r,items})=>h('tr',{key:`review-${r.id}`},
+                    h('td',null,fmt(r.reviewed_at)),h('td',null,h('strong',null,r.doctor_name||'—')),h('td',null,fmt(r.effective_from)),h('td',null,r.order_mode||r.review_type||'Review'),
+                    h('td',null,items.length?h('div',{className:'patient-med-change-lines'},items.map(item=>h('div',{key:item.id},h('b',null,`${({Add:'Added',Modify:'Modified',Stop:'Stopped'})[item.action]||item.action}: `),[item.medicine_name,item.strength,item.new_snapshot?.frequency,item.new_snapshot?.route,(Array.isArray(item.new_snapshot?.scheduled_times)?item.new_snapshot.scheduled_times:[]).map(medicationTimeLabel).join(', ')].filter(Boolean).join(' · ')))):'No medicine change'),
+                    h('td',null,r.clinical_notes||'—'))))
+                )):sectionEmpty("No changes after a Doctor's Review yet.");
+              })()
             ),
             h('div',{className:'section-card'},
               h('h4',null,"Today's Medication Administration"),
@@ -31057,6 +31166,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSelected(null);setDetails(null);setPhotoUrl('');setShowFamilyDetails(false)}},'Close Patient File')
         )
       )),
+      medCorrection&&selected&&h(MedicineCorrectionDialog,{patient:selected,order:medCorrection.order,mode:medCorrection.mode,onClose:()=>setMedCorrection(null),onSaved:()=>{setMedCorrection(null);openPatient(selected,'Medicines')}}),
       showReportsMenu&&selected&&h(PatientReportsMenu,{patient:selected,discharged:!!completedPatientDischarge(),onClose:()=>setShowReportsMenu(false),onPick:key=>{setShowReportsMenu(false);if(key==='discharge')setShowDischargeSummary(true);else setReportKind(key)}}),
       reportKind&&selected&&h(PatientReportPdfDialog,{kind:reportKind,patient:selected,profile,onClose:()=>setReportKind('')}),
       showDischargeSummary&&selected&&details&&completedPatientDischarge()&&h(DischargeSummaryDialog,{patient:selected,discharge:completedPatientDischarge(),familyAccess:details.familyAccess||[],profile,onClose:()=>setShowDischargeSummary(false),onUpdated:patch=>{const id=completedPatientDischarge()?.id;setDetails(cur=>cur?{...cur,discharges:(cur.discharges||[]).map(row=>row.id===id?{...row,...patch}:row)}:cur)}}),
@@ -36414,7 +36524,7 @@ function RoomsBeds({profile,onNavigate}){
 
     if(tab==='Prescription History'){
       const historyOrders=visibleHistory.sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
-      const reviewRows=state.reviews.filter(r=>(!patientFilter||r.patient_id===patientFilter)&&dateInSelectedPeriod(r.reviewed_at||r.created_at));
+      const reviewRows=state.reviews.filter(r=>!r.is_admission_correction&&(!patientFilter||r.patient_id===patientFilter)&&dateInSelectedPeriod(r.reviewed_at||r.created_at)); // 2.18.133: admission-entry corrections are not doctor reviews
       table=h('div',{className:'medication-history-workspace'},
         h(LogTable,{className:'medication-log-table',title:'Prescription Version History',subtitle:'Every medication order is retained. Modified or stopped orders are never overwritten.',heads:['Patient','Version','Medicine / Strength','Frequency / Route','Times','Effective From','Stopped At','Doctor','Origin / Status'],rows:historyOrders.map(order=>[
           patientLabel(order),`V${order.version_no||1}`,medicineLabel(order),[order.frequency,order.route].filter(Boolean).join(' · ')||'—',parseTimes(order.scheduled_times).map(medicationTimeLabel).join(', ')||'—',order.effective_from?fmt(order.effective_from):(order.start_date?formatDateIN(order.start_date):fmt(order.created_at)),order.stopped_at?fmt(order.stopped_at):'—',order.prescribed_by_doctor||'—',[order.change_action,order.is_active===false?(order.status||'Stopped'):(order.status||'Active')].filter(Boolean).join(' · ')

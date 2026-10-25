@@ -71,7 +71,7 @@ async function collect(sb: any, patient: any, discharge: any) {
     physio: physio.filter((x: any) => inStay(x.session_at || x.session_date || x.created_at)),
     incidents: sortBy(incidents.filter((x: any) => inStay(x.incident_at || x.created_at)), ["incident_at", "created_at"]),
     handovers: sortBy(handovers.filter((x: any) => inStay(x.created_at || x.handover_date)), ["created_at"]),
-    reviews: sortBy(reviews.filter((x: any) => inStay(x.reviewed_at || x.created_at)), ["reviewed_at", "created_at"]), items,
+    reviews: sortBy(reviews.filter((x: any) => !x.is_admission_correction && inStay(x.reviewed_at || x.created_at)), ["reviewed_at", "created_at"]), items, // 2.18.133: admission-entry corrections are not doctor reviews
   };
 }
 

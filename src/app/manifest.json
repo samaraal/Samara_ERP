@@ -289,6 +289,11 @@
    "lines": 158
   },
   {
+   "file": "patients/medicine-corrections.js",
+   "about": "2.18.133 Admission prescription corrections: Edit / Add missed / Remove with reason (48 h after admission)",
+   "lines": 90
+  },
+  {
    "file": "patients/patients.js",
    "about": "Patients page",
    "lines": 2803
