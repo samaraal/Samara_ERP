@@ -10,6 +10,7 @@
     const [shareOpen,setShareOpen]=React.useState(false);
     const [shareRecipient,setShareRecipient]=React.useState('Relative');
     const [shareType,setShareType]=React.useState('Full Intelligent Report');
+    const [doctorBusy,setDoctorBusy]=React.useState(''); // 2.18.127
     const [shareLanguage,setShareLanguage]=React.useState('English');
     const [communicationRows,setCommunicationRows]=React.useState([]);
     const [shareBusy,setShareBusy]=React.useState(false);
@@ -255,6 +256,23 @@
         if(preview)preview.location.href=result.report_url;else window.open(result.report_url,'_blank','noopener');
       }catch(error){if(preview)preview.close();alert(`Intelligent Report PDF could not be generated: ${error.message||error}`)}
       finally{setBusy(false)}
+    }
+    // 2.18.127: Doctor's Daily Clinical Report (trial) — preview the PDF or send it to the doctor's saved WhatsApp number
+    async function doctorReport(send){
+      const p=selectedPatient();if(!p)return alert('Generate a patient report first.');
+      if(send&&!confirm(`Send the Daily Clinical Report of ${formalName(p)} for ${formatDateIN(report?.date||reportDate)} to the doctor's saved WhatsApp number?`))return;
+      const preview=send?null:window.open('about:blank','_blank');
+      setDoctorBusy(send?'send':'pdf');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/daily-patient-report`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:JSON.stringify({mode:send?'doctor_send':'doctor_generate_only',patient_id:p.id,report_date:report?.date||reportDate})});
+        const result=await response.json().catch(()=>({ok:false,error:'Unable to read report server response.'}));
+        if(!response.ok||result?.ok===false||!result?.report_url)throw new Error(result?.error||`Doctor report failed (${response.status})`);
+        if(send){alert(`Daily Clinical Report sent to the doctor on WhatsApp.${result.ai_observations?'':' (Clinical Observations were not available this time; the records are complete.)'}`);}
+        else if(preview)preview.location.href=result.report_url;else window.open(result.report_url,'_blank','noopener');
+      }catch(error){if(preview)preview.close();alert(`Doctor's Clinical Report: ${error.message||error}`)}
+      finally{setDoctorBusy('')}
     }
     function section(title,items,renderer){return h('div',{className:'intelligent-report-section'},h('h3',null,title),items.length?h('div',{className:'intelligent-report-list'},items.map((x,i)=>h('div',{className:'intelligent-report-item',key:i},renderer(x)))):h('p',{className:'small-note'},'No records for this report.'));}
     function narrative(){
@@ -597,7 +615,7 @@
         ),message&&h('div',{className:'message error'},message)
       ),
       report&&h('div',{className:'card panel intelligent-report printable-report hospital-report'},
-        h('div',{className:'panel-head no-print'},h('div',null,h('h2',null,report.mode==='Resident-wise'?`Patient Care Report – ${formalName(report.patient)||''}`:`Daily Facility Report – ${formatDateIN(report.date)}`),h('small',null,`Prepared by ${formalName(profile)} on ${formatDateTimeIN(new Date())}`)),h('div',{className:'actions'},report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>setShareOpen(true)},'WhatsApp'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:printReport},busy?'Generating PDF…':'Open / Save PDF'))),
+        h('div',{className:'panel-head no-print'},h('div',null,h('h2',null,report.mode==='Resident-wise'?`Patient Care Report – ${formalName(report.patient)||''}`:`Daily Facility Report – ${formatDateIN(report.date)}`),h('small',null,`Prepared by ${formalName(profile)} on ${formatDateTimeIN(new Date())}`)),h('div',{className:'actions'},report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',onClick:()=>setShareOpen(true)},'WhatsApp'),h('button',{className:'btn btn-secondary',disabled:busy,onClick:printReport},busy?'Generating PDF…':'Open / Save PDF'),report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-secondary',disabled:!!doctorBusy,title:'Daily Clinical Report for the treating doctor (7-day trends, AI clinical observations)',onClick:()=>doctorReport(false)},doctorBusy==='pdf'?'Preparing (up to 1 min)…':'🩺 Doctor\'s Report (PDF)'),report.mode==='Resident-wise'&&['Admin','Manager'].includes(profile.role)&&h('button',{type:'button',className:'btn btn-whatsapp',disabled:!!doctorBusy,onClick:()=>doctorReport(true)},doctorBusy==='send'?'Sending…':'Send to Doctor'))),
         report.mode==='Resident-wise'?patientReportBody():h(React.Fragment,null,
           h('div',{className:'intelligent-summary human-report'},h('h3',null,'Executive Daily Summary'),narrative().map((p,i)=>h('p',{key:i},p))),
           section('Resident-wise Daily Status',report.data.patients,p=>h(React.Fragment,null,h('strong',null,`${p.patient_id||'NO-ID'} · ${formalName(p)}`),h('span',null,dailyPatientNarrative(p,report.data)))),

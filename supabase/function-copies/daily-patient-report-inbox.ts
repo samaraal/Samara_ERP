@@ -190,6 +190,299 @@ async function makeReport(sb:any,patient:any,date:string){
   return await pdf.save();
 }
 
+
+// ============================================================================
+// 2.18.127: DOCTOR'S DAILY CLINICAL REPORT (trial; per Guest via
+// patient_family_communication_preferences.doctor_report_style = 'clinical').
+// One A4 page (2nd page only when the records need it). 7-day trends.
+// "Clinical Observations" is written by Gemini from Samara's own records and the
+// Guest's uploaded prescription / discharge / lab documents. STRICT: observations
+// only — never advice or recommendations to the doctor or the patient.
+// If Gemini fails, the report is still sent without that box.
+// ============================================================================
+// pdfText trims; header pieces drawn side by side need their spaces kept
+const pdfKeep=(v:unknown)=>{const t=String(v??"");const lead=t.match(/^\s*/)![0].length?" ":"",tail=/\s$/.test(t)?" ":"";return lead+pdfText(t)+tail};
+const SAMARA_ADDRESS=["RBK VILLA, No. 23-A, Reddipalayam Road,","Jeswant Nagar Phase 1, Mogappair West,","Chennai 600037","Ph: +91 99767 35577 | +91 73959 61616","care@samaraassistedliving.com"];
+const addDays=(iso:string,n:number)=>{const d=new Date(`${iso}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+const isoOf=(v:unknown)=>{if(!v)return "";const s=String(v);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;try{return indiaDate(new Date(s))}catch{return ""}};
+const inWindow=(v:unknown,from:string,to:string)=>{const d=isoOf(v);return Boolean(d&&d>=from&&d<=to)};
+const timeOf=(v:unknown)=>{if(!v)return "";try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour:"numeric",minute:"2-digit",hour12:true}).format(new Date(String(v))).toUpperCase()}catch{return ""}};
+const drName=(v:unknown)=>{const d=text(v);if(!d)return "Treating Doctor";return /^dr(\.|\s)/i.test(d)?d.replace(/^dr\.?\s*/i,"Dr. "):`Dr. ${d}`};
+const num=(v:any)=>{if(v===null||v===undefined||v==="")return null;const x=Number(v);return Number.isFinite(x)&&x!==0?x:null};
+const ageOf=(p:any)=>{const a=num(p.age);if(a)return Math.round(a);const dob=text(p.date_of_birth);if(!dob)return null;const b=new Date(dob);if(isNaN(+b))return null;const n=new Date();let y=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))y--;return y>0&&y<130?y:null};
+const vitalBad=(k:string,v:number|null)=>{if(v===null)return false;switch(k){case "sys":return v>=140||v<100;case "dia":return v>=90||v<60;case "pulse":return v>100||v<60;case "spo2":return v<94;case "temp":return v>=99.5||v<96;case "rr":return v>22||v<12;case "sugar":return v>=200||v<70;default:return false}};
+
+// Words that turn an observation into advice. Any line containing one is dropped.
+const ADVICE_RE=/\b(recommend\w*|advis\w*|suggest\w*|consider\w*|should|must|ought|need(s|ed)? to|kindly|please|may (require|need|benefit|warrant)|would benefit|warrant\w*|titrat\w*|prescribe|referr?al to|refer to|increase the|decrease the|reduce the|optimi[sz]\w*|adjust\w*|start (the|a|an)|stop (the|a|an)|discontinu\w*|it is (advisable|important|essential)|follow[- ]up|monitor(ing)? (is|closely)|evaluate|assess(ment)? (is|of the need)|plan to|next step)\b/i;
+const AI_SYSTEM=`You are a clinical documentation assistant at Samara Assisted Living (a nursing care home, Chennai). You write the "Clinical Observations" box of a daily report that goes to the Guest's TREATING DOCTOR.
+
+STRICT RULES — any breach makes the output unusable:
+1. OBSERVATIONS ONLY. State what the records show. Never recommend, advise, suggest, propose, prescribe, or say what should/must/could be done — not to the doctor, not to the patient, not to the staff. No words like "recommend", "advise", "suggest", "consider", "should", "need to", "monitor", "follow-up", "review", "adjust", "evaluate".
+2. Use ONLY the data given (records JSON and attached documents). Never invent values, dates, diagnoses, symptoms or examinations. If something is not recorded, do not mention it.
+3. Never make a new diagnosis, interpretation of cause, or prognosis. Name a condition only if it appears in the diagnosis field or in an attached document, and say where it is documented.
+4. PATIENT- and DISEASE-SPECIFIC: group observations by the Guest's own documented conditions / body systems (e.g. Neurology, Orthopaedics, Cardiovascular, Diabetes, Respiratory, Renal, Wound care, Nutrition, Mobility). For each condition, report the recorded data that relates to it: the relevant vital-sign or sugar trend over the period, the medicines for that condition and whether doses were given, physiotherapy findings for that condition, nursing notes and incidents. Skip generic statements that would fit any patient.
+5. Quote real numbers with dates (DD-MM-YYYY or DD-MM) and times (AM/PM). Be factual and neutral. No exaggeration ("significant", "worrying", "excellent").
+6. At most 4 groups, at most 4 observations per group, each observation at most 30 words. Plain English for a doctor.
+
+Return JSON only:
+{"groups":[{"area":"Neurology","condition":"Left MCA infarct with right hemiparesis","documented_in":"Discharge summary dated 21-10-2026","observations":["..."]}],"sources_used":["Discharge summary (21-10-2026)","Active prescription (7 medicines)","9 vital-sign records"]}`;
+
+function aiChipColour(area:string){const a=area.toLowerCase();
+ if(/neuro|stroke|brain|parkin|seiz|cognit|dement/.test(a))return rgb(.42,.25,.63);
+ if(/ortho|fractur|musc|bone|joint|spine|mobil/.test(a))return rgb(.05,.5,.5);
+ if(/cardi|hypert|heart|blood pressure|vascul/.test(a))return rgb(.72,.11,.11);
+ if(/diab|endocr|sugar|thyro|metab/.test(a))return rgb(.76,.26,.05);
+ if(/resp|lung|pulmo|copd|asthma|oxygen/.test(a))return rgb(.11,.38,.7);
+ if(/renal|kidney|urin|uro/.test(a))return rgb(.12,.25,.5);
+ if(/gastro|liver|nutri|feed|diet|bowel/.test(a))return rgb(.45,.3,.1);
+ if(/wound|skin|pressure|ulcer/.test(a))return rgb(.75,.2,.45);
+ return rgb(.62,.03,.32)}
+
+function b64(bytes:Uint8Array){let s="";const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)s+=String.fromCharCode(...bytes.subarray(i,i+chunk));return btoa(s)}
+function parseAiJson(t:string){const raw=String(t||"").replace(/^\s*```(?:json)?\s*|```\s*$/g,"").trim();try{return JSON.parse(raw)}catch{/* continue */}const a=raw.indexOf("{"),b=raw.lastIndexOf("}");if(a>=0&&b>a){try{return JSON.parse(raw.slice(a,b+1))}catch{/* fall through */}}return null}
+
+async function clinicalDocuments(sb:any,documents:any[]){
+ const wanted=/prescription|discharge|transfer|lab|scan|test|investigat|referral|other medical|medical/i,skip=/photo|identity|aadhaar|consent|id proof/i;
+ const list=documents.filter((d:any)=>wanted.test(text(d.document_type))&&!skip.test(text(d.document_type))&&text(d.storage_path))
+  .sort((a:any,b:any)=>+new Date(b.created_at||0)-+new Date(a.created_at||0)).slice(0,4);
+ const parts:any[]=[],names:string[]=[];let total=0;
+ for(const d of list){
+  try{
+   const dl=await sb.storage.from("patient-documents").download(text(d.storage_path));if(dl.error||!dl.data)continue;
+   const bytes=new Uint8Array(await dl.data.arrayBuffer());if(!bytes.length||bytes.length>7_000_000||total+bytes.length>16_000_000)continue;
+   let mime=text(d.mime_type)||text(dl.data.type);const p=text(d.storage_path).toLowerCase();
+   if(!/pdf|jpe?g|png|webp/.test(mime))mime=p.endsWith(".pdf")?"application/pdf":p.endsWith(".png")?"image/png":p.endsWith(".webp")?"image/webp":"image/jpeg";
+   total+=bytes.length;const label=`${text(d.document_type)}${d.report_date||d.created_at?` (${displayDate(isoOf(d.report_date||d.created_at))})`:""}`;names.push(label);
+   parts.push({text:`Attached document: ${label}${text(d.document_name)?` - ${text(d.document_name)}`:""}`},{inlineData:{mimeType:mime,data:b64(bytes)}});
+  }catch(e){console.error("DOCTOR_REPORT_DOC_SKIP",text(d.document_type),e instanceof Error?e.message:String(e))}
+ }
+ return {parts,names};
+}
+
+async function aiObservations(sb:any,facts:any,documents:any[]){
+ const key=Deno.env.get("GEMINI_API_KEY");if(!key)return null;
+ const docs=await clinicalDocuments(sb,documents);
+ const parts=[{text:`Records JSON for the report period:\n${JSON.stringify(facts)}`},...docs.parts,{text:"Write the Clinical Observations JSON now. Observations only - no advice of any kind."}];
+ const models=[...new Set([Deno.env.get("DOCTOR_REPORT_MODEL"),"gemini-3.8-flash","gemini-3.5-flash","gemini-2.5-flash"].filter((m):m is string=>!!m&&!!m.trim()))];
+ for(const model of models){
+  try{
+   const cfg:Record<string,unknown>={responseMimeType:"application/json",temperature:0,maxOutputTokens:8192};
+   if(/^gemini-2\./i.test(model))cfg.thinkingConfig={thinkingBudget:2048};
+   const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",signal:AbortSignal.timeout(90000),headers:{"x-goog-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:AI_SYSTEM}]},contents:[{role:"user",parts}],generationConfig:cfg})});
+   const j=await r.json().catch(()=>null);
+   if(r.status===404){console.error("DOCTOR_REPORT_MODEL_NOT_AVAILABLE",model);continue}
+   if(!r.ok){console.error("DOCTOR_REPORT_GEMINI",model,r.status,String(j?.error?.message||"").slice(0,160));continue}
+   const out=parseAiJson((j?.candidates?.[0]?.content?.parts||[]).filter((p:any)=>!p.thought).map((p:any)=>p.text||"").join(""));
+   if(!out||!Array.isArray(out.groups)){console.error("DOCTOR_REPORT_AI_UNREADABLE",model);continue}
+   let dropped=0;
+   const groups=out.groups.slice(0,4).map((g:any)=>{
+    const obs=(Array.isArray(g?.observations)?g.observations:[]).map((x:any)=>pdfText(x)).filter((x:string)=>{if(!x)return false;if(ADVICE_RE.test(x)){dropped++;return false}return true}).slice(0,4);
+    const condition=pdfText(g?.condition);const area=pdfText(g?.area).slice(0,24)||"Clinical";
+    return {area,condition:ADVICE_RE.test(condition)?"":condition,documented:pdfText(g?.documented_in),observations:obs};
+   }).filter((g:any)=>g.observations.length);
+   if(dropped)console.log("DOCTOR_REPORT_AI_ADVICE_LINES_REMOVED",dropped);
+   if(!groups.length)return null;
+   const sources=(Array.isArray(out.sources_used)?out.sources_used:[]).map((x:any)=>pdfText(x)).filter(Boolean).slice(0,8);
+   return {groups,sources:sources.length?sources:docs.names,model};
+  }catch(e){console.error("DOCTOR_REPORT_AI_FAILED",model,e instanceof Error?e.message:String(e))}
+ }
+ return null;
+}
+
+async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,generatedAt=new Date()){
+ const [vitals,orders,mar,meals,physioPlans,physio,incidents,documents,medReviews,medReviewItems,careLogs,ioEntries,staffResult]=await Promise.all([
+  rows(sb,"vital_signs",patient.id),rows(sb,"medication_orders",patient.id),rows(sb,"medication_administrations",patient.id),rows(sb,"meal_records",patient.id),
+  rows(sb,"physiotherapy_plans",patient.id),rows(sb,"physiotherapy_sessions",patient.id),rows(sb,"incidents",patient.id),rows(sb,"patient_documents",patient.id),
+  rows(sb,"medication_reviews",patient.id),allRows(sb,"medication_review_items"),rows(sb,"care_logs",patient.id),rows(sb,"io_entries",patient.id),sb.from("profiles").select("id,full_name,role")
+ ]);
+ const staff=staffResult.error?[]:(staffResult.data||[]),staffName=(id:any)=>text(staff.find((x:any)=>x.id===id)?.full_name);
+ const admission=isoOf(patient.admission_date)||date,from=admission>addDays(date,-6)?admission:addDays(date,-6),days:string[]=[];for(let d=from;d<=date;d=addDays(d,1))days.push(d);
+ const nowIso=indiaDate(generatedAt),nowHm=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit",hour12:false}).format(generatedAt);
+ const cutoff=date<nowIso?"23:59":nowHm;
+
+ // ---- vitals: daily trend ----
+ const wv=vitals.filter((x:any)=>inWindow(x.recorded_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.recorded_at||a.created_at)-+new Date(b.recorded_at||b.created_at));
+ const vitalDays=days.map(d=>{const r=wv.filter((x:any)=>isoOf(x.recorded_at||x.created_at)===d);
+  const pick=(f:(x:any)=>number|null)=>r.map(f).filter((v:number|null):v is number=>v!==null);
+  const sys=pick(x=>num(x.systolic)),dia=pick(x=>num(x.diastolic)),pul=pick(x=>num(x.pulse)),sp=pick(x=>num(x.spo2)),tp=pick(x=>num(x.temperature)),rr=pick(x=>num(x.respiration));
+  const bp=r.filter((x:any)=>num(x.systolic)!==null).map((x:any)=>`${num(x.systolic)}/${num(x.diastolic)??"-"}`);
+  const sugar=r.filter((x:any)=>num(x.blood_sugar)!==null).map((x:any)=>({t:(text(x.blood_sugar_type)||"RBS").replace(/[^A-Za-z0-9 ]/g,"").slice(0,5),v:num(x.blood_sugar)!,at:timeOf(x.recorded_at||x.created_at)}));
+  return {d,n:r.length,sys,dia,pul,sp,tp,rr,bp,sugar};});
+
+ // ---- medication adherence ----
+ const hm=(v:unknown)=>{try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(String(v)))}catch{return ""}};
+ const firstEntry=(d:string)=>{const ts=[...mar.filter((x:any)=>isoOf(x.scheduled_date||x.administered_at)===d).map((x:any)=>text(x.scheduled_time).slice(0,5)||hm(x.administered_at)),...vitals.filter((x:any)=>isoOf(x.recorded_at||x.created_at)===d).map((x:any)=>hm(x.recorded_at||x.created_at))].filter(Boolean).sort();return ts[0]||"00:00"};
+ const relevantOrders=orders.filter((o:any)=>{const s=isoOf(o.start_date||o.effective_from||o.created_at)||from,e=isoOf(o.stopped_at||o.end_date||o.discharge_closed_at)||"9999-12-31";return s<=date&&e>=from})
+  .sort((a:any,b:any)=>text(a.medicine_name).localeCompare(text(b.medicine_name)));
+ const wm=mar.filter((x:any)=>inWindow(x.scheduled_date||x.administered_at||x.created_at,from,date));
+ const medRows=relevantOrders.map((o:any)=>{
+  const times=(Array.isArray(o.scheduled_times)?o.scheduled_times:text(o.scheduled_times).replace(/[{}]/g,"").split(",")).map((t:any)=>text(t).slice(0,5)).filter(Boolean);
+  const own=wm.filter((x:any)=>x.order_id===o.id),given=own.filter((x:any)=>text(x.status).toLowerCase()==="given").length;
+  const notGiven=own.filter((x:any)=>text(x.status).toLowerCase()!=="given");
+  const daily=!o.is_prn&&times.length&&!o.dose_weekday&&!o.dose_month_day&&!/alternate|weekly|monthly|sos|prn|once a week/i.test(text(o.frequency));
+  // doses due: on the admission / start day only times after the Guest's first recorded entry that day count
+  let due:number|null=null;if(daily){due=0;const s=isoOf(o.start_date||o.effective_from)||from,e=isoOf(o.stopped_at||o.end_date)||date;for(const d of days){if(d<s||d>e)continue;const first=d===s||d===admission?firstEntry(d):"00:00";for(const t of times){if(d===date&&t>cutoff)continue;if(t<first)continue;due++}}}
+  const stopped=o.is_active===false||Boolean(o.stopped_at);
+  return {name:`${text(o.medicine_name)}${text(o.strength)?` ${text(o.strength)}`:""}`,dose:[text(o.dose),text(o.route)].filter(Boolean).join(", "),
+   times:o.is_prn?"PRN / as needed":times.map((t:any)=>hhmm12(t)).join(", ")||text(o.frequency)||"-",freq:text(o.frequency),given,due,stopped,
+   exceptions:notGiven.map((x:any)=>`${text(x.status)} ${displayDate(isoOf(x.scheduled_date||x.created_at)).slice(0,5)}${text(x.withhold_reason)?` (${text(x.withhold_reason)}${text(x.withhold_reading)?` ${text(x.withhold_reading)}`:""})`:text(x.remarks)?` (${text(x.remarks)})`:""}`)};
+ });
+ const lateDoses=wm.filter((x:any)=>text(x.late_given_reason)).length;
+
+ // ---- physiotherapy ----
+ const activePlans=physioPlans.filter((p:any)=>p.is_active!==false&&(!text(p.end_date)||isoOf(p.end_date)>=from));
+ const wp=physio.filter((x:any)=>inWindow(x.session_at||x.session_date||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.session_at||a.session_date||a.created_at)-+new Date(b.session_at||b.session_date||b.created_at));
+ const physioRows=wp.map((x:any)=>({d:displayDate(isoOf(x.session_at||x.session_date||x.created_at)),slot:text(x.scheduled_time)?(text(x.scheduled_time).includes("-")?text(x.scheduled_time).split("-").map(hhmm12).join("-"):hhmm12(x.scheduled_time)):"-",
+  actual:text(x.actual_time)?hhmm12(x.actual_time):timeOf(x.session_at)||"-",who:text(x.physiotherapist_name)||staffName(x.performed_by)||"-",status:text(x.status)||"-",notes:[text(x.notes),text(x.reason)].filter(Boolean).join(" | ")||"-"}));
+
+ // ---- nursing ----
+ const wio=ioEntries.filter((x:any)=>inWindow(x.io_date||x.entry_at,from,date));
+ const ioDays=days.slice(-3).map(d=>{const r=wio.filter((x:any)=>isoOf(x.io_date||x.entry_at)===d);const sum=(dir:string)=>r.filter((x:any)=>x.direction===dir).reduce((a:number,x:any)=>a+Number(x.volume_ml||0),0);
+  return {d,n:r.length,intake:sum("Intake"),output:sum("Output"),stool:r.reduce((a:number,x:any)=>a+Number(x.stool_count||0),0)}}).filter(x=>x.n);
+ const wMeals=meals.filter((x:any)=>inWindow(x.meal_date||x.served_at,from,date));
+ const mealCounts:Record<string,number>={};wMeals.forEach((x:any)=>{const k=text(x.consumption_status)||"Recorded";mealCounts[k]=(mealCounts[k]||0)+1});
+ const wInc=incidents.filter((x:any)=>inWindow(x.incident_at||x.created_at,from,date));
+ const wCare=careLogs.filter((x:any)=>inWindow(x.care_date||x.completed_at||x.created_at,from,date));
+ const careNotes=wCare.filter((x:any)=>text(x.remarks)).slice(-8).map((x:any)=>`${displayDate(isoOf(x.care_date||x.created_at)).slice(0,5)}: ${text(x.remarks)}`);
+ const wReviews=medReviews.filter((x:any)=>inWindow(x.reviewed_at||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.reviewed_at||a.created_at)-+new Date(b.reviewed_at||b.created_at));
+ const reviewLines=wReviews.map((r:any)=>{const items=medReviewItems.filter((x:any)=>x.review_id===r.id).slice(0,5).map((x:any)=>`${text(x.action)||"Change"} ${text(x.medicine_name)}${text(x.strength||x.dose)?` ${text(x.strength||x.dose)}`:""}`).join("; ");
+  return `${displayDate(isoOf(r.reviewed_at||r.created_at))} - ${drName(r.doctor_name)}: ${text(r.clinical_notes)||text(r.review_type)||"Review recorded"}${items?`. Changes: ${items}`:""}`});
+
+ // ---- AI observations (facts only from the records above) ----
+ const facts={guest:{age:ageOf(patient),gender:text(patient.gender),diagnosis:text(patient.diagnosis),allergies:text(patient.allergies),admitted_on:displayDate(admission),referring_hospital:text(patient.hospital_name),treating_doctor:text(patient.treating_doctor)},
+  period:{from:displayDate(from),to:displayDate(date),data_until:`${displayDate(date)} ${hhmm12(cutoff)}`},
+  vitals:wv.map((x:any)=>({at:displayDateTime(x.recorded_at||x.created_at),bp:num(x.systolic)?`${num(x.systolic)}/${num(x.diastolic)??"-"}`:null,pulse:num(x.pulse),spo2:num(x.spo2),temp_f:num(x.temperature),resp:num(x.respiration),sugar:num(x.blood_sugar)?`${text(x.blood_sugar_type)||"RBS"} ${num(x.blood_sugar)}`:null,pain:num(x.pain_score),remarks:text(x.remarks)||null})),
+  medicines:medRows.map((m:any)=>({medicine:m.name,dose:m.dose,times:m.times,frequency:m.freq,doses_given:m.given,doses_due:m.due,stopped:m.stopped,not_given:m.exceptions})),
+  doses_given_late_with_reason:lateDoses,
+  physiotherapy_plan:activePlans.map((p:any)=>({therapy:text(p.therapy_type),frequency:text(p.frequency),windows:p.session_times,precautions:text(p.precautions),advised_by:text(p.advised_by),ends:text(p.end_date)?displayDate(isoOf(p.end_date)):"until doctor review"})),
+  physiotherapy_sessions:physioRows,doctor_reviews:reviewLines,intake_output_daily:ioDays.map(x=>({date:displayDate(x.d),intake_ml:x.intake,output_ml:x.output,stools:x.stool})),
+  meals:mealCounts,nursing_care_notes:careNotes,incidents:wInc.map((x:any)=>({at:displayDateTime(x.incident_at||x.created_at),type:text(x.incident_type||x.category),description:text(x.description),action:text(x.immediate_action)}))};
+ let ai:any=null;try{ai=await aiObservations(sb,facts,documents)}catch(e){console.error("DOCTOR_REPORT_AI_ERROR",e instanceof Error?e.message:String(e))}
+
+ // ======================= PDF =======================
+ const pdf=await PDFDocument.create();const regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),italic=await pdf.embedFont(StandardFonts.HelveticaOblique);
+ const W=595.28,H=841.89,M=28,mag=rgb(.72,.02,.34),deep=rgb(.33,.05,.2),pink=rgb(.95,.78,.86),pale=rgb(1,.96,.975),head=rgb(.99,.89,.93),ink=rgb(.18,.09,.15),grey=rgb(.42,.33,.38),red=rgb(.75,.07,.13),green=rgb(.03,.48,.26),white=rgb(1,1,1);
+ let page=pdf.addPage([W,H]),y=0,pageNo=1;
+ const T=(s:string,x:number,yy:number,size:number,f=regular,color=ink)=>page.drawText(pdfKeep(s),{x,y:yy,size,font:f,color});
+ const tw=(s:string,size:number,f=regular)=>f.widthOfTextAtSize(pdfKeep(s),size);
+ const centre=(s:string,cx:number,yy:number,size:number,f=regular,color=ink)=>T(s,cx-tw(s,size,f)/2,yy,size,f,color);
+ const patientLabel=patientName(patient),age=ageOf(patient),sex=text(patient.gender).charAt(0).toUpperCase();
+ const contHeader=()=>{page.drawRectangle({x:0,y:H-5,width:W,height:5,color:mag});T("Daily Clinical Report",M,H-26,11,bold,mag);const r=`${patientLabel} | ${displayDate(from)} to ${displayDate(date)} | page ${pageNo}`;T(r,W-M-tw(r,8),H-25,8,regular,grey);page.drawLine({start:{x:M,y:H-33},end:{x:W-M,y:H-33},thickness:.8,color:pink});y=H-44};
+ const ensure=(h:number)=>{if(y-h<52){page=pdf.addPage([W,H]);pageNo++;contHeader()}};
+
+ // ---- header ----
+ page.drawRectangle({x:0,y:H-5,width:W,height:5,color:mag});
+ const logoW=128,logoTop=H-16;let logoBottom=logoTop-80;
+ try{
+  let bytes:ArrayBuffer|null=null,fromErp=false;
+  for(const u of ["https://app.samaraassistedliving.com/assets/samara-logo.png","https://samaraassistedliving.com/assets/samara-logo.png"]){try{const r=await samaraInboxFetch(u);if(r.ok){bytes=await r.arrayBuffer();fromErp=u.includes("app.");break}}catch{/* next */}}
+  if(!bytes)throw new Error("logo");
+  const logo=await pdf.embedPng(bytes);
+  // samara-logo.png (1536x1024) has transparent margins: visible content box x 111-1421, y 131-847.
+  const box=fromErp&&logo.width===1536&&logo.height===1024?{x:111,y:131,w:1310,h:716}:{x:0,y:0,w:logo.width,h:logo.height};
+  const s=logoW/box.w,contentH=box.h*s;logoBottom=logoTop-contentH;
+  page.drawImage(logo,{x:M-box.x*s,y:logoBottom-(logo.height-box.y-box.h)*s,width:logo.width*s,height:logo.height*s});
+ }catch{T("Samara",M+18,H-55,26,bold,mag);T("assisted living",M+30,H-70,10,regular,mag);logoBottom=H-80}
+ centre("CENTRE FOR NURSING EXCELLENCE",M+logoW/2,logoBottom-9.5,7.6,bold,mag);
+ const midL=M+logoW+10,midR=W-M-150,cx=(midL+midR)/2;
+ centre("Daily Clinical Report",cx,H-44,20,bold,mag);
+ const dr=drName(doctor),drSub=" (Treating Doctor)",drW=tw(dr,13.5,bold)+3+tw(drSub,8.5);T(dr,cx-drW/2,H-64,13.5,bold,deep);T(drSub,cx-drW/2+tw(dr,13.5,bold)+3,H-64,8.5,regular,grey);
+ const pRest=[age&&sex?`${age}/${sex}`:age?`${age} yrs`:sex,text(patient.room_no)?`Room ${text(patient.room_no)}`:"",text(patient.patient_id)].filter(Boolean).join(" | ");
+ const pA="Patient Name: ",pB=patientLabel,pC=pRest?`  |  ${pRest}`:"";let pSize=9;while(pSize>7&&tw(pA,pSize)+tw(pB,pSize,bold)+tw(pC,pSize)>midR-midL)pSize-=.25;
+ let px=cx-(tw(pA,pSize)+tw(pB,pSize,bold)+tw(pC,pSize))/2;T(pA,px,H-79,pSize,regular,ink);px+=tw(pA,pSize);T(pB,px,H-79,pSize,bold,deep);px+=tw(pB,pSize,bold);T(pC,px,H-79,pSize,regular,ink);
+ const rA="Report Period: ",rB=`${displayDate(from)} to ${displayDate(date)}`,rC=from===admission?"  (since admission)":"  (last 7 days)",rW=tw(rA,9)+tw(rB,9,bold)+tw(rC,9);let rx=cx-rW/2;T(rA,rx,H-93,9);rx+=tw(rA,9);T(rB,rx,H-93,9,bold,deep);rx+=tw(rB,9,bold);T(rC,rx,H-93,9,regular,grey);
+ const ax=W-M;T("Samara Assisted Living",ax-tw("Samara Assisted Living",9,bold),H-30,9,bold,mag);SAMARA_ADDRESS.forEach((l,i)=>T(l,ax-tw(l,7.4),H-42-i*10.2,7.4,regular,grey));
+ y=Math.min(logoBottom-18,H-104);page.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1.4,color:pink});y-=9;
+
+ // ---- generic helpers ----
+ const wrapW=(s:string,size:number,max:number,f=regular)=>wrap(f,s,size,max);
+ const sectionTitle=(t:string,minBody=40)=>{ensure(18+minBody);page.drawRectangle({x:M,y:y-13,width:W-2*M,height:14,color:mag});T(t.toUpperCase(),M+6,y-9.6,8.2,bold,white);y-=17};
+ type Cell=string|{t:string,c?:any,b?:boolean};
+ const table=(cols:{h:string,w:number}[],data:Cell[][],size=7.4)=>{
+  const totalW=cols.reduce((a,c)=>a+c.w,0),scale=(W-2*M)/totalW,ws=cols.map(c=>c.w*scale),lh=size+2.2;
+  const drawHead=()=>{ensure(lh+6);let x=M;page.drawRectangle({x:M,y:y-lh-3,width:W-2*M,height:lh+3,color:head});cols.forEach((c,i)=>{T(c.h,x+3,y-lh+.5,size,bold,deep);x+=ws[i]});y-=lh+3};
+  drawHead();
+  data.forEach((row,ri)=>{const cells=row.map((c,i)=>{const o=typeof c==="string"?{t:c}:c;return {...o,lines:wrapW(o.t||"-",size,ws[i]-6,o.b?bold:regular)}});
+   const h=Math.max(...cells.map(c=>c.lines.length))*lh+3;if(y-h<52){ensure(h+lh+6);drawHead()}
+   if(ri%2)page.drawRectangle({x:M,y:y-h,width:W-2*M,height:h,color:pale});
+   let x=M;cells.forEach((c,i)=>{c.lines.forEach((l:string,li:number)=>T(l,x+3,y-lh*(li+1)+1.2,size,c.b?bold:regular,c.c||ink));x+=ws[i]});
+   page.drawLine({start:{x:M,y:y-h},end:{x:W-M,y:y-h},thickness:.4,color:pink});y-=h});
+  y-=4};
+ const note=(s:string,size=7,color=grey,f=italic)=>{const lines=wrapW(s,size,W-2*M-4,f);ensure(lines.length*(size+2)+2);lines.forEach(l=>{T(l,M+2,y-size,size,f,color);y-=size+2});y-=2};
+
+ // ---- 1. Clinical Observations (AI) ----
+ {
+  const pad=8,chipW=78,textX=M+pad+chipW+8,textW=W-M-pad-textX,size=8.1,lh=10.6;
+  const blocks=(ai?.groups||[]).map((g:any)=>{const lines:{t:string,b:boolean,indent:number}[]=[];
+   if(g.condition)wrapW(`${g.condition}${g.documented?` (${g.documented})`:""}`,size,textW,bold).forEach(t=>lines.push({t,b:true,indent:0}));
+   g.observations.forEach((o:string)=>wrapW(o,size,textW-9).forEach((t,i)=>lines.push({t:(i?"":"- ")+t,b:false,indent:i?9:0})));
+   return {g,lines,h:Math.max(15,lines.length*lh)+5}});
+  const srcLines=ai?wrapW(`Prepared by AI (Gemini) from Samara records${ai.sources?.length?`: ${ai.sources.join("; ")}`:""}. These are observations of recorded data only - not a diagnosis and not a recommendation. Please verify against the records below.`,6.6,W-2*M-2*pad,italic):
+   wrapW("Clinical observations could not be prepared for this report. All recorded data is given in the sections below.",7.4,W-2*M-2*pad,italic);
+  const innerH=22+blocks.reduce((a:number,b:any)=>a+b.h,0)+srcLines.length*8.4+6;
+  ensure(Math.min(innerH,400));
+  const top=y;page.drawRectangle({x:M,y:top-innerH,width:W-2*M,height:innerH,color:pale,borderColor:rgb(.9,.56,.71),borderWidth:1.1});
+  T("Clinical Observations",M+pad,top-15,10.5,bold,deep);
+  const badge="AI-assisted | observations only";const bw=tw(badge,6.8,bold)+12;page.drawRectangle({x:W-M-pad-bw,y:top-18,width:bw,height:12,color:head,borderColor:pink,borderWidth:.6});T(badge,W-M-pad-bw+6,top-14.2,6.8,bold,mag);
+  let yy=top-25;
+  blocks.forEach((b:any,i:number)=>{if(i)page.drawLine({start:{x:M+pad,y:yy+2},end:{x:W-M-pad,y:yy+2},thickness:.4,color:pink,dashArray:[1.5,1.5]});
+   const label=b.g.area.toUpperCase();let ls=7.6;while(ls>5.8&&tw(label,ls,bold)>chipW-8)ls-=.2;
+   page.drawRectangle({x:M+pad,y:yy-12,width:chipW,height:13,color:aiChipColour(b.g.area)});centre(label,M+pad+chipW/2,yy-8.2,ls,bold,white);
+   b.lines.forEach((l:any,li:number)=>T(l.t,textX+l.indent,yy-8.4-li*lh,size,l.b?bold:regular,l.b?deep:ink));yy-=b.h});
+  srcLines.forEach((l,i)=>T(l,M+pad,yy-6-i*8.4,ai?6.6:7.4,italic,grey));
+  y=top-innerH-8;
+ }
+
+ // ---- 2. Vital signs trend ----
+ sectionTitle(`Vital signs - ${days.length}-day trend`);
+ const range=(a:number[],k:string)=>{if(!a.length)return {t:"-"};const lo=Math.min(...a),hi=Math.max(...a);return {t:lo===hi?String(lo):`${lo}-${hi}`,c:a.some(v=>vitalBad(k,v))?red:undefined,b:a.some(v=>vitalBad(k,v))}};
+ table([{h:"Date",w:58},{h:"Checks",w:34},{h:"BP (mmHg)",w:118},{h:"Pulse",w:46},{h:"SpO2 %",w:44},{h:"Temp F",w:46},{h:"Resp",w:36},{h:"Blood sugar (mg/dL)",w:150}],
+  vitalDays.map((v:any)=>{const bpBad=v.sys.some((s:any)=>vitalBad("sys",s))||v.dia.some((s:any)=>vitalBad("dia",s));
+   return [displayDate(v.d),String(v.n||"-"),{t:v.bp.join(", ")||"-",c:bpBad?red:undefined},range(v.pul,"pulse"),range(v.sp,"spo2"),range(v.tp,"temp"),range(v.rr,"rr"),
+    {t:v.sugar.map((s:any)=>`${s.t} ${s.v}${s.at?` (${s.at})`:""}`).join(", ")||"-",c:v.sugar.some((s:any)=>vitalBad("sugar",s.v))?red:undefined}]}),7.2);
+ note("Values in red are outside the usual range (BP >=140/90 or <100/60, pulse >100 or <60, SpO2 <94%, temp >=99.5 F, sugar >=200 or <70).",6.4);
+
+ // ---- 3. Medication adherence ----
+ sectionTitle("Medication - doses given in the period");
+ table([{h:"Medicine",w:130},{h:"Dose / route",w:80},{h:"Times",w:96},{h:"Given",w:52},{h:"Not given / held (date, reason)",w:181}],
+  medRows.length?medRows.map((m:any)=>[{t:`${m.name}${m.stopped?" (stopped)":""}`,b:true},m.dose||"-",m.times,{t:m.due!==null?`${m.given} / ${m.due}`:String(m.given),c:m.due!==null&&m.given<m.due?red:green,b:true},{t:m.exceptions.join("; ")||"None",c:m.exceptions.length?red:undefined}]):[["No medicine orders in the period","-","-","-","-"]],7.2);
+ if(lateDoses)note(`${lateDoses} dose(s) were given 30 minutes or more after the scheduled time; the reason is recorded in the MAR.`,6.6);
+
+ // ---- 4. Physiotherapy ----
+ sectionTitle("Physiotherapy - detail");
+ if(activePlans.length)activePlans.forEach((p:any)=>{const win=(Array.isArray(p.session_times)?p.session_times:text(p.session_times).replace(/[{}"]/g,"").split(",")).map((w:any)=>text(w)).filter(Boolean).map((w:string)=>w.split("-").map(hhmm12).join("-")).join(", ");
+  note(`Plan: ${text(p.therapy_type)||"Physiotherapy"} | ${text(p.frequency)||"-"}${win?` | windows ${win}`:""} | ${text(p.end_date)?`until ${displayDate(isoOf(p.end_date))}`:"until Dr. review"}${text(p.precautions)?` | precautions: ${text(p.precautions)}`:""}${text(p.advised_by)?` | advised by ${text(p.advised_by)}`:""}`,7.2,deep,regular)});
+ table([{h:"Date",w:58},{h:"Window",w:74},{h:"Actual",w:46},{h:"Physiotherapist",w:86},{h:"Status",w:56},{h:"Work done / response / reason",w:219}],
+  physioRows.length?physioRows.map((r:any)=>[r.d,r.slot,r.actual,r.who,{t:r.status,c:/complet/i.test(r.status)?green:red,b:true},r.notes]):[["-","-","-","-","-","No physiotherapy sessions recorded in the period"]],7.2);
+ const done=physioRows.filter((r:any)=>/complet/i.test(r.status)).length;if(physioRows.length)note(`${done} of ${physioRows.length} recorded session(s) completed in the period.`,6.6);
+
+ // ---- 5. Doctor reviews ----
+ if(reviewLines.length){sectionTitle("Doctor reviews recorded in the period",20);reviewLines.forEach((l:any)=>note(l,7.4,ink,regular))}
+
+ // ---- 6. Nursing ----
+ sectionTitle("Nursing summary");
+ const mealText=Object.keys(mealCounts).length?Object.entries(mealCounts).map(([k,v])=>`${k}: ${v}`).join(", "):"No meal records";
+ const ioText=ioDays.length?ioDays.map(x=>`${displayDate(x.d).slice(0,5)}: in ${x.intake} ml / out ${x.output} ml${x.stool?` / stool ${x.stool}`:""}`).join("; "):"Not charted";
+ const incText=wInc.length?wInc.map((x:any)=>`${displayDateTime(x.incident_at||x.created_at)} ${text(x.incident_type||x.category)}: ${text(x.description)}`).join("; "):"No incidents recorded";
+ table([{h:"Meals (period)",w:120},{h:"Intake / output (last 3 days)",w:170},{h:"Incidents",w:130},{h:"Nursing care",w:110}],[[mealText,ioText,{t:incText,c:wInc.length?red:undefined},`${wCare.length} care record(s)${careNotes.length?`; notes: ${careNotes.slice(-3).join("; ")}`:""}`]],7.2);
+
+ // ---- reply box + footer ----
+ const replyLines=wrapW("Reply on this WhatsApp chat with any instructions. Your reply reaches the Samara nursing team in the ERP WhatsApp Inbox.",7.6,W-2*M-16);
+ const rh=replyLines.length*10+10;ensure(rh+6);page.drawRectangle({x:M,y:y-rh,width:W-2*M,height:rh,color:rgb(1,.98,.99),borderColor:mag,borderWidth:.9,borderDashArray:[3,2]});
+ replyLines.forEach((l,i)=>T(l,M+8,y-12-i*10,7.6,i?regular:bold,i?ink:deep));y-=rh+6;
+ const pages=pdf.getPages();pages.forEach((p,i)=>{p.drawLine({start:{x:M,y:40},end:{x:W-M,y:40},thickness:.5,color:pink});
+  p.drawText(pdfText(`Samara Assisted Living | Daily Clinical Report | data till ${displayDate(date)} ${hhmm12(cutoff)}`),{x:M,y:30,size:6.4,font:regular,color:grey});
+  const r=`Confidential - for the treating doctor | ${i+1} / ${pages.length}`;p.drawText(r,{x:W-M-regular.widthOfTextAtSize(r,6.4),y:30,size:6.4,font:regular,color:grey})});
+ return {bytes:await pdf.save(),ai:Boolean(ai),model:ai?.model||null};
+}
+
+async function uploadDoctorReport(sb:any,patient:any,date:string,bytes:Uint8Array){
+ const safe=text(patient.full_name).replace(/[^a-zA-Z0-9_-]+/g,"_")||"Patient",path=`${patient.id}/${date}/doctor/${safe}_Daily_Clinical_Report_${date}.pdf`;
+ await sb.storage.createBucket("patient-reports",{public:false}).catch(()=>{});
+ const up=await sb.storage.from("patient-reports").upload(path,bytes,{contentType:"application/pdf",upsert:true});if(up.error)throw up.error;
+ const signed=await sb.storage.from("patient-reports").createSignedUrl(path,3600);if(signed.error)throw signed.error;return {path,url:signed.data.signedUrl};
+}
+
 async function uploadAndSign(sb:any,patient:any,date:string,bytes:Uint8Array){
  const safe=text(patient.full_name).replace(/[^a-zA-Z0-9_-]+/g,"_")||"Patient",path=`${patient.id}/${date}/${safe}_Intelligent_Patient_Report_${date}_readable_v9.pdf`;
  await sb.storage.createBucket("patient-reports",{public:false}).catch(()=>{});
@@ -197,23 +490,25 @@ async function uploadAndSign(sb:any,patient:any,date:string,bytes:Uint8Array){
  const signed=await sb.storage.from("patient-reports").createSignedUrl(path,3600);if(signed.error)throw signed.error;return {path,url:signed.data.signedUrl};
 }
 
-async function sendWhatsApp(to:string,recipient:string,patient:string,date:string,url:string){
+async function sendWhatsApp(to:string,recipient:string,patient:string,date:string,url:string,label="Intelligent Patient Report"){
  const token=Deno.env.get("WHATSAPP_ACCESS_TOKEN"),phone=Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");if(!token||!phone)throw new Error("WhatsApp configuration is missing.");
  const source=await samaraInboxFetch(url);if(!source.ok)throw new Error(`Generated PDF could not be opened for Meta upload (${source.status}).`);
- const mediaForm=new FormData();mediaForm.append("messaging_product","whatsapp");mediaForm.append("type","application/pdf");mediaForm.append("file",new Blob([await source.arrayBuffer()],{type:"application/pdf"}),`${patient.replace(/[^a-zA-Z0-9 _-]/g,"")} - Intelligent Patient Report - ${date}.pdf`);
+ const mediaForm=new FormData();mediaForm.append("messaging_product","whatsapp");mediaForm.append("type","application/pdf");mediaForm.append("file",new Blob([await source.arrayBuffer()],{type:"application/pdf"}),`${patient.replace(/[^a-zA-Z0-9 _-]/g,"")} - ${label} - ${displayDate(date)}.pdf`);
  const mediaResponse=await samaraInboxFetch(`https://graph.facebook.com/v25.0/${phone}/media`,{method:"POST",headers:{Authorization:`Bearer ${token}`},body:mediaForm});const mediaResult=await mediaResponse.json();
  if(!mediaResponse.ok||!mediaResult?.id)throw new Error(`Meta document upload failed: ${JSON.stringify(mediaResult)}`);
- const payload={messaging_product:"whatsapp",to:digits(to),type:"template",template:{name:DAILY_PATIENT_REPORT_TEMPLATE,language:{code:"en"},components:[{type:"header",parameters:[{type:"document",document:{id:mediaResult.id,filename:`${patient.replace(/[^a-zA-Z0-9 _-]/g,"")} - Intelligent Patient Report - ${date}.pdf`}}]},{type:"body",parameters:[recipient,patient,displayDate(date)].map(value=>({type:"text",text:value}))}]}};
+ const payload={messaging_product:"whatsapp",to:digits(to),type:"template",template:{name:DAILY_PATIENT_REPORT_TEMPLATE,language:{code:"en"},components:[{type:"header",parameters:[{type:"document",document:{id:mediaResult.id,filename:`${patient.replace(/[^a-zA-Z0-9 _-]/g,"")} - ${label} - ${displayDate(date)}.pdf`}}]},{type:"body",parameters:[recipient,patient,displayDate(date)].map(value=>({type:"text",text:value}))}]}};
  const response=await samaraInboxFetch(`https://graph.facebook.com/v25.0/${phone}/messages`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok)throw new Error(JSON.stringify(result));return result;
 }
 
-async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile,date,providerId,storagePath,scheduled,recipientType="Relative"}:{patient:any,recipientName:string,recipientMobile:string,date:string,providerId:string|null,storagePath:string,scheduled:boolean,recipientType?:"Relative"|"Doctor"}){
+async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile,date,providerId,storagePath,scheduled,recipientType="Relative",clinical=false}:{patient:any,recipientName:string,recipientMobile:string,date:string,providerId:string|null,storagePath:string,scheduled:boolean,recipientType?:"Relative"|"Doctor",clinical?:boolean}){
+ // 2.18.127: the doctor's Daily Clinical Report is logged under its own type so the Family Portal never lists it
+ const label=clinical?"Daily Clinical Report":"Intelligent Patient Report",commType=clinical?"Doctor Daily Clinical Report":"Daily Intelligent Patient Report";
  const now=new Date().toISOString();
- const message=`Dear ${recipientName}, the Daily Intelligent Patient Report for ${patientName(patient)} dated ${displayDate(date)} is attached.`;
-  const payload={patient_id:patient.id,patient_code:patient.patient_id||null,patient_name:patientName(patient),report_date:date,report_storage_path:storagePath,report_storage_bucket:"patient-reports",report_file_name:`${patientName(patient)} - Intelligent Patient Report - ${displayDate(date)}.pdf`,automated:scheduled};
+ const message=clinical?`Dear ${recipientName}, the Daily Clinical Report for ${patientName(patient)} dated ${displayDate(date)} is attached.`:`Dear ${recipientName}, the Daily Intelligent Patient Report for ${patientName(patient)} dated ${displayDate(date)} is attached.`;
+  const payload={patient_id:patient.id,patient_code:patient.patient_id||null,patient_name:patientName(patient),report_date:date,report_storage_path:storagePath,report_storage_bucket:"patient-reports",report_file_name:`${patientName(patient)} - ${label} - ${displayDate(date)}.pdf`,automated:scheduled,report_kind:clinical?"doctor_clinical":"family"};
  const log=await sb.from("hr_whatsapp_communications").insert({
   career_application_id:null,application_id:null,applicant_name:recipientName,recipient_number:digits(recipientMobile),
-  communication_type:"Daily Intelligent Patient Report",template_name:DAILY_PATIENT_REPORT_TEMPLATE,status:"Accepted",
+  communication_type:commType,template_name:DAILY_PATIENT_REPORT_TEMPLATE,status:"Accepted",
   provider_message_id:providerId,error_message:null,sent_by:null,sent_by_name:scheduled?"Samara Automatic Report":"Samara ERP",
   direction:"outbound",message_type:"template",message_content:message,message_payload:payload,
   contact_name:recipientName,source_type:recipientType==="Doctor"?"Patient / Doctor":"Patient / Family",sent_at:now,created_at:now,updated_at:now
@@ -290,14 +585,18 @@ Deno.serve(async req=>{
      const sentNumbers=new Set((already.data||[]).filter((row:any)=>["accepted","sent","delivered","read"].includes(text(row.status).toLowerCase())).map((row:any)=>digits(row.recipient_number)));
      const pending=uniqueRecipients.filter(r=>!sentNumbers.has(digits(r.mobile)));
      if(!pending.length){console.log("DAILY_REPORT_SKIP_ALREADY_SENT",JSON.stringify({patient_id:pref.patient_id,date,recipients:uniqueRecipients.map(r=>r.type)}));results.push({patient_id:pref.patient_id,status:"skipped_already_sent"});continue}
-     const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes);
+     // 2.18.127: family PDF made only when a non-clinical recipient is pending; clinical doctor PDF made only for the trial Guests
+     const clinicalDoctor=text(pref.doctor_report_style).toLowerCase()==="clinical";
+     let familyFile:any=null,doctorFile:any=null;
+     const fileFor=async(r:any)=>{if(r.type==="Doctor"&&clinicalDoctor){if(!doctorFile){const made=await makeDoctorReport(sb,pr.data,date,r.name);doctorFile=await uploadDoctorReport(sb,pr.data,date,made.bytes);console.log("DOCTOR_REPORT_MADE",JSON.stringify({patient_id:pr.data.id,ai:made.ai,model:made.model}))}return doctorFile}if(!familyFile){const bytes=await makeReport(sb,pr.data,date);familyFile=await uploadAndSign(sb,pr.data,date,bytes)}return familyFile};
      const deliveries:any[]=[];
      if(pref.doctor_report_enabled===true&&!uniqueRecipients.some(r=>r.type==="Doctor"))deliveries.push({recipient_type:"Doctor",status:"failed",error:"Doctor WhatsApp number is missing or invalid"});
      for(const recipient of pending){
       try{
-       const wa=await sendWhatsApp(recipient.mobile,recipient.name,patientName(pr.data),date,file.url),provider=wa?.messages?.[0]?.id||null;
-       const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:recipient.name,recipientMobile:recipient.mobile,date,providerId:provider,storagePath:file.path,scheduled:true,recipientType:recipient.type});
-       const patientLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:recipient.type,recipient_name:recipient.name,recipient_number:digits(recipient.mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});
+       const clinical=recipient.type==="Doctor"&&clinicalDoctor,file=await fileFor(recipient);
+       const wa=await sendWhatsApp(recipient.mobile,recipient.name,patientName(pr.data),date,file.url,clinical?"Daily Clinical Report":"Intelligent Patient Report"),provider=wa?.messages?.[0]?.id||null;
+       const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:recipient.name,recipientMobile:recipient.mobile,date,providerId:provider,storagePath:file.path,scheduled:true,recipientType:recipient.type,clinical});
+       const patientLog=await sb.from("patient_communications").insert({patient_id:pr.data.id,communication_type:"Daily Intelligent Patient Report",method:"WhatsApp",recipient_type:recipient.type,recipient_name:recipient.name,recipient_number:digits(recipient.mobile),report_date:date,status:"Accepted",provider_message_id:provider,message_preview:clinical?"Detailed Daily Clinical Report PDF (doctor)":"Detailed two-page Intelligent Patient Report PDF",created_at:new Date().toISOString()});
        if(patientLog.error)console.error("DAILY_REPORT patient history insert failed",pref.patient_id,recipient.type,patientLog.error);
        deliveries.push({recipient_type:recipient.type,status:"sent",provider_message_id:provider,inbox_recorded:!inboxError,patient_history_recorded:!patientLog.error});
       }catch(e){const error=e instanceof Error?e.message:String(e);console.error("DAILY_REPORT_RECIPIENT_FAILED",JSON.stringify({patient_id:pref.patient_id,recipient_type:recipient.type,error}));deliveries.push({recipient_type:recipient.type,status:"failed",error})}
@@ -312,7 +611,19 @@ Deno.serve(async req=>{
    }
    return json({ok:true,date,time,enabled:(prefs.data||[]).length,due:duePrefs.length,results});
   }
-  const patientId=text(body.patient_id),date=text(body.report_date)||indiaDate();if(!patientId)return json({ok:false,error:"patient_id is required"},400);const pr=await sb.from("patients").select("*").eq("id",patientId).single();if(pr.error)return json({ok:false,error:pr.error.message},404);const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes);
+  const patientId=text(body.patient_id),date=text(body.report_date)||indiaDate();if(!patientId)return json({ok:false,error:"patient_id is required"},400);const pr=await sb.from("patients").select("*").eq("id",patientId).single();if(pr.error)return json({ok:false,error:pr.error.message},404);
+  // 2.18.127: doctor's Daily Clinical Report - preview (doctor_generate_only) or send to the saved doctor number (doctor_send)
+  if(body.mode==="doctor_generate_only"||body.mode==="doctor_send"){
+   const pref=await sb.from("patient_family_communication_preferences").select("*").eq("patient_id",patientId).maybeSingle();
+   const doctorName=text(body.doctor_name)||text(pref.data?.doctor_recipient_name)||text(pr.data.treating_doctor)||text(pr.data.referring_doctor)||"Treating Doctor";
+   const made=await makeDoctorReport(sb,pr.data,date,doctorName),file=await uploadDoctorReport(sb,pr.data,date,made.bytes),fileName=`${patientName(pr.data)} - Daily Clinical Report - ${displayDate(date)}.pdf`;
+   if(body.mode==="doctor_generate_only")return json({ok:true,report_url:file.url,storage_path:file.path,file_name:fileName,ai_observations:made.ai});
+   const mobile=text(body.recipient_mobile)||text(pref.data?.doctor_recipient_mobile);if(digits(mobile).length<10)return json({ok:false,error:"Doctor WhatsApp number is not saved for this Guest."},400);
+   const wa=await sendWhatsApp(mobile,doctorName,patientName(pr.data),date,file.url,"Daily Clinical Report"),provider=wa?.messages?.[0]?.id||null;
+   const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:doctorName,recipientMobile:mobile,date,providerId:provider,storagePath:file.path,scheduled:false,recipientType:"Doctor",clinical:true});
+   return json({ok:true,report_url:file.url,storage_path:file.path,provider_message_id:provider,inbox_recorded:!inboxError,ai_observations:made.ai});
+  }
+  const bytes=await makeReport(sb,pr.data,date),file=await uploadAndSign(sb,pr.data,date,bytes);
   if(body.mode==="generate_only")return json({ok:true,report_url:file.url,storage_path:file.path,file_name:`${patientName(pr.data)} - Intelligent Patient Report - ${displayDate(date)}.pdf`});
   const wa=await sendWhatsApp(body.recipient_mobile,body.recipient_name||"Family Member",patientName(pr.data),date,file.url),provider=wa?.messages?.[0]?.id||null;
   const inboxError=await recordWhatsAppInbox(sb,{patient:pr.data,recipientName:body.recipient_name||"Family Member",recipientMobile:body.recipient_mobile,date,providerId:provider,storagePath:file.path,scheduled:false});

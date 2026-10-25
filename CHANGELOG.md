@@ -1,3 +1,11 @@
+## 2.18.127 — Doctor's Daily Clinical Report (trial: Ranjith Kumar)
+- New report for the Guest's treating doctor, separate from the family's Intelligent Report: title "Daily Clinical Report" (centred), larger Samara logo with "Centre for Nursing Excellence" beneath, Dr. name (bold), Patient Name and Report Period on separate lines, Samara address and phone numbers at top right. No Vitals box at the top.
+- Sections: Clinical Observations (AI) · Vital signs trend (up to 7 days; out-of-range values in red) · Medication doses given / due with doses not given and why · Physiotherapy in detail (plan, every session, therapist, status, notes) · Doctor reviews in the period · Nursing summary (meals, intake/output, incidents, care notes) · reply-on-WhatsApp note. One A4 page; a 2nd page only when the records need it.
+- Clinical Observations are prepared by Gemini from Samara's own records and the Guest's uploaded prescription / discharge / lab documents, grouped by the Guest's own conditions (Neurology, Orthopaedics, Diabetes …). Strict: observations only — any line that advises or recommends is removed automatically. If Gemini is unavailable, the report is still sent without the box.
+- Trial per Guest: SQL 295 adds "doctor report style" (family copy / clinical) and turns "clinical" on for Ranjith Kumar only. All other doctors keep getting the family copy. The doctor's report is not listed in the Family Portal.
+- Intelligent Reports (Resident-wise, Admin / Manager): new "🩺 Doctor's Report (PDF)" preview and "Send to Doctor" buttons.
+- **SQL 295 required. Edge Function daily-patient-report must be redeployed.**
+
 ## 2.18.126 — Physio reschedule / correction requests: notifications that open the request
 - Nursing Manager and Admin: pending physiotherapy requests are counted in the 🔔 bell and listed at the top of Clinical Alerts and in Notifications. Tapping one opens only that request with Approve / Reject ("Show all" returns to the full page). No top pop-up (owner's choice of 24-Oct kept).
 - Phone notification (SQL 294 + Edge Function physio-approval-alert-dispatch): sent once per request to Admin and Nursing Manager phones; tapping it opens that request. The requester never gets it — the Nursing Manager's own request goes to Admin only.
