@@ -42,6 +42,7 @@
     const n=physioNormName(name),orgs=contacts.organisations||[],people=contacts.practitioners||[];
     let person=people.find(p=>p.id===practitionerId)||null;
     if(!person&&n)person=people.find(p=>(!organisationId||p.organisation_id===organisationId)&&physioNormName(p.full_name)===n)||people.find(p=>physioNormName(p.full_name)===n)||null;
+    if(!person&&n.length>=4){const near=people.filter(p=>{const m=physioNormName(p.full_name);return m.length>=4&&(m.startsWith(n)||n.startsWith(m))});if(near.length===1)person=near[0];} // 2.18.125: "ANISHA.U" = "Anisha"
     let org=orgs.find(o=>o.id===(organisationId||person?.organisation_id))||null;
     if(!org&&n)org=orgs.find(o=>physioNormName(o.name)===n||(n.startsWith('vinayaga')&&physioNormName(o.name).startsWith('vinayaga')))||null;
     return person||org?{person,org}:null;
@@ -90,6 +91,13 @@
       .physio-nophone{display:block;color:#a08a95}
       .physio-today-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
       .physio-today-row ul{margin:4px 0 0;padding-left:18px}
+      .physio-dir-org{margin:8px 0 12px}
+      .physio-numbers-panel summary{cursor:pointer;font-weight:700;color:#8e1b4f;padding:4px 0}
+      .physio-numbers-panel .odt-person{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border:1px solid #f0d6e3;border-radius:12px;margin:6px 0;background:#fff;flex-wrap:wrap}
+      .physio-numbers-panel .odt-section h4{display:none}
+      .physio-dir-head{display:flex;align-items:baseline;gap:6px;color:#791346}
+      .physio-dir-head small{color:#725d68}
+      .physio-dir-org .odt-person .physio-contact-line{justify-content:flex-end}
     `;
     document.head.appendChild(st);
   })();

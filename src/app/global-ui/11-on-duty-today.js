@@ -43,6 +43,21 @@
         key==='unassigned'?h('small',{className:'odt-nophone'},'Physiotherapist not set in plan'):h(PhysioContact,{organisationId:g.orgId,practitionerId:g.person?.id,name:g.name}))));
   }
 
+  // 2.18.125: every active physiotherapist with their number, so staff can pick anyone and call.
+  function OdtPhysioDirectory(){
+    const contacts=usePhysioContacts();
+    if(!contacts)return null;
+    const orgs=contacts.organisations||[],people=contacts.practitioners||[];
+    if(!orgs.length&&!people.length)return null;
+    return h('section',{className:'odt-section'},h('h4',null,'All physiotherapists'),
+      orgs.map(o=>{const team=people.filter(p=>p.organisation_id===o.id);
+        return h('div',{key:o.id,className:'physio-dir-org'},
+          h('div',{className:'physio-dir-head'},h('strong',{'data-no-translate':'true'},o.name),h('small',null,o.org_type==='Samara'?' Samara own team':' Outsourced')),
+          physioPhoneDigits(o.phone)?h('div',{className:'odt-person'},h('div',null,h('strong',null,'Desk'),o.contact_person?h('small',{'data-no-translate':'true'},o.contact_person):null),h(PhysioPhoneButtons,{phone:o.phone})):null,
+          team.map(p=>h('div',{key:p.id,className:'odt-person'},h('strong',{'data-no-translate':'true'},p.full_name),
+            physioPhoneDigits(p.phone)?h(PhysioPhoneButtons,{phone:p.phone}):h('small',{className:'odt-nophone'},'No mobile saved'))));}));
+  }
+
   function OnDutyToday({profile}){
     const allowed=['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)); // 2.16.7: Nurses / Caregivers too
     const [open,setOpen]=React.useState(false),[data,setData]=React.useState(null),[err,setErr]=React.useState(''),[dept,setDept]=React.useState('All'),[day,setDay]=React.useState('');
@@ -99,7 +114,8 @@
             extra?h('small',{className:'odt-task'},extra):null),
           phone.replace(/\D/g,'').length>=10?h('a',{className:'btn btn-secondary odt-call',href:`tel:${phone}`,'data-no-translate':'true'},'📞 '+s.mobile):h('small',{className:'odt-nophone'},'No mobile'));
       };
-      const groups={};working.filter(d=>deptOk(d.employee_id)).forEach(d=>{const g=odtShiftGroup(d.shift);(groups[g]=groups[g]||[]).push(d)});
+      const shownNow=new Set(onNowUnique.map(d=>d.employee_id)); // 2.18.125: someone on duty now is not listed again below
+      const groups={};working.filter(d=>deptOk(d.employee_id)&&!shownNow.has(d.employee_id)).forEach(d=>{const g=odtShiftGroup(d.shift);(groups[g]=groups[g]||[]).push(d)});
       const keys=Object.keys(groups).sort((a,b)=>(ODT_ORDER.indexOf(a)+99)%99-(ODT_ORDER.indexOf(b)+99)%99||a.localeCompare(b));
       const leaveShown=leaveToday.filter(l=>deptOk(l.employee_id)),offShown=weeklyOff.filter(d=>deptOk(d.employee_id));
       body=h(React.Fragment,null,
@@ -111,8 +127,9 @@
         depts.length>2&&h('div',{className:'stores-mode-switch',role:'tablist',style:{margin:'8px 0'}},depts.map(x=>h('button',{key:x,type:'button',role:'tab','aria-selected':dept===x,className:dept===x?'active':'',onClick:()=>setDept(x)},x==='All'?'All':x))),
         data.today&&h('section',{className:'odt-section odt-now'},h('h4',null,`On duty now (${onNowUnique.length})`),
           onNowUnique.length?onNowUnique.map(d=>person(d,odtShiftGroup(d.shift)+(String(d.duty_date).slice(0,10)!==data.date?' · until 7 AM':''))):h('p',{className:'small-note'},'Nobody is marked on duty at this time.')),
-        keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):h('p',{className:'small-note'},'No duty assigned for this day.'),
+        keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):(onNowUnique.length?null:h('p',{className:'small-note'},'No duty assigned for this day.')),
         data.today&&h(OdtPhysioToday,null),
+        h(OdtPhysioDirectory,null),
         offShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`Weekly off (${offShown.length})`),offShown.map(d=>person(d))):null,
         leaveShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`On leave / permission (${leaveShown.length})`),leaveShown.map(l=>person(l.employee_id,`${l.request_type||'Leave'}${l.leave_type?` · ${l.leave_type}`:''} · ${formatDateIN(l.from_date)}${l.to_date&&l.to_date!==l.from_date?` – ${formatDateIN(l.to_date)}`:''}`))):null,
         h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.')

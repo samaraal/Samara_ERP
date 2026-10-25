@@ -356,6 +356,7 @@
 
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
+      h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125
       h(LogTable,{
         title:'Physiotherapy Plan',
         subtitle:'Therapy advised at discharge or during patient review',

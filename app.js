@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.124';
+  const APP_VERSION = '2.18.125';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '25-Oct-2026 Physio phone Call / WhatsApp';
+  const APP_BUILD_DATE = '25-Oct-2026 All physio numbers, no duplicate duty names';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -3658,6 +3658,7 @@ https://samaraassistedliving.com/`;
     const n=physioNormName(name),orgs=contacts.organisations||[],people=contacts.practitioners||[];
     let person=people.find(p=>p.id===practitionerId)||null;
     if(!person&&n)person=people.find(p=>(!organisationId||p.organisation_id===organisationId)&&physioNormName(p.full_name)===n)||people.find(p=>physioNormName(p.full_name)===n)||null;
+    if(!person&&n.length>=4){const near=people.filter(p=>{const m=physioNormName(p.full_name);return m.length>=4&&(m.startsWith(n)||n.startsWith(m))});if(near.length===1)person=near[0];} // 2.18.125: "ANISHA.U" = "Anisha"
     let org=orgs.find(o=>o.id===(organisationId||person?.organisation_id))||null;
     if(!org&&n)org=orgs.find(o=>physioNormName(o.name)===n||(n.startsWith('vinayaga')&&physioNormName(o.name).startsWith('vinayaga')))||null;
     return person||org?{person,org}:null;
@@ -3706,6 +3707,13 @@ https://samaraassistedliving.com/`;
       .physio-nophone{display:block;color:#a08a95}
       .physio-today-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
       .physio-today-row ul{margin:4px 0 0;padding-left:18px}
+      .physio-dir-org{margin:8px 0 12px}
+      .physio-numbers-panel summary{cursor:pointer;font-weight:700;color:#8e1b4f;padding:4px 0}
+      .physio-numbers-panel .odt-person{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border:1px solid #f0d6e3;border-radius:12px;margin:6px 0;background:#fff;flex-wrap:wrap}
+      .physio-numbers-panel .odt-section h4{display:none}
+      .physio-dir-head{display:flex;align-items:baseline;gap:6px;color:#791346}
+      .physio-dir-head small{color:#725d68}
+      .physio-dir-org .odt-person .physio-contact-line{justify-content:flex-end}
     `;
     document.head.appendChild(st);
   })();
@@ -12806,6 +12814,21 @@ https://samaraassistedliving.com/`;
         key==='unassigned'?h('small',{className:'odt-nophone'},'Physiotherapist not set in plan'):h(PhysioContact,{organisationId:g.orgId,practitionerId:g.person?.id,name:g.name}))));
   }
 
+  // 2.18.125: every active physiotherapist with their number, so staff can pick anyone and call.
+  function OdtPhysioDirectory(){
+    const contacts=usePhysioContacts();
+    if(!contacts)return null;
+    const orgs=contacts.organisations||[],people=contacts.practitioners||[];
+    if(!orgs.length&&!people.length)return null;
+    return h('section',{className:'odt-section'},h('h4',null,'All physiotherapists'),
+      orgs.map(o=>{const team=people.filter(p=>p.organisation_id===o.id);
+        return h('div',{key:o.id,className:'physio-dir-org'},
+          h('div',{className:'physio-dir-head'},h('strong',{'data-no-translate':'true'},o.name),h('small',null,o.org_type==='Samara'?' Samara own team':' Outsourced')),
+          physioPhoneDigits(o.phone)?h('div',{className:'odt-person'},h('div',null,h('strong',null,'Desk'),o.contact_person?h('small',{'data-no-translate':'true'},o.contact_person):null),h(PhysioPhoneButtons,{phone:o.phone})):null,
+          team.map(p=>h('div',{key:p.id,className:'odt-person'},h('strong',{'data-no-translate':'true'},p.full_name),
+            physioPhoneDigits(p.phone)?h(PhysioPhoneButtons,{phone:p.phone}):h('small',{className:'odt-nophone'},'No mobile saved'))));}));
+  }
+
   function OnDutyToday({profile}){
     const allowed=['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)); // 2.16.7: Nurses / Caregivers too
     const [open,setOpen]=React.useState(false),[data,setData]=React.useState(null),[err,setErr]=React.useState(''),[dept,setDept]=React.useState('All'),[day,setDay]=React.useState('');
@@ -12862,7 +12885,8 @@ https://samaraassistedliving.com/`;
             extra?h('small',{className:'odt-task'},extra):null),
           phone.replace(/\D/g,'').length>=10?h('a',{className:'btn btn-secondary odt-call',href:`tel:${phone}`,'data-no-translate':'true'},'📞 '+s.mobile):h('small',{className:'odt-nophone'},'No mobile'));
       };
-      const groups={};working.filter(d=>deptOk(d.employee_id)).forEach(d=>{const g=odtShiftGroup(d.shift);(groups[g]=groups[g]||[]).push(d)});
+      const shownNow=new Set(onNowUnique.map(d=>d.employee_id)); // 2.18.125: someone on duty now is not listed again below
+      const groups={};working.filter(d=>deptOk(d.employee_id)&&!shownNow.has(d.employee_id)).forEach(d=>{const g=odtShiftGroup(d.shift);(groups[g]=groups[g]||[]).push(d)});
       const keys=Object.keys(groups).sort((a,b)=>(ODT_ORDER.indexOf(a)+99)%99-(ODT_ORDER.indexOf(b)+99)%99||a.localeCompare(b));
       const leaveShown=leaveToday.filter(l=>deptOk(l.employee_id)),offShown=weeklyOff.filter(d=>deptOk(d.employee_id));
       body=h(React.Fragment,null,
@@ -12874,8 +12898,9 @@ https://samaraassistedliving.com/`;
         depts.length>2&&h('div',{className:'stores-mode-switch',role:'tablist',style:{margin:'8px 0'}},depts.map(x=>h('button',{key:x,type:'button',role:'tab','aria-selected':dept===x,className:dept===x?'active':'',onClick:()=>setDept(x)},x==='All'?'All':x))),
         data.today&&h('section',{className:'odt-section odt-now'},h('h4',null,`On duty now (${onNowUnique.length})`),
           onNowUnique.length?onNowUnique.map(d=>person(d,odtShiftGroup(d.shift)+(String(d.duty_date).slice(0,10)!==data.date?' · until 7 AM':''))):h('p',{className:'small-note'},'Nobody is marked on duty at this time.')),
-        keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):h('p',{className:'small-note'},'No duty assigned for this day.'),
+        keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):(onNowUnique.length?null:h('p',{className:'small-note'},'No duty assigned for this day.')),
         data.today&&h(OdtPhysioToday,null),
+        h(OdtPhysioDirectory,null),
         offShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`Weekly off (${offShown.length})`),offShown.map(d=>person(d))):null,
         leaveShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`On leave / permission (${leaveShown.length})`),leaveShown.map(l=>person(l.employee_id,`${l.request_type||'Leave'}${l.leave_type?` · ${l.leave_type}`:''} · ${formatDateIN(l.from_date)}${l.to_date&&l.to_date!==l.from_date?` – ${formatDateIN(l.to_date)}`:''}`))):null,
         h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.')
@@ -37537,6 +37562,7 @@ function RoomsBeds({profile,onNavigate}){
 
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
+      h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125
       h(LogTable,{
         title:'Physiotherapy Plan',
         subtitle:'Therapy advised at discharge or during patient review',

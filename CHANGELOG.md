@@ -1,3 +1,8 @@
+## 2.18.125 — All physiotherapist numbers; On Duty Today without repeated names
+- On Duty Today: staff shown under "On duty now" are no longer listed again under their shift.
+- New "All physiotherapists" list (On Duty Today, and "📞 Physiotherapist phone numbers" at the top of the Physiotherapy page): every active physiotherapist and desk with Call / WhatsApp, so staff can pick anyone.
+- Names with initials (e.g. "ANISHA.U") now find their number. One-time SQL 293 saves Dr. Anisha's number on "ANISHA.U".
+
 ## 2.18.124 — Physiotherapist phone numbers: 📞 Call / 💬 WhatsApp
 - Staff (Nurses, Nursing Manager, Admin, STD) can call or WhatsApp the physiotherapist from: Physiotherapy plan list, pending sessions, the Record Session form, the Guest file → Physiotherapy tab, physiotherapy alerts / escalations, and a new "Physiotherapy today" list in On Duty Today. Outsourced organisations show the therapist's mobile and the desk number.
 - On a phone "Call" dials; on a laptop the number is shown and a click copies it. WhatsApp opens the staff member's own WhatsApp.
