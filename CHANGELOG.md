@@ -1,3 +1,7 @@
+## 2.18.151 — 26-10-2026 — Correct & Resubmit: all Nursing Procedures in the list
+- When Accounts return a request, the nurse's Correct & Resubmit Service / Item list now has two groups: the items received for this Guest, and **every active Nursing Procedure** (the item's linked "Used for" service first, when Admin has set one). Choosing a procedure sends a new request straight to Accounts at the Charge Master rate (no Nursing Manager approval), linked to the returned one.
+- New SQL: supabase/sql/304_resubmit_any_nursing_procedure.sql (replaces the check from 302). Frontend 2.18.151.
+
 ## 2.18.150 — 26-10-2026 — Nursing Procedures: Nursing Manager approval per item (Yes / No)
 - Charge Master: new column **Nursing Manager Approval Needed: Yes / No** for every item in an approval-routed category (e.g. Nursing Procedures). Admin taps Yes or No. All items set to **No** now — approval is no longer mandatory.
 - NURSING → Approval Requests: for an item with **No**, the nurse's request is approved automatically and goes straight to "Ready to Start" (Confirm & Start raises the charge for Accounts as before). Items with **Yes** (and Biomedical Equipment) still wait for Nursing Manager / Admin approval. The item list shows which items need approval.

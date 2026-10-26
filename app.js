@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.150';
+  const APP_VERSION = '2.18.151';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '26-Oct-2026 Nursing Procedures: per-item Nursing Manager approval switch';
+  const APP_BUILD_DATE = '26-Oct-2026 Correct & Resubmit: all Nursing Procedures in the list';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -50252,11 +50252,22 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const basicFields=[
       patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const rel=resubmitFrom?relatedServiceFor(resubmitFrom):null;
-        if(rel)return h(React.Fragment,null,h('select',{value:form.related_code?'__related__':form.service_name,onChange:e=>{const v=e.target.value;if(v==='__related__')setForm(f=>({...f,related_code:rel.charge_code,quantity:'1'}));else{setForm(f=>({...f,related_code:''}));changeService(v)}}},
-            h('option',{value:'__related__'},`${rel.charge_code?`${rel.charge_code} · `:''}${rel.service_name} (${rel.category}) — used for ${rel.item_name}`),
-            serviceOptions(form.category,form.patient_id).filter(o=>o.value===resubmitFrom.service_name).map(o=>h('option',{key:o.value,value:o.value},`${o.label} (keep the item)`))),
-          form.related_code&&h('small',{className:'small-note'},`Goes straight to Accounts as ${rel.category} · ${rel.service_name} — Accounts asked for this correction, so no Nursing Manager approval is needed. Quantity = number of times done.`));
+      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{
+        // 2.18.151: Correct & Resubmit lists the normal items PLUS every active Nursing Procedure (linked "Used for"
+        // service first). Picking a procedure sends a new request straight to Accounts (SQL 304).
+        if(resubmitFrom){
+          const rel=relatedServiceFor(resubmitFrom);
+          const procs=(catalog||[]).filter(c=>c.is_active!==false&&c.charge_code&&(c.category==='Nursing Procedures'||approvalCategories.has(c.category))&&String(c.service_name||'').trim().toLowerCase()!=='others')
+            .sort((a,b)=>Number(b.charge_code===rel?.charge_code)-Number(a.charge_code===rel?.charge_code)||samaraAlpha(a.service_name,b.service_name));
+          const itemOpts=serviceOptions(form.category,form.patient_id);
+          const pick=procs.find(c=>c.charge_code===form.related_code);
+          return h(React.Fragment,null,
+            h('select',{value:form.related_code?`__proc__:${form.related_code}`:(itemOpts.some(o=>o.value===form.service_name)?form.service_name:''),onChange:e=>{const v=e.target.value;if(v.startsWith('__proc__:'))setForm(f=>({...f,related_code:v.slice(9),quantity:'1'}));else{setForm(f=>({...f,related_code:''}));changeService(v)}}},
+              !itemOpts.length&&!form.related_code&&h('option',{value:''},'Select a nursing procedure'),
+              itemOpts.length>0&&h('optgroup',{label:`${form.category} (received for this Guest)`},itemOpts.map(o=>h('option',{key:o.value,value:o.value},o.label))),
+              procs.length>0&&h('optgroup',{label:'Nursing Procedures — sent straight to Accounts'},procs.map(c=>h('option',{key:c.charge_code,value:`__proc__:${c.charge_code}`},`${c.charge_code} · ${c.service_name}${rel&&c.charge_code===rel.charge_code?` (used for ${rel.item_name})`:''}`)))),
+            pick&&h('small',{className:'small-note'},`Goes straight to Accounts as ${pick.category} · ${pick.service_name} — Accounts asked for this correction, so no Nursing Manager approval is needed. Quantity = number of times done.`));
+        }
         const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'),
         empty&&nurseUser&&form.patient_id&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>{if(!confirm('Open Raise Indent? This Bill / Charge form will close without saving.'))return;setShow(false);window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Raise Indent',patientId:form.patient_id}}))}},'＋ Raise Indent for this patient'))})()),
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
