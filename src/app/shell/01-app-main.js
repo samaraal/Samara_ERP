@@ -857,6 +857,8 @@
           page==='Documents'&&h(Documents,{profile}),
           page==='Accounts Dashboard'&&h(AccountsDashboard,{profile,onNavigate:setPage}),
           page==='Accounts Statement'&&h(AccountsStatement,{profile}),
+          page==='Net Profit Statement'&&h(NetProfitStatement,{profile,onNavigate:setPage}),
+          page==='Monthly Expenses'&&h(MonthlyExpenses,{profile,onNavigate:setPage}),
           page==='Outside Bills Paid by Samara'&&['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsPage,{profile,onNavigate:setPage}),
           page==='Package Expiry Dashboard'&&h(PackageExpiryDashboard,{profile,onNavigate:setPage}),
           page==='Charge Approvals'&&h(ClinicalCharges,{profile,initialPatientId:chargeApprovalPatientId,key:chargeApprovalPatientId||'all'}),

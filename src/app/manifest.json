@@ -530,6 +530,11 @@
    "lines": 273
   },
   {
+   "file": "accounts/12-net-profit.js",
+   "about": "ACCOUNTS / BILLING → Net Profit Statement + Monthly Expenses (Admin / Directors only)",
+   "lines": 207
+  },
+  {
    "file": "reports/whatsapp-delivery-logs.js",
    "about": "WhatsApp delivery logs",
    "lines": 51

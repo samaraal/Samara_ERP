@@ -1,3 +1,8 @@
+## 2.18.169 — 27-10-2026 — Net Profit Statement + Monthly Expenses (Admin / Directors)
+- ACCOUNTS / BILLING → **Net Profit Statement**: This Month / Last Month / any month / a period, compared with the previous month. Income = charges raised in the period by category, less discounts (Trial Guests excluded). Expenses = Pharmacy & Consumables stock receipts, Food vendor meals received, Kitchen / Food Stores purchases, Nursing Manager petty cash, outsourced physiotherapy session fees, outside bills Samara paid for Guests, payments made through Outgoing Payments (Salaries / Rent / Utilities / Maintenance / Other — Food vendor and Purchase payments excluded as already counted), and Monthly Expenses. Operating Profit (before equipment) and Net Profit (after equipment, counted in full when bought), margin, plus cash collected and outstanding from Guests today. Print / PDF and Excel.
+- ACCOUNTS / BILLING → **Monthly Expenses**: enter rent, electricity, water, internet, maintenance, professional fees etc.; **Salaries paid** pre-filled from HR current salary, adjust and Record per employee or all at once; remove with a reason (kept for audit).
+- New SQL: supabase/sql/305_net_profit_statement.sql (table + Admin-only functions; no direct table access).
+
 ## 2.18.168 — 27-10-2026 — Clinical alert pop-up in Samara baby pink theme
 - The alert pop-up (For Information / Clinical Alert / Clinical Escalation) now uses the logo theme: light baby pink gradient, dark plum text, magenta OK button.
 - The heading is centred in a white pill with its own colour: FOR INFORMATION teal, CLINICAL ESCALATION red, CLINICAL ALERT magenta.
