@@ -39,6 +39,13 @@
     const chatScrollRef=React.useRef(null);
     const chatViewRef=React.useRef({key:null,followLatest:true});
     const chatShellRef=React.useRef(null);
+    // 2.18.160: size the desktop inbox to the screen — measure where it starts so it fills down to the bottom.
+    React.useEffect(()=>{
+      if(isMobile)return;
+      const measure=()=>{const shell=chatShellRef.current;if(!shell)return;const top=shell.getBoundingClientRect().top+(window.scrollY||0);shell.style.setProperty('--wa-shell-top',`${Math.round(Math.max(60,Math.min(420,top)))}px`);};
+      const t=setTimeout(measure,60);window.addEventListener('resize',measure);
+      return()=>{clearTimeout(t);window.removeEventListener('resize',measure)};
+    });
     const renderChatShell=node=>isMobile&&selectedPhone?ReactDOM.createPortal(node,document.body):node;
     React.useEffect(()=>{
       if(!isMobile||!selectedPhone)return;
@@ -201,9 +208,14 @@
       if(document.getElementById('samara-wa-mobile-style'))return;
       const style=document.createElement('style');style.id='samara-wa-mobile-style';
       style.textContent=`
-        .wa-inbox-shell{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(0,1.65fr);gap:0;align-items:stretch;border:1px solid #ead9df;border-radius:16px;overflow:hidden;background:#fff;min-height:640px}
-        .wa-conversation-list{border-right:1px solid #e6d5dc;background:#fff;max-height:76vh;overflow-y:auto}
-        .wa-chat-pane{min-width:0;display:flex;flex-direction:column;height:76vh;background:#efeae2}
+        .wa-inbox-shell{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(0,1.65fr);gap:0;align-items:stretch;border:1px solid #ead9df;border-radius:16px;overflow:hidden;background:#fff;min-height:480px}
+        .wa-conversation-list{border-right:1px solid #e6d5dc;background:#fff;max-height:max(480px,calc(100dvh - var(--wa-shell-top,190px) - 14px));overflow-y:auto}
+        .wa-chat-pane{min-width:0;display:flex;flex-direction:column;height:max(480px,calc(100dvh - var(--wa-shell-top,190px) - 14px));background:#efeae2}
+        /* 2.18.160: compact folder chips + toolbar so the conversation area gets the height */
+        .wa-inbox-section>.panel-head{margin-bottom:6px!important;padding-bottom:0!important;min-height:0!important}
+        .wa-compact .btn{min-height:32px!important;padding:5px 12px!important;font-size:13px!important;border-radius:999px!important;line-height:1.1!important}
+        .wa-compact input,.wa-compact select{min-height:32px!important;padding:4px 10px!important;font-size:13px!important}
+        .wa-compact label{margin:0!important}
         .wa-chat-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 14px;background:#f0f2f5;border-bottom:1px solid #ddd}
         .wa-mobile-back{display:none}
         .wa-chat-scroll{flex:1;padding:18px 22px;overflow-y:auto;background:linear-gradient(rgba(239,234,226,.94),rgba(239,234,226,.94));min-height:0}
@@ -664,7 +676,13 @@ Samara Assisted Living`;
         else setMessage(`Unable to open WhatsApp media: ${error.message||error}`)
       }finally{setMediaBusyId('')}
     }
+    // 2.18.160: Meta sends some messages only as "unsupported" (error 131051 — e.g. view-once photo, poll, event,
+    // edited or newer message types). The content never reaches Samara, so explain it instead of "[unsupported message received]".
+    const isUnsupportedInbound=r=>r?.direction==='inbound'&&(String(r?.message_type||'').toLowerCase()==='unsupported'||/^\[unsupported message/i.test(String(r?.message_content||'')));
+    const UNSUPPORTED_TEXT='⚠ WhatsApp did not pass this message to Samara (view-once photo, poll, event, edited message or a newer WhatsApp feature). Its content cannot be seen here.';
+    const RESEND_REQUEST='Sorry, we could not open your last message here. Kindly send it again as a normal text message, photo or document. — Samara Assisted Living';
     function chatText(r){
+      if(isUnsupportedInbound(r))return UNSUPPORTED_TEXT;
       const raw=window.SamaraDateTime.text(String(r?.message_content||r?.communication_type||'WhatsApp message'));
       if(String(r?.template_name||'').toLowerCase()==='employee_welcome_samara'){
         const employeeName=r?.contact_name||r?.applicant_name||'Colleague';
@@ -868,16 +886,16 @@ Thank you.`;
     }
     const unreadTotal=conversations.filter(c=>waFolder==='All'||c.folder===waFolder).reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':'Enquiries, patient/family, payment, staff and vendor conversations in one place')},
+      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':null),className:'wa-inbox-section'},
         foodDesk&&foodScope.note?h('div',{className:'notice',style:{marginBottom:'10px'}},foodScope.note):null,
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
-        (!isMobile||!selectedPhone)?h('nav',{'aria-label':'WhatsApp folders',style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'12px'}},
+        (!isMobile||!selectedPhone)?h('nav',{'aria-label':'WhatsApp folders',className:'wa-compact wa-folders',style:{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'8px'}},
           (foodOnly?(leaveCover?['All','Admission Enquiries','Other']:['All','Food Vendors']):['All','Admission Enquiries','Payment Follow-ups',...(foodDesk?['Food Vendors']:[]),'Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
         ):null,
-        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar',style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'14px'}},
+        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar wa-compact',style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center',marginBottom:'8px'}},
           h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
           isSTD?h('select',{value:subjectFilter,onChange:e=>{setSubjectFilter(e.target.value);setSelectedPhone('')},style:{minWidth:'170px'}},
             ['All Subjects','Admission / Care','Callback','Location','Pricing / Charges','Services','General Enquiry',...(foodDesk?['Food Orders']:[])].map(x=>h('option',{key:x},x))
@@ -976,6 +994,7 @@ Thank you.`;
                     deleted?h('div',{className:'wa-deleted-note'},`🗑 Deleted from inbox by ${r.deleted_by_name||'staff'} · ${fmt(r.deleted_at)}${r.delete_reason?` · ${r.delete_reason}`:''}`):null,
                     h('div',{style:{display:'flex',justifyContent:'flex-end',alignItems:'center',gap:'8px',marginTop:'4px'}},
                       !deleted&&within24&&r.provider_message_id?h('button',{type:'button',className:'wa-msg-action reply',title:'Reply to this message',onClick:()=>{setReplyTo(r);if(isMobile)setMobileComposer('reply');setTimeout(()=>replyEditorRef.current?.focus(),50)}},'↩ Reply'):null,
+                      !deleted&&within24&&isUnsupportedInbound(r)?h('button',{type:'button',className:'wa-msg-action reply',title:'Put a polite "please send again" message in the reply box (you can edit it before sending)',onClick:()=>{setReplyTo(r);setReply(RESEND_REQUEST);if(isMobile)setMobileComposer('reply');setTimeout(()=>replyEditorRef.current?.focus(),50)}},'↻ Ask to resend'):null,
                       canDeleteMsg&&!deleted?h('button',{type:'button',className:'wa-msg-action',title:'Delete from Samara inbox',onClick:()=>hideMessage(r,true)},'Delete'):null,
                       canRestoreMsg&&deleted?h('button',{type:'button',className:'wa-msg-action restore',onClick:()=>hideMessage(r,false)},'Restore'):null,
                       h('small',{style:{color:'#667781',fontSize:'11px'}},`${fmt(r.received_at||r.sent_at||r.created_at)}${outgoing?`  ${deliveryLabel}`:''}`))

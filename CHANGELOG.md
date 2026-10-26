@@ -1,3 +1,8 @@
+## 2.18.160 — 27-10-2026 — WhatsApp Inbox: bigger chat area; "unsupported" messages explained
+- Desktop inbox now fills the screen height (measured from where it starts), the subtitle line is removed, and the folder chips / search / Unread / Show / Refresh controls are smaller, so more conversation is visible.
+- "[unsupported message received]" was Meta error 131051 (message type not passed to business apps — view-once photo, poll, event, edited message…). The bubble and the conversation list now say so in plain words, and a **↻ Ask to resend** button puts a polite "please send it again" message in the reply box (edit before sending).
+- Frontend only (pages/whatsapp-inbox.js).
+
 ## 2.18.159 — 27-10-2026 — Help (உதவி) button: drag grip + hint
 - The Help button could already be dragged (since 2.18.70) but staff did not know. It now has a ⋮⋮ grip, and the first few times a short hint "இழுத்து நகர்த்தலாம் · Drag to move" appears above it with a small wiggle (stops once it has been dragged). Tap still opens Help; the moved place is remembered on each device.
 - erp-help.js / erp-help.css only.
