@@ -191,6 +191,8 @@
     },[profile?.id]);
 
     function goBackPage(){
+      // 2.18.167: a dashboard section (Stores, Charge Register list …) is open → Back closes it first.
+      try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current)&&history.state&&history.state.samaraStoresView){history.back();return}}catch(_){}
       if(navHistoryRef.current.stack.length){history.back();return}
       const homePage=profile?homePageForProfile(profile):'';
       if(homePage&&page!==homePage){

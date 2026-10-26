@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.166';
+  const APP_VERSION = '2.18.167';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 Profit cost-unit check';
+  const APP_BUILD_DATE = '27-Oct-2026 Charge Register box views + profit by item';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -14464,6 +14464,8 @@ https://samaraassistedliving.com/`;
     },[profile?.id]);
 
     function goBackPage(){
+      // 2.18.167: a dashboard section (Stores, Charge Register list …) is open → Back closes it first.
+      try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current)&&history.state&&history.state.samaraStoresView){history.back();return}}catch(_){}
       if(navHistoryRef.current.stack.length){history.back();return}
       const homePage=profile?homePageForProfile(profile):'';
       if(homePage&&page!==homePage){
@@ -39794,7 +39796,9 @@ function RoomsBeds({profile,onNavigate}){
     const [dateDraft,setDateDraft]=React.useState({from:'',to:''});
     React.useEffect(()=>{setDateDraft({from:filter.from,to:filter.to})},[filter.from,filter.to]);
     const dateDirty=dateDraft.from!==filter.from||dateDraft.to!==filter.to;
-    const [view,setView]=React.useState('dashboard'),[listTitle,setListTitle]=React.useState(''),[detail,setDetail]=React.useState(null);
+    // 2.18.167: same Back behaviour as Pharmacy & Stores — Back closes the open list and returns to the boxes.
+    const {view,openView,backToDashboard}=useDashboardView();
+    const [listTitle,setListTitle]=React.useState(''),[detail,setDetail]=React.useState(null),[itemDetail,setItemDetail]=React.useState(null);
     const [period,setPeriod2]=React.useState('month');
     const [avgCost,setAvgCost]=React.useState({}),[costReady,setCostReady]=React.useState(false);
     const isAdmin=profile?.role==='Admin';
@@ -39864,7 +39868,6 @@ function RoomsBeds({profile,onNavigate}){
     const guestLabel=id=>{const p=pFor(id);if(!p.id)return '—';const trial=p.is_trial?' · 🧪 TRIAL':'';
       return p.is_active===false?`${formalName(p)} · Discharged${trial}`:`${formalName(p)} · Room ${p.room_no||'—'}-${p.bed_no||'—'}${trial}`;};
     const raisedTime=r=>{const d=new Date(r.created_at||'');return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();};
-    const heads=['Date & Time','Patient','Category','Service','Qty','Status','Requested Amount','Approved Amount','Raised By','Decision By','Decision Time','Remarks'];
     // 2.18.164: opens on a dashboard of boxes; a box (or "Search with filters") opens the list with all
     // filters; a row opens full details. Pending / Returned boxes count every open item (any date) so
     // nothing waiting disappears when the period changes; the other boxes follow the chosen period.
@@ -39896,13 +39899,12 @@ function RoomsBeds({profile,onNavigate}){
       return {b,c,p:c-b,known:known.length,suspect:list.filter(costSuspect).length,services:list.filter(isService).length,unknown:list.filter(r=>!isService(r)&&boughtOf(r)==null).length};};
     const periodName={today:'Today',week:'This Week',month:'This Month',custom:periodApplied.from||periodApplied.to?`${periodApplied.from?formatDateIN(periodApplied.from):'…'} – ${periodApplied.to?formatDateIN(periodApplied.to):'…'}`:'All dates'}[period];
 
-    function openList(status,title,allDates){
+    function openList(status,title,allDates,mode){
       setFilter({status,category:'All',item:'All',patient_id:'',raised_by:'All',from:allDates?'':periodRange[0]||'',to:allDates?'':periodRange[1]||''});
-      setListTitle(title);setView('list');
-      window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){}});
+      setListTitle(title);setDetail(null);setItemDetail(null);openView(mode||'all');
     }
 
-    const box=(label,count,line,tone,onClick,note)=>h('button',{type:'button',className:'card stat samara-pink-stat',onClick,style:{
+    const box=(label,count,line,tone,onClick,note)=>h('button',{type:'button',className:'card stat samara-pink-stat','data-hover-info':`Tap to open ${label}`,onClick,style:{
         textAlign:'left',cursor:'pointer',width:'100%',display:'grid',gap:'4px',padding:'16px 18px',
         background:tone==='alert'?'linear-gradient(135deg,#f9c2d6 0%,#fde0ea 55%,#fff4f8 100%)':'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)',
         border:tone==='alert'?'1.5px solid #d14f84':'1px solid #efc3d6',boxShadow:'0 4px 12px rgba(109,24,61,.07)'}},
@@ -39913,7 +39915,7 @@ function RoomsBeds({profile,onNavigate}){
 
     const chip=(key,label)=>h('button',{type:'button','aria-pressed':period===key,className:`btn ${period===key?'btn-primary':'btn-secondary'}`,onClick:()=>setPeriod2(key)},label);
 
-    if(view==='dashboard'){
+    if(!view){
       return h(Section,{title:'Charge Register',subtitle:'Tap a box to open that list. View only — charges are raised and decided on their own pages.'},
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center',marginBottom:'12px'}},
           chip('today','Today'),chip('week','This Week'),chip('month','This Month'),chip('custom','Period'),
@@ -39922,71 +39924,95 @@ function RoomsBeds({profile,onNavigate}){
             h(StrictDateInput,{value:periodDraft.to,min:periodDraft.from||undefined,max:today,onChange:e=>setPeriodDraft(d=>({...d,to:e.target.value}))}),
             h(ApplyFilterButton,{dirty:periodDraft.from!==periodApplied.from||periodDraft.to!==periodApplied.to,onApply:()=>setPeriodApplied(periodDraft)})):null,
           h('span',{style:{marginLeft:'auto'}}),
-          h('button',{type:'button',className:'btn btn-primary',onClick:()=>openList('All',`All Charges · ${periodName}`,false)},'🔍 Search with filters')),
+          h('button',{type:'button',className:'btn btn-primary',onClick:()=>openList('All',`All Charges · ${periodName}`,false,'all')},'🔍 Search with filters')),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:'12px'}},
-          box('Pending with Accounts',pendingRows.length,money(pendingRows.reduce((t,r)=>t+chargedOf(r),0)),pendingRows.length?'alert':'',()=>openList('Pending','Pending with Accounts',true),'All dates · tap to open ›'),
-          box('Returned to Nurse',returnedRows.length,returnedRows.length?'Awaiting correction':'',returnedRows.length?'alert':'',()=>openList('ReturnedOpen','Returned to Nurse — awaiting correction',true),'All dates · tap to open ›'),
-          box(`Approved · ${periodName}`,approvedRows.length,money(sumAppr(approvedRows)),'',()=>openList('Approved',`Approved · ${periodName}`,false)),
-          box(`All Charges · ${periodName}`,periodRows.length,money(periodRows.reduce((t,r)=>t+chargedOf(r),0))+' value','',()=>openList('All',`All Charges · ${periodName}`,false)),
-          isAdmin?(()=>{const ps=profitSummary(approvedRows);if(!costReady)return box(`Net Profit · ${periodName}`,'…','Loading purchase costs…','',()=>{},'Admin only');return box(`Net Profit · ${periodName}`,money(ps.p),`Bought ${money(ps.b)} · Charged ${money(ps.c)}`,'',()=>openList('Approved',`Approved · ${periodName} — Profit`,false),
+          box('Pending with Accounts',pendingRows.length,money(pendingRows.reduce((t,r)=>t+chargedOf(r),0)),pendingRows.length?'alert':'',()=>openList('Pending','Pending with Accounts',true,'pending'),'All dates · tap to open ›'),
+          box('Returned to Nurse',returnedRows.length,returnedRows.length?'Awaiting correction':'',returnedRows.length?'alert':'',()=>openList('ReturnedOpen','Returned to Nurse — awaiting correction',true,'returned'),'All dates · tap to open ›'),
+          box(`Approved · ${periodName}`,approvedRows.length,money(sumAppr(approvedRows)),'',()=>openList('Approved',`Approved · ${periodName}`,false,'approved')),
+          box(`All Charges · ${periodName}`,periodRows.length,money(periodRows.reduce((t,r)=>t+chargedOf(r),0))+' value','',()=>openList('All',`All Charges · ${periodName}`,false,'all')),
+          isAdmin?(()=>{const ps=profitSummary(approvedRows);if(!costReady)return box(`Net Profit · ${periodName}`,'…','Loading purchase costs…','',()=>{},'Admin only');return box(`Net Profit · ${periodName}`,money(ps.p),`Bought ${money(ps.b)} · Charged ${money(ps.c)}`,'',()=>openList('All',`Net Profit · ${periodName} — item-wise`,false,'profit'),
             `${ps.known} items counted${ps.suspect?` · ⚠ ${ps.suspect} to check (cost per box?)`:''}${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} without cost`:''} · Admin only`);})():null
         ));
     }
 
-    // ---- list view ----
-    const listHeads=isAdmin?[...heads,'Bought (cost)','Charged','Net Profit']:heads;
-    const tableRows=filtered.map(r=>[
-      h('span',{style:{whiteSpace:'nowrap'}},formatDateIN(r.charge_date),raisedTime(r)?h('small',{style:{display:'block',color:'#7b6871',fontWeight:600}},raisedTime(r)):null),guestLabel(r.patient_id),r.category||'—',
-      itemOf(r),
-      `${r.quantity||1} ${r.unit||''}`,
-      h('span',{className:'badge'},statusLabel(statusOf(r))),
-      money(r.requested_amount??r.unit_cost),
-      money(r.approved_amount??r.final_amount),
-      r.raised_by_name||'—',
-      r.decision_by_name||'—',
-      r.decision_at?fmt(r.decision_at):'—',
-      r.decision_remarks||r.approval_remarks||r.remarks||'—',
-      ...(isAdmin?[boughtOf(r)!=null?(costSuspect(r)?h('span',{title:'Purchase cost per piece is more than double the charge — the stock receipt was probably priced per box / pack. Not counted in profit.',style:{color:'#b26a00',fontWeight:700}},`${money(boughtOf(r))} ⚠ check purchase unit`):money(boughtOf(r))):(isService(r)?'Service':'No cost'),money(chargedOf(r)),
-        profitOf(r)!=null?h('strong',{style:{color:profitOf(r)<0?'#b42336':'#087f5b'}},money(profitOf(r))):'—']:[])
-    ]);
-    const plainRows=()=>filtered.map(r=>[formatDateIN(r.charge_date)+(raisedTime(r)?` ${raisedTime(r)}`:''),guestLabel(r.patient_id),r.category||'',itemOf(r),`${r.quantity||1} ${r.unit||''}`.trim(),statusLabel(statusOf(r)),
-      Number(r.requested_amount??r.unit_cost)||0,(r.approved_amount??r.final_amount)!=null?Number(r.approved_amount??r.final_amount):'',r.raised_by_name||'',r.decision_by_name||'',r.decision_at?fmt(r.decision_at):'',r.decision_remarks||r.approval_remarks||r.remarks||'',
-      ...(isAdmin?[boughtOf(r)!=null?(costSuspect(r)?`${Math.round(boughtOf(r)*100)/100} (check purchase unit)`:Math.round(boughtOf(r)*100)/100):(isService(r)?'Service':'No cost'),chargedOf(r),profitOf(r)!=null?Math.round(profitOf(r)*100)/100:'']:[])]);
+    // ---- list views (2.18.167: each box shows only its own columns) ----
+    const timeCell=r=>h('span',{style:{whiteSpace:'nowrap'}},formatDateIN(r.charge_date),raisedTime(r)?h('small',{style:{display:'block',color:'#7b6871',fontWeight:600}},raisedTime(r)):null);
+    const C={
+      dt:{h:'Date & Time',cell:timeCell,plain:r=>formatDateIN(r.charge_date)+(raisedTime(r)?` ${raisedTime(r)}`:'')},
+      pt:{h:'Patient',cell:r=>guestLabel(r.patient_id),plain:r=>guestLabel(r.patient_id)},
+      cat:{h:'Category',cell:r=>r.category||'—',plain:r=>r.category||''},
+      svc:{h:'Service / Item',cell:r=>itemOf(r),plain:r=>itemOf(r)},
+      qty:{h:'Qty',cell:r=>`${r.quantity||1} ${r.unit||''}`.trim(),plain:r=>`${r.quantity||1} ${r.unit||''}`.trim()},
+      st:{h:'Status',cell:r=>h('span',{className:'badge'},statusLabel(statusOf(r))),plain:r=>statusLabel(statusOf(r))},
+      amt:{h:'Amount',cell:r=>money(chargedOf(r)),plain:r=>chargedOf(r),num:true},
+      appr:{h:'Approved Amount',cell:r=>money(r.approved_amount??r.final_amount),plain:r=>Number(r.approved_amount??r.final_amount)||0,num:true},
+      rb:{h:'Raised By',cell:r=>r.raised_by_name||'—',plain:r=>r.raised_by_name||''},
+      nr:{h:'Nurse Remarks',cell:r=>r.remarks||'—',plain:r=>r.remarks||''},
+      db:{h:'Decision By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
+      dtm:{h:'Decision Time',cell:r=>r.decision_at?fmt(r.decision_at):'—',plain:r=>r.decision_at?fmt(r.decision_at):''},
+      ab:{h:'Approved By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
+      at:{h:'Approved At',cell:r=>r.decision_at?fmt(r.decision_at):'—',plain:r=>r.decision_at?fmt(r.decision_at):''},
+      rtb:{h:'Returned By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
+      rta:{h:'Returned At',cell:r=>(r.returned_to_nurse_at||r.decision_at)?fmt(r.returned_to_nurse_at||r.decision_at):'—',plain:r=>(r.returned_to_nurse_at||r.decision_at)?fmt(r.returned_to_nurse_at||r.decision_at):''},
+      rsn:{h:'Reason for Return',cell:r=>r.decision_remarks||r.approval_remarks||'—',plain:r=>r.decision_remarks||r.approval_remarks||''},
+      rem:{h:'Remarks',cell:r=>r.decision_remarks||r.approval_remarks||r.remarks||'—',plain:r=>r.decision_remarks||r.approval_remarks||r.remarks||''}
+    };
+    const MODE_COLS={pending:['dt','pt','cat','svc','qty','amt','rb','nr'],returned:['dt','pt','svc','qty','amt','rb','rtb','rta','rsn'],
+      approved:['dt','pt','cat','svc','qty','appr','ab','at'],all:['dt','pt','cat','svc','qty','st','amt','rb','db','dtm','rem']};
+    const isProfit=view==='profit';
+    const cols=(MODE_COLS[view]||MODE_COLS.all).map(k=>C[k]);
+
+    // Profit (Admin): item-wise summary of the approved charges in the list.
+    const profitBase=filtered.filter(r=>['Approved','Partially Approved'].includes(statusOf(r)));
+    const profitItems=(()=>{const g={};profitBase.forEach(r=>{if(boughtOf(r)==null||costSuspect(r))return;
+        const k=r.store_item_id?`s:${r.store_item_id}`:`o:${itemOf(r)}`;const x=(g[k]=g[k]||{key:k,name:itemOf(r),category:r.category||'—',rows:[],qty:0,b:0,c:0});
+        x.rows.push(r);x.qty+=Number(r.quantity)||1;x.b+=boughtOf(r);x.c+=chargedOf(r);});
+      return Object.values(g).map(x=>({...x,p:x.c-x.b,bu:x.qty?x.b/x.qty:0,cu:x.qty?x.c/x.qty:0,m:x.c?((x.c-x.b)/x.c)*100:0})).sort((a,b)=>b.p-a.p);})();
+    const groupBy=(list,fn)=>{const g={};list.forEach(r=>{const k=fn(r);(g[k]=g[k]||[]).push(r)});return Object.entries(g).sort((a,b)=>b[1].length-a[1].length);};
+    const suspectGroups=groupBy(profitBase.filter(costSuspect),itemOf);
+    const noCostGroups=groupBy(profitBase.filter(r=>!isService(r)&&boughtOf(r)==null),itemOf);
+    const serviceCount=profitBase.filter(isService).length;
+    const PROFIT_HEADS=['Item','Category','Charges','Qty','Purchase Price / Unit','Total Bought','Charge Price / Unit','Total Charged','Net Profit','Margin'];
+    const profitPlain=()=>profitItems.map(x=>[x.name,x.category,x.rows.length,x.qty,Math.round(x.bu*100)/100,Math.round(x.b*100)/100,Math.round(x.cu*100)/100,Math.round(x.c*100)/100,Math.round(x.p*100)/100,`${x.m.toFixed(1)}%`]);
+    const pTot=profitItems.reduce((t,x)=>({b:t.b+x.b,c:t.c+x.c}),{b:0,c:0});
+
+    const heads=isProfit?PROFIT_HEADS:cols.map(c=>c.h);
+    const plainRows=()=>isProfit?profitPlain():filtered.map(r=>cols.map(c=>c.plain(r)));
+    const moneyIdx=isProfit?[4,5,6,7,8]:cols.map((c,i)=>c.num?i:-1).filter(i=>i>=0);
     function printList(){
       const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
       const w=samaraPrintBar(window.open('','_blank'));if(!w){alert('Please allow pop-ups to print.');return;}
-      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Charge Register</title><style>body{font-family:Arial,sans-serif;font-size:10.5px;margin:16px}h2{margin:0 0 2px;color:#8f1d5a}p{margin:0 0 8px;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d9b3c6;padding:4px 5px;text-align:left;vertical-align:top}th{background:#fbe3ee}@page{size:A4 landscape;margin:10mm}</style></head><body><h2>Samara — Charge Register</h2><p>${esc(listTitle)} · ${filtered.length} charge${filtered.length===1?'':'s'} · Printed ${esc(formatDateIN(new Date()))}</p><table><thead><tr>${listHeads.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${plainRows().map(r=>`<tr>${r.map((v,i)=>`<td>${esc([6,7,13,14].includes(i)?(v===''?'—':money(v)):(i===12&&typeof v==='number'?money(v):(v===0?'0':v||'—')))}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`);
+      const foot=isProfit?`<tr><th colspan="5">Total (items with purchase price)</th><th>${esc(money(pTot.b))}</th><th></th><th>${esc(money(pTot.c))}</th><th>${esc(money(pTot.c-pTot.b))}</th><th></th></tr>`:'';
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Charge Register</title><style>body{font-family:Arial,sans-serif;font-size:10.5px;margin:16px}h2{margin:0 0 2px;color:#8f1d5a}p{margin:0 0 8px;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d9b3c6;padding:4px 5px;text-align:left;vertical-align:top}th{background:#fbe3ee}@page{size:A4 landscape;margin:10mm}</style></head><body><h2>Samara — Charge Register</h2><p>${esc(listTitle)} · ${isProfit?`${profitItems.length} items`:`${filtered.length} charge${filtered.length===1?'':'s'}`} · Printed ${esc(formatDateIN(new Date()))}</p><table><thead><tr>${heads.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${plainRows().map(r=>`<tr>${r.map((v,i)=>`<td>${esc(moneyIdx.includes(i)&&typeof v==='number'?money(v):(v===0?'0':v||'—'))}</td>`).join('')}</tr>`).join('')}${foot}</tbody></table></body></html>`);
       w.document.close();w.focus();setTimeout(()=>w.print(),300);
     }
     async function downloadExcel(){
       try{
         if(!window.XLSX)await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';sc.async=true;sc.onload=resolve;sc.onerror=()=>reject(new Error('Excel library could not be loaded — check the internet connection.'));document.head.appendChild(sc);});
-        const ws=window.XLSX.utils.aoa_to_sheet([listHeads,...plainRows()]);ws['!cols']=[18,30,20,36,10,12,14,14,18,18,20,30].map(wch=>({wch}));
-        const wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,'Charge Register');
-        window.XLSX.writeFile(wb,`Samara_Charge_Register_${formatDateIN(new Date())}.xlsx`);
+        const data=[heads,...plainRows()];if(isProfit)data.push(['Total (items with purchase price)','','','','',Math.round(pTot.b*100)/100,'',Math.round(pTot.c*100)/100,Math.round((pTot.c-pTot.b)*100)/100,'']);
+        const ws=window.XLSX.utils.aoa_to_sheet(data);ws['!cols']=heads.map(x=>({wch:Math.max(12,Math.min(38,x.length+8))}));
+        const wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,isProfit?'Net Profit':'Charge Register');
+        window.XLSX.writeFile(wb,`Samara_${isProfit?'Net_Profit':'Charge_Register'}_${formatDateIN(new Date())}.xlsx`);
       }catch(error){alert(error.message||'Unable to download the Excel file.');}
     }
     const detailFields=r=>[
       ['Guest',guestLabel(r.patient_id)],['Charge Date',formatDateIN(r.charge_date)],['Raised At',r.created_at?fmt(r.created_at):''],['Raised By',r.raised_by_name],
       ['Category',r.category],['Service / Item',itemOf(r)],['Quantity',`${r.quantity||1} ${r.unit||''}`.trim()],['Status',statusLabel(statusOf(r))],
-      ['Requested Amount',money(r.requested_amount??r.unit_cost)],['Approved Amount',(r.approved_amount??r.final_amount)!=null?money(r.approved_amount??r.final_amount):''],
+      ['Requested Amount',(r.requested_amount??r.unit_cost)!=null?money(r.requested_amount??r.unit_cost):''],['Approved Amount',(r.approved_amount??r.final_amount)!=null?money(r.approved_amount??r.final_amount):''],
       ['Decision By',r.decision_by_name],['Decision Time',r.decision_at?fmt(r.decision_at):''],['Decision Remarks',r.decision_remarks||r.approval_remarks],['Nurse Remarks',r.remarks],
       ['Resubmitted By',r.resubmitted_by_name],['Resubmitted At',r.resubmitted_at?fmt(r.resubmitted_at):''],
-      ...(isAdmin?[['Purchase Cost / Unit (avg)',r.store_item_id&&avgCost[String(r.store_item_id)]!=null?money(avgCost[String(r.store_item_id)]):''],
+      ...(isAdmin?[['Purchase Price / Unit (avg)',r.store_item_id&&avgCost[String(r.store_item_id)]!=null?money(avgCost[String(r.store_item_id)]):''],
         ['Bought (cost)',boughtOf(r)!=null?money(boughtOf(r)):(isService(r)?'Service — no purchase cost':'No purchase cost on stock receipts')],
         ['Charged',money(chargedOf(r))],['Net Profit',profitOf(r)!=null?money(profitOf(r)):(costSuspect(r)?'Not counted — purchase cost looks per box / pack; check the stock receipt':'')]]:[])
     ];
     const linked=r=>{const chain=[];const from=r.resubmitted_from&&rows.find(x=>String(x.id)===String(r.resubmitted_from));const to=r.resubmitted_as&&rows.find(x=>String(x.id)===String(r.resubmitted_as));
       if(from)chain.push(['Corrected from (returned)',from]);if(to)chain.push(['Resubmitted as',to]);return chain;};
+    const profitColor=v=>({color:v<0?'#b42336':'#087f5b'});
 
-    return h(React.Fragment,null,
-      h(Section,{title:listTitle||'Charge Register',subtitle:'Tap a row for full details. View only.',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setView('dashboard')},'‹ Back to Dashboard'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:!filtered.length,onClick:printList},'Print / PDF'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:!filtered.length,onClick:downloadExcel},'Excel'))},
-        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'10px',marginBottom:'12px'}},
-          h('div',{className:'field',style:{margin:0}},h('label',null,'Status'),h('select',{value:filter.status,onChange:e=>setFilter({...filter,status:e.target.value})},
-            [['All','All'],['Pending','Pending'],['Approved','Approved'],['Partially Approved','Partially Approved'],['Rejected','Returned (all)'],['ReturnedOpen','Returned — awaiting correction']].map(([v,l])=>h('option',{key:v,value:v},l)))),
+    const filterPanel=h('div',{className:'card',style:{padding:'12px 14px',marginBottom:'12px'}},
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'10px',marginBottom:'10px'}},
+          !isProfit?h('div',{className:'field',style:{margin:0}},h('label',null,'Status'),h('select',{value:filter.status,onChange:e=>setFilter({...filter,status:e.target.value})},
+            [['All','All'],['Pending','Pending'],['Approved','Approved'],['Partially Approved','Partially Approved'],['Rejected','Returned (all)'],['ReturnedOpen','Returned — awaiting correction']].map(([v,l])=>h('option',{key:v,value:v},l)))):null,
           h('div',{className:'field',style:{margin:0}},h('label',null,'Category'),h('select',{value:filter.category,onChange:e=>setFilter({...filter,category:e.target.value,item:'All'})},
             h('option',{value:'All'},'All'),categories.map(c=>h('option',{key:c,value:c},c)))),
           h('div',{className:'field',style:{margin:0}},h('label',null,'Item'),h('select',{value:filter.item,onChange:e=>setFilter({...filter,item:e.target.value})},
@@ -40004,14 +40030,34 @@ function RoomsBeds({profile,onNavigate}){
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(mondayOfWeek(today),today)},'This Week'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod(`${today.slice(0,7)}-01`,today)},'This Month'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPeriod('','')},'All Dates'),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:clearFilters},'Clear Filters')
-        )
-      ),
-      isAdmin&&filtered.length?(()=>{const ps=profitSummary(filtered);return h('div',{className:'card',style:{display:'flex',gap:'18px',flexWrap:'wrap',alignItems:'center',padding:'12px 16px',margin:'0 0 12px',background:'linear-gradient(135deg,#fcdde9 0%,#fff8fb 100%)',border:'1px solid #efc3d6'}},
-        h('strong',{style:{color:'#7d1748'}},'Admin · Profit for this list'),h('span',null,`Bought ${money(ps.b)}`),h('span',null,`Charged ${money(ps.c)}`),
-        h('strong',{style:{color:ps.p<0?'#b42336':'#087f5b'}},`Net Profit ${money(ps.p)}`),
-        h('small',{style:{color:'#8a6a78'}},`${ps.known} counted${ps.suspect?` · ⚠ ${ps.suspect} to check — purchase cost looks per box / pack`:''}${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} items without purchase cost`:''}`));})():null,
-      h(LogTable,{title:`Charges (${filtered.length})`,heads:listHeads,rows:tableRows,onRowClick:i=>setDetail(filtered[i])}),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setFilter(f=>({...f,category:'All',item:'All',patient_id:'',raised_by:'All',from:'',to:''}))},'Clear Filters')));
+
+    const profitView=()=>h(React.Fragment,null,
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'10px',marginBottom:'12px'}},
+        [['Total Bought',money(pTot.b)],['Total Charged',money(pTot.c)],['Net Profit',money(pTot.c-pTot.b)],['Margin',pTot.c?`${(((pTot.c-pTot.b)/pTot.c)*100).toFixed(1)}%`:'—']].map(([l,v],i)=>
+          h('div',{key:l,className:'card stat samara-pink-stat',style:{padding:'12px 14px'}},h('span',null,l),h('strong',{style:i===2?profitColor(pTot.c-pTot.b):null},v)))),
+      h(LogTable,{title:`Items with purchase price (${profitItems.length}) — tap an item for its charges`,heads:PROFIT_HEADS,
+        rows:profitItems.map(x=>[x.name,x.category,x.rows.length,x.qty,money(x.bu),money(x.b),money(x.cu),money(x.c),h('strong',{style:profitColor(x.p)},money(x.p)),`${x.m.toFixed(1)}%`]),
+        onRowClick:i=>setItemDetail(profitItems[i])}),
+      (suspectGroups.length||noCostGroups.length||serviceCount)?h(Section,{title:'Not counted in profit'},
+        suspectGroups.length?h('div',{style:{marginBottom:'10px'}},h('strong',{style:{color:'#b26a00'}},'⚠ Purchase price looks per box / pack — correct the stock receipt to the price per piece:'),
+          h('ul',{style:{margin:'6px 0 0 18px'}},suspectGroups.map(([n,list])=>h('li',{key:n},`${n} — ${list.length} charge${list.length===1?'':'s'} · avg cost per piece ${money(avgCost[String(list[0].store_item_id)])} vs charge per piece ${money(chargedOf(list[0])/(Number(list[0].quantity)||1))}`)))):null,
+        noCostGroups.length?h('div',{style:{marginBottom:'10px'}},h('strong',null,'No purchase price on any stock receipt:'),
+          h('ul',{style:{margin:'6px 0 0 18px'}},noCostGroups.map(([n,list])=>h('li',{key:n},`${n} — ${list.length} charge${list.length===1?'':'s'} · charged ${money(list.reduce((t,r)=>t+chargedOf(r),0))}`)))):null,
+        serviceCount?h('p',{style:{margin:0,color:'#6e6268'}},`${serviceCount} service charges (Nursing Procedures, Physiotherapy …) have no purchase price and are not part of this profit.`):null):null,
+      itemDetail?h(RowDetailModal,{title:itemDetail.name,subtitle:`${itemDetail.rows.length} charges · Qty ${itemDetail.qty} · Net Profit ${money(itemDetail.p)}`,fields:[['Purchase Price / Unit',money(itemDetail.bu)],['Charge Price / Unit',money(itemDetail.cu)],['Total Bought',money(itemDetail.b)],['Total Charged',money(itemDetail.c)],['Net Profit',money(itemDetail.p)],['Margin',`${itemDetail.m.toFixed(1)}%`]],onClose:()=>setItemDetail(null)},
+        h('div',{className:'table-wrap',style:{marginTop:'12px'}},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Date & Time','Patient','Qty','Bought','Charged','Net Profit'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,itemDetail.rows.map(r=>h('tr',{key:r.id},h('td',null,timeCell(r)),h('td',null,guestLabel(r.patient_id)),h('td',null,`${r.quantity||1} ${r.unit||''}`.trim()),h('td',null,money(boughtOf(r))),h('td',null,money(chargedOf(r))),h('td',null,h('strong',{style:profitColor(profitOf(r))},money(profitOf(r)))))))))):null);
+
+    return h(React.Fragment,null,
+      h(Section,{title:listTitle||'Charge Register',subtitle:isProfit?'Admin only · approved charges with a purchase price. Tap an item for its charges.':'Tap a row for full details. View only.',actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:backToDashboard},'‹ Back to Dashboard'),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:isProfit?!profitItems.length:!filtered.length,onClick:printList},'Print / PDF'),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:isProfit?!profitItems.length:!filtered.length,onClick:downloadExcel},'Excel'))},
+        filterPanel),
+      isProfit?(isAdmin?profitView():h('p',null,'Admin only.')):
+      h(LogTable,{title:`Charges (${filtered.length})`,heads,rows:filtered.map(r=>cols.map(c=>c.cell(r))),onRowClick:i=>setDetail(filtered[i])}),
       detail?h(RowDetailModal,{title:'Charge Details',subtitle:`${guestLabel(detail.patient_id)} · ${itemOf(detail)}`,fields:detailFields(detail),onClose:()=>setDetail(null)},
         linked(detail).length?h('div',{style:{marginTop:'12px',display:'grid',gap:'8px'}},h('strong',{style:{color:'#7d1748'}},'Return / Resubmit history'),
           linked(detail).map(([label,x])=>h('button',{key:x.id,type:'button',className:'btn btn-secondary',style:{textAlign:'left',justifyContent:'flex-start'},onClick:()=>setDetail(x)},

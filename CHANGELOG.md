@@ -1,3 +1,9 @@
+## 2.18.167 — 27-10-2026 — Charge Register: each box shows its own details; Back fixed
+- Each box now opens a list with only its relevant columns: Pending (amount, raised by, nurse remarks), Returned (returned by / at, reason), Approved (approved amount, approved by / at), All (full). Filters stay in every list.
+- Admin **Net Profit** box opens an item-wise profit view: Item · Charges · Qty · Purchase Price / Unit · Total Bought · Charge Price / Unit · Total Charged · Net Profit · Margin, with totals; tap an item for its individual charges. A "Not counted in profit" section lists items whose receipt price looks per box / pack, items with no purchase price, and the number of service charges. Print / PDF and Excel include totals.
+- Back (page Back button, phone / browser back) now closes the open list and returns to the boxes — same as Pharmacy & Stores — instead of jumping to Home.
+- Box hover shows a short "Tap to open …" line instead of repeating the whole box text.
+
 ## 2.18.166 — 27-10-2026 — Charge Register: profit box waits for purchase costs
 - The Net Profit box shows "Loading purchase costs…" for the first second instead of briefly showing ₹0.
 
