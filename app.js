@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.155';
+  const APP_VERSION = '2.18.156';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 Incident note alerts pop up once';
+  const APP_BUILD_DATE = '27-Oct-2026 HR Employee Register';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -1729,7 +1729,7 @@ function initSamaraInaugurationInvitation(){
     { title:'OVERVIEW', items:['Dashboard','Notifications'] },
     { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health'] }, // 2.16.43: System Health (Admin)
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
-    { title:'HR', items:['HR Dashboard','Employees','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
+    { title:'HR', items:['HR Dashboard','Employees','Employee Register','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Spot Assessment','Admissions','Admission Register'] }, // 2.15.67: Enquiries moved to DIRECTOR'S OFFICE → Enquiry Register
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
@@ -1746,7 +1746,7 @@ function initSamaraInaugurationInvitation(){
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&(!NURSING_ENTRY_NAV.includes(item)||item==='Physiotherapy')),
-    Manager:ALL_NAV.filter(item=>!['Outside Bills Paid by Samara','Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['Outside Bills Paid by Samara','Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Employee Register','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Nursing Notes','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Nursing Notes','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
@@ -15064,6 +15064,7 @@ https://samaraassistedliving.com/`;
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
+          page==='Employee Register'&&h(Employees,{profile,onNavigate:setPage,register:true}),
           page==='My Profile'&&h(MyProfile,{profile:window.SamaraDutySwap.regularProfile(realProfile),onProfileUpdate:p=>{setProfile({...p,...(realProfile.__dutyContext?{role:realProfile.role,designation:realProfile.designation,department:realProfile.department,__dutyContext:realProfile.__dutyContext}:{})});dutyContext.refresh()}}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
@@ -15777,7 +15778,7 @@ https://samaraassistedliving.com/`;
     const [openSection,setOpenSection]=React.useState(activeSection);
     React.useEffect(()=>{const next=sections.find(section=>section.items.includes(page))?.title;if(next)setOpenSection(next)},[page]);
     const sectionIcon=title=>/OVERVIEW/.test(title)?'⌂':/HR|STAFF/.test(title)?'♙':/ADMISSION/.test(title)?'♥':/PATIENT/.test(title)?'⚕\uFE0E':/ROOM/.test(title)?'▦':/PHARMACY|STORE/.test(title)?'♨':/FOOD/.test(title)?'🍽\uFE0E':/CHARGE/.test(title)?'₹':/ACCOUNT.*BILL|BILLING|PAYMENT|FINANCE/.test(title)?'₹':/COMMUNICATION|WHATSAPP/.test(title)?'✉\uFE0E':/MY ACCOUNT|PROFILE/.test(title)?'☺\uFE0E':/DUTY|ROSTER|LEAVE/.test(title)?'◷':/DIRECTOR/.test(title)?'★':/CLINICAL|NURSING/.test(title)?'✚':'⚙\uFE0E';
-    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Receive from Vendor'?'＋':item==='Stock Report'?'⤓':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
+    const itemIcon=item=>item==='Notifications'?'🔔':item==='Patients'?'♙':item==='Rooms'?'▦':item==='Care Packages'?'▣':item==='Admissions'?'＋':item==='Employees'?'♙':item==='Employee Register'?'▤':item==='Patient Consumables'?'▤':item==='Consumables'?'▤':item==='Pharmacy'?'✚':item==='Housekeeping & General'?'🧺\uFE0E':item==='Kitchen / Food Stores'?'🍽\uFE0E':item==='Biomedical Equipment'?'⚕\uFE0E':item==='Oxygen Cylinders'?'◉':item==='Stores'?'▥':item==='Receive from Vendor'?'＋':item==='Stock Report'?'⤓':item==='Food & Diet'?'♨':item==='My Profile'?'●':item==='My Leave & Permission'?'◷':item==='Clinical Alerts'?'!':item==='Clinical Escalations'?'⚠':item==='My To-Do List'?'✓':item==='Accounts Dashboard'?'◫':['Charge Approvals','Payments','Patient Ledger','Final Billing','Refunds'].includes(item)?'₹':item==='Discharge Clearance'?'⇥':item==='Package Expiry Dashboard'?'◷':['Payment Requests','Payments & Vouchers'].includes(item)?'↗':item==='Approved—Ready to Pay'?'✓':item==='Payment Vouchers'?'▤':item==='Payment Statements'?'≡':item==='Accounts Reports'?'▦':'›';
     React.useEffect(()=>{
       const onKey=e=>{if(e.key==='Escape')onClose()};
       document.addEventListener('keydown',onKey);
@@ -21263,7 +21264,7 @@ Thank you.`;
   }
   ensureEmploymentSalaryHistoryStyle();
 
-  function Employees({profile,onNavigate}){
+  function Employees({profile,onNavigate,register=false}){
     const fullHRAccess=profile?.role==='Admin';
     const departmentViewOnly=!fullHRAccess&&(profile?.role==='Manager'||isNursingManagerProfile(profile));
     const permittedDepartment=departmentViewOnly?(employeeDepartment(profile)||'Nursing'):'';
@@ -21275,6 +21276,20 @@ Thank you.`;
     const [employeeSearch,setEmployeeSearch]=React.useState('');
     const [nursingDashboardFilter,setNursingDashboardFilter]=React.useState('all');
     const [employmentActions,setEmploymentActions]=React.useState([]);
+    // 2.18.156: Employee Register — every employee, Active and Disabled (Admin only).
+    const regBlank={status:'All',department:'All',search:''};
+    const [regDraft,setRegDraft]=React.useState(regBlank),[regFilter,setRegFilter]=React.useState(regBlank);
+    const [regDisabledOn,setRegDisabledOn]=React.useState({});
+    const [regBusy,setRegBusy]=React.useState(false);
+    React.useEffect(()=>{
+      if(!register||!fullHRAccess)return;
+      client.from('audit_log').select('entity_id,action,created_at').eq('entity','profiles').in('action',['DISABLE_EMPLOYEE','ENABLE_EMPLOYEE']).order('created_at',{ascending:true}).limit(5000)
+        .then(({data,error})=>{
+          if(error){console.warn('Employee Register disable dates:',error.message);return;}
+          const m={};(data||[]).forEach(x=>{const k=String(x.entity_id||'');if(!k)return;if(x.action==='DISABLE_EMPLOYEE')m[k]=x.created_at;else delete m[k];});
+          setRegDisabledOn(m);
+        });
+    },[register,fullHRAccess]);
     const [showEmploymentAction,setShowEmploymentAction]=React.useState(false);
     const employmentBlank=()=>({action_type:'Promotion',effective_date:'',new_department:'',new_designation:'',new_reporting_superior:'',new_erp_role:'',new_salary:'',salary_frequency:'Monthly',increment_amount:'',increment_percent:'',order_reference:'',remarks:''});
     const [employmentAction,setEmploymentAction]=React.useState(employmentBlank());
@@ -22528,8 +22543,80 @@ Thank you.`;
     const resetModal=resetTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:resetPassword},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Reset Employee Password'),h('small',null,`${resetTarget.full_name} · ${resetTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setResetTarget(null)},'×')),resetMsg&&h('div',{className:`message ${resetMsg.startsWith('Password reset')?'success':'error'}`},resetMsg),h('div',{className:'field'},h('label',null,'New password'),h('input',{type:'password',value:newPassword,onChange:e=>setNewPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('div',{className:'field'},h('label',null,'Confirm new password'),h('input',{type:'password',value:confirmPassword,onChange:e=>setConfirmPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{type:'button',className:'btn btn-secondary full',onClick:generateTemporaryPassword},'Generate Temporary Password'),h('p',{className:'small-note'},'Resetting the password also enables and unblocks the employee account. The employee must create a private password at first login.'),h('button',{className:'btn btn-primary full',disabled:resetBusy},resetBusy?'Resetting…':'Reset Password & Enable Account'))):null;
     const repairModal=repairTarget?h('div',{className:'modal-backdrop'},h('form',{className:'card modal reset-password-modal',onSubmit:repairAccount},h('div',{className:'panel-head'},h('div',null,h('h3',null,'Repair Employee Account'),h('small',null,`${repairTarget.full_name} · ${repairTarget.login_id}`)),h('button',{type:'button',className:'close',onClick:()=>setRepairTarget(null)},'×')),repairMsg&&h('div',{className:`message ${repairMsg.startsWith('Authentication account repaired')?'success':'error'}`},repairMsg),h('p',null,'This employee has a profile but no matching Supabase Authentication account. Enter a temporary password to rebuild the login account.'),h('div',{className:'field'},h('label',null,'Temporary password'),h('input',{type:'password',value:repairPassword,onChange:e=>setRepairPassword(e.target.value),minLength:8,required:true,autoComplete:'new-password'})),h('button',{className:'btn btn-warning full',disabled:repairBusy},repairBusy?'Repairing…':'Repair Account & Enable Login'))):null;
 
+    // 2.18.156: Employee Register view (Admin) — Active + Disabled employees; rows open the Personnel File.
+    function employeeRegisterView(){
+      const isOn=r=>Boolean(r.is_active??r.active);
+      const all=[...employeeRows].sort((a,b)=>formalName(a).localeCompare(formalName(b)));
+      const depts=[...new Set(all.map(r=>employeeDepartment(r)||'Other'))].sort((a,b)=>a.localeCompare(b));
+      const q=String(regFilter.search||'').trim().toLowerCase();
+      const list=all.filter(r=>{
+        if(regFilter.status==='Active'&&!isOn(r))return false;
+        if(regFilter.status==='Disabled'&&isOn(r))return false;
+        if(regFilter.department!=='All'&&(employeeDepartment(r)||'Other')!==regFilter.department)return false;
+        if(q.length>=3&&!employeeSearchText(r).includes(q))return false;
+        return true;
+      });
+      const disabledOn=r=>{const t=regDisabledOn[String(r.id)]||(r.auth_user_id?regDisabledOn[String(r.auth_user_id)]:'');return !isOn(r)&&t?formatDateIN(t):(!isOn(r)?'—':'');};
+      const cols=['S.No','Name','Employee ID','Department','Designation','Mobile','Date of Joining','Status','Disabled On'];
+      const cells=(r,i)=>[i+1,formalName(r),r.employee_id||'—',employeeDepartment(r)||'—',r.designation||'—',r.mobile||'—',r.date_of_joining?formatDateIN(r.date_of_joining):'—',isOn(r)?'Active':'Disabled',disabledOn(r)||'—'];
+      const activeCount=all.filter(isOn).length,disabledCount=all.length-activeCount;
+      const dirty=JSON.stringify(regDraft)!==JSON.stringify(regFilter);
+      const statCard=(label,value,status)=>h('button',{type:'button',className:`card stat samara-pink-stat${regFilter.status===status?' is-active':''}`,
+        onClick:()=>{const next={...regDraft,status};setRegDraft(next);setRegFilter(next);},
+        style:{textAlign:'left',cursor:'pointer',width:'100%'}},h('span',null,label),h('strong',null,value));
+      const periodNote=`${regFilter.status==='All'?'All employees':regFilter.status+' employees'}${regFilter.department!=='All'?` · ${regFilter.department}`:''}`;
+      function printRegister(){
+        const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        const w=window.open('','_blank');if(!w){alert('Please allow pop-ups to print the Employee Register.');return;}
+        w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Employee Register</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:18px;color:#222}h2{margin:0 0 2px;color:#8f1d5a}p{margin:0 0 10px;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d9b3c6;padding:5px 6px;text-align:left}th{background:#fbe3ee}tr.off td{color:#888}@page{size:A4 landscape;margin:12mm}</style></head><body><h2>Samara Health Care — Employee Register</h2><p>${esc(periodNote)} · ${list.length} employee${list.length===1?'':'s'} · Printed ${esc(formatDateIN(new Date()))}</p><table><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${list.map((r,i)=>`<tr class="${isOn(r)?'':'off'}">${cells(r,i).map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`);
+        w.document.close();w.focus();setTimeout(()=>w.print(),300);
+      }
+      async function downloadExcel(){
+        setRegBusy(true);
+        try{
+          if(!window.XLSX)await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';sc.async=true;sc.onload=resolve;sc.onerror=()=>reject(new Error('Excel library could not be loaded — check the internet connection.'));document.head.appendChild(sc);});
+          const ws=window.XLSX.utils.aoa_to_sheet([cols,...list.map(cells)]);
+          ws['!cols']=[6,28,14,16,22,14,14,10,14].map(wch=>({wch}));
+          const wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,'Employee Register');
+          window.XLSX.writeFile(wb,`Samara_Employee_Register_${formatDateIN(new Date()).replace(/\//g,'-')}.xlsx`);
+        }catch(error){alert(error.message||'Unable to download the Excel file.');}
+        finally{setRegBusy(false);}
+      }
+      return h('div',{className:'card panel employee-register'},
+        h('div',{className:'panel-head'},
+          h('div',null,h('h3',null,'Employee Register'),h('small',null,'Every employee — Active and Disabled. Tap a row to open the full Personnel File (documents, employment history).')),
+          h('div',{className:'employee-actions'},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employees')},'← Employees'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:printRegister,disabled:!list.length},'Print / PDF'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:downloadExcel,disabled:!list.length||regBusy},regBusy?'Preparing…':'Excel'))),
+        msg?h('div',{className:'message error'},msg):null,
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'10px',margin:'4px 0 12px'}},
+          statCard('All Employees',all.length,'All'),statCard('Active',activeCount,'Active'),statCard('Disabled',disabledCount,'Disabled')),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'10px',marginBottom:'12px',alignItems:'end'}},
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Status'),h('select',{value:regDraft.status,onChange:e=>setRegDraft({...regDraft,status:e.target.value})},['All','Active','Disabled'].map(x=>h('option',{key:x,value:x},x)))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Department'),h('select',{value:regDraft.department,onChange:e=>setRegDraft({...regDraft,department:e.target.value})},h('option',{value:'All'},'All'),depts.map(d=>h('option',{key:d,value:d},d)))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Search (name / ID / mobile)'),h('input',{type:'search',value:regDraft.search,placeholder:'Type at least 3 letters',onChange:e=>setRegDraft({...regDraft,search:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();setRegFilter(regDraft);}}})),
+          h(ApplyFilterButton,{dirty,onApply:()=>setRegFilter(regDraft)}),
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setRegDraft(regBlank);setRegFilter(regBlank);}},'Clear Filters')),
+        h('div',{className:'table-wrap'},h('table',{className:'table employee-register-table'},
+          h('thead',null,h('tr',null,cols.map(c=>h('th',{key:c},c)))),
+          h('tbody',null,list.length?list.map((r,i)=>h('tr',{key:r.id,className:`employee-row-touch ${isOn(r)?'employee-active':'employee-disabled'}`,role:'button',tabIndex:0,title:'Tap to open Employee Personnel File',style:{cursor:'pointer'},
+              onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
+              cells(r,i).map((v,j)=>h('td',{key:j,'data-label':cols[j]},j===7?h('span',{className:`badge ${isOn(r)?'':'off'}`},v):v))))
+            :h('tr',null,h('td',{colSpan:cols.length,className:'empty'},rows.length?'No employees match this selection.':'Loading employees…')))))
+      );
+    }
+    if(register){
+      if(!fullHRAccess)return h('div',{className:'card panel'},h('div',{className:'message error'},'The Employee Register is available to Admin / Directors only.'));
+      return h(React.Fragment,null,employeeRegisterView(),detailsModal,employmentActionModal(),resetModal,repairModal,
+        cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
+        employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
+          h('span',{className:'samara-toast-icon','aria-hidden':'true'},employeeToast.type==='success'?'✓':'!'),
+          h('div',null,h('strong',null,employeeToast.type==='success'?'Employee update successful':'Employee update failed'),h('span',null,employeeToast.text)),
+          h('button',{type:'button','aria-label':'Close notification',onClick:()=>setEmployeeToast(null)},'×')));
+    }
     return h(React.Fragment,null,
-      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,departmentViewOnly?'Nursing HR Dashboard':employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,departmentViewOnly?'Nursing employee cards and personnel files — strictly view only.':employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),fullHRAccess?h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')):h('span',{className:'badge'},'VIEW ONLY')),msg&&!show?h('div',{className:'message error'},msg):null,!departmentViewOnly&&employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,!departmentViewOnly&&departmentDashboard,departmentViewOnly?nursingCards:(employeeDepartmentFilter?table:null),unlinkedLoginRegister),
+      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,departmentViewOnly?'Nursing HR Dashboard':employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,departmentViewOnly?'Nursing employee cards and personnel files — strictly view only.':employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),fullHRAccess?h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employee Register')},'Employee Register (incl. Disabled)'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')):h('span',{className:'badge'},'VIEW ONLY')),msg&&!show?h('div',{className:'message error'},msg):null,!departmentViewOnly&&employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,!departmentViewOnly&&departmentDashboard,departmentViewOnly?nursingCards:(employeeDepartmentFilter?table:null),unlinkedLoginRegister),
       fullHRAccess?createModal:null,detailsModal,fullHRAccess?employmentActionModal():null,fullHRAccess?resetModal:null,fullHRAccess?repairModal:null,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},

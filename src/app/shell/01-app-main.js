@@ -791,6 +791,7 @@
           page==='Dashboard'&&h(Dashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
+          page==='Employee Register'&&h(Employees,{profile,onNavigate:setPage,register:true}),
           page==='My Profile'&&h(MyProfile,{profile:window.SamaraDutySwap.regularProfile(realProfile),onProfileUpdate:p=>{setProfile({...p,...(realProfile.__dutyContext?{role:realProfile.role,designation:realProfile.designation,department:realProfile.department,__dutyContext:realProfile.__dutyContext}:{})});dutyContext.refresh()}}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),

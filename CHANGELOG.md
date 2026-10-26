@@ -1,3 +1,8 @@
+## 2.18.156 — 27-10-2026 — HR: Employee Register (Active + Disabled)
+- New HR menu item **Employee Register** (Admin / Directors): every employee, Active and Disabled, A–Z, with S.No, Employee ID, Department, Designation, Mobile, Date of Joining, Status and Disabled On (from the audit log). Pink summary boxes (All / Active / Disabled), Status / Department / Search filters with Apply, Print / PDF and Excel.
+- Tapping a row opens the full Personnel File (documents, employment history), so disabled employees' records stay reachable. Employees page header has an "Employee Register (incl. Disabled)" button.
+- Frontend only. No SQL.
+
 ## 2.18.155 — 27-10-2026 — Fall / Incident Nursing Note alerts: close once on OK
 - A Fall / Incident (or Inform Nursing Manager) Nursing Note alert is already recorded by the nurse, so its pop-up now shows as **FOR INFORMATION** with "Please review" instead of "CLINICAL ESCALATION · xx hrs overdue · please attend and record". It pops up **once per device**; after OK it does not come back. It stays in Clinical Escalations for the Nursing Manager / Admin to review and close, as with Medicine Given Late and Poor Meal Intake.
 - Frontend only (clinical-alerts/01-alert-engine.js, shell/01-app-main.js). No SQL.
