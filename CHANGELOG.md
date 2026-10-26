@@ -1,3 +1,8 @@
+## 2.18.157 — 27-10-2026 — Personnel File: "Under Suspension" stamp; action time + authority
+- Employee Personnel File shows a red **UNDER SUSPENSION** stamp (with "since" date) at the top right when the employee's latest Suspension / Reinstatement action (effective today or earlier) is a Suspension. A Reinstatement removes it.
+- Every Employment & Salary History entry (incl. Suspension remarks) now shows **Recorded:** date & time and **Authority:** who recorded it (from the action's approved_by).
+- Frontend only. No SQL.
+
 ## 2.18.156 — 27-10-2026 — HR: Employee Register (Active + Disabled)
 - New HR menu item **Employee Register** (Admin / Directors): every employee, Active and Disabled, A–Z, with S.No, Employee ID, Department, Designation, Mobile, Date of Joining, Status and Disabled On (from the audit log). Pink summary boxes (All / Active / Disabled), Status / Department / Search filters with Apply, Print / PDF and Excel.
 - Tapping a row opens the full Personnel File (documents, employment history), so disabled employees' records stay reachable. Employees page header has an "Employee Register (incl. Disabled)" button.

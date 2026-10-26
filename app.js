@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.156';
+  const APP_VERSION = '2.18.157';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 HR Employee Register';
+  const APP_BUILD_DATE = '27-Oct-2026 Under Suspension stamp';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -21693,6 +21693,27 @@ Thank you.`;
       if(error){console.warn('Employment history:',error.message);setEmploymentActions([]);return;}
       setEmploymentActions(data||[]);
     }
+    // 2.18.157: who recorded an employment action (approved_by = profile / auth id) and current suspension state.
+    function employmentActionAuthority(x){
+      const id=String(x?.approved_by||'');if(!id)return '';
+      const p=rows.find(r=>String(r.id)===id||String(r.auth_user_id||'')===id);
+      if(!p)return '';
+      const label=formalName(p)||p.full_name||'';
+      const role=isSamaraAdministratorAccount(p)?'Admin / Director':(p.designation||p.role||'');
+      return role?`${label} (${role})`:label;
+    }
+    function employmentActionStamp(x){
+      if(!x?.created_at)return '';
+      const d=new Date(x.created_at);if(Number.isNaN(d.getTime()))return '';
+      const t=d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();
+      return `${formatDateIN(d)} ${t}`;
+    }
+    function currentSuspension(){
+      const today=todayISOIndia();
+      const relevant=employmentActions.filter(x=>['Suspension','Reinstatement'].includes(x.action_type)&&(!x.effective_date||x.effective_date<=today))
+        .sort((a,b)=>String(b.effective_date||'').localeCompare(String(a.effective_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));
+      return relevant[0]?.action_type==='Suspension'?relevant[0]:null;
+    }
     function openEmploymentAction(){
       const r=detailsTarget;if(!r)return;
       setEmploymentAction({...employmentBlank(),new_department:r.department||'',new_designation:r.designation||'',new_reporting_superior:r.reporting_superior||'',new_erp_role:r.role||'',new_salary:r.current_salary||''});
@@ -21748,7 +21769,10 @@ Thank you.`;
             x.action_type!=='Opening Salary'&&x.previous_department!==x.new_department?h('div',{className:'muted'},`${x.previous_department||'—'} → ${x.new_department||'—'}`):null,
             x.action_type!=='Opening Salary'&&x.new_salary!=null?h('div',{style:{marginTop:4}},`Salary: ${money(x.new_salary)} ${x.salary_frequency||'Monthly'}`):null,
             x.order_reference?h('div',{className:'muted'},`Ref: ${x.order_reference}`):null,
-            x.remarks?h('div',{className:'muted'},x.remarks):null
+            x.remarks?h('div',{className:'muted'},x.remarks):null,
+            (employmentActionStamp(x)||employmentActionAuthority(x))?h('div',{style:{marginTop:8,paddingTop:6,borderTop:'1px dashed #ecd2df',fontSize:'.86em',color:'#7c1745',display:'flex',gap:'14px',flexWrap:'wrap'}},
+              employmentActionStamp(x)?h('span',null,h('strong',null,'Recorded: '),employmentActionStamp(x)):null,
+              employmentActionAuthority(x)?h('span',null,h('strong',null,'Authority: '),employmentActionAuthority(x)):null):null
           )):h('div',{className:'muted'},r.current_salary!=null?'Starting salary will appear in history after this update is saved.':'No salary or employment actions recorded yet.'))
       );
     }
@@ -22452,8 +22476,15 @@ Thank you.`;
     const personnelReadOnly=()=>{
       const r=detailsTarget||detailsForm||{};
       const active=Boolean(r.is_active??r.active);
+      const suspension=currentSuspension();
       return h('div',{className:'employee-personnel-view'},
-        h('div',{className:'employee-personnel-hero'},
+        h('div',{className:'employee-personnel-hero',style:{position:'relative'}},
+          suspension?h('div',{className:'employee-suspension-stamp','aria-label':'Under Suspension',title:`Suspended from ${suspension.effective_date?formatDateIN(suspension.effective_date):'—'}`,style:{
+            position:'absolute',top:14,right:16,transform:'rotate(-8deg)',border:'3px double #c0123c',color:'#c0123c',borderRadius:8,
+            padding:'6px 14px',fontWeight:800,fontSize:'1.05em',letterSpacing:'.08em',textTransform:'uppercase',textAlign:'center',
+            background:'rgba(255,240,244,.92)',boxShadow:'0 2px 8px rgba(192,18,60,.15)',lineHeight:1.2,pointerEvents:'none'}},
+            'Under Suspension',
+            suspension.effective_date?h('div',{style:{fontSize:'.62em',letterSpacing:'.04em',fontWeight:700,marginTop:2}},`since ${formatDateIN(suspension.effective_date)}`):null):null,
           personnelPhotoPreview(),
           h('div',{className:'employee-personnel-identity'},
             h('h2',null,formalName(r)||r.full_name||'Employee'),
