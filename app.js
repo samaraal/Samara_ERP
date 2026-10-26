@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.161';
+  const APP_VERSION = '2.18.162';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 WhatsApp Inbox bigger chat';
+  const APP_BUILD_DATE = '27-Oct-2026 WhatsApp Inbox single top row';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -15044,7 +15044,7 @@ https://samaraassistedliving.com/`;
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
-        h('div',{className:'global-page-tools'},
+        h('div',{className:`global-page-tools${page==='WhatsApp Inbox'?' wa-page-tools':''}`},
           (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
           h('button',{type:'button',className:'btn btn-secondary mobile-global-home',onClick:()=>{pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},title:'Go to Home','aria-label':'Go to Home'},'⌂ Home'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
@@ -17427,7 +17427,11 @@ function Dashboard({profile,onNavigate,alertEngine}){
         .wa-compact input,.wa-compact select{min-height:32px!important;padding:4px 10px!important;font-size:13px!important}
         .wa-compact label{margin:0!important}
         .wa-inbox-plain>.panel-head{display:none!important}
-        .wa-inbox-plain{padding-top:12px!important}
+        .wa-inbox-plain{padding:10px 12px 12px!important;margin-top:0!important}
+        /* 2.18.162: one top row (Back · folders · search · filters) and no separate Back / Refresh bar on this page */
+        .wa-topbar{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-bottom:8px}
+        .wa-back-chip{min-height:32px!important;padding:5px 12px!important;font-size:13px!important;border-radius:999px!important;font-weight:800!important}
+        @media(min-width:701px){.global-page-tools.wa-page-tools{display:none!important}}
         .wa-locked-bar{padding:8px 12px;background:#f7edf1;border-top:1px solid #ddd;color:#5d1039;font-size:12.5px;font-weight:700}
         .wa-template-toggle{display:block;width:100%;padding:7px 12px;border:0;border-top:1px solid #ddd;background:#f0f2f5;color:#5d1039;font-weight:800;font-size:12.5px;text-align:left;cursor:pointer}
         .wa-template-toggle:hover{background:#e9e3e6}
@@ -18109,11 +18113,13 @@ Thank you.`;
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPatientContext(null);setSelectedPhone('');setQuery('');setShowUnread(false);}},'Show All WhatsApp')
         ):null,
-        (!isMobile||!selectedPhone)?h('nav',{'aria-label':'WhatsApp folders',className:'wa-compact wa-folders',style:{display:'flex',gap:'6px',flexWrap:'wrap',marginBottom:'8px'}},
+        (!isMobile||!selectedPhone)?h('div',{className:'wa-topbar'},
+        !isMobile&&!foodOnly&&!patientContext?h('button',{type:'button',className:'btn btn-secondary wa-back-chip',title:'Go back to the previous page',onClick:()=>{const b=document.querySelector('.global-back-button');if(b)b.click();else window.history.back();}},'‹ Back'):null,
+        h('nav',{'aria-label':'WhatsApp folders',className:'wa-compact wa-folders',style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
           (foodOnly?(leaveCover?['All','Admission Enquiries','Other']:['All','Food Vendors']):['All','Admission Enquiries','Payment Follow-ups',...(foodDesk?['Food Vendors']:[]),'Other']).map(folder=>h('button',{type:'button',key:folder,'aria-pressed':waFolder===folder,className:`btn ${waFolder===folder?'btn-primary':'btn-secondary'}`,onClick:()=>{setWaFolder(folder);setSelectedPhone('');setSubjectFilter('All Subjects');setQuery('');setShowUnread(false);setDateFrom('');setDateTo('');}},`${folder} (${conversations.filter(c=>folder==='All'||c.folder===folder).length})`))
-        ):null,
-        (!isMobile||!selectedPhone)?h('div',{className:'wa-inbox-toolbar wa-compact',style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center',marginBottom:'8px'}},
-          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 280px',minWidth:'220px'}}),
+        ),
+        h('div',{className:'wa-inbox-toolbar wa-compact',style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center',flex:'1 1 520px'}},
+          h('input',{value:query,onChange:e=>setQuery(e.target.value),placeholder:isSTD?'Search name, mobile, subject or message…':'Search name, mobile or message…',style:{flex:'1 1 200px',minWidth:'170px'}}),
           isSTD?h('select',{value:subjectFilter,onChange:e=>{setSubjectFilter(e.target.value);setSelectedPhone('')},style:{minWidth:'170px'}},
             ['All Subjects','Admission / Care','Callback','Location','Pricing / Charges','Services','General Enquiry',...(foodDesk?['Food Orders']:[])].map(x=>h('option',{key:x},x))
           ):null,
@@ -18133,7 +18139,7 @@ Thank you.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>load(true)},'Refresh'),
           canDeleteMsg?h('button',{type:'button',className:'btn btn-secondary',disabled:templateSync.busy,title:'Reload approved template texts from Meta',onClick:()=>syncWaTemplates(false)},templateSync.busy?'Refreshing templates…':'Refresh templates'):null,
           canRestoreMsg&&deletedCount?h('button',{type:'button',className:`btn ${showDeleted?'btn-primary':'btn-secondary'}`,onClick:()=>setShowDeleted(v=>!v)},showDeleted?`Hide deleted (${deletedCount})`:`Show deleted (${deletedCount})`):null
-        ):null,
+        )):null,
         templateSync.note&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},templateSync.note):null,
         message&&(!isMobile||!selectedPhone)?h('div',{className:'notice wa-inbox-status',style:{marginBottom:'12px'}},message):null,
         renderChatShell(h('div',{ref:chatShellRef,className:`wa-inbox-shell ${isMobile&&selectedPhone?'wa-mobile-chat-open':''}`},
