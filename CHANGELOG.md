@@ -1,3 +1,8 @@
+## 2.18.161 — 27-10-2026 — WhatsApp Inbox: more room for the chat
+- Desktop: the duplicate "WhatsApp Inbox" title inside the page is removed (the top bar already shows it).
+- When the 24-hour window is closed, the big disabled reply box is replaced by one line ("🔒 Direct message locked … send an approved template below").
+- When the window is open, the template box folds into one line "📨 Send an approved template ▸" (tap to open, ▾ Hide to fold); the reply box starts at one line and grows as you type.
+
 ## 2.18.160 — 27-10-2026 — WhatsApp Inbox: bigger chat area; "unsupported" messages explained
 - Desktop inbox now fills the screen height (measured from where it starts), the subtitle line is removed, and the folder chips / search / Unread / Show / Refresh controls are smaller, so more conversation is visible.
 - "[unsupported message received]" was Meta error 131051 (message type not passed to business apps — view-once photo, poll, event, edited message…). The bubble and the conversation list now say so in plain words, and a **↻ Ask to resend** button puts a polite "please send it again" message in the reply box (edit before sending).

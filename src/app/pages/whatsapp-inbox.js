@@ -36,6 +36,7 @@
     const Field=({label,required=false,children})=>h('div',{className:'field'},h('label',null,label,required?h('span',{style:{color:'#b42336',marginLeft:'4px'}},'*'):null),children);
     const [rows,setRows]=React.useState([]),[selectedPhone,setSelectedPhone]=React.useState(''),[query,setQuery]=React.useState(''),[showUnread,setShowUnread]=React.useState(false),[reply,setReply]=React.useState(''),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState(''),[isMobile,setIsMobile]=React.useState(()=>window.matchMedia('(max-width: 700px)').matches),[patientContext,setPatientContext]=React.useState(null),[mobileComposer,setMobileComposer]=React.useState('');
     const replyEditorRef=React.useRef(null);
+    const [templateOpen,setTemplateOpen]=React.useState(false); // 2.18.161: desktop template box folds away while the reply window is open
     const chatScrollRef=React.useRef(null);
     const chatViewRef=React.useRef({key:null,followLatest:true});
     const chatShellRef=React.useRef(null);
@@ -216,6 +217,13 @@
         .wa-compact .btn{min-height:32px!important;padding:5px 12px!important;font-size:13px!important;border-radius:999px!important;line-height:1.1!important}
         .wa-compact input,.wa-compact select{min-height:32px!important;padding:4px 10px!important;font-size:13px!important}
         .wa-compact label{margin:0!important}
+        .wa-inbox-plain>.panel-head{display:none!important}
+        .wa-inbox-plain{padding-top:12px!important}
+        .wa-locked-bar{padding:8px 12px;background:#f7edf1;border-top:1px solid #ddd;color:#5d1039;font-size:12.5px;font-weight:700}
+        .wa-template-toggle{display:block;width:100%;padding:7px 12px;border:0;border-top:1px solid #ddd;background:#f0f2f5;color:#5d1039;font-weight:800;font-size:12.5px;text-align:left;cursor:pointer}
+        .wa-template-toggle:hover{background:#e9e3e6}
+        .wa-template-composer{padding:8px 12px!important}
+        .wa-free-composer{padding:8px 12px!important}
         .wa-chat-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 14px;background:#f0f2f5;border-bottom:1px solid #ddd}
         .wa-mobile-back{display:none}
         .wa-chat-scroll{flex:1;padding:18px 22px;overflow-y:auto;background:linear-gradient(rgba(239,234,226,.94),rgba(239,234,226,.94));min-height:0}
@@ -886,7 +894,7 @@ Thank you.`;
     }
     const unreadTotal=conversations.filter(c=>waFolder==='All'||c.folder===waFolder).reduce((n,c)=>n+c.unread,0);
     return h(React.Fragment,null,
-      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':null),className:'wa-inbox-section'},
+      h(Section,{title:foodOnly?(leaveCover?'WhatsApp — Food Vendors & Enquiries':'WhatsApp — Food Vendors'):patientContext?`WhatsApp — ${patientContext.patient_name}`:'WhatsApp Inbox',subtitle:foodOnly?(leaveCover?'Food vendors and STD enquiries. Sending remains limited to food vendors.':'Food-vendor conversations · view, send templates and reply.'):isMobile?null:(patientContext?'Patient-linked WhatsApp messages only. Other WhatsApp conversations are hidden in this view.':null),className:(!foodOnly&&!patientContext&&!isMobile)?'wa-inbox-section wa-inbox-plain':'wa-inbox-section'},
         foodDesk&&foodScope.note?h('div',{className:'notice',style:{marginBottom:'10px'}},foodScope.note):null,
         patientContext?h('div',{className:'notice',style:{marginBottom:'12px',display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
           h('div',null,h('strong',null,patientContext.patient_name),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},patientContext.patient_code?`· ${patientContext.patient_code}`:''),h('span',{style:{marginLeft:'8px',color:'#7b6871'}},`· +${patientContext.phone}`)),
@@ -1007,9 +1015,10 @@ Thank you.`;
                 within24?h('button',{type:'button',className:'wa-mobile-action-btn',onClick:()=>setMobileComposer(mobileComposer==='reply'?'':'reply')},mobileComposer==='reply'?'Close':'Reply'):null,
                 h('button',{type:'button',className:'wa-mobile-action-btn secondary',onClick:()=>setMobileComposer(mobileComposer==='template'?'':'template')},mobileComposer==='template'?'Close':'Template')
               ):null,
+              (!isMobile&&!within24)?h('div',{className:'wa-locked-bar'},'🔒 Direct message locked — no reply from this contact in the last 24 hours. Send an approved template below.'):
               (!isMobile||mobileComposer==='reply')?h('div',{className:'wa-free-composer',style:{display:'block',opacity:within24?1:.72}},
                 isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Direct WhatsApp reply'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close reply'},'×')):
-                  h('div',{style:{fontWeight:'800',color:within24?'#087f5b':'#5d1039',marginBottom:'7px'}},within24?'Direct message · reply window open':'Direct message locked · recipient has not replied within the last 24 hours'),
+                  h('div',{style:{fontWeight:'800',fontSize:'12px',color:within24?'#087f5b':'#5d1039',marginBottom:'5px'}},within24?'Direct message · reply window open':'Direct message locked · recipient has not replied within the last 24 hours'),
                 replyTo?h('div',{className:'wa-reply-chip'},
                   h('div',{className:'wa-reply-chip-text'},h('strong',null,`↩ Replying to ${replyTo.direction==='inbound'?(active.name||'Contact'):'Samara'}`),h('span',null,snippetOf(replyTo))),
                   h('button',{type:'button',className:'wa-msg-action',disabled:busy,onClick:()=>setReplyTo(null),'aria-label':'Cancel reply'},'✕')):null,
@@ -1020,19 +1029,20 @@ Thank you.`;
                 h('div',{style:{display:'flex',gap:'10px',alignItems:'stretch'}},
                   h('input',{ref:attachInputRef,type:'file',accept:'image/jpeg,image/png,application/pdf,.doc,.docx,.xls,.xlsx',style:{display:'none'},onChange:e=>pickAttachment(e.target.files?.[0])}),
                   h('button',{type:'button',className:'wa-attach-btn',disabled:busy||!within24,title:within24?'Attach photo or document':'Attachments need the 24-hour reply window','aria-label':'Attach photo or document',onClick:()=>attachInputRef.current?.click()},'📎'),
-                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>setReply(e.target.value),placeholder:!within24?'Direct messaging becomes available after the recipient replies':attachFile?'Add a caption (optional)':'Type a direct message',disabled:busy||!within24,rows:2,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
+                  h('textarea',{ref:replyEditorRef,value:reply,onChange:e=>{setReply(e.target.value);if(!isMobile){e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,140)+'px';}},placeholder:!within24?'Direct messaging becomes available after the recipient replies':attachFile?'Add a caption (optional)':'Type a direct message',disabled:busy||!within24,rows:isMobile?2:1,style:{flex:'1 1 auto',minWidth:0,resize:'none',borderRadius:'10px',background:'#fff',margin:0}}),
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!within24||(!reply.trim()&&!attachFile),onClick:attachFile?sendAttachment:sendReply,style:{minWidth:isMobile?'86px':'110px'}},busy?'Sending…':'Send')
                 )
               ):null,
+              (!isMobile&&within24&&!templateOpen)?h('button',{type:'button',className:'wa-template-toggle',onClick:()=>setTemplateOpen(true)},'📨 Send an approved template ▸'):
               (!isMobile||mobileComposer==='template')?h('div',{className:'wa-template-composer'},
                 isMobile?h('div',{className:'wa-mobile-composer-title'},h('span',null,'Send approved template'),h('button',{type:'button',className:'wa-mobile-composer-close',onClick:()=>setMobileComposer(''),'aria-label':'Close template'},'×')):
-                  h('div',{style:{fontWeight:'800',color:'#5d1039',marginBottom:'6px'}},'Approved WhatsApp templates · available inside or outside the 24-hour reply window'),
+                  h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',fontWeight:'800',fontSize:'12px',color:'#5d1039',marginBottom:'5px'}},h('span',null,'Approved WhatsApp template · works inside or outside the 24-hour window'),within24?h('button',{type:'button',className:'wa-msg-action',onClick:()=>setTemplateOpen(false),'aria-label':'Hide templates'},'▾ Hide'):null),
                 h('div',{className:'wa-template-grid'},
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Template'),h('select',{value:templateName,onChange:e=>chooseReopenTemplate(e.target.value),style:{width:'100%'}},replyTemplates.map(t=>h('option',{key:t.name,value:t.name},t.label)))),
                   h('div',null,h('small',{style:{display:'block',marginBottom:'3px',color:'#6e6268'}},'Regarding'),h('input',{value:templateRegarding,onChange:e=>setTemplateRegarding(e.target.value),placeholder:selectedTemplate.regarding,style:{width:'100%'}})),
                   h('button',{type:'button',className:'btn btn-primary',disabled:busy||!templateRegarding.trim(),onClick:sendReopenTemplate,style:{whiteSpace:'nowrap'}},busy?'Sending…':'Send template')
                 ),
-                h('small',{style:{display:'block',marginTop:'6px',color:'#6e6268'}},`To: ${active.name||'Customer'}`)
+                isMobile?h('small',{style:{display:'block',marginTop:'6px',color:'#6e6268'}},`To: ${active.name||'Customer'}`):null
               ):null
             ):h('p',{className:'empty',style:{margin:'auto'}},'Select a WhatsApp conversation.')
           )
