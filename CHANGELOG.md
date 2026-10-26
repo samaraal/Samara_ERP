@@ -1,3 +1,8 @@
+## 2.18.164 — 27-10-2026 — Charge Register: dashboard first, details on tap, Admin profit
+- NURSING → Charge Register now opens on boxes only: **Pending with Accounts** and **Returned to Nurse** (all dates — awaiting action never drops off), **Approved** and **All Charges** for the chosen period (Today / This Week / This Month [default] / Period). A box or **🔍 Search with filters** opens the list with every filter (Status, Category, Item, Patient, Raised By, From/To + Apply; new All Dates); **‹ Back to Dashboard** returns.
+- Tap any row → full charge details, incl. the Return / Resubmit history (tap to jump between the returned and corrected entries). Print / PDF and Excel for the opened list.
+- Admin only: **Net Profit** box and Bought (cost) · Charged · Net Profit columns + a profit summary for the open list. Bought = qty × weighted-average purchase unit cost from stock receipts (Outside services: the outside bill). Nursing Procedures / Physiotherapy are services with no purchase price — shown as "Service" and not counted in profit. Nursing Manager does not see any cost or profit.
+
 ## 2.18.163 — 27-10-2026 — Charge Register: time stamp instead of Guest ID
 - NURSING → Charge Register: the Patient column no longer shows the Guest ID (name · Room only); the Date column is now "Date & Time" with the time the charge was raised under the date.
 
