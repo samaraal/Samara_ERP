@@ -1,3 +1,6 @@
+## 2.18.153 — 26-10-2026 — Charge Register: pink gradient boxes
+- Charge Register summary boxes (All Charges, Pending, Approved, Returned, Approved Value) now have a light pink gradient fill; the selected box is a shade deeper with a pink border.
+
 ## 2.18.152 — 26-10-2026 — Charge Register: Item filter
 - NURSING → Charge Register: new **Item** filter beside Category (code · item name, A–Z). It lists the items of the chosen category (all items when Category = All) and resets when the category changes; Clear Filters resets it too.
 

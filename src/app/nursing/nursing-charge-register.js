@@ -68,9 +68,11 @@
       .reduce((sum,r)=>sum+(Number(r.approved_amount??r.final_amount)||0),0);
 
     const statCard=(label,value,active,onClick)=>h('button',{type:'button',className:'card stat',onClick,style:{
-      textAlign:'left',cursor:'pointer',width:'100%',border:'1px solid #e8c3d2',
-      background:active?'linear-gradient(135deg,#f9dce8,#fff7fa)':'linear-gradient(145deg,#fffafd,#fdf1f6)',
-      boxShadow:active?'0 8px 20px rgba(166,16,78,.12)':'0 4px 12px rgba(109,24,61,.05)'
+      textAlign:'left',cursor:'pointer',width:'100%',
+      // 2.18.153: light pink gradient fill (screensaver / dashboard theme); the selected box is a shade deeper
+      background:active?'linear-gradient(135deg,#f8c9dc 0%,#fde3ee 55%,#fff4f8 100%)':'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)',
+      border:active?'1.5px solid #d97aa3':'1px solid #efc3d6',
+      boxShadow:active?'0 8px 20px rgba(166,16,78,.16)':'0 4px 12px rgba(109,24,61,.07)'
     }},h('span',null,label),h('strong',null,value));
 
     const heads=['Date','Patient','Category','Service','Qty','Status','Requested Amount','Approved Amount','Raised By','Decision By','Decision Time','Remarks'];
