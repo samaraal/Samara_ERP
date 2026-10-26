@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.164';
+  const APP_VERSION = '2.18.165';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 Charge Register dashboard + profit';
+  const APP_BUILD_DATE = '27-Oct-2026 Profit cost-unit check';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -39888,9 +39888,12 @@ function RoomsBeds({profile,onNavigate}){
     const boughtOf=r=>{const k=r.store_item_id&&String(r.store_item_id);if(k&&avgCost[k]!=null)return (Number(r.quantity)||1)*avgCost[k];
       if(r.outside_bill_amount!=null&&r.outside_bill_amount!=='')return Number(r.outside_bill_amount)||0;return null;};
     const isService=r=>!r.store_item_id&&(r.outside_bill_amount==null||r.outside_bill_amount==='');
-    const profitOf=r=>{const b=boughtOf(r);return b==null?null:chargedOf(r)-b;};
-    const profitSummary=list=>{const known=list.filter(r=>boughtOf(r)!=null);const b=known.reduce((s,r)=>s+boughtOf(r),0),c=known.reduce((s,r)=>s+chargedOf(r),0);
-      return {b,c,p:c-b,known:known.length,services:list.filter(isService).length,unknown:list.filter(r=>!isService(r)&&boughtOf(r)==null).length};};
+    // 2.18.165: a stock receipt priced per box / pack while quantity is per piece gives a cost far above the charge —
+    // when the cost per piece is more than double the charge per piece, flag it and keep it out of the profit total.
+    const costSuspect=r=>{const k=r.store_item_id&&String(r.store_item_id);if(!k||avgCost[k]==null)return false;const q=Number(r.quantity)||1;const perPiece=chargedOf(r)/q;return perPiece>0&&avgCost[k]>2*perPiece;};
+    const profitOf=r=>{const b=boughtOf(r);return b==null||costSuspect(r)?null:chargedOf(r)-b;};
+    const profitSummary=list=>{const known=list.filter(r=>boughtOf(r)!=null&&!costSuspect(r));const b=known.reduce((s,r)=>s+boughtOf(r),0),c=known.reduce((s,r)=>s+chargedOf(r),0);
+      return {b,c,p:c-b,known:known.length,suspect:list.filter(costSuspect).length,services:list.filter(isService).length,unknown:list.filter(r=>!isService(r)&&boughtOf(r)==null).length};};
     const periodName={today:'Today',week:'This Week',month:'This Month',custom:periodApplied.from||periodApplied.to?`${periodApplied.from?formatDateIN(periodApplied.from):'…'} – ${periodApplied.to?formatDateIN(periodApplied.to):'…'}`:'All dates'}[period];
 
     function openList(status,title,allDates){
@@ -39921,12 +39924,12 @@ function RoomsBeds({profile,onNavigate}){
           h('span',{style:{marginLeft:'auto'}}),
           h('button',{type:'button',className:'btn btn-primary',onClick:()=>openList('All',`All Charges · ${periodName}`,false)},'🔍 Search with filters')),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))',gap:'12px'}},
-          box('Pending with Accounts',pendingRows.length,money(sumReq(pendingRows)),pendingRows.length?'alert':'',()=>openList('Pending','Pending with Accounts',true),'All dates · tap to open ›'),
+          box('Pending with Accounts',pendingRows.length,money(pendingRows.reduce((t,r)=>t+chargedOf(r),0)),pendingRows.length?'alert':'',()=>openList('Pending','Pending with Accounts',true),'All dates · tap to open ›'),
           box('Returned to Nurse',returnedRows.length,returnedRows.length?'Awaiting correction':'',returnedRows.length?'alert':'',()=>openList('ReturnedOpen','Returned to Nurse — awaiting correction',true),'All dates · tap to open ›'),
           box(`Approved · ${periodName}`,approvedRows.length,money(sumAppr(approvedRows)),'',()=>openList('Approved',`Approved · ${periodName}`,false)),
-          box(`All Charges · ${periodName}`,periodRows.length,money(sumReq(periodRows))+' raised','',()=>openList('All',`All Charges · ${periodName}`,false)),
+          box(`All Charges · ${periodName}`,periodRows.length,money(periodRows.reduce((t,r)=>t+chargedOf(r),0))+' value','',()=>openList('All',`All Charges · ${periodName}`,false)),
           isAdmin?(()=>{const ps=profitSummary(approvedRows);return box(`Net Profit · ${periodName}`,money(ps.p),`Bought ${money(ps.b)} · Charged ${money(ps.c)}`,'',()=>openList('Approved',`Approved · ${periodName} — Profit`,false),
-            `${ps.known} items with purchase cost${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} items without cost`:''} · Admin only`);})():null
+            `${ps.known} items counted${ps.suspect?` · ⚠ ${ps.suspect} to check (cost per box?)`:''}${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} without cost`:''} · Admin only`);})():null
         ));
     }
 
@@ -39943,12 +39946,12 @@ function RoomsBeds({profile,onNavigate}){
       r.decision_by_name||'—',
       r.decision_at?fmt(r.decision_at):'—',
       r.decision_remarks||r.approval_remarks||r.remarks||'—',
-      ...(isAdmin?[boughtOf(r)!=null?money(boughtOf(r)):(isService(r)?'Service':'No cost'),money(chargedOf(r)),
+      ...(isAdmin?[boughtOf(r)!=null?(costSuspect(r)?h('span',{title:'Purchase cost per piece is more than double the charge — the stock receipt was probably priced per box / pack. Not counted in profit.',style:{color:'#b26a00',fontWeight:700}},`${money(boughtOf(r))} ⚠ check purchase unit`):money(boughtOf(r))):(isService(r)?'Service':'No cost'),money(chargedOf(r)),
         profitOf(r)!=null?h('strong',{style:{color:profitOf(r)<0?'#b42336':'#087f5b'}},money(profitOf(r))):'—']:[])
     ]);
     const plainRows=()=>filtered.map(r=>[formatDateIN(r.charge_date)+(raisedTime(r)?` ${raisedTime(r)}`:''),guestLabel(r.patient_id),r.category||'',itemOf(r),`${r.quantity||1} ${r.unit||''}`.trim(),statusLabel(statusOf(r)),
       Number(r.requested_amount??r.unit_cost)||0,(r.approved_amount??r.final_amount)!=null?Number(r.approved_amount??r.final_amount):'',r.raised_by_name||'',r.decision_by_name||'',r.decision_at?fmt(r.decision_at):'',r.decision_remarks||r.approval_remarks||r.remarks||'',
-      ...(isAdmin?[boughtOf(r)!=null?Math.round(boughtOf(r)*100)/100:(isService(r)?'Service':'No cost'),chargedOf(r),profitOf(r)!=null?Math.round(profitOf(r)*100)/100:'']:[])]);
+      ...(isAdmin?[boughtOf(r)!=null?(costSuspect(r)?`${Math.round(boughtOf(r)*100)/100} (check purchase unit)`:Math.round(boughtOf(r)*100)/100):(isService(r)?'Service':'No cost'),chargedOf(r),profitOf(r)!=null?Math.round(profitOf(r)*100)/100:'']:[])]);
     function printList(){
       const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
       const w=samaraPrintBar(window.open('','_blank'));if(!w){alert('Please allow pop-ups to print.');return;}
@@ -39971,7 +39974,7 @@ function RoomsBeds({profile,onNavigate}){
       ['Resubmitted By',r.resubmitted_by_name],['Resubmitted At',r.resubmitted_at?fmt(r.resubmitted_at):''],
       ...(isAdmin?[['Purchase Cost / Unit (avg)',r.store_item_id&&avgCost[String(r.store_item_id)]!=null?money(avgCost[String(r.store_item_id)]):''],
         ['Bought (cost)',boughtOf(r)!=null?money(boughtOf(r)):(isService(r)?'Service — no purchase cost':'No purchase cost on stock receipts')],
-        ['Charged',money(chargedOf(r))],['Net Profit',profitOf(r)!=null?money(profitOf(r)):'']]:[])
+        ['Charged',money(chargedOf(r))],['Net Profit',profitOf(r)!=null?money(profitOf(r)):(costSuspect(r)?'Not counted — purchase cost looks per box / pack; check the stock receipt':'')]]:[])
     ];
     const linked=r=>{const chain=[];const from=r.resubmitted_from&&rows.find(x=>String(x.id)===String(r.resubmitted_from));const to=r.resubmitted_as&&rows.find(x=>String(x.id)===String(r.resubmitted_as));
       if(from)chain.push(['Corrected from (returned)',from]);if(to)chain.push(['Resubmitted as',to]);return chain;};
@@ -40007,7 +40010,7 @@ function RoomsBeds({profile,onNavigate}){
       isAdmin&&filtered.length?(()=>{const ps=profitSummary(filtered);return h('div',{className:'card',style:{display:'flex',gap:'18px',flexWrap:'wrap',alignItems:'center',padding:'12px 16px',margin:'0 0 12px',background:'linear-gradient(135deg,#fcdde9 0%,#fff8fb 100%)',border:'1px solid #efc3d6'}},
         h('strong',{style:{color:'#7d1748'}},'Admin · Profit for this list'),h('span',null,`Bought ${money(ps.b)}`),h('span',null,`Charged ${money(ps.c)}`),
         h('strong',{style:{color:ps.p<0?'#b42336':'#087f5b'}},`Net Profit ${money(ps.p)}`),
-        h('small',{style:{color:'#8a6a78'}},`${ps.known} with purchase cost${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} items without purchase cost`:''}`));})():null,
+        h('small',{style:{color:'#8a6a78'}},`${ps.known} counted${ps.suspect?` · ⚠ ${ps.suspect} to check — purchase cost looks per box / pack`:''}${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} items without purchase cost`:''}`));})():null,
       h(LogTable,{title:`Charges (${filtered.length})`,heads:listHeads,rows:tableRows,onRowClick:i=>setDetail(filtered[i])}),
       detail?h(RowDetailModal,{title:'Charge Details',subtitle:`${guestLabel(detail.patient_id)} · ${itemOf(detail)}`,fields:detailFields(detail),onClose:()=>setDetail(null)},
         linked(detail).length?h('div',{style:{marginTop:'12px',display:'grid',gap:'8px'}},h('strong',{style:{color:'#7d1748'}},'Return / Resubmit history'),

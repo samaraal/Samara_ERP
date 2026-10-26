@@ -1,3 +1,7 @@
+## 2.18.165 — 27-10-2026 — Charge Register profit: per-box cost check
+- Stock receipts for Examination Gloves, Surgical Masks and Adult Diapers were priced per box / pack while quantity and charge are per piece, so profit showed a false loss. Any charge whose purchase cost per piece is more than double its charge per piece is now marked "⚠ check purchase unit" and left out of the profit total (counted separately in the box).
+- "All Charges" / "Pending" ₹ totals now use the charged amount (requested amount is often blank).
+
 ## 2.18.164 — 27-10-2026 — Charge Register: dashboard first, details on tap, Admin profit
 - NURSING → Charge Register now opens on boxes only: **Pending with Accounts** and **Returned to Nurse** (all dates — awaiting action never drops off), **Approved** and **All Charges** for the chosen period (Today / This Week / This Month [default] / Period). A box or **🔍 Search with filters** opens the list with every filter (Status, Category, Item, Patient, Raised By, From/To + Apply; new All Dates); **‹ Back to Dashboard** returns.
 - Tap any row → full charge details, incl. the Return / Resubmit history (tap to jump between the returned and corrected entries). Print / PDF and Excel for the opened list.
