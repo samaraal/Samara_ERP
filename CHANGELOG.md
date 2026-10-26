@@ -1,3 +1,8 @@
+## 2.18.149 — 26-10-2026 — Stores item "Used for" service; correct a returned item to its service
+- Stores Master (Admin): new **Used for (service)** column — link a Stores item to the Charge Master service it is part of (e.g. Glucostrips → Blood Glucose Monitoring). Set / Change / remove.
+- Correct & Resubmit: when Accounts return a request for a linked Stores item, the Service / Item list shows only the related choices — the linked service (selected by default) and the original item. Choosing the service sends a NEW request straight to Accounts at the Charge Master rate (no Nursing Manager approval for this correction — Accounts asked for it), linked to the returned one. Quantity = number of times the service was done.
+- New SQL: supabase/sql/302_store_item_used_for_service.sql (run after 300). Frontend 2.18.149.
+
 ## 2.18.148 — 26-10-2026 — Bills & Charges: alert to the nurse when a request is returned
 - When Accounts **Return** a charge request, the nurse who raised it gets: an ERP pop-up ("Charge returned by Accounts", with the reason and "Open & Take Action" → Bills & Charges), repeated every hour while she is signed in until she corrects and resubmits; a **phone notification** at the time of the return; and the request is listed on her **Notifications** page. Nursing Manager and Admin / Director see the list on Notifications (no pop-up / phone).
 - Alerts stop as soon as the request is resubmitted; returns older than 3 days are not alerted.

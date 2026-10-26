@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.148';
+  const APP_VERSION = '2.18.149';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '26-Oct-2026 Bills & Charges: returned-request alert to the nurse';
+  const APP_BUILD_DATE = '26-Oct-2026 Stores item Used-for service + correct returned item to its service';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -46312,7 +46312,13 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
 
   function StoreItemMaster({profile}){
     const [rows,setRows]=React.useState([]),[busy,setBusy]=React.useState(false),[filter,setFilter]=React.useState('All'),[search,setSearch]=React.useState(''),[editing,setEditing]=React.useState(null),[adding,setAdding]=React.useState(null),[moveTargets,setMoveTargets]=React.useState({}),[duplicateAlert,setDuplicateAlert]=React.useState(null);
-    const load=React.useCallback(async()=>{const r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows((r.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})))},[]);
+    // 2.18.149: "Used for" — the Charge Master service a Stores item is part of (e.g. Glucostrips → Blood Glucose Monitoring)
+    const [services,setServices]=React.useState([]),[linking,setLinking]=React.useState(null);
+    React.useEffect(()=>{client.from('charge_tariff_master').select('category,service_name,charge_code,is_active').eq('is_active',true).order('category').order('service_name').then(r=>{if(!r.error)setServices((r.data||[]).filter(x=>x.charge_code))})},[]);
+    const serviceLabel=code=>{const x=services.find(v=>v.charge_code===code);return x?`${x.service_name} (${x.category})`:code?`${code} (inactive?)`:'—'};
+    const saveUsedFor=async(row,code)=>{setBusy(true);const r=await client.rpc('admin_set_store_item_used_for',{p_item_id:row.id,p_charge_code:code||null});setBusy(false);if(r.error)return showSamaraActionToast('error','Used for',r.error.message);showSamaraActionToast('success','Used for',code?`${row.item_name} → ${serviceLabel(code)}`:`${row.item_name}: link removed`);setLinking(null);load()};
+    const usedForCell=r=>h('div',{style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},h('span',null,serviceLabel(r.used_for_charge_code)),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>setLinking({row:r,code:r.used_for_charge_code||''})},r.used_for_charge_code?'Change':'Set'));
+    const load=React.useCallback(async()=>{let r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,used_for_charge_code').order('item_name');if(r.error&&/used_for_charge_code/.test(r.error.message||''))r=await client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').order('item_name');if(r.error)showSamaraActionToast('error','Stores Master','Run 132_store_item_master.sql first. '+r.error.message);else setRows((r.data||[]).slice().sort((x,y)=>String(x.item_name||'').trim().localeCompare(String(y.item_name||'').trim(),'en',{sensitivity:'base',numeric:true})))},[]);
     React.useEffect(()=>{load()},[load]);
     const visible=rows.filter(r=>{const c=r.item_category||'Consumables',q=search.trim().toLowerCase();return (filter==='All'||filter===c||(filter==='Inactive'&&r.active===false))&&(q.length<3||`${r.item_code||''} ${r.item_name||''}`.toLowerCase().includes(q))});
     const normalizeMasterName=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').replace(/\b(ml|mg|gm|g|iu|fr)\b/g,' $1 ').replace(/\s+/g,' ').trim();
@@ -46336,14 +46342,16 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
         h('div',{style:{display:'grid',gridTemplateColumns:'1fr',gap:'8px'}},
           h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Currently Under'),h('strong',null,r.item_category||'Consumables')),
           h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Charge Rate'),h('div',{style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},h('strong',null,`₹${Number(r.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>{const v=prompt(`Charge rate for ${r.item_name}:`,String(r.charge_rate??0));if(v!==null)savePrice(r.id,v)}},'Edit Price'))),
+          h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Used for (service)'),usedForCell(r)),
           h('div',null,h('small',{style:{display:'block',fontWeight:700,marginBottom:'3px'}},'Move to'),h('div',{style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},moveSelect(r),h('button',{className:'btn btn-primary',disabled:busy||!moveTargets[r.id]||r.active===false,onClick:()=>moveItem(r)},'Move'))),
           h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete if unused'))
         )
       ))),
-      h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},h('thead',null,h('tr',null,['Item','Currently Under','Charge Rate','Move to','Status','Edit'].map(x=>h('th',{key:x},x)))),h('tbody',null,visible.map(r=>h('tr',{key:r.id},
+      h('div',{className:'table-wrap stores-ledger-desktop'},h('table',{className:'table'},h('thead',null,h('tr',null,['Item','Currently Under','Charge Rate','Used for (service)','Move to','Status','Edit'].map(x=>h('th',{key:x},x)))),h('tbody',null,visible.map(r=>h('tr',{key:r.id},
         h('td',null,h('strong',null,r.item_name),h('div',{style:{fontSize:'12px',opacity:.72,marginTop:'3px'}},[r.unit,r.strength,r.dosage_form].filter(Boolean).join(' · ')||'—')),
         h('td',null,r.item_category||'Consumables'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',alignItems:'center',minWidth:'170px'}},h('strong',null,`₹${Number(r.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`),h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>{const v=prompt(`Charge rate for ${r.item_name}:`,String(r.charge_rate??0));if(v!==null)savePrice(r.id,v)}},'Edit Price'))),
+        h('td',null,usedForCell(r)),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',alignItems:'center'}},moveSelect(r),h('button',{className:'btn btn-primary',disabled:busy||!moveTargets[r.id]||r.active===false,onClick:()=>moveItem(r)},'Move'))),
         h('td',null,r.active===false?'Inactive':'Active'),
         h('td',null,h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},editButton(r),h('button',{className:'btn btn-secondary',onClick:()=>active(r,r.active===false)},r.active===false?'Reactivate':'Deactivate'),h('button',{className:'btn btn-secondary',onClick:()=>remove(r)},'Delete'))
@@ -46355,7 +46363,12 @@ function PharmacyStockPanel({stock,itemId,quantity,unit,onSelect,showSelector=tr
       h('div',{className:'field'},h('label',null,'Strength / Specification'),h('input',{value:adding.strength||'',onChange:e=>setAdding({...adding,strength:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Dosage Form'),h('input',{value:adding.dosage_form||'',onChange:e=>setAdding({...adding,dosage_form:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Charge Rate (₹)'),h('input',{type:'number',min:'0',step:'0.01',value:adding.charge_rate||'',onChange:e=>setAdding({...adding,charge_rate:e.target.value})}))
-    ),h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',onClick:()=>setAdding(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:addItem},busy?'Adding…':'Add Item')))),editing&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Edit Item'),h('p',{style:{marginTop:'-4px',opacity:.75}},`Currently Under: ${editing.item_category||'Consumables'}`),h('div',{className:'form-grid'},
+    ),h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',onClick:()=>setAdding(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:addItem},busy?'Adding…':'Add Item')))),linking&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'560px',background:'#fffafd',border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},
+      h('h3',null,`Used for — ${linking.row.item_name}`),
+      h('p',{style:{marginTop:'-4px',opacity:.8}},'The service this item is part of. When Accounts return a charge for this item, the nurse can correct it to this service in one tap.'),
+      h('div',{className:'field'},h('label',null,'Service (Charge Master)'),h('select',{value:linking.code,onChange:e=>setLinking({...linking,code:e.target.value})},h('option',{value:''},'— Not linked —'),services.map(x=>h('option',{key:x.charge_code,value:x.charge_code},`${x.category} · ${x.charge_code} · ${x.service_name}`)))),
+      h('div',{style:{display:'flex',gap:'8px',justifyContent:'flex-end',flexWrap:'wrap'}},h('button',{className:'btn btn-secondary',onClick:()=>setLinking(null)},'Close'),h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveUsedFor(linking.row,linking.code)},busy?'Saving…':'Save')))),
+      editing&&h('div',{className:'modal-backdrop',style:{background:'rgba(45,18,31,.48)',backdropFilter:'blur(1px)'}},h('div',{className:'modal-card',style:{maxWidth:'620px',background:'#fffafd',opacity:1,border:'1px solid #e7bfd1',borderRadius:'18px',boxShadow:'0 22px 60px rgba(55,18,35,.28)',padding:'22px'}},h('h3',null,'Edit Item'),h('p',{style:{marginTop:'-4px',opacity:.75}},`Currently Under: ${editing.item_category||'Consumables'}`),h('div',{className:'form-grid'},
       h('div',{className:'field span-2'},h('label',null,'Item Name *'),h('input',{value:editing.item_name||'',onChange:e=>setEditing({...editing,item_name:e.target.value})})),
       h('div',{className:'field'},h('label',null,'Unit *'),h('select',{value:isNumericUnit(editing.unit)?'':(editing.unit||''),onChange:e=>setEditing({...editing,unit:e.target.value})},(!editing.unit||isNumericUnit(editing.unit))&&h('option',{value:''},editing.unit?`Choose unit (saved as "${editing.unit}" — wrong)`:'Choose unit'),storeUnitOptions(editing.unit).map(x=>h('option',{key:x,value:x},x)))),
       h('div',{className:'field'},h('label',null,'Strength / Specification'),h('input',{value:editing.strength||'',onChange:e=>setEditing({...editing,strength:e.target.value})})),
@@ -49462,7 +49475,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       relative_accompanied:false,admission_required:false,
       laboratory_name:'',test_name:'',sample_type:'',sample_collected_at:'',
       report_status:'Ordered',report_received_at:'',transport_type:'',paid_by_samara:false,remarks:'',
-      outside_paid_by:'',outside_bill_amount:'',outside_route:''
+      outside_paid_by:'',outside_bill_amount:'',outside_route:'',related_code:''
     });
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All'});
@@ -49560,7 +49573,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           .order('ordered_at',{ascending:false})
           .limit(500),
         masterRequest,
-        client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').eq('active',true).order('item_name'),
+        (async()=>{const q=c=>client.from('consumable_store_items').select(c).eq('active',true).order('item_name');const r=await q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,used_for_charge_code');return r.error&&/used_for/.test(r.error.message||'')?q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate'):r})(), // 2.18.149 "Used for" (SQL 302)
         client.from('patient_consumable_indents').select('id,patient_id,store_item_id,item_name,unit,status,received_qty,received_at').eq('status','Received').order('received_at',{ascending:true}),
         client.from('bill_charge_store_allocations').select('id,charge_request_id,indent_id,patient_id,store_item_id,allocated_qty').order('created_at',{ascending:true}),
         client.from('patient_store_returns').select('id,indent_id,patient_id,store_item_id,quantity,status').neq('status','Rejected')
@@ -49680,6 +49693,14 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       });
     }
     function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setResubmitFrom(null);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    // 2.18.149: the Charge Master service Admin linked to a returned Stores item ("Used for", SQL 302)
+    function relatedServiceFor(r){
+      if(!r?.store_item_id)return null;
+      const item=(storeMaster||[]).find(x=>String(x.id)===String(r.store_item_id));
+      const code=item?.used_for_charge_code;if(!code)return null;
+      const svc=(catalog||[]).find(c=>c.charge_code===code&&c.is_active!==false);
+      return svc?{...svc,item_name:item.item_name}:null;
+    }
     function openResubmit(r){
       const base=fresh();
       const opts=serviceOptions(r.category,r.patient_id);
@@ -49698,7 +49719,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         laboratory_name:r.laboratory_name||'',test_name:r.test_name||'',sample_type:r.sample_type||'',sample_collected_at:dt(r.sample_collected_at),
         report_status:r.report_status||base.report_status,report_received_at:dt(r.report_received_at),transport_type:r.transport_type||'',
         paid_by_samara:Boolean(r.paid_by_samara),remarks:r.remarks||'',
-        outside_paid_by:r.outside_paid_by||'',outside_bill_amount:r.outside_bill_amount!=null?String(r.outside_bill_amount):(r.outside_paid_by&&r.requested_amount!=null?String(r.requested_amount):''),outside_route:r.outside_route||''};
+        outside_paid_by:r.outside_paid_by||'',outside_bill_amount:r.outside_bill_amount!=null?String(r.outside_bill_amount):(r.outside_paid_by&&r.requested_amount!=null?String(r.requested_amount):''),outside_route:r.outside_route||'',related_code:relatedServiceFor(r)?.charge_code||''};
+      if(next.related_code)next.quantity='1';
       setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setResubmitFrom(r);setForm(next);setSelectedChargeDetail(null);setShow(true);
     }
     function changeCategory(value){
@@ -49867,6 +49889,18 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     async function save(e){
       e.preventDefault();
       if(busy)return;
+      if(resubmitFrom&&form.related_code){
+        const qty=Number(form.quantity);
+        if(!Number.isInteger(qty)||qty<1||qty>50){notify('error','Enter how many times the service was done (whole number).');return}
+        setBusy(true);
+        const r=await client.rpc('resubmit_returned_charge_as_service',{p_returned:resubmitFrom.id,p_charge_code:form.related_code,p_quantity:qty,
+          p_service_datetime:form.service_datetime?new Date(form.service_datetime).toISOString():null,p_remarks:form.remarks||null});
+        setBusy(false);
+        if(r.error){notify('error',r.error.message||'Unable to resubmit.');return}
+        notify('success','Corrected request sent to Accounts.');
+        setResubmitFrom(null);finishSuccessfulAction({close:()=>setShow(false),refresh:load});
+        return;
+      }
       const currentError=validateDraft(form,files);
       const currentSignature=draftSignature(form,files);
       const currentAlreadyAdded=batchItems.some(item=>item.signature===currentSignature);
@@ -50203,7 +50237,12 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const basicFields=[
       patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'),
+      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const rel=resubmitFrom?relatedServiceFor(resubmitFrom):null;
+        if(rel)return h(React.Fragment,null,h('select',{value:form.related_code?'__related__':form.service_name,onChange:e=>{const v=e.target.value;if(v==='__related__')setForm(f=>({...f,related_code:rel.charge_code,quantity:'1'}));else{setForm(f=>({...f,related_code:''}));changeService(v)}}},
+            h('option',{value:'__related__'},`${rel.charge_code?`${rel.charge_code} · `:''}${rel.service_name} (${rel.category}) — used for ${rel.item_name}`),
+            serviceOptions(form.category,form.patient_id).filter(o=>o.value===resubmitFrom.service_name).map(o=>h('option',{key:o.value,value:o.value},`${o.label} (keep the item)`))),
+          form.related_code&&h('small',{className:'small-note'},`Goes straight to Accounts as ${rel.category} · ${rel.service_name} — Accounts asked for this correction, so no Nursing Manager approval is needed. Quantity = number of times done.`));
+        const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'),
         empty&&nurseUser&&form.patient_id&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>{if(!confirm('Open Raise Indent? This Bill / Charge form will close without saving.'))return;setShow(false);window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Raise Indent',patientId:form.patient_id}}))}},'＋ Raise Indent for this patient'))})()),
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
@@ -50286,7 +50325,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           ))
         ),
         h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
-          h('button',{type:'button',className:'btn btn-secondary full',disabled:busy,onClick:addChargeToBatch},'＋ Add Charge'),
+          !resubmitFrom&&h('button',{type:'button',className:'btn btn-secondary full',disabled:busy,onClick:addChargeToBatch},'＋ Add Charge'),
           h('button',{className:'btn btn-primary full',disabled:busy},busy?'Saving…':batchItems.length?`Submit ${batchItems.length + (batchItems.some(item=>item.signature===draftSignature(form,files))?0:1)} Charges for Approval`:'Submit for Approval')
         )
       )

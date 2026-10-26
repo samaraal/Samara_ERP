@@ -272,7 +272,7 @@
       relative_accompanied:false,admission_required:false,
       laboratory_name:'',test_name:'',sample_type:'',sample_collected_at:'',
       report_status:'Ordered',report_received_at:'',transport_type:'',paid_by_samara:false,remarks:'',
-      outside_paid_by:'',outside_bill_amount:'',outside_route:''
+      outside_paid_by:'',outside_bill_amount:'',outside_route:'',related_code:''
     });
     const [form,setForm]=React.useState(fresh());
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All'});
@@ -370,7 +370,7 @@
           .order('ordered_at',{ascending:false})
           .limit(500),
         masterRequest,
-        client.from('consumable_store_items').select('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate').eq('active',true).order('item_name'),
+        (async()=>{const q=c=>client.from('consumable_store_items').select(c).eq('active',true).order('item_name');const r=await q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,used_for_charge_code');return r.error&&/used_for/.test(r.error.message||'')?q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate'):r})(), // 2.18.149 "Used for" (SQL 302)
         client.from('patient_consumable_indents').select('id,patient_id,store_item_id,item_name,unit,status,received_qty,received_at').eq('status','Received').order('received_at',{ascending:true}),
         client.from('bill_charge_store_allocations').select('id,charge_request_id,indent_id,patient_id,store_item_id,allocated_qty').order('created_at',{ascending:true}),
         client.from('patient_store_returns').select('id,indent_id,patient_id,store_item_id,quantity,status').neq('status','Rejected')
@@ -490,6 +490,14 @@
       });
     }
     function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setResubmitFrom(null);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    // 2.18.149: the Charge Master service Admin linked to a returned Stores item ("Used for", SQL 302)
+    function relatedServiceFor(r){
+      if(!r?.store_item_id)return null;
+      const item=(storeMaster||[]).find(x=>String(x.id)===String(r.store_item_id));
+      const code=item?.used_for_charge_code;if(!code)return null;
+      const svc=(catalog||[]).find(c=>c.charge_code===code&&c.is_active!==false);
+      return svc?{...svc,item_name:item.item_name}:null;
+    }
     function openResubmit(r){
       const base=fresh();
       const opts=serviceOptions(r.category,r.patient_id);
@@ -508,7 +516,8 @@
         laboratory_name:r.laboratory_name||'',test_name:r.test_name||'',sample_type:r.sample_type||'',sample_collected_at:dt(r.sample_collected_at),
         report_status:r.report_status||base.report_status,report_received_at:dt(r.report_received_at),transport_type:r.transport_type||'',
         paid_by_samara:Boolean(r.paid_by_samara),remarks:r.remarks||'',
-        outside_paid_by:r.outside_paid_by||'',outside_bill_amount:r.outside_bill_amount!=null?String(r.outside_bill_amount):(r.outside_paid_by&&r.requested_amount!=null?String(r.requested_amount):''),outside_route:r.outside_route||''};
+        outside_paid_by:r.outside_paid_by||'',outside_bill_amount:r.outside_bill_amount!=null?String(r.outside_bill_amount):(r.outside_paid_by&&r.requested_amount!=null?String(r.requested_amount):''),outside_route:r.outside_route||'',related_code:relatedServiceFor(r)?.charge_code||''};
+      if(next.related_code)next.quantity='1';
       setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setResubmitFrom(r);setForm(next);setSelectedChargeDetail(null);setShow(true);
     }
     function changeCategory(value){
@@ -677,6 +686,18 @@
     async function save(e){
       e.preventDefault();
       if(busy)return;
+      if(resubmitFrom&&form.related_code){
+        const qty=Number(form.quantity);
+        if(!Number.isInteger(qty)||qty<1||qty>50){notify('error','Enter how many times the service was done (whole number).');return}
+        setBusy(true);
+        const r=await client.rpc('resubmit_returned_charge_as_service',{p_returned:resubmitFrom.id,p_charge_code:form.related_code,p_quantity:qty,
+          p_service_datetime:form.service_datetime?new Date(form.service_datetime).toISOString():null,p_remarks:form.remarks||null});
+        setBusy(false);
+        if(r.error){notify('error',r.error.message||'Unable to resubmit.');return}
+        notify('success','Corrected request sent to Accounts.');
+        setResubmitFrom(null);finishSuccessfulAction({close:()=>setShow(false),refresh:load});
+        return;
+      }
       const currentError=validateDraft(form,files);
       const currentSignature=draftSignature(form,files);
       const currentAlreadyAdded=batchItems.some(item=>item.signature===currentSignature);
@@ -1013,7 +1034,12 @@
     const basicFields=[
       patientSelect(patients,form.patient_id,changePatient),
       h('div',{className:'field'},h('label',null,'Category'),h('select',{value:form.category,onChange:e=>changeCategory(e.target.value)},Object.keys(categories).map(x=>h('option',{key:x,value:x},x)))),
-      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'),
+      h('div',{className:'field'},h('label',null,'Service / Item'),(()=>{const rel=resubmitFrom?relatedServiceFor(resubmitFrom):null;
+        if(rel)return h(React.Fragment,null,h('select',{value:form.related_code?'__related__':form.service_name,onChange:e=>{const v=e.target.value;if(v==='__related__')setForm(f=>({...f,related_code:rel.charge_code,quantity:'1'}));else{setForm(f=>({...f,related_code:''}));changeService(v)}}},
+            h('option',{value:'__related__'},`${rel.charge_code?`${rel.charge_code} · `:''}${rel.service_name} (${rel.category}) — used for ${rel.item_name}`),
+            serviceOptions(form.category,form.patient_id).filter(o=>o.value===resubmitFrom.service_name).map(o=>h('option',{key:o.value,value:o.value},`${o.label} (keep the item)`))),
+          form.related_code&&h('small',{className:'small-note'},`Goes straight to Accounts as ${rel.category} · ${rel.service_name} — Accounts asked for this correction, so no Nursing Manager approval is needed. Quantity = number of times done.`));
+        const opts=serviceOptions(form.category,form.patient_id);const empty=!opts.length;return h(React.Fragment,null,h('select',{value:empty?'':form.service_name,onChange:e=>changeService(e.target.value),disabled:empty},empty?h('option',{value:''},nurseUser&&!form.patient_id?'Select the patient first':'Nothing received for this patient to charge'):opts.map(o=>h('option',{key:o.value,value:o.value},o.label))),empty&&nurseUser&&h('small',{style:{color:'#b42318'}},form.patient_id?'Only items indented, handed over and received for this patient — and not yet charged or returned — are listed.':'Pick the patient to see the items received for them.'),
         empty&&nurseUser&&form.patient_id&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>{if(!confirm('Open Raise Indent? This Bill / Charge form will close without saving.'))return;setShow(false);window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Raise Indent',patientId:form.patient_id}}))}},'＋ Raise Indent for this patient'))})()),
       form.service_name==='Others'&&miniInput('Other Charge / Service Item',form.other_service_name,v=>setForm({...form,other_service_name:v,description:v}),true),
       miniInput('Service Date',form.charge_date,v=>setForm({...form,charge_date:v}),true,'date'),
@@ -1096,7 +1122,7 @@
           ))
         ),
         h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
-          h('button',{type:'button',className:'btn btn-secondary full',disabled:busy,onClick:addChargeToBatch},'＋ Add Charge'),
+          !resubmitFrom&&h('button',{type:'button',className:'btn btn-secondary full',disabled:busy,onClick:addChargeToBatch},'＋ Add Charge'),
           h('button',{className:'btn btn-primary full',disabled:busy},busy?'Saving…':batchItems.length?`Submit ${batchItems.length + (batchItems.some(item=>item.signature===draftSignature(form,files))?0:1)} Charges for Approval`:'Submit for Approval')
         )
       )
