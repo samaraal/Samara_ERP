@@ -27,23 +27,26 @@
         width:'min(1080px, calc(100vw - 24px))',boxSizing:'border-box',
         display:'grid',gridTemplateColumns:'74px minmax(0,1fr) 78px',alignItems:'center',
         gap:'18px',minHeight:'160px',padding:'22px 24px',borderRadius:'22px',
-        background:'linear-gradient(118deg,#7b1747 0%,#a80d4f 48%,#c41465 100%)',
-        color:'#fff',border:'2px solid rgba(255,255,255,.55)',
-        boxShadow:'0 20px 56px rgba(99,13,55,.34)',pointerEvents:'auto',
+        // 2.18.168: Samara logo theme — baby pink gradient, dark plum text
+        background:'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)',
+        color:'#3b0f25',border:'2px solid #e9a9c4',
+        boxShadow:'0 20px 56px rgba(160,21,79,.28)',pointerEvents:'auto',
         fontFamily:"Inter,system-ui,-apple-system,'Segoe UI',sans-serif"
       });
 
       const icon=document.createElement('div');
       icon.textContent='🔔';
-      Object.assign(icon.style,{width:'70px',height:'70px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'50%',background:'rgba(255,255,255,.16)',fontSize:'35px'});
+      Object.assign(icon.style,{width:'70px',height:'70px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'50%',background:'#fff',border:'1.5px solid #efc3d6',fontSize:'35px'});
 
       const body=document.createElement('div');
       Object.assign(body.style,{display:'grid',gap:'12px',minWidth:'0'});
       const head=document.createElement('div');
-      Object.assign(head.style,{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'});
+      Object.assign(head.style,{display:'flex',alignItems:'center',justifyContent:'center',gap:'10px',flexWrap:'wrap',textAlign:'center'});
       const title=document.createElement('strong');
       title.textContent=heading;
-      Object.assign(title.style,{fontSize:'25px',lineHeight:'1.08',fontWeight:'950',letterSpacing:'.2px',color:'#fff'});
+      // heading centred, its own colour: information = teal, escalation = red, alert = Samara magenta
+      const headColor=/INFORMATION/i.test(heading)?'#0b7a75':/ESCALATION/i.test(heading)?'#c0123c':'#a80d4f';
+      Object.assign(title.style,{fontSize:'25px',lineHeight:'1.08',fontWeight:'950',letterSpacing:'.6px',color:headColor,padding:'4px 18px',borderRadius:'999px',background:'#fff',border:`2px solid ${headColor}`});
       head.appendChild(title);
       if(test){
         const testPill=document.createElement('span');testPill.textContent='TEST';
@@ -56,7 +59,7 @@
       const row=(label,value)=>{
         const d=document.createElement('div');
         Object.assign(d.style,{display:'grid',gridTemplateColumns:'100px minmax(0,1fr)',gap:'8px',minWidth:'0'});
-        const l=document.createElement('span');l.textContent=label;Object.assign(l.style,{opacity:'.86',fontWeight:'800'});
+        const l=document.createElement('span');l.textContent=label;Object.assign(l.style,{color:'#8a3a62',fontWeight:'800'});
         const v=document.createElement('span');v.textContent=value||'—';Object.assign(v.style,{fontWeight:'900',overflowWrap:'anywhere'});
         d.append(l,v);return d;
       };
@@ -68,7 +71,7 @@
       body.append(head,grid);
 
       const ok=document.createElement('button');ok.type='button';ok.textContent='OK';
-      Object.assign(ok.style,{minWidth:'76px',minHeight:'58px',padding:'10px 14px',border:'2px solid rgba(255,255,255,.72)',borderRadius:'14px',background:'rgba(255,255,255,.13)',color:'#fff',fontSize:'20px',fontWeight:'950',cursor:'pointer'});
+      Object.assign(ok.style,{minWidth:'76px',minHeight:'58px',padding:'10px 14px',border:'0',borderRadius:'14px',background:'linear-gradient(135deg,#a80d4f,#d6338a)',color:'#fff',fontSize:'20px',fontWeight:'950',cursor:'pointer',boxShadow:'0 6px 16px rgba(168,13,79,.3)'});
       ok.addEventListener('click',()=>overlay.remove());
       card.append(icon,body,ok);overlay.appendChild(card);document.body.appendChild(overlay);
 

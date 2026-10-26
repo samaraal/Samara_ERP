@@ -1,3 +1,7 @@
+## 2.18.168 — 27-10-2026 — Clinical alert pop-up in Samara baby pink theme
+- The alert pop-up (For Information / Clinical Alert / Clinical Escalation) now uses the logo theme: light baby pink gradient, dark plum text, magenta OK button.
+- The heading is centred in a white pill with its own colour: FOR INFORMATION teal, CLINICAL ESCALATION red, CLINICAL ALERT magenta.
+
 ## 2.18.167 — 27-10-2026 — Charge Register: each box shows its own details; Back fixed
 - Each box now opens a list with only its relevant columns: Pending (amount, raised by, nurse remarks), Returned (returned by / at, reason), Approved (approved amount, approved by / at), All (full). Filters stay in every list.
 - Admin **Net Profit** box opens an item-wise profit view: Item · Charges · Qty · Purchase Price / Unit · Total Bought · Charge Price / Unit · Total Charged · Net Profit · Margin, with totals; tap an item for its individual charges. A "Not counted in profit" section lists items whose receipt price looks per box / pack, items with no purchase price, and the number of service charges. Print / PDF and Excel include totals.
