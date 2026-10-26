@@ -60,7 +60,9 @@
     },[categories]);
     const equipmentItems=equipment.filter(x=>x.status==='Available'&&!x.fault_reported).map(x=>({id:x.id,charge_code:x.asset_no,service_name:x.equipment_name}));
     const itemsForCategory=isEquipment?equipmentItems:catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
-    const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}`;
+    const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}${!isEquipment&&p.requires_nm_approval?' · needs Nursing Manager approval':''}`;
+    // 2.18.150 (SQL 303): items with "Nursing Manager Approval Needed: No" are approved automatically on request
+    const needsApproval=item=>isEquipment||item?.requires_nm_approval===true;
     const selectedItem=catalog.find(x=>String(x.id)===String(form.tariff_id));
     const selectedIsOther=String(selectedItem?.service_name||'').trim().toLowerCase()==='others';
     const patientName=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name||p.patient_id||'Patient'):'—'};
@@ -86,8 +88,9 @@
         if(res.error)throw res.error;
         requestToken.current=null;
         await writeAuditEvent('Request Approval Item','NursingProcedureRequest',res.data,{patient_id:form.patient_id,category:form.category});
-        showSamaraActionToast('success','Request sent','Sent to the Nursing Manager for approval.');
-        setForm({...emptyForm});setShowRequest(false);setBox('Requested');await load();
+        const auto=!needsApproval(selectedItem);
+        showSamaraActionToast('success',auto?'Ready to start':'Request sent',auto?'No Nursing Manager approval needed — open it under "Ready to Start" and tap Confirm & Start.':'Sent to the Nursing Manager for approval.');
+        setForm({...emptyForm});setShowRequest(false);setBox(auto?'Approved':'Requested');await load();
       }catch(error){showSamaraActionToast('error','Approval Request',/bme_request_start/.test(error.message||'')?'Install SQL 185 to enable Biomedical Equipment approval requests.':error.message)}
       finally{submitLock.current=false;setBusy(false)}
     }
@@ -147,7 +150,7 @@
       h('div',{className:'dr-boxes'},stages.map(([key,label,icon,color])=>h('button',{key,type:'button',className:'dr-box '+(box===key?'selected':''),'aria-pressed':box===key,style:{'--dr-c':color},onClick:()=>setBox(key)},
         h('span',{className:'dr-box-icon','aria-hidden':true},icon),h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-count'},filtered.filter(r=>matchesBox(r,key)).length)))),
       requestError&&h('div',{className:'message error',role:'alert'},requestError),
-      canRequest&&showRequest&&h(Section,{title:'Make a Request',subtitle:'Select a resident and item. Biomedical Equipment needs Nursing Manager approval before the nurse can confirm and start it.'},
+      canRequest&&showRequest&&h(Section,{title:'Make a Request',subtitle:'Select a resident and item. Items marked "needs Nursing Manager approval" (and Biomedical Equipment) wait for approval; all others are ready to Confirm & Start at once.'},
         h('form',{onSubmit:submitRequest},
           h('div',{className:'grid two'},
             patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),
@@ -163,7 +166,8 @@
             h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:selectedIsOther?'Required for "Others": write the item name':'Any additional notes for the Nursing Manager'}))
           ),
           isEquipment&&h('p',{className:'small-note'},equipmentError||(!equipmentItems.length?'No available equipment. Ask Stores to register or return a piece.':'Only available equipment without reported faults is listed. Approval does not reserve a piece; availability is checked again on start.')),
-          h('button',{className:'btn btn-primary',disabled:busy||(isEquipment&&!equipmentItems.length)},busy?'Sending…':'Send Request')
+          selectedItem&&!isEquipment&&h('p',{className:'small-note'},needsApproval(selectedItem)?'This item needs Nursing Manager approval before you start it.':'No Nursing Manager approval needed — after Send, it is ready for you to Confirm & Start.'),
+          h('button',{className:'btn btn-primary',disabled:busy||(isEquipment&&!equipmentItems.length)},busy?'Sending…':selectedItem&&!needsApproval(selectedItem)?'Send & Make Ready to Start':'Send Request')
         )
       ),
       h('div',{className:'card panel dr-register'},

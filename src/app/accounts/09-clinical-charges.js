@@ -54,6 +54,16 @@
     const prefixForCategory=category=>{const known=CATEGORY_CODE_PREFIX[String(category||'').trim()];if(known)return known;const letters=String(category||'').toUpperCase().replace(/[^A-Z]/g,'');return (letters.slice(0,3)||'SVC').padEnd(3,'X')};
     const maxCodeNumberForPrefix=(prefix,rows)=>{let max=0;(rows||[]).forEach(r=>{const code=String(r.charge_code||'').toUpperCase();const m=code.match(new RegExp('^'+prefix+'-(\\d+)$'));if(m)max=Math.max(max,parseInt(m[1],10))});return max};
     const nextCodeForCategory=(category,rows)=>{const prefix=prefixForCategory(category);return `${prefix}-${String(maxCodeNumberForPrefix(prefix,rows)+1).padStart(4,'0')}`};
+    // 2.18.150 (SQL 303): per-item "Nursing Manager Approval Needed: Yes / No" for approval-routed categories
+    async function setNmApproval(row,required){
+      if(busy)return;setBusy(true);
+      const r=await client.rpc('set_charge_item_nm_approval',{p_tariff_id:row.id,p_required:required});
+      setBusy(false);
+      if(r.error){notify('error',/set_charge_item_nm_approval/.test(r.error.message||'')?'Run SQL 303 in Supabase first.':r.error.message);return}
+      notify('success',`${row.service_name}: Nursing Manager approval ${required?'needed':'not needed'}.`);await load();
+    }
+    const nmApprovalSwitch=row=>{const on=row.requires_nm_approval===true;return h('div',{role:'group','aria-label':'Nursing Manager approval needed',style:{display:'inline-flex',border:'1px solid #e0b9ca',borderRadius:'999px',overflow:'hidden'}},
+      ['Yes','No'].map(v=>{const active=(v==='Yes')===on;return h('button',{key:v,type:'button',disabled:busy||active,onClick:()=>setNmApproval(row,v==='Yes'),style:{border:0,padding:'5px 14px',fontWeight:800,cursor:active?'default':'pointer',background:active?(v==='Yes'?'#a91360':'#16733b'):'#fff',color:active?'#fff':'#6b4a59'}},v)}))};
     async function saveService(row){
       const category=(!row&&lockedCategory&&!storesMode)?lockedCategory:prompt('Charge category:',row?.category||lockedCategory||'Nursing Procedures'); if(category===null||!String(category).trim())return;
       if(stockCategories.includes(String(category).trim())){notify('error','Consumables and Pharmacy items are controlled only from Stores Master. Add or edit the item there so the same item name, ID and rate are used everywhere.');return}
@@ -148,8 +158,8 @@
             !storesMode&&(!section||section==='items')&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>saveService(null)},lockedCategory?`+ Add ${lockedCategory} Item`:'+ Add Service Charge')
           )
         ),
-        show('approval')&&!storesMode&&h(LogTable,{title:'Approval Routing by Category',subtitle:'Switch ON for a category whose items must be approved by the Nursing Manager before they are done and charged (like Nursing Procedures). ON: raised only from NURSING → Approval Requests (request → approval → Confirm & Start), for everyone. OFF: raised directly from Bills & Charges. Stores / Pharmacy categories always stay in Bills & Charges.',
-          heads:['Category','Active Items','Needs Nursing Manager Approval','Action'],
+        show('approval')&&!storesMode&&h(LogTable,{title:'Approval Routing by Category',subtitle:'ON: items of the category are raised from NURSING → Approval Requests (request → Confirm & Start → charge to Accounts). Whether the Nursing Manager must approve first is set per item in the "Nursing Manager Approval Needed: Yes / No" column of the item list. OFF: raised directly from Bills & Charges.',
+          heads:['Category','Active Items','Raised from Approval Requests','Action'],
           rows:approvalSettingsError?[[approvalSettingsError,'','','']]:[...new Set(serviceRows.map(r=>String(r.category||'').trim()).filter(c=>c&&!stockCategories.includes(c)&&(!lockedCategory||c===lockedCategory)))].sort((a,b)=>a.localeCompare(b)).map(c=>[
             c,
             serviceRows.filter(r=>r.category===c&&r.is_active!==false).length,
@@ -157,7 +167,8 @@
             REGISTER_CONTROLLED_CHARGE_CATEGORIES.includes(c)&&!approvalSettings[c]?h('small',{style:{fontWeight:700,color:'#5a5055'}},'Always OFF — controlled by the Biomedical Equipment register'):h('button',{className:approvalSettings[c]?'btn btn-secondary':'btn btn-primary',disabled:busy,onClick:()=>toggleApproval(c)},approvalSettings[c]?'Turn OFF':'Turn ON')
           ])}),
         (!lockedCategory||storesMode)&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`Stores / Pharmacy Items (${visibleStores.length})`,heads:['Item ID','Category','Exact Stores Item','Unit','Fixed Charge Rate','Status','Action'],rows:visibleStores.map(row=>[row.item_code||'—',row.item_category||'Consumables',row.item_name,row.unit||'—',row.charge_rate!=null?`₹${Number(row.charge_rate||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.active===false?'Inactive':'Active',h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>editStoreRate(row)},'Edit Rate')])}),
-        !storesMode&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`${lockedCategory||'Non-stock Service'} Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.category===OUTSIDE_CATEGORY?`At actual bill · ${outsideFeeText(row)}`:row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
+        !storesMode&&(!section||['items','inactive','missing'].includes(section))&&h(LogTable,{title:`${lockedCategory||'Non-stock Service'} Charges (${visibleServices.length})`,heads:['ID','Category','Service','Fixed Tariff (No Bill)','Nursing Manager Approval Needed','Status','Action'],rows:visibleServices.map(row=>[row.charge_code||'—',row.category,row.service_name,row.category===OUTSIDE_CATEGORY?`At actual bill · ${outsideFeeText(row)}`:row.amount!=null?`₹${Number(row.amount||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not set',
+          approvalSettings[row.category]?nmApprovalSwitch(row):h('small',{style:{color:'#7a5a68'}},'— (raised from Bills & Charges)'),row.is_active===false?'Inactive':'Active',h('div',{className:'employee-actions'},h('button',{className:'btn btn-secondary',disabled:busy,onClick:()=>saveService(row)},'Edit'),h('button',{className:row.is_active===false?'btn btn-primary':'btn btn-danger',disabled:busy,onClick:()=>toggleService(row)},row.is_active===false?'Activate':'Deactivate'))])})
       )
     );
   }
