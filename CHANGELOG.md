@@ -1,3 +1,7 @@
+## 2.18.158 — 27-10-2026 — Personnel File: narrow-screen layout fix
+- On phones / narrow windows the Personnel File boxes (Starting Salary, Current Salary, dates…) were two per row and the values broke letter by letter ("₹15,0 / 00 / Mont / hly"). Below 820 px they are now one box per row, and values wrap only between words.
+- styles.css only.
+
 ## 2.18.157 — 27-10-2026 — Personnel File: "Under Suspension" stamp; action time + authority
 - Employee Personnel File shows a red **UNDER SUSPENSION** stamp (with "since" date) at the top right when the employee's latest Suspension / Reinstatement action (effective today or earlier) is a Suspension. A Reinstatement removes it.
 - Every Employment & Salary History entry (incl. Suspension remarks) now shows **Recorded:** date & time and **Authority:** who recorded it (from the action's approved_by).
