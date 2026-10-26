@@ -1,3 +1,10 @@
+## 2.18.146 — 26-10-2026 — Clinical Reports: medicine order changes read correctly
+- Daily / Weekly Clinical Report (doctor): a medicine is counted under ONE order at a time — the newest version in force. When a medicine's times are changed while a dose is still open (e.g. 9 PM → 10 PM at 9:05 PM), the old time is no longer counted as a separate scheduled dose. Removes phantom "unresolved" and "given late" doses (e.g. Inj. Piptaz, Mr. RANJITHKUMAR, 22–24 Oct).
+- A stop followed by the same medicine continuing (another version in force, or re-entered later) is no longer reported as "Order stopped; source not recorded". Uninterrupted: shown only in the supporting medication table. Re-entered after a gap: "stopped … and re-entered … – continued (no order in force in between)", with current times.
+- A stop made through an admission-entry correction is now named as such (nurse entry, not a doctor review) instead of "source not recorded".
+- Two "Given" entries for the same medicine within 60 minutes are flagged as a possible double entry (Documentation line + medication table) and the report is held for review before sending.
+- Family Daily Report unchanged. Edge Function daily-patient-report 2.18.146 — REDEPLOY (index.ts, clinical-core.mjs, clinical-pdf.mjs). No SQL. No app (frontend) change.
+
 ## 2.18.145 — 26-10-2026
 - Patient Card → Medicines: **Sl. No.** column added to the Current Prescription and Admission Prescription tables.
 

@@ -660,7 +660,7 @@ async function recordWhatsAppInbox(sb:any,{patient,recipientName,recipientMobile
 // Daily: saved for every admitted Guest at the cutoff; sent automatically ONLY when daily_auto_send is ON,
 // the doctor's number is verified and no hold reason exists. Weekly: saved automatically, sent manually only.
 // ============================================================================
-const CR_FUNCTION_VERSION="2.18.144";
+const CR_FUNCTION_VERSION="2.18.146";
 const CR_SEND_ROLES=["Admin","Manager"],CR_ADMIN_ROLES=["Admin"],CR_VIEW_ROLES=["Admin","Manager","Nurse"];
 async function crSettings(sb:any){const r=await sb.from("clinical_report_settings").select("*").eq("id","global").maybeSingle();if(r.error)return {missing:true,error:r.error.message};return r.data||{missing:true}}
 const crIso=(d:Date)=>CR.isoOf(d);

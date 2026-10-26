@@ -216,11 +216,35 @@ export function doseSlots(o, from, to, admission) {
 }
 // Reconcile every medicine over [from, to). Versions of the same medicine (time corrections, doctor changes)
 // are merged into one row. Scheduled = Given + Refused + Withheld + Missed + Unresolved (always, by construction).
+// 2.18.146: a medicine is under ONE order at a time — the newest version in force. Older versions' slots that a newer
+// version replaced are not counted (they were the cause of phantom "unresolved" / double "given" rows), a stop followed by
+// a re-entry of the same medicine is reported as "continued", not "stopped", and two "Given" entries for the same
+// medicine within 60 min are flagged as a possible double entry for staff to verify.
+const orderStart = o => ts(o.effective_from) || ts(o.created_at) || (txt(o.start_date) ? at(txt(o.start_date).slice(0, 10)) : null);
+const orderEnd = o => ts(o.stopped_at) || ts(o.discharge_closed_at) || (txt(o.end_date) ? at(addDays(txt(o.end_date).slice(0, 10), 1)) : null);
+const SWITCH_GRACE = 60 * 60000, MOVE_WINDOW = 3 * HOUR, DUP_WINDOW = 60 * 60000;
+function supersededSlot(o, slot, versions, mar) {
+  const so = orderStart(o);
+  for (const x of versions) {
+    if (x === o) continue;
+    const sx = orderStart(x); if (!sx || !so || sx <= so) continue;           // only a NEWER version can replace this one
+    const ex = orderEnd(x); if (ex && ex <= slot.due) continue;                // newer version already ended before this slot
+    if (sx <= slot.due) return true;                                           // newer version in force at the due time
+    if (sx - slot.due > SWITCH_GRACE) continue;                                // change made long after: the slot stands
+    const recordedBefore = mar.some(r => r.order_id === o.id && txt(r.scheduled_date).slice(0, 10) === slot.date && normTime(r.scheduled_time) === slot.time && (ts(r.created_at) || ts(r.administered_at)) && (ts(r.created_at) || ts(r.administered_at)) < sx);
+    if (recordedBefore) continue;
+    const moved = parseTimes(x.scheduled_times).some(t => [slot.date, addDays(slot.date, 1), addDays(slot.date, -1)].some(d => Math.abs(at(d, t) - slot.due) <= MOVE_WINDOW && at(d, t) >= sx));
+    if (moved) return true;                                                    // the open dose moved to the new schedule
+  }
+  return false;
+}
 export function reconcileMedications({ orders = [], mar = [], reviews = [], from, to, admission }) {
   const regular = new Map(), sos = new Map();
   const notDoctor = id => id ? reviews.find(r => r.id === id && r.not_doctor_review) : null;
+  const correction = id => id ? reviews.find(r => r.id === id && r.is_admission_correction && !r.not_doctor_review) : null;
   const doctorStop = id => id ? reviews.find(r => r.id === id && !r.not_doctor_review && !r.is_admission_correction) : null;
   const overlaps = o => { const s = ts(o.effective_from) || (txt(o.start_date) ? at(txt(o.start_date).slice(0, 10)) : ts(o.created_at)); const e = ts(o.stopped_at) || ts(o.discharge_closed_at) || (txt(o.end_date) ? at(addDays(txt(o.end_date).slice(0, 10), 1)) : null); return (!s || s < to) && (!e || e > from); };
+  const regularOrders = orders.filter(o => !isPrn(o) && o.status !== 'Removed');
   for (const o of orders.filter(overlaps)) {
     const key = medKey(o);
     if (isPrn(o)) {
@@ -232,8 +256,9 @@ export function reconcileMedications({ orders = [], mar = [], reviews = [], from
       if (ts(o.stopped_at) && ts(o.stopped_at) < to) e.stopped = true;
       sos.set(key, e); continue;
     }
-    const e = regular.get(key) || { key, name: medLabel(o), dose: [txt(o.dose), txt(o.route)].filter(Boolean).join(', '), route: txt(o.route), times: '', scheduled: 0, given: 0, late: 0, refused: 0, withheld: 0, missed: 0, unresolved: 0, exceptions: [], highRisk: isHighRisk(o.medicine_name), stops: [], unresolvedSlots: [] };
-    const slots = doseSlots(o, from, to, admission);
+    const e = regular.get(key) || { key, name: medLabel(o), dose: [txt(o.dose), txt(o.route)].filter(Boolean).join(', '), route: txt(o.route), times: '', scheduled: 0, given: 0, late: 0, refused: 0, withheld: 0, missed: 0, unresolved: 0, exceptions: [], highRisk: isHighRisk(o.medicine_name), stops: [], changes: [], duplicates: [], unresolvedSlots: [], replacedSlots: 0 };
+    const versions = regularOrders.filter(x => medKey(x) === key);
+    const slots = doseSlots(o, from, to, admission).filter(s => { if (supersededSlot(o, s, versions, mar)) { e.replacedSlots++; return false; } return true; });
     for (const s of slots) {
       const r = slotOutcome(o, s, mar); e.scheduled++;
       const when = `${fmtDM(s.date)} ${fmtHM(s.time)}`;
@@ -245,16 +270,38 @@ export function reconcileMedications({ orders = [], mar = [], reviews = [], from
     }
     const stopAt = ts(o.stopped_at);
     if (stopAt && stopAt >= from && stopAt < to) {
-      const nd = notDoctor(o.stopped_by_review_id), ds = doctorStop(o.stopped_by_review_id);
-      if (nd) e.stops.push({ at: stopAt, notDoctor: true, note: txt(nd.non_doctor_note) || 'Stopped by a nurse entry (not a doctor review)' });
+      const nd = notDoctor(o.stopped_by_review_id), cr = correction(o.stopped_by_review_id), ds = doctorStop(o.stopped_by_review_id);
+      const others = versions.filter(x => x !== o);
+      // Same medicine still under an order after this stop? (a parallel version, or one re-entered later)
+      const after = others.filter(x => { const sx = orderStart(x), ex = orderEnd(x); return (!ex || ex > stopAt) && (!sx || sx < to); }).sort((a, b) => (orderStart(a) || 0) - (orderStart(b) || 0));
+      const plainModify = others.some(x => ts(x.effective_from) && Math.abs(ts(x.effective_from) - stopAt) < 5 * 60000);
+      const source = nd ? 'a nurse entry (not a doctor review)' : cr ? 'a nurse admission-entry correction (not a doctor review)' : ds ? `doctor review by ${drName(ds.doctor_name)}` : '';
+      if (after.length) {
+        if (!plainModify) {
+          const covered = after.filter(x => (orderStart(x) || 0) <= stopAt);
+          const next = covered.length ? null : after[0];
+          const by = source ? ` through ${source}` : '';
+          e.changes.push(next
+            ? { at: stopAt, gap: true, note: `Order stopped ${fmtDT(stopAt)}${by} and re-entered ${fmtDT(orderStart(next))} - continued (no order in force in between)` }
+            : { at: stopAt, gap: false, note: `An order version was stopped ${fmtDT(stopAt)}${by}; the medicine continued without interruption under its other version` });
+        }
+      } else if (nd) e.stops.push({ at: stopAt, notDoctor: true, note: txt(nd.non_doctor_note) || 'Stopped by a nurse entry (not a doctor review)' });
+      else if (cr) e.stops.push({ at: stopAt, notDoctor: true, note: 'Stopped through a nurse admission-entry correction (not a doctor review)' });
       else if (ds) e.stops.push({ at: stopAt, notDoctor: false, note: `Stopped at doctor review by ${drName(ds.doctor_name)}` });
-      else if (!orders.some(x => x !== o && medKey(x) === key && ts(x.effective_from) && Math.abs(ts(x.effective_from) - stopAt) < 5 * 60000)) e.stops.push({ at: stopAt, notDoctor: null, note: 'Order stopped; source of the stop not recorded' });
+      else if (!plainModify) e.stops.push({ at: stopAt, notDoctor: null, note: 'Order stopped; source of the stop not recorded' });
     }
     if (!stopAt || stopAt >= to) e.times = parseTimes(o.scheduled_times).map(fmtHM).join(', ') || txt(o.frequency);
     else if (!e.times) e.times = parseTimes(o.scheduled_times).map(fmtHM).join(', ') || txt(o.frequency);
     regular.set(key, e);
   }
-  const rows = [...regular.values()].filter(r => r.scheduled || r.stops.length).sort((a, b) => a.name.localeCompare(b.name));
+  // Possible double entries: two "Given" records for the same medicine within 60 min (any order version)
+  for (const r of regular.values()) {
+    const ids = new Set(regularOrders.filter(o => medKey(o) === r.key).map(o => o.id));
+    const given = mar.filter(m => ids.has(m.order_id) && lc(m.status) === 'given').map(m => ({ m, t: ts(m.administered_at) || ts(m.created_at) })).filter(x => x.t && x.t >= from && x.t < to).sort((a, b) => a.t - b.t);
+    let last = -1;
+    for (let i = 1; i < given.length; i++) if (i - 1 !== last && given[i].t - given[i - 1].t < DUP_WINDOW) { r.duplicates.push({ first: given[i - 1].t, second: given[i].t }); last = i; }
+  }
+  const rows = [...regular.values()].filter(r => r.scheduled || r.stops.length || r.changes.length).sort((a, b) => a.name.localeCompare(b.name));
   rows.forEach(r => { r.active = orders.some(o => medKey(o) === r.key && (!ts(o.stopped_at) || ts(o.stopped_at) >= to) && o.is_active !== false); r.balanced = r.given + r.refused + r.withheld + r.missed + r.unresolved === r.scheduled; });
   const sosRows = [...sos.values()].sort((a, b) => a.name.localeCompare(b.name));
   const totals = rows.reduce((t, r) => { for (const k of ['scheduled', 'given', 'late', 'refused', 'withheld', 'missed', 'unresolved']) t[k] += r[k]; return t; }, { scheduled: 0, given: 0, late: 0, refused: 0, withheld: 0, missed: 0, unresolved: 0 });
@@ -378,6 +425,8 @@ export function validateForSend({ kind = 'daily', vitals, meds, recipient, perio
   const hr = meds.rows.filter(r => r.highRisk && r.unresolvedSlots.some(s => period.to - s.due >= 2 * HOUR));
   if (hr.length) reasons.push(`Unresolved dose of a high-risk medicine: ${hr.map(r => r.name).join(', ')}`);
   if (meds.rows.some(r => r.stops.some(s => s.notDoctor === true))) reasons.push('A medicine was stopped without a doctor\'s order (requires verification)');
+  const dup = meds.rows.filter(r => r.duplicates?.length);
+  if (dup.length) reasons.push(`Possible double "Given" entry (two within 60 min): ${dup.map(r => r.name).join(', ')} - verify the MAR before sending`);
   if (recipient !== undefined) {
     if (!recipient || !recipient.mobile || recipient.mobile.replace(/\D/g, '').length < 10) reasons.push('Treating doctor WhatsApp number missing or invalid');
     else if (!recipient.verified) reasons.push('Treating doctor WhatsApp number not verified by Admin');
@@ -400,7 +449,8 @@ export function sectionB({ kind, vitals, vstats, missed, meds, physio, io, nursi
   const medTxt = t.scheduled ? `${t.given} of ${t.scheduled} scheduled doses given${t.late ? ` (${t.late} late)` : ''}${t.refused ? `; ${t.refused} refused` : ''}${t.withheld ? `; ${t.withheld} withheld` : ''}${t.missed ? `; ${t.missed} missed / not available` : ''}${t.unresolved ? `; ${t.unresolved} unresolved (no administration entry)` : ''}.` : 'No regular doses were scheduled in the period.';
   const stops = meds.rows.flatMap(r => r.stops.map(s => `${r.name}: ${s.note}${s.notDoctor ? ' - order status requires the doctor\'s verification' : ''} (${fmtDT(s.at)})`));
   const sos = meds.sos.filter(s => s.given).map(s => `${s.name} (SOS) given ${s.given} time${s.given > 1 ? 's' : ''}`);
-  rows.push(['Medicines', join([medTxt, stops.join('; '), sos.join('; ')])]);
+  const changes = meds.rows.flatMap(r => (r.changes || []).filter(c => c.gap).map(c => `${r.name}: ${c.note}${r.active && r.times ? `; current times ${r.times}` : ''}`));
+  rows.push(['Medicines', join([medTxt, stops.join('; '), changes.join('; '), sos.join('; ')])]);
   if (physio.plans.length || physio.total) rows.push(['Mobility / rehab', physio.total ? `${physio.done} of ${physio.total} recorded physiotherapy session${physio.total > 1 ? 's' : ''} done${physio.sessions.filter(s => s.done && s.delay !== null && s.delay > 120).length ? `; ${physio.sessions.filter(s => s.done && s.delay !== null && s.delay > 120).length} done 2 h or more after the window` : ''}. ${physio.sessions.slice(-2).map(s => s.notes).filter(Boolean).join(' | ').slice(0, 260)}` : 'Physiotherapy plan active; no session recorded in the period.']);
   if (io.onChart) rows.push(['Nutrition / fluids', `${nursing.meals ? `${nursing.meals} meal${nursing.meals > 1 ? 's' : ''} recorded (${Object.entries(nursing.mealCounts).map(([k, v]) => `${k} ${v}`).join(', ')})` : 'No meals recorded'}. I/O: ${io.days.map(d => d.status === 'missing' ? `${fmtDM(d.date)} not charted` : `${fmtDM(d.date)} in ${d.intake} / out ${d.output} ml${d.status === 'partial' ? ` (partial: ${d.reasons.join(', ')})` : ''}`).join('; ')}.`]);
   else rows.push(['Nutrition', nursing.meals ? `${nursing.meals} meal${nursing.meals > 1 ? 's' : ''} recorded (${Object.entries(nursing.mealCounts).map(([k, v]) => `${k} ${v}`).join(', ')}). Not on the I/O chart.` : 'No meals recorded. Not on the I/O chart.']);
@@ -414,6 +464,7 @@ export function candidateChanges({ vstats, meds, physio, io, nursing, reviews })
   const c = [];
   const stops = meds.rows.flatMap(r => r.stops.map(s => ({ r, s })));
   stops.forEach(({ r, s }) => c.push({ t: r.name, b: `${s.note}${s.notDoctor ? '. No doctor\'s discontinuation order is documented' : ''} (${fmtDT(s.at)}).` }));
+  meds.rows.forEach(r => (r.changes || []).filter(ch => ch.gap).forEach(ch => c.push({ t: `${r.name}: order changed`, b: `${ch.note}${r.active && r.times ? `; current times ${r.times}` : ''}.` })));
   reviews.forEach(r => r.changes.length && c.push({ t: `Doctor review ${fmtDT(r.at)}`, b: `${r.doctor}: ${r.changes.join('; ')}.` }));
   const ab = vstats.abnormal.filter(a => ['sys', 'dia', 'pulse', 'spo2', 'temp', 'rr'].includes(a.k));
   if (ab.length) c.push({ t: 'Vital signs outside range', b: [...new Set(ab.map(a => `${({ sys: 'BP', dia: 'BP', pulse: 'pulse', spo2: 'SpO2', temp: 'temperature', rr: 'RR' })[a.k]} ${a.bp || a.v} (${fmtDT(a.at)})`))].slice(0, 5).join('; ') + '.' });
@@ -475,7 +526,7 @@ export function buildModel({ kind, patient, pref = {}, doctorName, period, data,
   const revTrend = kind === 'daily' ? doctorReviews({ reviews: reviewsAll, items: data.reviewItems, mar: data.mar, from: trend.from, to: trend.to }) : revPer;
   const b = sectionB({ kind, vitals: vPer, vstats, missed, meds: medsPer, physio: physioPer, io: ioPer, nursing: nurPer, reviews: revPer, T });
   if (kind === 'weekly') {
-    const doc = [missed.length && `${missed.length} scheduled vitals check${missed.length > 1 ? 's' : ''} not recorded`, ioPer.onChart && `I/O: ${ioPer.days.filter(d => d.status === 'full').length} days fully charted, ${ioPer.days.filter(d => d.status === 'partial').length} partial, ${ioPer.days.filter(d => d.status === 'missing').length} not charted`, medsPer.totals.unresolved && `${medsPer.totals.unresolved} dose${medsPer.totals.unresolved > 1 ? 's' : ''} without an administration entry`].filter(Boolean);
+    const doc = [missed.length && `${missed.length} scheduled vitals check${missed.length > 1 ? 's' : ''} not recorded`, ioPer.onChart && `I/O: ${ioPer.days.filter(d => d.status === 'full').length} days fully charted, ${ioPer.days.filter(d => d.status === 'partial').length} partial, ${ioPer.days.filter(d => d.status === 'missing').length} not charted`, medsPer.totals.unresolved && `${medsPer.totals.unresolved} dose${medsPer.totals.unresolved > 1 ? 's' : ''} without an administration entry`, ...medsPer.rows.filter(r => r.duplicates?.length).map(r => `${r.name}: ${r.duplicates.length} pair${r.duplicates.length > 1 ? 's' : ''} of "Given" entries within 60 min (${r.duplicates.slice(0, 3).map(d => `${fmtDT(d.first)} / ${fmtHM(hmOf(d.second))}`).join('; ')}) - possible double entry, being verified`)].filter(Boolean);
     if (doc.length) b.push(['Documentation', doc.join('. ') + '.']);
   }
   const changes = candidateChanges({ vstats: kind === 'daily' ? vtrend : vstats, meds: kind === 'daily' ? medsTrend : medsPer, physio: kind === 'daily' ? physioTrend : physioPer, io: kind === 'daily' ? ioTrend : ioPer, nursing: kind === 'daily' ? nurTrend : nurPer, reviews: kind === 'daily' ? revTrend : revPer });

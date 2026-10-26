@@ -140,3 +140,41 @@ test('AI text is accepted only when grounded: no advice words, no numbers absent
   assert.equal(C.groundedText('The dose should be increased.',facts),false);
   assert.equal(C.groundedText('Likely sepsis.',facts),false);
 });
+// 2.18.146 — Inj. Piptaz pattern seen for MOG-2026-10-0012 (22–26 Oct 2026): several quick time changes,
+// a parallel version, a nurse "Stop" (re-marked admission correction) and a re-entry the same morning.
+test('Replaced versions do not leave phantom slots; stop followed by re-entry is "continued"; double entries flagged',()=>{
+  const iso=(d,t)=>T(d,t).toISOString(), P={medicine_name:'Inj. Piptaz',strength:'4.5 g',route:'IV',frequency:'Twice Daily (BD)'};
+  const v1={...P,id:'v1',scheduled_times:'21:00,09:00',created_at:iso('2026-10-22','18:19'),start_date:'2026-10-22',stopped_at:iso('2026-10-22','21:05'),is_active:false,stopped_by_review_id:'r2'};
+  const v2={...P,id:'v2',scheduled_times:'22:00,10:00',effective_from:iso('2026-10-22','21:05'),stopped_at:iso('2026-10-23','10:03'),is_active:false,stopped_by_review_id:'r3'};
+  const v3={...P,id:'v3',scheduled_times:'11:00,23:00',effective_from:iso('2026-10-23','10:03'),stopped_at:iso('2026-10-24','11:13'),is_active:false,stopped_by_review_id:'r5'};
+  const vx={...P,id:'vx',scheduled_times:'00:00,12:00',effective_from:iso('2026-10-23','21:00'),stopped_at:iso('2026-10-24','00:01'),is_active:false,stopped_by_review_id:'r4'};
+  const v4={...P,id:'v4',scheduled_times:'00:00,12:00',effective_from:iso('2026-10-24','11:13'),is_active:true};
+  const reviews=['r2','r3','r4','r5'].map(id=>({id,is_admission_correction:true}));
+  const g=(id,o,d,t,at,extra={})=>({id,order_id:o,scheduled_date:d,scheduled_time:t,status:'Given',administered_at:at,created_at:at,...extra});
+  const mar=[
+    {id:'a',order_id:'v2',scheduled_date:'2026-10-22',scheduled_time:'22:00',status:'Refused',created_at:iso('2026-10-22','22:01'),remarks:'Family Request Start on Tomorrow'},
+    g('b','v2','2026-10-23','10:00',iso('2026-10-23','12:50')),
+    g('c','v3','2026-10-23','11:00',iso('2026-10-23','12:58')),
+    g('d','vx','2026-10-24','00:00',iso('2026-10-23','23:51')),
+    g('e','v3','2026-10-24','00:00',iso('2026-10-23','23:51')),
+    g('f','v4','2026-10-24','12:00',iso('2026-10-24','12:26')),
+    g('h','v3','2026-10-24','11:00',iso('2026-10-24','12:28')),
+    g('i','v4','2026-10-25','00:00',iso('2026-10-25','00:17')),g('j','v4','2026-10-25','12:00',iso('2026-10-25','11:59')),g('k','v4','2026-10-26','00:00',iso('2026-10-25','23:54'))];
+  const r=C.reconcileMedications({orders:[v1,v2,v3,vx,v4],mar,reviews,from:T('2026-10-22','16:50'),to:T('2026-10-26','11:48'),admission:T('2026-10-22','16:50')});
+  const x=r.rows[0];
+  assert.equal(r.rows.length,1);
+  assert.equal(x.scheduled,7,'22-10 10 PM, 23-10 11 AM, 24-10 12 AM, 24-10 12 PM, 25-10 ×2, 26-10 12 AM');
+  assert.equal(x.given,6);assert.equal(x.refused,1);assert.equal(x.unresolved,0,'no phantom "22-10 9 PM unresolved"');
+  assert.equal(sum(x),x.scheduled);
+  assert.equal(x.stops.length,0,'not reported as stopped');
+  assert.equal(x.changes.length,1);assert.match(x.changes[0].note,/continued/);assert.match(x.changes[0].note,/admission-entry correction/);
+  assert.ok(x.active);assert.equal(x.times,'12:00 AM, 12:00 PM');
+  assert.equal(x.duplicates.length,3,'12:50/12:58, 11:51/11:51, 12:26/12:28');
+  const hold=C.validateForSend({kind:'weekly',vitals:[{}],meds:r,period:{to:T('2026-10-26','11:48')}});
+  assert.ok(hold.some(h=>/double "Given"/.test(h)));assert.ok(!hold.some(h=>/stopped without/.test(h)));
+});
+test('A real stop with no re-entry is still reported as stopped (admission-correction source named)',()=>{
+  const o={id:'s1',medicine_name:'T. X',strength:'5 mg',scheduled_times:'09:00',start_date:'2026-10-22',is_active:false,stopped_at:T('2026-10-24','10:00').toISOString(),stopped_by_review_id:'rc'};
+  const r=C.reconcileMedications({orders:[o],mar:[],reviews:[{id:'rc',is_admission_correction:true}],from:T('2026-10-23','00:00'),to:T('2026-10-25','00:00')});
+  assert.equal(r.rows[0].stops.length,1);assert.equal(r.rows[0].stops[0].notDoctor,true);assert.match(r.rows[0].stops[0].note,/admission-entry correction/);
+});
