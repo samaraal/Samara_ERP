@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.165';
+  const APP_VERSION = '2.18.166';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -39796,7 +39796,7 @@ function RoomsBeds({profile,onNavigate}){
     const dateDirty=dateDraft.from!==filter.from||dateDraft.to!==filter.to;
     const [view,setView]=React.useState('dashboard'),[listTitle,setListTitle]=React.useState(''),[detail,setDetail]=React.useState(null);
     const [period,setPeriod2]=React.useState('month');
-    const [avgCost,setAvgCost]=React.useState({});
+    const [avgCost,setAvgCost]=React.useState({}),[costReady,setCostReady]=React.useState(false);
     const isAdmin=profile?.role==='Admin';
     const [periodDraft,setPeriodDraft]=React.useState({from:'',to:''}),[periodApplied,setPeriodApplied]=React.useState({from:'',to:''});
 
@@ -39808,7 +39808,7 @@ function RoomsBeds({profile,onNavigate}){
         const rc=await client.from('consumable_store_receipts').select('item_id,unit_cost,quantity,voided_at').limit(10000);
         if(rc.error){console.warn('Purchase cost:',rc.error);return;}
         const acc={};(rc.data||[]).forEach(x=>{const c=Number(x.unit_cost),q=Number(x.quantity)||0;if(x.voided_at||!(c>0)||!(q>0))return;const k=String(x.item_id);acc[k]=acc[k]||{q:0,v:0};acc[k].q+=q;acc[k].v+=q*c;});
-        setAvgCost(Object.fromEntries(Object.entries(acc).map(([k,a])=>[k,a.v/a.q])));
+        setAvgCost(Object.fromEntries(Object.entries(acc).map(([k,a])=>[k,a.v/a.q])));setCostReady(true);
       }
     },[]);
 
@@ -39928,7 +39928,7 @@ function RoomsBeds({profile,onNavigate}){
           box('Returned to Nurse',returnedRows.length,returnedRows.length?'Awaiting correction':'',returnedRows.length?'alert':'',()=>openList('ReturnedOpen','Returned to Nurse — awaiting correction',true),'All dates · tap to open ›'),
           box(`Approved · ${periodName}`,approvedRows.length,money(sumAppr(approvedRows)),'',()=>openList('Approved',`Approved · ${periodName}`,false)),
           box(`All Charges · ${periodName}`,periodRows.length,money(periodRows.reduce((t,r)=>t+chargedOf(r),0))+' value','',()=>openList('All',`All Charges · ${periodName}`,false)),
-          isAdmin?(()=>{const ps=profitSummary(approvedRows);return box(`Net Profit · ${periodName}`,money(ps.p),`Bought ${money(ps.b)} · Charged ${money(ps.c)}`,'',()=>openList('Approved',`Approved · ${periodName} — Profit`,false),
+          isAdmin?(()=>{const ps=profitSummary(approvedRows);if(!costReady)return box(`Net Profit · ${periodName}`,'…','Loading purchase costs…','',()=>{},'Admin only');return box(`Net Profit · ${periodName}`,money(ps.p),`Bought ${money(ps.b)} · Charged ${money(ps.c)}`,'',()=>openList('Approved',`Approved · ${periodName} — Profit`,false),
             `${ps.known} items counted${ps.suspect?` · ⚠ ${ps.suspect} to check (cost per box?)`:''}${ps.services?` · ${ps.services} services not counted`:''}${ps.unknown?` · ${ps.unknown} without cost`:''} · Admin only`);})():null
         ));
     }
