@@ -8,7 +8,7 @@
     const canView=profile?.role==='Admin'||isNursingManagerProfile(profile);
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
-    const [filter,setFilter]=React.useState({status:'All',category:'All',patient_id:'',raised_by:'All',from:'',to:''});
+    const [filter,setFilter]=React.useState({status:'All',category:'All',item:'All',patient_id:'',raised_by:'All',from:'',to:''});
     // 2.14.96: From / To boxes are a draft; the list changes on "Apply" (period buttons stay instant)
     const [dateDraft,setDateDraft]=React.useState({from:'',to:''});
     React.useEffect(()=>{setDateDraft({from:filter.from,to:filter.to})},[filter.from,filter.to]);
@@ -39,6 +39,9 @@
     const today=todayISOIndia();
 
     const categories=React.useMemo(()=>[...new Set(rows.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[rows]);
+    // 2.18.152: Item filter — items of the chosen category (all items when Category = All), A–Z
+    const itemOf=r=>`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`;
+    const items=React.useMemo(()=>[...new Set(rows.filter(r=>filter.category==='All'||r.category===filter.category).map(itemOf))].sort((a,b)=>a.replace(/^[A-Z]+-\d+ · /,'').localeCompare(b.replace(/^[A-Z]+-\d+ · /,''))),[rows,filter.category]);
     const raisers=React.useMemo(()=>[...new Set(rows.map(r=>r.raised_by_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[rows]);
     const patientsWithCharges=React.useMemo(()=>{
       const ids=new Set(rows.map(r=>r.patient_id).filter(Boolean));
@@ -46,11 +49,12 @@
     },[rows,patients]);
 
     const setPeriod=(from,to)=>setFilter(current=>({...current,from,to}));
-    const clearFilters=()=>setFilter({status:'All',category:'All',patient_id:'',raised_by:'All',from:'',to:''});
+    const clearFilters=()=>setFilter({status:'All',category:'All',item:'All',patient_id:'',raised_by:'All',from:'',to:''});
 
     const filtered=rows.filter(r=>
       (filter.status==='All'||statusOf(r)===filter.status)&&
       (filter.category==='All'||r.category===filter.category)&&
+      (filter.item==='All'||itemOf(r)===filter.item)&&
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
       (filter.raised_by==='All'||r.raised_by_name===filter.raised_by)&&
       (!filter.from||r.charge_date>=filter.from)&&
@@ -95,8 +99,10 @@
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'10px',marginBottom:'12px'}},
           h('div',{className:'field',style:{margin:0}},h('label',null,'Status'),h('select',{value:filter.status,onChange:e=>setFilter({...filter,status:e.target.value})},
             ['All','Pending','Approved','Partially Approved','Rejected'].map(s=>h('option',{key:s,value:s},statusLabel(s))))),
-          h('div',{className:'field',style:{margin:0}},h('label',null,'Category'),h('select',{value:filter.category,onChange:e=>setFilter({...filter,category:e.target.value})},
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Category'),h('select',{value:filter.category,onChange:e=>setFilter({...filter,category:e.target.value,item:'All'})},
             h('option',{value:'All'},'All'),categories.map(c=>h('option',{key:c,value:c},c)))),
+          h('div',{className:'field',style:{margin:0}},h('label',null,'Item'),h('select',{value:filter.item,onChange:e=>setFilter({...filter,item:e.target.value})},
+            h('option',{value:'All'},`All (${items.length})`),items.map(n=>h('option',{key:n,value:n},n)))),
           h('div',{className:'field',style:{margin:0}},h('label',null,'Patient'),h('select',{value:filter.patient_id,onChange:e=>setFilter({...filter,patient_id:e.target.value})},
             h('option',{value:''},'All'),patientsWithCharges.map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
           h('div',{className:'field',style:{margin:0}},h('label',null,'Raised By'),h('select',{value:filter.raised_by,onChange:e=>setFilter({...filter,raised_by:e.target.value})},

@@ -1,3 +1,6 @@
+## 2.18.152 — 26-10-2026 — Charge Register: Item filter
+- NURSING → Charge Register: new **Item** filter beside Category (code · item name, A–Z). It lists the items of the chosen category (all items when Category = All) and resets when the category changes; Clear Filters resets it too.
+
 ## 2.18.151 — 26-10-2026 — Correct & Resubmit: all Nursing Procedures in the list
 - When Accounts return a request, the nurse's Correct & Resubmit Service / Item list now has two groups: the items received for this Guest, and **every active Nursing Procedure** (the item's linked "Used for" service first, when Admin has set one). Choosing a procedure sends a new request straight to Accounts at the Charge Master rate (no Nursing Manager approval), linked to the returned one.
 - New SQL: supabase/sql/304_resubmit_any_nursing_procedure.sql (replaces the check from 302). Frontend 2.18.151.
