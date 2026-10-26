@@ -1,3 +1,7 @@
+## 2.18.159 — 27-10-2026 — Help (உதவி) button: drag grip + hint
+- The Help button could already be dragged (since 2.18.70) but staff did not know. It now has a ⋮⋮ grip, and the first few times a short hint "இழுத்து நகர்த்தலாம் · Drag to move" appears above it with a small wiggle (stops once it has been dragged). Tap still opens Help; the moved place is remembered on each device.
+- erp-help.js / erp-help.css only.
+
 ## 2.18.158 — 27-10-2026 — Personnel File: narrow-screen layout fix
 - On phones / narrow windows the Personnel File boxes (Starting Salary, Current Salary, dates…) were two per row and the values broke letter by letter ("₹15,0 / 00 / Mont / hly"). Below 820 px they are now one box per row, and values wrap only between words.
 - styles.css only.

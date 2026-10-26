@@ -53,7 +53,7 @@ function fmt(text){
 var root,btn,panel,msgs,input,shotBox,micBtn,pageChip,logBtn;
 function build(){
  root=el('div','sh-root');
- btn=el('button','sh-launch');btn.type='button';btn.setAttribute('aria-label','Samara Help — உதவி');btn.innerHTML='<span class="sh-launch-ic" aria-hidden="true">💬</span><span class="sh-launch-tx">'+esc(T.open)+'</span><span class="sh-launch-short">உதவி</span>';
+ btn=el('button','sh-launch');btn.type='button';btn.setAttribute('aria-label','Samara Help — உதவி');btn.innerHTML='<span class="sh-grip" aria-hidden="true" title="Drag to move">⋮⋮</span><span class="sh-launch-ic" aria-hidden="true">💬</span><span class="sh-launch-tx">'+esc(T.open)+'</span><span class="sh-launch-short">உதவி</span>';
  // 2.18.70: the Help button can be dragged anywhere (it was hiding buttons); a tap still opens Help; the place is remembered per device.
  (function(){
   var KEY='samara_help_btn_pos',sx=0,sy=0,ox=0,oy=0,dragging=false,moved=false,pid=null;
@@ -68,6 +68,13 @@ function build(){
   btn.addEventListener('click',function(e){if(moved){e.preventDefault();e.stopPropagation();moved=false;return;}toggle();});
   window.addEventListener('resize',function(){if(btn.style.left){var r=btn.getBoundingClientRect();place(r.left,r.top);}});
   btn.title='உதவி / Help — tap to open, drag to move';
+  // 2.18.159: staff did not know the button can be moved — show a short hint the first few times (until it is dragged once).
+  try{var HK='samara_help_drag_hint',seen=Number(localStorage.getItem(HK)||0);
+   if(!localStorage.getItem(KEY)&&seen<3){localStorage.setItem(HK,String(seen+1));
+    setTimeout(function(){if(!btn.isConnected||localStorage.getItem(KEY))return;var tip=el('div','sh-drag-tip','↕ ⋮⋮ இழுத்து நகர்த்தலாம் · Drag to move');document.body.appendChild(tip);
+     var r=btn.getBoundingClientRect();tip.style.left=Math.max(8,Math.min(window.innerWidth-tip.offsetWidth-8,r.right-tip.offsetWidth))+'px';tip.style.top=Math.max(8,r.top-tip.offsetHeight-10)+'px';
+     btn.classList.add('sh-wiggle');var kill=function(){tip.remove();btn.classList.remove('sh-wiggle');};setTimeout(kill,6000);btn.addEventListener('pointerdown',kill,{once:true});},2500);}
+  }catch(_){}
  })();
  panel=el('section','sh-panel');panel.setAttribute('role','dialog');panel.setAttribute('aria-label',T.title);panel.hidden=true;
  panel.innerHTML='<header class="sh-head"><img class="sh-logo" src="./assets/samara-help-logo.png?v=2.14.84" alt="Samara" width="92" height="48"><div class="sh-title"><strong>'+esc(T.title)+'</strong><small>'+esc(T.sub)+'</small></div><button type="button" class="sh-log-btn" hidden title="Staff questions" aria-label="Staff questions"><span class="sh-log-ic">📋</span><span class="sh-log-tx">Staff questions</span></button><button type="button" class="sh-size" aria-label="'+esc(T.bigger)+'" title="'+esc(T.bigger)+'">⤢</button><button type="button" class="sh-x" aria-label="Close">×</button></header>'+
