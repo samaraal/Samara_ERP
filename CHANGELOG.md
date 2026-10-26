@@ -1,3 +1,7 @@
+## 2.18.155 — 27-10-2026 — Fall / Incident Nursing Note alerts: close once on OK
+- A Fall / Incident (or Inform Nursing Manager) Nursing Note alert is already recorded by the nurse, so its pop-up now shows as **FOR INFORMATION** with "Please review" instead of "CLINICAL ESCALATION · xx hrs overdue · please attend and record". It pops up **once per device**; after OK it does not come back. It stays in Clinical Escalations for the Nursing Manager / Admin to review and close, as with Medicine Given Late and Poor Meal Intake.
+- Frontend only (clinical-alerts/01-alert-engine.js, shell/01-app-main.js). No SQL.
+
 ## 2.18.154 — 26-10-2026 — Charge Register pink boxes (fix)
 - 2.18.153's pink fill did not show: the global theme forces every card white. New theme class `samara-pink-stat` (and `is-active` for the selected box) now gives the Charge Register boxes the light pink gradient; reusable for other dashboards.
 

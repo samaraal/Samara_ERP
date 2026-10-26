@@ -70,7 +70,7 @@
     // 2.18.88: information-only alerts (Medicine Given Late, Poor Meal Intake — already recorded) show on this
     // card ONCE per device (same "seen" list as the alert pop-up), with a "Noted" button instead of repeating.
     const [infoSeenTick,setInfoSeenTick]=React.useState(0);
-    const isInfoAlert=a=>['medicine late','meal intake'].includes(String(a?.alert_type||'').toLowerCase());
+    const isInfoAlert=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
     const infoSeenMap=(()=>{void infoSeenTick;try{return JSON.parse(localStorage.getItem('samara_info_alerts_seen')||'{}')||{}}catch(_e){return {}}})();
     const markInfoSeen=a=>{if(!a||!isInfoAlert(a))return;try{const now=Date.now(),m=Object.fromEntries(Object.entries(infoSeenMap).filter(([,t])=>now-Number(t)<3*86400000));m[a.key]=now;localStorage.setItem('samara_info_alerts_seen',JSON.stringify(m))}catch(_e){}setInfoSeenTick(t=>t+1)};
     const topClinicalAlert=alertEngine.alerts.find(a=>!(isInfoAlert(a)&&infoSeenMap[a.key]))||null;

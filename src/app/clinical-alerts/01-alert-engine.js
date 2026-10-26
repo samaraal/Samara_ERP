@@ -1194,7 +1194,9 @@
       // Every unresolved alert gets a turn because each alert has its own lastPlayed timestamp.
       // 2.18.86: information-only alerts (Medicine Given Late, Poor Meal Intake) pop up ONCE per device —
       // the dose / meal is already recorded; the Nursing Manager reviews and closes them in Clinical Escalations.
-      const infoOnce=a=>['medicine late','meal intake'].includes(String(a?.alert_type||'').toLowerCase());
+      // 2.18.155: Fall / Incident / Inform-Manager Nursing Note alerts are the same — the note is already recorded,
+      // so they pop up once as FOR INFORMATION (no overdue timer, no repeat after OK).
+      const infoOnce=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
       const INFO_SEEN_KEY='samara_info_alerts_seen';
       let infoSeen={};try{infoSeen=JSON.parse(localStorage.getItem(INFO_SEEN_KEY)||'{}')||{}}catch(_e){infoSeen={}}
       const nextToAnnounce=ordered.find(a=>{
@@ -1233,7 +1235,7 @@
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':['meal intake','medicine late'].includes(String(nextToAnnounce.alert_type||'').toLowerCase())?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':infoOnce(nextToAnnounce)?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:infoOnce(nextToAnnounce)?'For information — already recorded. Please review and close it in Clinical Escalations.':nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });

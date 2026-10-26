@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.154';
+  const APP_VERSION = '2.18.155';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '26-Oct-2026 Charge Register pink boxes (theme fix)';
+  const APP_BUILD_DATE = '27-Oct-2026 Incident note alerts pop up once';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -4916,7 +4916,9 @@ https://samaraassistedliving.com/`;
       // Every unresolved alert gets a turn because each alert has its own lastPlayed timestamp.
       // 2.18.86: information-only alerts (Medicine Given Late, Poor Meal Intake) pop up ONCE per device —
       // the dose / meal is already recorded; the Nursing Manager reviews and closes them in Clinical Escalations.
-      const infoOnce=a=>['medicine late','meal intake'].includes(String(a?.alert_type||'').toLowerCase());
+      // 2.18.155: Fall / Incident / Inform-Manager Nursing Note alerts are the same — the note is already recorded,
+      // so they pop up once as FOR INFORMATION (no overdue timer, no repeat after OK).
+      const infoOnce=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
       const INFO_SEEN_KEY='samara_info_alerts_seen';
       let infoSeen={};try{infoSeen=JSON.parse(localStorage.getItem(INFO_SEEN_KEY)||'{}')||{}}catch(_e){infoSeen={}}
       const nextToAnnounce=ordered.find(a=>{
@@ -4955,7 +4957,7 @@ https://samaraassistedliving.com/`;
             room:nextToAnnounce.room_label||'',
             alertType:nextToAnnounce.title||'Clinical task due',
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
-            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':['meal intake','medicine late'].includes(String(nextToAnnounce.alert_type||'').toLowerCase())?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
+            dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':infoOnce(nextToAnnounce)?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:infoOnce(nextToAnnounce)?'For information — already recorded. Please review and close it in Clinical Escalations.':nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
             priority:nextToAnnounce.priority||'Routine'
           });
@@ -14341,7 +14343,7 @@ https://samaraassistedliving.com/`;
     // 2.18.88: information-only alerts (Medicine Given Late, Poor Meal Intake — already recorded) show on this
     // card ONCE per device (same "seen" list as the alert pop-up), with a "Noted" button instead of repeating.
     const [infoSeenTick,setInfoSeenTick]=React.useState(0);
-    const isInfoAlert=a=>['medicine late','meal intake'].includes(String(a?.alert_type||'').toLowerCase());
+    const isInfoAlert=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
     const infoSeenMap=(()=>{void infoSeenTick;try{return JSON.parse(localStorage.getItem('samara_info_alerts_seen')||'{}')||{}}catch(_e){return {}}})();
     const markInfoSeen=a=>{if(!a||!isInfoAlert(a))return;try{const now=Date.now(),m=Object.fromEntries(Object.entries(infoSeenMap).filter(([,t])=>now-Number(t)<3*86400000));m[a.key]=now;localStorage.setItem('samara_info_alerts_seen',JSON.stringify(m))}catch(_e){}setInfoSeenTick(t=>t+1)};
     const topClinicalAlert=alertEngine.alerts.find(a=>!(isInfoAlert(a)&&infoSeenMap[a.key]))||null;
