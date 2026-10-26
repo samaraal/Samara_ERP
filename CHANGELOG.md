@@ -1,3 +1,9 @@
+## 2.18.147 — 26-10-2026 — Bills & Charges: Return to Nursing, Correct & Resubmit
+- Accounts' **Reject** button is now **Return**: the request goes back to Nursing with a compulsory reason ("what should the nurse correct"). Shown everywhere as "Returned" (stored decision unchanged, so stock and billing rules are unaffected — returned items are free to charge again).
+- Nurses (and Nursing Manager / Admin) see **"Returned by Accounts — correct & resubmit"** at the top of Bills & Charges, with the reason. **Correct & Resubmit** opens the form pre-filled from the returned request; on submit a NEW request goes to Accounts with all the usual checks, linked to the returned one (returned request kept on record, marked "Returned · Resubmitted"). Physiotherapy session charges are not resubmitted by nurses.
+- Charge Request Details pop-up rewritten: no system IDs / internal codes / duplicate timestamps — Guest, item (code · name), quantity, service time, bill details, raised by (name), status, returned by / reason, resubmission; amounts only for non-nurses.
+- New SQL: supabase/sql/300_charge_return_resubmit.sql (run once). Frontend 2.18.147.
+
 ## 2.18.146 — 26-10-2026 — Clinical Reports: medicine order changes read correctly
 - Daily / Weekly Clinical Report (doctor): a medicine is counted under ONE order at a time — the newest version in force. When a medicine's times are changed while a dose is still open (e.g. 9 PM → 10 PM at 9:05 PM), the old time is no longer counted as a separate scheduled dose. Removes phantom "unresolved" and "given late" doses (e.g. Inj. Piptaz, Mr. RANJITHKUMAR, 22–24 Oct).
 - A stop followed by the same medicine continuing (another version in force, or re-entered later) is no longer reported as "Order stopped; source not recorded". Uninterrupted: shown only in the supporting medication table. Re-entered after a gap: "stopped … and re-entered … – continued (no order in force in between)", with current times.

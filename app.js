@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.145';
+  const APP_VERSION = '2.18.147';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '25-Oct-2026 Nursing Notes (DAR / Quick, voice, 2 per shift)';
+  const APP_BUILD_DATE = '26-Oct-2026 Bills & Charges: Return to Nursing + Correct & Resubmit';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -49456,6 +49456,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
     const [selectedChargeDetail,setSelectedChargeDetail]=React.useState(null);
+    // 2.18.147: Accounts RETURN a request to Nursing (stored as 'Rejected'); the nurse corrects and resubmits it
+    const [resubmitFrom,setResubmitFrom]=React.useState(null);
+    const statusText=s=>s==='Rejected'?'Returned':(s||'Pending');
     // v2.14.45: only an "Open & Take Action" click from the last 2 minutes focuses one request.
     // Opening Charge Approvals from the menu / tabs always shows every pending request.
     React.useEffect(()=>{
@@ -49653,7 +49656,28 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         return {...next,service_name:first,...stockDefaults(current.category,first),description:first};
       });
     }
-    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    function openNew(){const base=fresh();const availableCategories=Object.keys(categories);if(profile?.role==='Nurse'&&!availableCategories.length){notify('error','No charge categories are available. Ask Admin to check Charge Master and Stores.');return}const firstCategory=availableCategories[0]||base.category;const firstService=storeCategories.includes(firstCategory)?firstServiceFor(firstCategory,base.patient_id):((categories[firstCategory]||[])[0]||base.service_name);setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setResubmitFrom(null);setForm({...base,category:firstCategory,service_name:firstService,description:firstService,...stockDefaults(firstCategory,firstService)});setShow(true)}
+    function openResubmit(r){
+      const base=fresh();
+      const opts=serviceOptions(r.category,r.patient_id);
+      const known=(r.service_name&&(opts.some(o=>o.value===r.service_name)||(categories[r.category]||[]).includes(r.service_name)));
+      const iso=v=>v?String(v).slice(0,10):'';
+      const dt=v=>{if(!v)return '';const d=new Date(v);return Number.isNaN(d.getTime())?'':localDateTimeValue(d)};
+      const next={...base,
+        patient_id:r.patient_id||'',store_item_id:r.store_item_id||'',charge_item_code:r.charge_item_code||'',
+        charge_date:iso(r.charge_date)||base.charge_date,service_datetime:dt(r.service_datetime)||base.service_datetime,
+        category:r.category||base.category,service_name:known?r.service_name:'Others',other_service_name:known?'':(r.service_name||''),
+        service_provider:r.service_provider||base.service_provider,doctor_name:r.doctor_name||'',description:r.description||r.service_name||'',
+        quantity:String(r.quantity||1),unit:r.unit||base.unit,urgency:r.urgency||'Routine',
+        billable:r.billable!==false,bill_available:Boolean(r.bill_available),bill_number:r.bill_number||'',bill_date:iso(r.bill_date),
+        hospital_name:r.hospital_name||'',visit_reason:r.visit_reason||'',out_time:dt(r.out_time),return_time:dt(r.return_time),escort_staff:r.escort_staff||'',
+        relative_accompanied:Boolean(r.relative_accompanied),admission_required:Boolean(r.admission_required),
+        laboratory_name:r.laboratory_name||'',test_name:r.test_name||'',sample_type:r.sample_type||'',sample_collected_at:dt(r.sample_collected_at),
+        report_status:r.report_status||base.report_status,report_received_at:dt(r.report_received_at),transport_type:r.transport_type||'',
+        paid_by_samara:Boolean(r.paid_by_samara),remarks:r.remarks||'',
+        outside_paid_by:r.outside_paid_by||'',outside_bill_amount:r.outside_bill_amount!=null?String(r.outside_bill_amount):(r.outside_paid_by&&r.requested_amount!=null?String(r.requested_amount):''),outside_route:r.outside_route||''};
+      setFiles([]);setFileInputKey(k=>k+1);setBatchItems([]);setResubmitFrom(r);setForm(next);setSelectedChargeDetail(null);setShow(true);
+    }
     function changeCategory(value){
       setForm(current=>{const first=storeCategories.includes(value)?firstServiceFor(value,current.patient_id):((categories[value]||[])[0]||'Others');const outside=value===OUTSIDE_CATEGORY;return {...current,category:value,service_name:first,...stockDefaults(value,first),other_service_name:'',description:first==='Others'?'':first,test_name:['Laboratory Services','Diagnostic / Imaging'].includes(value)&&first!=='Others'?first:'',...(outside?{bill_available:true,quantity:'1',unit:'Bill',billable:true}:{outside_paid_by:'',outside_bill_amount:'',outside_route:''})}});
     }
@@ -49833,8 +49857,15 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       try{
         const auth=await client.auth.getUser();
         const user=auth.data?.user;
-        for(const item of items)await saveOne(item.form,item.files,user);
-        notify('success',`${items.length} bill / charge request${items.length===1?'':'s'} forwarded for approval.`);
+        const savedRows=[];
+        for(const item of items)savedRows.push(await saveOne(item.form,item.files,user));
+        let linkNote='';
+        if(resubmitFrom&&savedRows[0]?.id){
+          const link=await client.rpc('mark_charge_request_resubmitted',{p_returned:resubmitFrom.id,p_new:savedRows[0].id});
+          if(link.error){console.warn('Resubmit link failed:',link.error.message);linkNote=' (could not link it to the returned request — tell Admin)';}
+        }
+        notify('success',resubmitFrom?`Corrected request resubmitted to Accounts${linkNote}.`:`${items.length} bill / charge request${items.length===1?'':'s'} forwarded for approval.`);
+        setResubmitFrom(null);
         setBatchItems([]);setFiles([]);setFileInputKey(k=>k+1);
         finishSuccessfulAction({close:()=>setShow(false),refresh:load});
       }catch(error){notify('error',error.message||'Unable to save clinical charges.')}
@@ -49879,14 +49910,23 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           ?`Family paid this bill directly (${money(amount)}).\nIt will be kept for the record only — nothing is charged to the Guest. Continue?`
           :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`))return;
       }
-      const remarks=prompt('Decision remarks:',decision)||decision;
+      const remarks=decision==='Rejected'?returnReason(row):(prompt('Decision remarks:',decision)||decision);
+      if(remarks===null)return;
       setBusy(true);
       const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:row.id,p_decision:decision,p_approved_amount:decision==='Rejected'?0:amount,p_remarks:remarks});
       setBusy(false);
       if(result.error){notify('error',result.error.message);return}
-      notify('success',decision==='Rejected'?'Outside bill rejected.':result.data?.family_paid?'Outside bill recorded (paid by family — not charged).':`Outside bill posted: ${money(result.data?.bill_amount)}${Number(result.data?.handling_fee)>0?` + handling ${money(result.data?.handling_fee)}`:''}.`);
+      notify('success',decision==='Rejected'?'Outside bill returned to Nursing for correction.':result.data?.family_paid?'Outside bill recorded (paid by family — not charged).':`Outside bill posted: ${money(result.data?.bill_amount)}${Number(result.data?.handling_fee)>0?` + handling ${money(result.data?.handling_fee)}`:''}.`);
       outsideFillMissingFamilyLinks();
       await load();
+    }
+    // 2.18.147: a Return always needs the reason — the nurse sees it and corrects the request
+    function returnReason(row){
+      const entered=prompt(`Return to Nursing for correction\n${row.service_name||row.description||'Charge'} · Qty ${row.quantity||1}${row.unit?` ${row.unit}`:''}\n\nWhat should the nurse correct? (the nurse sees this)`,'');
+      if(entered===null)return null;
+      const reason=String(entered).trim();
+      if(reason.length<5){notify('error','Write what the nurse should correct (at least a few words).');return null}
+      return reason;
     }
     async function decide(row,decision){
       if(!canApprove||busy)return;
@@ -49920,7 +49960,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           return;
         }
       }
-      const remarks=prompt('Decision remarks:',decision)||decision;
+      const remarks=decision==='Rejected'?returnReason(row):(prompt('Decision remarks:',decision)||decision);
+      if(remarks===null)return;
       setBusy(true);
       const result=await client.rpc('decide_bill_charge_request_v5',{
         p_request_id:row.id,
@@ -49931,7 +49972,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       setBusy(false);
       if(result.error)notify('error',result.error.message);
       else{
-        notify('success',`Charge ${decision.toLowerCase()} by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}. Returned automatically to Nursing.`);
+        notify('success',decision==='Rejected'
+          ?`Returned to Nursing for correction by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}.`
+          :`Charge ${decision.toLowerCase()} by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}. Returned automatically to Nursing.`);
         await load();
       }
     }
@@ -50037,7 +50080,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       return h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card samara-charge-card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'10px 12px',marginBottom:'0',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
         h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},
           h('strong',{style:{minWidth:0,flex:'1 1 auto',fontSize:'15px',overflowWrap:'anywhere'}},`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'Charge'}`),
-          h('span',{className:'badge','data-charge-decision':true,tabIndex:-1,'aria-label':`Decision: ${status}`,style:{flex:'0 0 auto',whiteSpace:'nowrap'}},status)
+          h('span',{className:'badge','data-charge-decision':true,tabIndex:-1,'aria-label':`Decision: ${statusText(status)}`,style:{flex:'0 0 auto',whiteSpace:'nowrap'}},r.resubmitted_as?'Returned · Resubmitted':statusText(status))
         ),
         h('div',{style:{...muted,marginTop:'3px'}},info),
         amountParts.length?h('div',{style:{marginTop:'4px',fontSize:'13px',display:'flex',flexWrap:'wrap',gap:'4px 10px'}},...amountParts.map((x,i)=>typeof x==='string'?h('span',{key:i},x):x)):null,
@@ -50045,11 +50088,17 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         canApprove&&status==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'8px'}},
           h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
           h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
-          h('button',{className:'btn btn-danger',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Reject')
-        )
+          h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Return')
+        ),
+        r.resubmitted_from&&h('div',{style:{...muted,marginTop:'3px'}},'Corrected and resubmitted after a return'),
+        status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px',width:'100%'},disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit')
       );
     };
 
+    function canResubmit(r){return Boolean(canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)&&!r.physiotherapy_session_id)}
+    const returnedToNursing=canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)?rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&(!filter.patient_id||r.patient_id===filter.patient_id)):[];
+    const returnedPanel=returnedToNursing.length?h(Section,{title:`Returned by Accounts — correct & resubmit (${returnedToNursing.length})`,subtitle:'Read the reason, tap "Correct & Resubmit", fix the request and submit it again.'},
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(100%,340px),1fr))',gap:'10px'}},returnedToNursing.map(chargeMobileCard))):null;
     const responsiveRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'Tap a request to see full details.'},
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(100%,340px),1fr))',gap:'10px',width:'100%',maxWidth:'100%',minWidth:0}},filtered.length?filtered.map(chargeMobileCard):h('div',{className:'empty',style:{padding:'18px'}},'No records found'))
     );
@@ -50058,6 +50107,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         h('span',null,'Showing the exact charge request opened from the notification.'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setWorkflowRequestId('')},'Show All Charge Requests')
       ),
+      returnedPanel,
       responsiveRegister
     );
 
@@ -50070,21 +50120,52 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       ])
     });
 
-    const chargeDetailFields=selectedChargeDetail?Object.entries(selectedChargeDetail).filter(([key,value])=>{
-      if(value===null||value===undefined||value==='')return false;
-      if(profile?.role==='Nurse'&&/(amount|unit_cost|rate|cost|fee)/i.test(key))return false;
-      return true;
-    }).map(([key,value])=>{
-      const label=key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-      let shown=value;
-      if(key==='patient_id')shown=pLabel(value);
-      else if(typeof value==='boolean')shown=value?'Yes':'No';
-      else if(value&&typeof value==='object')shown=JSON.stringify(value,null,2);
-      else if(/(_at|datetime)$/i.test(key))shown=formatDateTimeIN(value);
-      else if(/_date$/i.test(key))shown=formatDateIN(value);
-      else if(profile?.role!=='Nurse'&&/(amount|unit_cost|rate|cost|fee)/i.test(key)&&Number.isFinite(Number(value)))shown=money(value);
-      return [key,label,String(shown)];
-    }):[];
+    // 2.18.147: the details pop-up shows only meaningful, labelled information — no internal IDs / codes,
+    // no duplicate timestamps. Staff names are shown instead of system IDs; returned requests show the reason.
+    const chargeDetailFields=(()=>{
+      const r=selectedChargeDetail;if(!r)return [];
+      const nurse=profile?.role==='Nurse';
+      const yes=v=>v?'Yes':'No';
+      const dt=v=>v?formatDateTimeIN(v):'';
+      const d=v=>v?formatDateIN(String(v).slice(0,10)):'';
+      const st=r.approval_status||'Pending';
+      const list=[
+        ['Guest',pLabel(r.patient_id)],
+        ['Item / Service',`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`],
+        ['Category',r.category],
+        ['Quantity',`${r.quantity||1}${r.unit?` ${r.unit}`:''}`],
+        ['Service date & time',dt(r.service_datetime)||d(r.charge_date)],
+        ['Description',r.description&&r.description!==r.service_name?r.description:''],
+        ['Provider',r.service_provider&&r.service_provider!=='Samara'?r.service_provider:''],
+        ['Doctor',r.doctor_name],
+        ['Urgency',r.urgency],
+        ['Billable to Guest',yes(r.billable!==false)],
+        ['Bill available',yes(r.bill_available)],
+        ['Bill number',r.bill_number],['Bill date',d(r.bill_date)],
+        ['Hospital',r.hospital_name],['Reason for visit',r.visit_reason],['Out time',dt(r.out_time)],['Return time',dt(r.return_time)],['Escort staff',r.escort_staff],
+        ['Relative accompanied',r.relative_accompanied?'Yes':''],['Admission required',r.admission_required?'Yes':''],
+        ['Laboratory',r.laboratory_name],['Test',r.test_name&&r.test_name!==r.service_name?r.test_name:''],['Sample',r.sample_type],['Sample collected',dt(r.sample_collected_at)],
+        ['Report status',r.laboratory_name||r.test_name?r.report_status:''],['Report received',dt(r.report_received_at)],
+        ['Transport',r.transport_type],
+        ['Outside bill paid by',r.outside_paid_by],['Paid by Samara',r.paid_by_samara&&!r.outside_paid_by?'Yes':''],
+        ['Nurse remarks',r.remarks],
+        ['Raised by',r.raised_by_name||'Nursing staff'],
+        ['Raised at',dt(r.raised_at||r.created_at)],
+        ['Status',r.resubmitted_as?'Returned · corrected request resubmitted':statusText(st)],
+        [st==='Rejected'?'Returned by':'Decision by',st!=='Pending'?(r.decision_by_name||''):''],
+        [st==='Rejected'?'Returned at':'Decision at',st!=='Pending'?dt(r.decision_date||r.approved_at):''],
+        [st==='Rejected'?'Reason for return':'Accounts remarks',(()=>{const x=String(r.approval_remarks||r.decision_remarks||'').trim();return x&&x.toLowerCase()!==String(st).toLowerCase()?x:''})()],
+        ['Resubmitted',r.resubmitted_at?`${dt(r.resubmitted_at)}${r.resubmitted_by_name?` by ${r.resubmitted_by_name}`:''}`:''],
+        ['Resubmission of',r.resubmitted_from?'A request returned earlier by Accounts':'']
+      ];
+      if(!nurse){
+        const req=r.requested_amount??r.estimated_amount, apv=r.approved_amount??r.final_amount;
+        list.push(['Rate',r.unit_cost!=null&&Number(r.unit_cost)>0?money(r.unit_cost):''],['Requested amount',req!=null&&Number(req)>0?money(req):''],
+          ['Approved amount',st!=='Pending'&&st!=='Rejected'&&apv!=null?money(apv):''],
+          ['Outside bill amount',r.outside_bill_amount!=null?money(r.outside_bill_amount):''],['Handling charge',Number(r.outside_handling_fee)>0?money(r.outside_handling_fee):'']);
+      }
+      return list.filter(([,v])=>v!==null&&v!==undefined&&String(v).trim()!=='').map(([label,value])=>[label,label,String(value)]);
+    })();
     const chargeDetailModal=selectedChargeDetail&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSelectedChargeDetail(null)}},
       h('section',{className:'card modal',role:'dialog','aria-modal':'true','aria-labelledby':'charge-request-detail-title',style:{width:'min(900px,96vw)',maxHeight:'90vh',overflowY:'auto'}},
         h('div',{className:'panel-head'},
@@ -50156,14 +50237,18 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       h('form',{className:'card modal clinical-charge-modal',onSubmit:save},
         h('div',{className:'panel-head'},
           h('div',null,
-            h('h3',null,profile?.role==='Nurse'?'Raise Bill / Charge Request':'Raise Bill / Charge'),
+            h('h3',null,resubmitFrom?'Correct & Resubmit':profile?.role==='Nurse'?'Raise Bill / Charge Request':'Raise Bill / Charge'),
             h('small',null,profile?.role==='Nurse'
               ?'Record the service and upload the supporting bill when available. Management/Accounts will enter and approve the amount.'
               :'The form closes automatically after successful save.'
             )
           ),
-          h('button',{type:'button',className:'close',onClick:()=>setShow(false)},'×')
+          h('button',{type:'button',className:'close',onClick:()=>{setShow(false);setResubmitFrom(null)}},'×')
         ),
+        resubmitFrom&&h('div',{className:'message warning',style:{margin:'8px 0'}},
+          h('strong',null,`Returned by Accounts${resubmitFrom.decision_by_name?` (${resubmitFrom.decision_by_name})`:''}: `),
+          String(resubmitFrom.approval_remarks||resubmitFrom.decision_remarks||'No reason recorded'),
+          h('br'),h('small',null,`Correct the details below and submit. The returned request stays on record.${resubmitFrom.bill_available||resubmitFrom.outside_paid_by?' Attach the bill again.':''}`)),
         h('div',{className:'modal-grid'},
           profile?.role==='Nurse'&&h('div',{className:'clinical-charge-note'},
             'Nursing staff record only the service/expense occurrence. Financial amounts are not visible here. Pharmacy / Consumable charges can be raised only after the item has been handed over and the Nurse has confirmed Received for that patient, and the Stores item has a fixed charge rate. If a bill is available, upload it; Accounts will verify it. Items that need Nursing Manager approval are not listed here — raise them from NURSING → Approval Requests. Outside bills (outside pharmacy, lab, scan, ambulance, taxi, hospital): choose Outside Services, enter the bill amount and who paid, and upload the bill.'
@@ -50235,7 +50320,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           h('div',{className:'field'},h('label',null,'Search Guest'),h('input',{type:'search',value:guestSearch,onChange:e=>setGuestSearch(e.target.value),placeholder:'Name / ID / Room (3 letters)'})),
           (()=>{const q=guestSearch.trim().toLowerCase();const list=q.length<3?patients:patients.filter(p=>p.id===draftFilter.patient_id||[p.full_name,p.patient_id,p.room_no,formalName(p)].some(v=>String(v||'').toLowerCase().includes(q)));
             return patientSelect(list,draftFilter.patient_id,v=>setDraftFilter({...draftFilter,patient_id:v}),q.length>=3?`Patient (${list.length} found)`:'Patient')})(),
-          miniSelect('Status',draftFilter.status,['All','Pending','Approved','Partially Approved','Rejected'],v=>setDraftFilter({...draftFilter,status:v})),
+          h('div',{className:'field'},h('label',null,'Status'),h('select',{value:draftFilter.status,onChange:e=>setDraftFilter({...draftFilter,status:e.target.value})},['All','Pending','Approved','Partially Approved','Rejected'].map(x=>h('option',{key:x,value:x},statusText(x))))),
           miniSelect('Category',draftFilter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>setDraftFilter({...draftFilter,category:v})),
           miniSelect('Period',draftPeriod.mode,['All dates','Day','Week','Month','Custom period'],v=>setDraftPeriod({...draftPeriod,mode:v})),
           ['Day','Week'].includes(draftPeriod.mode)&&miniInput(draftPeriod.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',draftPeriod.date,v=>setDraftPeriod({...draftPeriod,date:v}),false,'date'),
