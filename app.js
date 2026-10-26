@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.162';
+  const APP_VERSION = '2.18.163';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 WhatsApp Inbox single top row';
+  const APP_BUILD_DATE = '27-Oct-2026 Charge Register time stamp';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -39855,9 +39855,13 @@ function RoomsBeds({profile,onNavigate}){
       boxShadow:active?'0 8px 20px rgba(166,16,78,.16)':'0 4px 12px rgba(109,24,61,.07)'
     }},h('span',null,label),h('strong',null,value));
 
-    const heads=['Date','Patient','Category','Service','Qty','Status','Requested Amount','Approved Amount','Raised By','Decision By','Decision Time','Remarks'];
+    // 2.18.163: Guest ID not needed here — Patient shows name · room; Date shows the time the charge was raised.
+    const guestLabel=id=>{const p=pFor(id);if(!p.id)return '—';const trial=p.is_trial?' · 🧪 TRIAL':'';
+      return p.is_active===false?`${formalName(p)} · Discharged${trial}`:`${formalName(p)} · Room ${p.room_no||'—'}-${p.bed_no||'—'}${trial}`;};
+    const raisedTime=r=>{const d=new Date(r.created_at||'');return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();};
+    const heads=['Date & Time','Patient','Category','Service','Qty','Status','Requested Amount','Approved Amount','Raised By','Decision By','Decision Time','Remarks'];
     const tableRows=filtered.map(r=>[
-      formatDateIN(r.charge_date),pLabel(r.patient_id),r.category||'—',
+      h('span',{style:{whiteSpace:'nowrap'}},formatDateIN(r.charge_date),raisedTime(r)?h('small',{style:{display:'block',color:'#7b6871',fontWeight:600}},raisedTime(r)):null),guestLabel(r.patient_id),r.category||'—',
       `${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'—'}`,
       `${r.quantity||1} ${r.unit||''}`,
       h('span',{className:'badge'},statusLabel(statusOf(r))),

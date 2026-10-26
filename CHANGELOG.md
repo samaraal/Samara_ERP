@@ -1,3 +1,6 @@
+## 2.18.163 — 27-10-2026 — Charge Register: time stamp instead of Guest ID
+- NURSING → Charge Register: the Patient column no longer shows the Guest ID (name · Room only); the Date column is now "Date & Time" with the time the charge was raised under the date.
+
 ## 2.18.162 — 27-10-2026 — WhatsApp Inbox: single top row
 - Desktop WhatsApp Inbox: the separate "‹ Back / ↻ Refresh" bar above the page is hidden (the inbox has its own Refresh, and a small ‹ Back chip now sits at the start of the folder row).
 - Folder chips and the search / Unread / Show / Refresh controls share one wrapping row, and the card padding is smaller, so the inbox starts higher and is taller.
