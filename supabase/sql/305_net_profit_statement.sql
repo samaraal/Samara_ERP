@@ -1,4 +1,4 @@
--- 2.18.169 — Net Profit Statement (Admin / Directors only)
+-- 2.18.169 (2.18.170: no double count of petty-cash outside bills; per-box receipts kept out) — Net Profit Statement (Admin / Directors only)
 -- 1. samara_monthly_expenses: expenses the ERP does not already hold (salaries paid, rent, electricity, …).
 -- 2. samara_expense_rpc(action, p): list / add / void monthly expenses, salary pre-fill from HR.
 -- 3. get_net_profit_statement(from, to): income (charges raised, less discounts; Trial Guests excluded),
@@ -92,7 +92,7 @@ returns jsonb language plpgsql stable security definer set search_path=public,pg
 declare
   a jsonb := public.samara_profit_admin();
   income jsonb; discounts numeric; collected numeric; refunds numeric; outstanding numeric;
-  stores numeric; stores_missing int; food numeric; kitchen numeric; petty numeric; physio numeric;
+  stores numeric; stores_missing int; stores_suspect int; stores_suspect_amt numeric; food numeric; kitchen numeric; petty numeric; physio numeric;
   outside numeric; equipment numeric; manual jsonb; manual_total numeric; outgoing jsonb; outgoing_total numeric;
 begin
   if p_from is null or p_to is null or p_from>p_to then raise exception 'Invalid period'; end if;
@@ -117,12 +117,22 @@ begin
    where not coalesce(pt.is_trial,false);
 
   -- Expenses already in the ERP.
-  select coalesce(sum(r.quantity*r.unit_cost),0), count(*) filter (where r.unit_cost is null or r.unit_cost<=0)
-    into stores, stores_missing from public.consumable_store_receipts r
+  -- Receipts priced per box / pack (cost per piece more than double the item's charge rate) are kept out
+  -- of the total and reported separately, so one wrong unit cannot inflate expenses.
+  select coalesce(sum(r.quantity*r.unit_cost) filter (where not (coalesce(i.charge_rate,0)>0 and r.unit_cost>2*i.charge_rate)),0),
+         count(*) filter (where r.unit_cost is null or r.unit_cost<=0),
+         coalesce(sum(r.quantity*r.unit_cost) filter (where coalesce(i.charge_rate,0)>0 and r.unit_cost>2*i.charge_rate),0),
+         count(*) filter (where coalesce(i.charge_rate,0)>0 and r.unit_cost>2*i.charge_rate)
+    into stores, stores_missing, stores_suspect_amt, stores_suspect
+    from public.consumable_store_receipts r left join public.consumable_store_items i on i.id=r.item_id
    where r.voided_at is null and coalesce(r.invoice_date,r.received_date,r.received_at::date) between p_from and p_to;
   select coalesce(sum(l.amount),0) into food from public.fv_ledger l where l.kind='Receipt' and l.day between p_from and p_to;
   select coalesce(sum(k.total),0) into kitchen from public.kitchen_purchases k where k.status<>'Reversed' and k.expense_date between p_from and p_to;
-  select coalesce(sum(-e.amount),0) into petty from public.nm_petty_cash_entries e where e.kind in ('Expense','Expense reversal') and e.entry_date between p_from and p_to;
+  -- Petty cash entries made automatically for outside bills are already in "Outside bills paid by Samara".
+  select coalesce(sum(-e.amount),0) into petty from public.nm_petty_cash_entries e
+   where e.kind in ('Expense','Expense reversal') and e.entry_date between p_from and p_to
+     and not exists(select 1 from public.bill_charge_requests b where b.outside_petty_entry_id is not null
+                     and (b.outside_petty_entry_id=e.id or b.outside_petty_entry_id=e.reference_id));
   select coalesce(sum(l.amount),0) into physio from public.physio_supplier_ledger l
    where l.entry_date between p_from and p_to
      and (l.kind='Session fee' or (l.kind='Reversal' and exists(select 1 from public.physio_supplier_ledger o where o.id=l.reverses and o.kind='Session fee')));
@@ -153,7 +163,9 @@ begin
     'from',p_from,'to',p_to,'generated_by',a->>'name','generated_at',now(),
     'income',income,'discounts',discounts,'collected',collected,'refunds',refunds,'outstanding_now',outstanding,
     'erp_expenses',jsonb_build_array(
-      jsonb_build_object('head','Pharmacy & Consumables purchases','amount',stores,'note',case when stores_missing>0 then stores_missing||' stock receipts have no purchase price' end),
+      jsonb_build_object('head','Pharmacy & Consumables purchases','amount',stores,'note',nullif(concat_ws(' · ',
+        case when stores_missing>0 then stores_missing||' stock receipts have no purchase price' end,
+        case when stores_suspect>0 then stores_suspect||' receipts (₹'||to_char(stores_suspect_amt,'FM99,99,99,990')||') not counted — price looks per box / pack; correct to price per piece' end),'')),
       jsonb_build_object('head','Food — vendor meals received','amount',food),
       jsonb_build_object('head','Kitchen / Food Stores purchases','amount',kitchen),
       jsonb_build_object('head','Petty cash expenses (Nursing Manager)','amount',petty),

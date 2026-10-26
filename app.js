@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.169';
+  const APP_VERSION = '2.18.170';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '27-Oct-2026 Net Profit Statement';
+  const APP_BUILD_DATE = '27-Oct-2026 Net Profit fixes';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -51561,7 +51561,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
               h('td',{style:{fontWeight:k==='head'?800:['total','profit','sub'].includes(k)?800:500,color:k==='head'?'#7d1748':k==='note'?'#8a6a78':undefined,paddingLeft:k==='row'||k==='note'?'22px':undefined,fontStyle:k==='note'?'italic':undefined}},l),
               h('td',{style:{textAlign:'right',whiteSpace:'nowrap'}},k==='head'||k==='note'?'':cell(c,k)),
               prev?h('td',{style:{textAlign:'right',whiteSpace:'nowrap',color:'#7b6871'}},k==='head'||k==='note'?'':cell(p,k)):null))))),
-          h('p',{className:'small-note',style:{marginTop:'10px'}},'Income = charges raised in the period, less discounts (Trial Guests excluded); collections are shown separately. Purchases are at stock-receipt cost — receipts priced per box / pack or at MRP will overstate cost. Equipment is counted in full in the month bought. Salaries, rent and other overheads come from Outgoing Payments (Food vendor / Purchase payments excluded — already counted from receipts) and Monthly Expenses.'))
+          h('p',{className:'small-note',style:{marginTop:'10px'}},'Income = charges raised in the period, less discounts (Trial Guests excluded); collections are shown separately. Purchases are at stock-receipt cost — receipts whose price looks per box / pack are left out and listed; receipts entered at MRP still overstate cost. Petty-cash payments of outside bills are counted once (under outside bills). Equipment is counted in full in the month bought. Salaries, rent and other overheads come from Outgoing Payments (Food vendor / Purchase payments excluded — already counted from receipts) and Monthly Expenses.'))
       ):null
     );
   }
@@ -51629,7 +51629,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           f('Bill / Reference No.',h('input',{value:form.reference,onChange:e=>setForm({...form,reference:e.target.value})})),
           h('div',{className:'field',style:{margin:0,gridColumn:'1/-1'}},h('label',null,'Description'),h('input',{value:form.description,onChange:e=>setForm({...form,description:e.target.value}),placeholder:'e.g. October electricity bill'})),
           h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save Expense'))),
-      h(Section,{title:`Salaries paid · ${npMonthLabel(month)}`,subtitle:'Amounts are pre-filled from HR (current salary) — change for leave, advances, overtime or part-month, then Record.',actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
+      h(Section,{title:`Salaries paid · ${npMonthLabel(month)}`,subtitle:'Amounts are pre-filled from HR (current salary) — change for leave, advances, overtime or part-month, then Record. If a salary was already paid through Outgoing Payments (Salaries), do not record it here too — it is counted from there.',actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
           h('span',{style:{fontWeight:700,color:'#7b6871'}},'Paid on'),h(StrictDateInput,{value:salaryDate,min:month<'2026-08-27'?'2026-08-27':month,max:end<today?end:today,onChange:e=>setSalaryDate(e.target.value)}),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>recordSalary(staff)},'Record all entered'))},
         h('div',{className:'table-wrap'},h('table',{className:'table'},
