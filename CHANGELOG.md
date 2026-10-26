@@ -1,3 +1,8 @@
+## 2.18.148 — 26-10-2026 — Bills & Charges: alert to the nurse when a request is returned
+- When Accounts **Return** a charge request, the nurse who raised it gets: an ERP pop-up ("Charge returned by Accounts", with the reason and "Open & Take Action" → Bills & Charges), repeated every hour while she is signed in until she corrects and resubmits; a **phone notification** at the time of the return; and the request is listed on her **Notifications** page. Nursing Manager and Admin / Director see the list on Notifications (no pop-up / phone).
+- Alerts stop as soon as the request is resubmitted; returns older than 3 days are not alerted.
+- New SQL: supabase/sql/301_charge_return_alerts.sql (run after 300). New Edge Function: charge-return-alert-dispatch (every minute, pg_cron; legacy JWT verification ON). Frontend 2.18.148.
+
 ## 2.18.147 — 26-10-2026 — Bills & Charges: Return to Nursing, Correct & Resubmit
 - Accounts' **Reject** button is now **Return**: the request goes back to Nursing with a compulsory reason ("what should the nurse correct"). Shown everywhere as "Returned" (stored decision unchanged, so stock and billing rules are unaffected — returned items are free to charge again).
 - Nurses (and Nursing Manager / Admin) see **"Returned by Accounts — correct & resubmit"** at the top of Bills & Charges, with the reason. **Correct & Resubmit** opens the form pre-filled from the returned request; on submit a NEW request goes to Accounts with all the usual checks, linked to the returned one (returned request kept on record, marked "Returned · Resubmitted"). Physiotherapy session charges are not resubmitted by nurses.

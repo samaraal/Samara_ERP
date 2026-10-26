@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.147';
+  const APP_VERSION = '2.18.148';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '26-Oct-2026 Bills & Charges: Return to Nursing + Correct & Resubmit';
+  const APP_BUILD_DATE = '26-Oct-2026 Bills & Charges: returned-request alert to the nurse';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -7910,6 +7910,13 @@ https://samaraassistedliving.com/`;
     const roleKey=String(profile?.role||'').trim().toLowerCase();
     const indentReceiptAccess=roleKey==='nurse'||cutoffAdmin||isNursingManagerProfile(profile)||nursingManager;
     const [indentReceiptDue,setIndentReceiptDue]=React.useState([]);
+    // 2.18.148: Bills & Charges returned by Accounts, not yet resubmitted (SQL 301)
+    const [chargeReturns,setChargeReturns]=React.useState([]);
+    async function loadChargeReturns(){
+      if(!indentReceiptAccess)return;
+      try{const {data,error}=await client.rpc('charge_return_alerts');if(error)throw error;setChargeReturns(Array.isArray(data)?data:[]);}
+      catch(_error){/* Needs SQL 301; until then this section simply stays empty. */}
+    }
     const ioAlertAccess=roleKey==='nurse'||roleKey==='caregiver'||cutoffAdmin||roleKey==='manager';
     const [ioAlerts,setIoAlerts]=React.useState([]);
     async function loadIoAlerts(){
@@ -7971,6 +7978,7 @@ https://samaraassistedliving.com/`;
         await loadCutoffAttempts();
         await loadOverdueCharges();
         await loadIndentReceiptDue();
+        await loadChargeReturns();
         await loadStaffReturnAlerts();
         await loadIoAlerts();
         await loadEnquiryAlerts();
@@ -7987,6 +7995,7 @@ https://samaraassistedliving.com/`;
     React.useEffect(()=>{if(!enquiryAccess)return;loadEnquiryAlerts();const timer=setInterval(loadEnquiryAlerts,60000);window.addEventListener('focus',loadEnquiryAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadEnquiryAlerts)}},[profile?.id,enquiryAccess]);
     React.useEffect(()=>{if(!staffReturnAccess)return;loadStaffReturnAlerts();const timer=setInterval(loadStaffReturnAlerts,60000);window.addEventListener('focus',loadStaffReturnAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadStaffReturnAlerts)}},[profile?.id,staffReturnAccess]);
     React.useEffect(()=>{if(!ioAlertAccess)return;loadIoAlerts();const timer=setInterval(loadIoAlerts,300000);window.addEventListener('focus',loadIoAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIoAlerts)}},[profile?.id,ioAlertAccess]);
+    React.useEffect(()=>{if(!indentReceiptAccess)return;loadChargeReturns();const timer=setInterval(loadChargeReturns,60000);window.addEventListener('focus',loadChargeReturns);return()=>{clearInterval(timer);window.removeEventListener('focus',loadChargeReturns)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!indentReceiptAccess)return;loadIndentReceiptDue();const timer=setInterval(loadIndentReceiptDue,60000);window.addEventListener('focus',loadIndentReceiptDue);return()=>{clearInterval(timer);window.removeEventListener('focus',loadIndentReceiptDue)}},[profile?.id,indentReceiptAccess]);
     React.useEffect(()=>{if(!cutoffAdmin)return;loadOverdueCharges();const timer=setInterval(loadOverdueCharges,60000);window.addEventListener('focus',loadOverdueCharges);return()=>{clearInterval(timer);window.removeEventListener('focus',loadOverdueCharges)}},[profile?.id,cutoffAdmin]);
     React.useEffect(()=>{if(!foodAccess)return;loadFoodReplyAlerts();const timer=setInterval(loadFoodReplyAlerts,30000);window.addEventListener('focus',loadFoodReplyAlerts);return()=>{clearInterval(timer);window.removeEventListener('focus',loadFoodReplyAlerts)}},[profile?.id,foodAccess]);
@@ -8020,6 +8029,12 @@ https://samaraassistedliving.com/`;
           h('tbody',null,indentReceiptDue.map(a=>h('tr',{key:a.indent_id,role:'button',tabIndex:0,onClick:()=>openIndentReceipt(a),onKeyDown:e=>{if(e.key==='Enter')openIndentReceipt(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
             h('td',null,a.indent_ref||'—'),h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item_name||'—'),h('td',null,`${a.quantity??'—'} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),h('td',null,`${fmt(a.handed_over_at)}${a.handed_over_by_name?` · ${a.handed_over_by_name}`:''}`),h('td',null,h('span',{className:'badge',style:{background:'#ffe5e7',color:'#b2192d'}},overdueChargeMinutes(a.minutes))))),
             indentReceiptDue.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'Every handed-over indent has been received within 20 minutes.')):null)))):null,
+      indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Bills & Charges — Returned by Accounts'),h('small',null,roleKey==='nurse'?'Charge requests you raised that Accounts returned for correction. Tap one, then "Correct & Resubmit".':'Charge requests returned by Accounts and not yet corrected and resubmitted by Nursing (last 3 days).'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Guest','Room','Charge','Qty','Raised by','Returned','Reason'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,chargeReturns.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>navigate('Charge Approvals'),onKeyDown:e=>{if(e.key==='Enter')navigate('Charge Approvals')},style:{cursor:'pointer',touchAction:'manipulation'}},
+            h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item||'—'),h('td',null,`${a.quantity??1} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),
+            h('td',null,`${a.returned_at?fmt(a.returned_at):'—'}${a.returned_by_name?` · ${a.returned_by_name}`:''}`),h('td',null,a.reason||'—'))),
+            chargeReturns.length===0?h('tr',null,h('td',{colSpan:7,className:'empty'},'No returned charge requests waiting for correction.')):null)))):null,
       ioAlertAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Intake / Output Alerts'),h('small',null,'Guests on the fluid chart: low urine in the shift that just ended, or a big intake–output difference in the last full chart day (7 AM to 7 AM). Tap a row to open the chart.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Alert','Guest','Room','Chart date','Details'].map(x=>h('th',{key:x},x)))),
           h('tbody',null,ioAlerts.map(a=>h('tr',{key:a.alert_key,role:'button',tabIndex:0,onClick:()=>openIoAlert(a),onKeyDown:e=>{if(e.key==='Enter')openIoAlert(a)},style:{cursor:'pointer',touchAction:'manipulation'}},
@@ -8126,8 +8141,16 @@ https://samaraassistedliving.com/`;
           const now=new Date();
           jobs.push(client.from('spot_assessments').select('id,person_name,details').gte('details->>planned_admission',ymd(new Date(now.getTime()-86400000))).lte('details->>planned_admission',ymd(new Date(now.getTime()+2*86400000))).limit(50));
         }else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows]=await Promise.all(jobs);
+        // 2.18.148: charge request RETURNED by Accounts -> the nurse who raised it (SQL 301), hourly until resubmitted
+        if(isNursing)jobs.push(client.rpc('charge_return_alerts').then(r=>r,()=>({data:[],error:null})));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns]=await Promise.all(jobs);
+        const returnRows=(!chargeReturns?.error&&Array.isArray(chargeReturns?.data))?chargeReturns.data.filter(a=>a.audience==='nurse'):[];
         const candidates=[];
+        returnRows.forEach(a=>candidates.push({key:`charge-return-${a.request_id}-${Math.floor(Date.now()/3600000)}`,kind:'Bills & Charges',
+          title:`Charge returned by Accounts — ${a.guest_name||'Guest'}`,
+          detail:`${a.item||'Charge'} × ${a.quantity??1} ${a.unit||''}${a.room_label?` (${a.room_label})`:''} was returned${a.returned_by_name?` by ${a.returned_by_name}`:''}. Reason: ${a.reason||'not given'}. Open Bills & Charges and tap "Correct & Resubmit".`,
+          page:'Charge Approvals',urgent:true,at:a.returned_at}));
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
           if(['completed','closed','cancelled','canceled'].includes(status))return;
