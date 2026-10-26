@@ -59,6 +59,9 @@
         background:linear-gradient(145deg,#fff 0%,#fffafd 100%)!important;
         border-color:var(--samara-border)!important;
       }
+      /* 2.18.154: light pink gradient summary boxes (stronger than the white .card rule above) */
+      .card.samara-pink-stat{background:linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)!important;border:1px solid #efc3d6!important}
+      .card.samara-pink-stat.is-active{background:linear-gradient(135deg,#f8c9dc 0%,#fde3ee 55%,#fff4f8 100%)!important;border:1.5px solid #d97aa3!important}
       .dashboard-card::before,.metric-card::before,.accounts-workflow-card::before{
         background:linear-gradient(90deg,#7a1247 0%,#b01264 42%,#f36a4c 76%,#f6b72d 100%)!important;
       }

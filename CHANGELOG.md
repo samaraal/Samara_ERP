@@ -1,3 +1,6 @@
+## 2.18.154 — 26-10-2026 — Charge Register pink boxes (fix)
+- 2.18.153's pink fill did not show: the global theme forces every card white. New theme class `samara-pink-stat` (and `is-active` for the selected box) now gives the Charge Register boxes the light pink gradient; reusable for other dashboards.
+
 ## 2.18.153 — 26-10-2026 — Charge Register: pink gradient boxes
 - Charge Register summary boxes (All Charges, Pending, Approved, Returned, Approved Value) now have a light pink gradient fill; the selected box is a shade deeper with a pink border.
 

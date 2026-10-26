@@ -67,7 +67,7 @@
     const approvedValue=rows.filter(r=>['Approved','Partially Approved'].includes(statusOf(r)))
       .reduce((sum,r)=>sum+(Number(r.approved_amount??r.final_amount)||0),0);
 
-    const statCard=(label,value,active,onClick)=>h('button',{type:'button',className:'card stat',onClick,style:{
+    const statCard=(label,value,active,onClick)=>h('button',{type:'button',className:`card stat samara-pink-stat${active?' is-active':''}`,onClick,style:{
       textAlign:'left',cursor:'pointer',width:'100%',
       // 2.18.153: light pink gradient fill (screensaver / dashboard theme); the selected box is a shade deeper
       background:active?'linear-gradient(135deg,#f8c9dc 0%,#fde3ee 55%,#fff4f8 100%)':'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)',

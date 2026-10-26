@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.153';
+  const APP_VERSION = '2.18.154';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '26-Oct-2026 Charge Register: pink gradient boxes';
+  const APP_BUILD_DATE = '26-Oct-2026 Charge Register pink boxes (theme fix)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -644,6 +644,9 @@ function initSamaraInaugurationInvitation(){
         background:linear-gradient(145deg,#fff 0%,#fffafd 100%)!important;
         border-color:var(--samara-border)!important;
       }
+      /* 2.18.154: light pink gradient summary boxes (stronger than the white .card rule above) */
+      .card.samara-pink-stat{background:linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)!important;border:1px solid #efc3d6!important}
+      .card.samara-pink-stat.is-active{background:linear-gradient(135deg,#f8c9dc 0%,#fde3ee 55%,#fff4f8 100%)!important;border:1.5px solid #d97aa3!important}
       .dashboard-card::before,.metric-card::before,.accounts-workflow-card::before{
         background:linear-gradient(90deg,#7a1247 0%,#b01264 42%,#f36a4c 76%,#f6b72d 100%)!important;
       }
@@ -39689,7 +39692,7 @@ function RoomsBeds({profile,onNavigate}){
     const approvedValue=rows.filter(r=>['Approved','Partially Approved'].includes(statusOf(r)))
       .reduce((sum,r)=>sum+(Number(r.approved_amount??r.final_amount)||0),0);
 
-    const statCard=(label,value,active,onClick)=>h('button',{type:'button',className:'card stat',onClick,style:{
+    const statCard=(label,value,active,onClick)=>h('button',{type:'button',className:`card stat samara-pink-stat${active?' is-active':''}`,onClick,style:{
       textAlign:'left',cursor:'pointer',width:'100%',
       // 2.18.153: light pink gradient fill (screensaver / dashboard theme); the selected box is a shade deeper
       background:active?'linear-gradient(135deg,#f8c9dc 0%,#fde3ee 55%,#fff4f8 100%)':'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)',
