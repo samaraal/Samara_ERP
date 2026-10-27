@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.170';
+  const APP_VERSION = '2.18.171';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -27737,7 +27737,7 @@ Please keep these login details confidential.`;
   async function loadNurseSaverTasks(){
     const now=new Date();
     const win=nssShiftWindow(now);
-    const fields='id,title,full_name,room_no,bed_no,is_active,admission_status,admission_date,admission_time,created_at,updated_at,vitals_schedule,diet_plan';
+    const fields='id,title,full_name,room_no,bed_no,is_active,admission_status,admission_date,admission_time,created_at,updated_at,vitals_schedule,diet_plan,feeding_plan,feeding_instruction';
     const dayBefore=addDaysISODate(win.dates[0],-1);
     const [m,ml,c,cl,pr,pts,vs,mr]=await Promise.all([
       // 2.18.14: plain reads (no embedded Guest lookup) with a fallback; Guests are joined here from the Guest list.
@@ -27897,13 +27897,15 @@ Please keep these login details confidential.`;
         procCategory:r.category||''});
     });
 
+    // 2.18.171: tube-fed = Diet Plan says tube OR Feeding route is a tube route (NG / Ryles tube, PEG, NJ, Jejunostomy…).
+    function nssTubeFed(p){return /tube/i.test(String(p.diet_plan||''))||/(tube|peg|jejunostomy)/i.test(String(p.feeding_plan?.route||''))||/feeding route:[^\n]*(tube|peg|jejunostomy)/i.test(String(p.feeding_instruction||''))}
     // Meals — one box for all Guests not yet recorded. 2.18.82: meal PERIODS (any time within the period):
     // Breakfast 7:30–9:30 AM, Lunch 12:30–2:30 PM, Dinner 7:30–9:30 PM; overdue only after the period ends.
     const meals=mr.data||[];
     [['07:30','09:30','Breakfast','7:30–9:30 AM'],['12:30','14:30','Lunch','12:30–2:30 PM'],['19:30','21:30','Dinner','7:30–9:30 PM']].forEach(([t,end,label,period])=>{
       const slot=nssTimeAhead(win,t,now);if(!slot)return;
       const deadline=new Date(slot.at.getTime()+(Number(end.slice(0,2))*60+Number(end.slice(3,5))-Number(t.slice(0,2))*60-Number(t.slice(3,5)))*60000);
-      const eligible=guests.filter(p=>!/tube/i.test(String(p.diet_plan||''))&&clinicalSlotAfterAdmission(p,slot.date,end));
+      const eligible=guests.filter(p=>!nssTubeFed(p)&&clinicalSlotAfterAdmission(p,slot.date,end));
       const pending=eligible.filter(p=>!meals.some(r=>r.patient_id===p.id&&String(r.meal_date).slice(0,10)===slot.date&&nssMealKind(r.meal_type)===label));
       if(!eligible.length)return;
       tasks.push({kind:'care',group:'meal',mealLabel:label,pendingGuests:pending,at:slot.at,deadline,grace:0,patient:null,done:pending.length===0,nextShift:!!slot.next,

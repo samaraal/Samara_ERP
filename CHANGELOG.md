@@ -1,3 +1,8 @@
+## 2.18.171 — 27-10-2026 — No meal alerts for tube-fed Guests (Feeding route checked)
+- Meal Due alerts / escalations were skipped only when the Diet Plan said "tube" (e.g. "Tube feeding"). A Guest with Diet Plan "High-protein diet" and Feeding route "NG / Ryles tube" (Room 106) was still alerted.
+- Now a Guest is tube-fed if the Diet Plan says tube OR the Feeding route is NG / Ryles tube, PEG, NJ tube, Jejunostomy or Other tube. Applies to Clinical Alerts, escalations (phone / WhatsApp) and the nurse screensaver Meals box.
+- New SQL: supabase/sql/306_tube_feeding_no_meal_alerts.sql (also closes open Meal Due escalations for tube-fed Guests).
+
 ## 2.18.170 — 27-10-2026 — Net Profit Statement: SQL deployed + two corrections
 - SQL 305 is now run in Supabase (the statement and Monthly Expenses work).
 - Outside bills paid from Nursing Manager petty cash were counted twice (as petty cash and as outside bills) — now counted once, under outside bills.
