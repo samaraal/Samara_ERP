@@ -290,6 +290,89 @@ async function sendPosReceipt(slipId:string){
     return {sent:accepted,error:msg};
   }
 }
+// ── 2.18.172: AUTOMATIC WhatsApp receipt (+ PDF) for payments families make THEMSELVES in the Family Portal ──
+// The Family Portal posts the payment straight into the ledger (razorpay-verify-payment), with no payment request,
+// so until now no receipt went. Every ledger row paid "Razorpay Online" from the Family Portal now gets one receipt,
+// to every active family contact, tracked in ledger_payment_receipts (SQL 307): sent once, retried 3 times.
+const payIdOf=(t:string)=>(String(t||'').match(/pay_[A-Za-z0-9]+/)||[''])[0];
+async function sendLedgerReceipt(txId:string){
+  // claim: create the tracking row, or take over a Failed one (max 3 tries)
+  let claimed:any=null;
+  const ins=await admin.from('ledger_payment_receipts').insert({billing_transaction_id:txId,receipt_status:'Sending',receipt_tries:1,receipt_claimed_at:new Date().toISOString(),source:'Family Portal'}).select('*').maybeSingle();
+  if(!ins.error&&ins.data)claimed=ins.data;
+  else{
+    const {data:cur}=await admin.from('ledger_payment_receipts').select('receipt_tries').eq('billing_transaction_id',txId).maybeSingle();
+    const up=await admin.from('ledger_payment_receipts').update({receipt_status:'Sending',receipt_claimed_at:new Date().toISOString(),receipt_tries:(Number(cur?.receipt_tries)||0)+1})
+      .eq('billing_transaction_id',txId).eq('receipt_status','Failed').lt('receipt_tries',3).select('*').maybeSingle();
+    if(!up.error&&up.data)claimed=up.data;
+  }
+  if(!claimed)return {sent:0,skipped:true};
+  let accepted=0;const failures:string[]=[];let pdfNote='';const phones:string[]=[];
+  const done=async(patch:any)=>{await admin.from('ledger_payment_receipts').update({...patch,updated_at:new Date().toISOString()}).eq('billing_transaction_id',txId);};
+  try{
+    const {data:tx,error:txErr}=await admin.from('billing_transactions').select('id,patient_id,transaction_type,category,amount,transaction_date,recorded_at,description,payment_reference,entered_by').eq('id',txId).single();if(txErr)throw txErr;
+    const {data:patient,error:pErr}=await admin.from('patients').select('id,full_name,title,patient_id').eq('id',tx.patient_id).single();if(pErr)throw pErr;
+    const guest=[patient.title,patient.full_name].filter(Boolean).join(' ').trim()||'Guest';
+    const {data:fam}=await admin.from('family_portal_access').select('mobile,relative_name,primary_contact,created_at').eq('patient_id',tx.patient_id).eq('is_active',true).order('primary_contact',{ascending:false}).order('created_at',{ascending:true});
+    let targets=(fam||[]).map((r:any)=>({mobile:normalizePhone(r.mobile),name:String(r.relative_name||'').trim()||'Family Member'})).filter((r:any)=>validPhone(r.mobile));
+    if(!targets.length){const c=await findPayerContact(tx.patient_id);if(c)targets=[{mobile:c.mobile,name:c.name||('Family of '+guest)}];}
+    targets=targets.filter((t:any,i:number,a:any[])=>a.findIndex(x=>x.mobile===t.mobile)===i);
+    if(!targets.length){await done({receipt_status:'Failed',receipt_tries:3,receipt_error:'No valid family WhatsApp number for this Guest.'});return {sent:0,error:'No valid family WhatsApp number for this Guest.'};}
+    const amount=Number(tx.amount);
+    const paymentId=String(tx.payment_reference||'')||payIdOf(tx.description);
+    const receiptNo='FP-'+(paymentId?paymentId.replace(/^pay_/,'').slice(0,10).toUpperCase():String(tx.id).slice(0,8).toUpperCase());
+    const mode='Razorpay (Online) - Family Portal';
+    const reference=`${receiptNo} / ${paymentId||'Razorpay'}`;
+    const paidAt=tx.transaction_date||tx.recorded_at;
+    const towards=tx.transaction_type==='Advance'?'Advance':'Outstanding payment';
+    const category=String(tx.category||(tx.transaction_type==='Advance'?'Online Advance':'Online Payment'));
+    const token=env('WHATSAPP_ACCESS_TOKEN'),sender=env('WHATSAPP_PHONE_NUMBER_ID');if(!token||!sender)throw new Error('Samara WhatsApp service is not configured.');
+    let mediaId:string|null=null,filename='',bytes:Uint8Array|null=null,storedPath:string|null=null;
+    try{
+      const {data:all}=await admin.from('billing_transactions').select('transaction_type,amount').eq('patient_id',tx.patient_id);
+      const bal=Math.round((all||[]).reduce((v:number,x:any)=>v+(x.transaction_type==='Charge'?Number(x.amount||0):x.transaction_type==='Refund'?Number(x.amount||0):['Payment','Advance','Discount'].includes(x.transaction_type)?-Number(x.amount||0):0),0)*100)/100;
+      const balanceLine=bal>0?'Balance due INR '+inr(bal):bal<0?'Advance held INR '+inr(-bal):'Account settled - no balance due';
+      bytes=await guestReceiptPdf({receiptNo,date:istDate(paidAt),from:targets[0].name,guest:`${guest}${patient.patient_id?' ('+patient.patient_id+')':''}`,towards,
+        mode:'Razorpay (Online) via Family Portal - verified',paymentId:paymentId||'-',amount:inr(amount),words:inWords(amount),balanceLine});
+      filename=`Samara-Receipt-${receiptNo}.pdf`;
+      const form=new FormData();form.append('messaging_product','whatsapp');form.append('type','application/pdf');form.append('file',new Blob([bytes as any],{type:'application/pdf'}),filename);
+      const up=await fetch(`https://graph.facebook.com/v25.0/${sender}/media`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:form});const uj:any=await up.json().catch(()=>({}));
+      if(up.ok&&uj.id)mediaId=uj.id;else pdfNote='Receipt PDF upload to WhatsApp failed.';
+      try{const path=`outgoing/family-portal-payments/receipts/${tx.id}/${filename}`;const st=await admin.storage.from('whatsapp-media').upload(path,bytes,{contentType:'application/pdf',upsert:true});if(!st.error)storedPath=path;}catch{}
+    }catch(e){pdfNote='Receipt PDF could not be prepared: '+String((e as any)?.message||e).slice(0,120);}
+    for(const t of targets){
+      const to=t.mobile.replace(/\D/g,'');
+      const values=[t.name.slice(0,80),inr(amount),guest,istDate(paidAt),reference,mode];
+      const bodyCmp={type:'body',parameters:values.map(text=>({type:'text',text}))};
+      let sent:any=null,route='';
+      if(mediaId){
+        const r=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_PDF_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'document',document:{id:mediaId,filename}}]},bodyCmp]}});
+        if(r.ok){sent=r;route='Receipt with PDF (template)';}else if(!TEMPLATE_NOT_READY.includes(r.code)){failures.push(`${t.name}: ${r.error||'WhatsApp did not accept the receipt.'}`);continue;}
+      }
+      if(!sent){
+        const r=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'template',template:{name:RECEIPT_TEMPLATE,language:{code:'en'},components:[{type:'header',parameters:[{type:'image',image:{link:env('WHATSAPP_HEADER_IMAGE_URL')||'https://samaraassistedliving.com/assets/samara-whatsapp-logo.png'}}]},bodyCmp]}});
+        if(!r.ok){failures.push(`${t.name}: ${r.error||'WhatsApp did not accept the receipt.'}`);continue;}
+        sent=r;route='Receipt message';
+        if(mediaId){const d2=await waSend(token,sender,{messaging_product:'whatsapp',recipient_type:'individual',to,type:'document',document:{id:mediaId,filename,caption:`Samara payment receipt ${receiptNo}`}});
+          if(d2.ok)route='Receipt message + PDF';else pdfNote='PDF not attached: WhatsApp did not accept the PDF document.';}
+      }
+      accepted++;phones.push(to);
+      const now=new Date().toISOString();
+      await admin.from('hr_whatsapp_communications').upsert({recipient_number:to,template_name:route==='Receipt with PDF (template)'?RECEIPT_PDF_TEMPLATE:RECEIPT_TEMPLATE,communication_type:'Payment Receipt · Family Portal (automatic)',direction:'outbound',message_type:'template',status:'Accepted',provider_message_id:sent.id,
+        message_content:`Dear ${values[0]},\n\nThank you. We confirm receipt of ₹${values[1]} towards the account of ${values[2]} on ${values[3]}.\n\nReceipt No.: ${values[4]}\nPayment Mode: ${values[5]}`,
+        message_payload:{patient_id:tx.patient_id,patient_name:guest,category,amount,reference,payment_mode:'Razorpay Online',billing_transaction_id:tx.id,body_params:values,automatic:true,route,pdf_note:pdfNote||null,...(storedPath?{_samara_media:{bucket:'whatsapp-media',path:storedPath,filename,mime_type:'application/pdf',size:bytes?.length||0,meta_media_id:mediaId}}:{})},
+        contact_name:values[0],source_type:'Patient / Family · Accounts',sent_by:tx.entered_by||null,sent_by_name:'Accounts · Automated',sent_at:now,created_at:now,updated_at:now},{onConflict:'provider_message_id',ignoreDuplicates:true});
+    }
+    if(!accepted){await done({receipt_status:'Failed',receipt_error:(failures.join(' | ')||'WhatsApp did not accept the receipt.').slice(0,300)});return {sent:0,error:failures.join(' | ')};}
+    const note=[pdfNote,failures.length?`${failures.length} contact(s) failed: ${failures.join(' | ')}`:''].filter(Boolean).join(' ');
+    await done({receipt_status:'Sent',receipt_sent_at:new Date().toISOString(),receipt_phone:phones.join(', '),receipt_no:receiptNo,receipt_error:note.slice(0,300)||null});
+    return {sent:accepted,failures,pdf_note:pdfNote||null};
+  }catch(e){
+    const msg=String((e as any)?.message||e).slice(0,300);
+    await done({receipt_status:accepted?'Sent':'Failed',receipt_error:msg});
+    return {sent:accepted,error:msg};
+  }
+}
 async function autoReceipt(requestId:string){try{await sendGuestReceipt(requestId);}catch(e){console.error('auto receipt',e);}}
 // Every 2 minutes (SQL 269): record Guest payments of pending links / QRs (even if nobody has the ERP open) + send any receipt not yet sent.
 async function cronSweep(){
@@ -318,7 +401,23 @@ async function cronSweep(){
     if(u.receipt_status==='Failed'&&u.receipt_claimed_at&&Date.now()-new Date(u.receipt_claimed_at).getTime()<10*60*1000)continue;
     if((await sendPosReceipt(u.id)).sent)posSent++;
   }
-  return {checked,posted,failures,receipts_sent:sent,pos_receipts_sent:posSent};
+  // 2.18.172: Family Portal payments (posted straight to the ledger) — receipt within 2 minutes, retried after 10 minutes, 3 tries.
+  let portalSent=0;
+  const {data:settings}=await admin.from('ledger_receipt_settings').select('family_portal_from').eq('id',1).maybeSingle();
+  if(settings?.family_portal_from){
+    const from=new Date(Math.max(new Date(settings.family_portal_from).getTime(),Date.now()-3*24*60*60*1000)).toISOString();
+    const {data:paid}=await admin.from('billing_transactions').select('id,recorded_at,transaction_date').eq('payment_mode','Razorpay Online').in('transaction_type',['Payment','Advance']).ilike('description','Family Portal%').gte('transaction_date',from).order('transaction_date',{ascending:true}).limit(30);
+    const ids=(paid||[]).map((x:any)=>x.id);
+    const {data:track}=ids.length?await admin.from('ledger_payment_receipts').select('billing_transaction_id,receipt_status,receipt_tries,receipt_claimed_at').in('billing_transaction_id',ids):{data:[]};
+    const byId=new Map((track||[]).map((x:any)=>[x.billing_transaction_id,x]));
+    for(const p of paid||[]){
+      const t:any=byId.get(p.id);
+      if(t&&(t.receipt_status!=='Failed'||Number(t.receipt_tries)>=3))continue;
+      if(t&&t.receipt_claimed_at&&Date.now()-new Date(t.receipt_claimed_at).getTime()<10*60*1000)continue;
+      if((await sendLedgerReceipt(p.id)).sent)portalSent++;
+    }
+  }
+  return {checked,posted,failures,receipts_sent:sent,pos_receipts_sent:posSent,family_portal_receipts_sent:portalSent};
 }
 
 Deno.serve(async req=>{

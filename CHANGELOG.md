@@ -1,3 +1,10 @@
+## 2.18.172 — 27-10-2026 — Family Portal payments get the automatic WhatsApp receipt; Admin alert if any receipt fails
+- Payments families make themselves in the Family Portal (Razorpay) were posted to the ledger but never got the automatic WhatsApp receipt (only staff payment links / QR, swipe machine and Outside Nursing had it). Now every Family Portal payment gets the receipt + PDF within about 2 minutes, to every active family contact, retried 3 times. Today's ₹25,000 advance is included; older ones are not re-sent.
+- New Admin / Director pop-up: "N payment receipts not sent on WhatsApp" — any route (Family Portal, payment link / QR, swipe machine) that failed 3 times, got stuck, or was never attempted within 15 minutes (e.g. the background job stopped). No manual cross-checking needed: if nothing pops up, every receipt went.
+- Bills & Charges "not attended by Accounts" pop-up: never left on screen when its 30-second re-check fails.
+- Bills & Charges WhatsApp escalation to Admin / Director switched ON (template samara_billing_escalation is approved; it had been left off).
+- New SQL: supabase/sql/307_family_portal_auto_receipt.sql · Edge Function staff-payment-request updated.
+
 ## 2.18.171 — 27-10-2026 — No meal alerts for tube-fed Guests (Feeding route checked)
 - Meal Due alerts / escalations were skipped only when the Diet Plan said "tube" (e.g. "Tube feeding"). A Guest with Diet Plan "High-protein diet" and Feeding route "NG / Ryles tube" (Room 106) was still alerted.
 - Now a Guest is tube-fed if the Diet Plan says tube OR the Feeding route is NG / Ryles tube, PEG, NJ tube, Jejunostomy or Other tube. Applies to Clinical Alerts, escalations (phone / WhatsApp) and the nurse screensaver Meals box.

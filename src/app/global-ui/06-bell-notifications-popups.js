@@ -416,9 +416,20 @@
         // 2.18.148: charge request RETURNED by Accounts -> the nurse who raised it (SQL 301), hourly until resubmitted
         if(isNursing)jobs.push(client.rpc('charge_return_alerts').then(r=>r,()=>({data:[],error:null})));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns]=await Promise.all(jobs);
+        // 2.18.172: an automatic WhatsApp payment receipt that did not go (any route) -> Admin / Director (SQL 307)
+        if(foodAdmin)jobs.push(client.rpc('payment_receipt_problems').then(r=>r,()=>({data:[],error:null})));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns,receiptProblems]=await Promise.all(jobs);
         const returnRows=(!chargeReturns?.error&&Array.isArray(chargeReturns?.data))?chargeReturns.data.filter(a=>a.audience==='nurse'):[];
         const candidates=[];
+        const receiptRows=(!receiptProblems?.error&&Array.isArray(receiptProblems?.data))?receiptProblems.data:[];
+        if(receiptRows.length){
+          const lines=receiptRows.slice(0,4).map(a=>`${a.guest_name||'Guest'}: ₹${Number(a.amount||0).toLocaleString('en-IN')} (${a.route}, ${formatDateIN(a.paid_at)}) — ${String(a.problem||'').slice(0,140)}`).join('; ');
+          candidates.push({key:`receipt-problem-${receiptRows.map(a=>a.ref_id).join('-').slice(0,120)}-${Math.floor(Date.now()/3600000)}`,kind:'Payment Receipt',
+            title:`${receiptRows.length} payment receipt${receiptRows.length===1?'':'s'} not sent on WhatsApp`,
+            detail:`${lines}${receiptRows.length>4?`; + ${receiptRows.length-4} more`:''}. Please send the receipt from Accounts and check the family's WhatsApp number.`,
+            page:'Accounts Dashboard',urgent:true,at:receiptRows[0].paid_at});
+        }
         returnRows.forEach(a=>candidates.push({key:`charge-return-${a.request_id}-${Math.floor(Date.now()/3600000)}`,kind:'Bills & Charges',
           title:`Charge returned by Accounts — ${a.guest_name||'Guest'}`,
           detail:`${a.item||'Charge'} × ${a.quantity??1} ${a.unit||''}${a.room_label?` (${a.room_label})`:''} was returned${a.returned_by_name?` by ${a.returned_by_name}`:''}. Reason: ${a.reason||'not given'}. Open Bills & Charges and tap "Correct & Resubmit".`,
@@ -517,7 +528,7 @@
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
-      }catch(error){console.warn('Workflow action pop-up unavailable:',error)}
+      }catch(error){console.warn('Workflow action pop-up unavailable:',error);/* 2.18.172: never keep an old 'not attended' count on screen when the re-check failed */setItem(cur=>cur&&/^charge-overdue-/.test(String(cur.key||''))?null:cur)}
     },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash,spotPrep]);
     React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
     if(!item||(item.food&&!foodManager))return null;
