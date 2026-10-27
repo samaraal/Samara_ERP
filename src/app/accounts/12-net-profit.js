@@ -3,7 +3,7 @@
   // Expenses = every ERP source (stock receipts, food vendor, kitchen, petty cash, outsourced physio, outside bills)
   // + Monthly Expenses entered here (salaries paid, rent, electricity …). Equipment purchases count in full
   // in the month bought, on their own line: Operating Profit (before equipment) and Net Profit (after).
-  const NP_HEADS=['Salaries','Rent','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
+  const NP_HEADS=['Salaries','Daily Wages','Rent','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
   const NP_MODES=['Cash','UPI','Bank Transfer','Cheque','Card'];
   const npMoney=v=>`₹${(Number(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const npMonthStart=iso=>`${String(iso).slice(0,7)}-01`;
@@ -131,6 +131,7 @@
   // Tamil / English voice fills the form. Page opens on boxes; each box opens its section with "← Back".
   const EXP_BILL_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
   const EXP_HEAD_WORDS=[
+    ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|helper|கூலி|சம்பளம் நாள்)/i],
     ['Electricity',/(electric|current|eb bill|tneb|power bill|கரண்ட்|மின்)/i],['Water',/(water|tanker|can water|தண்ணீர்)/i],
     ['Rent',/(rent|வாடகை)/i],['Internet & Phone',/(internet|wifi|wi-fi|broadband|phone bill|recharge|mobile bill|airtel|jio)/i],
     ['Maintenance & Repairs',/(repair|maintenance|plumb|electrician|carpenter|paint|ac service|fix)/i],
@@ -414,9 +415,9 @@
       panel==='record'&&h(Section,{title:'Record an expense',subtitle:'Fill it the moment you spend. A bill photo is needed — or tick "No bill" and say why.'},
         h('form',{onSubmit:save,style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'12px',alignItems:'end'}},
           h(ExpenseVoice,{onResult:v=>setForm(fm=>({...fm,...Object.fromEntries(Object.entries(v).filter(([,x])=>x))}))}),
-          f('Amount (₹) *',h('input',{type:'number',inputMode:'decimal',min:'0.01',step:'0.01',value:form.amount,onChange:e=>setForm({...form,amount:e.target.value}),required:true,style:{fontSize:'18px',fontWeight:700}})),
+          f('Amount (₹)',h('input',{type:'number',inputMode:'decimal',min:'0.01',step:'0.01',value:form.amount,onChange:e=>setForm({...form,amount:e.target.value}),required:true,style:{fontSize:'18px',fontWeight:700}})),
           f('Expense Head *',h('select',{value:form.head,onChange:e=>setForm({...form,head:e.target.value})},NP_HEADS.filter(x=>x!=='Salaries').map(x=>h('option',{key:x},x)))),
-          f('Date *',h(StrictDateInput,{value:form.date,min:'2026-08-27',max:today,onChange:e=>setForm({...form,date:e.target.value}),required:true})),
+          f('Date',h(StrictDateInput,{value:form.date,min:'2026-08-27',max:today,onChange:e=>setForm({...form,date:e.target.value}),required:true})),
           f('Paid By',h('select',{value:form.mode,onChange:e=>setForm({...form,mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x)))),
           f('Paid To',h('input',{value:form.paid_to,onChange:e=>setForm({...form,paid_to:e.target.value}),placeholder:'e.g. TNEB, plumber, shop name'})),
           f('Bill / Reference No.',h('input',{value:form.reference,onChange:e=>setForm({...form,reference:e.target.value}),placeholder:'optional'})),

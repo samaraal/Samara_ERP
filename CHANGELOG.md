@@ -1,3 +1,7 @@
+## 2.18.181 — 27-10-2026 — Expenses: "Daily Wages" head
+- Expense Head now has **Daily Wages** (for day-wage workers / helpers paid by the day); the voice entry recognises "daily wages", "coolie", "கூலி". Shown as its own line in the Net Profit Statement.
+- Record Expense: removed the double "* *" on Amount and Date.
+
 ## 2.18.180 — 27-10-2026 — Back goes to the previous step, not the main dashboard
 - New shared step-by-step Back: on pages with sections, every Back (the page's "← Back", the top "‹ Back", the floating Back and the phone back button) goes back ONE level, and leaves the page only from its first view.
 - Expenses: pay sheet → Payroll employee list → Expenses boxes; expense entry → list → boxes.
