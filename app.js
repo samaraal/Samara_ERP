@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.174';
+  const APP_VERSION = '2.18.175';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -44976,6 +44976,10 @@ function ShiftHandover({profile,onNavigate}){
       return()=>{cancelled=true;client.removeChannel(ch)};
     },[]);
     const [rows,setRows]=React.useState([]);
+    // 2.18.175: Guest-wise pending payments read the WHOLE ledger (the list above is limited to the latest 1,000 entries)
+    const [ledgerAll,setLedgerAll]=React.useState({loading:true,rows:[],error:''});
+    const [openGuest,setOpenGuest]=React.useState('');
+    const [openGuestAll,setOpenGuestAll]=React.useState(false);
     const [patientLedger,setPatientLedger]=React.useState({patientId:null,rows:[],loading:true,error:''});
     const [loading,setLoading]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
@@ -45399,6 +45403,38 @@ function ShiftHandover({profile,onNavigate}){
     const pendingBills=Math.max(0,netPayable);
     const advanceBalance=Math.max(0,-netPayable);
 
+    React.useEffect(()=>{
+      let cancelled=false;
+      (async()=>{
+        try{
+          const all=[];
+          for(let from=0;from<200000;from+=1000){
+            const {data,error}=await client.from('billing_transactions')
+              .select('id,patient_id,transaction_type,category,amount,description,transaction_date,patients(full_name,title,patient_id,room_no,bed_no,is_active)')
+              .order('transaction_date',{ascending:true}).order('id',{ascending:true}).range(from,from+999);
+            if(error)throw error;
+            all.push(...(data||[]));
+            if(!data||data.length<1000)break;
+          }
+          if(!cancelled)setLedgerAll({loading:false,rows:all,error:''});
+        }catch(error){if(!cancelled)setLedgerAll({loading:false,rows:[],error:error.message||'Guest balances could not be loaded.'})}
+      })();
+      return()=>{cancelled=true};
+    },[rows]);
+    const guestPending=(()=>{
+      const grouped={};
+      (ledgerAll.rows||[]).forEach(row=>{
+        const id=row.patient_id||'';if(!id)return;
+        const amount=Number(row.amount||0),type=String(row.transaction_type||'Charge');
+        const g=grouped[id]||(grouped[id]={patient_id:id,patient:row.patients||{},charges:0,paid:0,discount:0,refund:0,balance:0,cats:{},charges_list:[],money_list:[]});
+        if(type==='Charge'){g.charges+=amount;const c=String(row.category||'Other charges').trim()||'Other charges';(g.cats[c]=g.cats[c]||{amount:0,count:0});g.cats[c].amount+=amount;g.cats[c].count++;g.charges_list.push(row);}
+        else if(type==='Payment'||type==='Advance'){g.paid+=amount;g.money_list.push(row);}
+        else if(type==='Discount'){g.discount+=amount;g.money_list.push(row);}
+        else if(type==='Refund'){g.refund+=amount;g.money_list.push(row);}
+      });
+      return Object.values(grouped).map(g=>({...g,balance:Math.round((g.charges-g.paid-g.discount+g.refund)*100)/100}))
+        .filter(g=>g.balance>0.009).sort((a,b)=>b.balance-a.balance);
+    })();
     const outstandingByPatient=(()=>{
       const grouped={};
       rows.forEach(row=>{
@@ -45411,7 +45447,8 @@ function ShiftHandover({profile,onNavigate}){
         else if(type==='Payment'||type==='Advance'||type==='Discount')grouped[id].balance-=amount;
         else if(type==='Refund')grouped[id].balance+=amount;
       });
-      return Object.values(grouped).filter(x=>x.balance>0.009).sort((a,b)=>b.balance-a.balance);
+      const limited=Object.values(grouped).filter(x=>x.balance>0.009).sort((a,b)=>b.balance-a.balance);
+      return ledgerAll.loading||ledgerAll.error?limited:guestPending.map(g=>({patient_id:g.patient_id,patient:g.patient,balance:g.balance}));
     })();
 
     React.useEffect(()=>{
@@ -46180,7 +46217,8 @@ Please access the Samara Family Portal for detailed account information.`;
       ['Payments Received',totals.Payment,'summary-green'],
       ['Advance Receipts',totals.Advance,'summary-blue'],
       ['Discounts',totals.Discount,'summary-pink'],
-      ['Pending Bills',pendingBills,pendingBills>0?'summary-red':'summary-green'],
+      // 2.18.175: all Guests -> sum of every Guest's pending balance from the whole ledger
+      (()=>{const v=!patientFilter&&!ledgerAll.loading&&!ledgerAll.error?Math.round(guestPending.reduce((t,g)=>t+g.balance,0)*100)/100:pendingBills;return ['Pending Payments',v,v>0?'summary-red':'summary-green']})(),
       [balanceLabel,balanceDisplay,balanceTone,'signed']
     ];
 
@@ -46241,12 +46279,12 @@ Please access the Samara Family Portal for detailed account information.`;
             h('label',null,'Quick View'),
             h('select',{value:quickView,onChange:e=>setQuickView(e.target.value)},
               ['Pending Bills','Payments / Advances','Discounts','Refunds','Complete Transaction History']
-                .map(option=>h('option',{key:option,value:option},option))
+                .map(option=>h('option',{key:option,value:option},option==='Pending Bills'?'Pending Payments (Guest-wise)':option))
             )
           )
         ),
         h('div',{className:'payment-quick-buttons'},
-          h('button',{type:'button',className:'btn btn-primary',onClick:()=>setQuickView('Pending Bills')},'Pending Bills as on Date'),
+          h('button',{type:'button',className:'btn btn-primary',onClick:()=>setQuickView('Pending Bills')},'Pending Payments (Guest-wise)'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setQuickView('Complete Transaction History')},'Complete Transaction History'),
           patientFilter&&pendingBills>0&&h(React.Fragment,null,
             h('button',{
@@ -46521,6 +46559,62 @@ Please access the Samara Family Portal for detailed account information.`;
         ])
       }),
 
+      quickView==='Pending Bills'?(()=>{
+        // 2.18.175: Pending Payments — one row per Guest, highest balance first; tap a row for the full breakdown
+        const list=patientFilter?guestPending.filter(g=>g.patient_id===patientFilter):guestPending;
+        const total=list.reduce((v,g)=>v+g.balance,0);
+        const nameOf=g=>formalName(g.patient||{})||g.patient?.full_name||'Guest';
+        const roomOf=g=>g.patient?.room_no?`${g.patient.room_no}${g.patient.bed_no?'-'+g.patient.bed_no:''}`:'—';
+        const cell={padding:'10px 12px',borderBottom:'1px solid #f3d6e4',textAlign:'left',verticalAlign:'top'};
+        const num={...cell,textAlign:'right',whiteSpace:'nowrap'};
+        return h('div',{className:'section-card',style:{marginTop:'14px'}},
+          h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',flexWrap:'wrap',gap:'8px'}},
+            h('div',null,h('h3',{style:{margin:0}},`Pending Payments (${list.length} Guest${list.length===1?'':'s'})`),
+              h('small',{style:{color:'#8a5a70'}},'Amount each Guest still has to pay, highest first. Tap a Guest to see what it is made of.')),
+            h('strong',{style:{color:'#b42318',fontSize:'18px'}},`Total pending ${money(total)}`)),
+          ledgerAll.loading?h('p',null,'Loading Guest balances…'):ledgerAll.error?h('div',{className:'message error'},ledgerAll.error):
+          !list.length?h('p',{style:{color:'#2e7d4f',fontWeight:700}},'✓ No pending payments — every Guest account is settled or in advance.'):
+          h('div',{className:'table-wrap'},h('table',{className:'table',style:{width:'100%'}},
+            h('thead',null,h('tr',null,['S.No','Guest','Room','Total Charges','Paid / Advance','Discount','Pending'].map((x,i)=>h('th',{key:x,style:i>=3?{textAlign:'right'}:{}},x)))),
+            h('tbody',null,...list.flatMap((g,i)=>{
+              const open=openGuest===g.patient_id;
+              const main=h('tr',{key:g.patient_id,style:{cursor:'pointer',background:open?'#fde7f1':undefined},onClick:()=>{setOpenGuest(open?'':g.patient_id);setOpenGuestAll(false)}},
+                h('td',{style:cell},String(i+1)),
+                h('td',{style:cell},h('strong',null,nameOf(g)),h('small',{style:{display:'block',color:'#8a5a70'}},`${g.patient?.patient_id||''}${g.patient?.is_active===false?' · Discharged':''}`)),
+                h('td',{style:cell},roomOf(g)),
+                h('td',{style:num},money(g.charges)),
+                h('td',{style:num},money(g.paid)),
+                h('td',{style:num},g.discount?money(g.discount):'—'),
+                h('td',{style:{...num,color:'#b42318',fontWeight:800,fontSize:'15px'}},money(g.balance),h('span',{style:{marginLeft:'6px',color:'#b01867'}},open?'▲':'▼')));
+              if(!open)return [main];
+              const cats=Object.entries(g.cats).sort((a,b)=>b[1].amount-a[1].amount);
+              const items=g.charges_list.slice().sort((a,b)=>String(b.transaction_date).localeCompare(String(a.transaction_date)));
+              const shown=openGuestAll?items:items.slice(0,15);
+              const detail=h('tr',{key:g.patient_id+'-d'},h('td',{colSpan:7,style:{background:'#fff7fb',padding:'14px 16px',borderBottom:'2px solid #f3c2d8'}},
+                h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'14px'}},
+                  h('div',null,h('h4',{style:{margin:'0 0 6px'}},'Charges by type'),
+                    h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px'}},h('tbody',null,
+                      ...cats.map(([c,v])=>h('tr',{key:c},h('td',{style:{padding:'4px 0'}},c),h('td',{style:{padding:'4px 0',color:'#8a5a70'}},`${v.count} entr${v.count===1?'y':'ies'}`),h('td',{style:{padding:'4px 0',textAlign:'right'}},money(v.amount)))),
+                      h('tr',null,h('td',{colSpan:2,style:{padding:'6px 0',borderTop:'1px solid #f3d6e4',fontWeight:700}},'Total charges'),h('td',{style:{padding:'6px 0',borderTop:'1px solid #f3d6e4',textAlign:'right',fontWeight:700}},money(g.charges))),
+                      h('tr',null,h('td',{colSpan:2,style:{padding:'4px 0'}},'Less: Paid / Advance'),h('td',{style:{padding:'4px 0',textAlign:'right'}},'− '+money(g.paid))),
+                      g.discount?h('tr',null,h('td',{colSpan:2,style:{padding:'4px 0'}},'Less: Discount'),h('td',{style:{padding:'4px 0',textAlign:'right'}},'− '+money(g.discount))):null,
+                      g.refund?h('tr',null,h('td',{colSpan:2,style:{padding:'4px 0'}},'Add: Refund given'),h('td',{style:{padding:'4px 0',textAlign:'right'}},'+ '+money(g.refund))):null,
+                      h('tr',null,h('td',{colSpan:2,style:{padding:'6px 0',borderTop:'2px solid #b01867',fontWeight:800,color:'#b42318'}},'Pending'),h('td',{style:{padding:'6px 0',borderTop:'2px solid #b01867',textAlign:'right',fontWeight:800,color:'#b42318'}},money(g.balance)))))),
+                  h('div',null,h('h4',{style:{margin:'0 0 6px'}},'Payments received'),
+                    !g.money_list.length?h('p',{style:{margin:0,color:'#8a5a70'}},'No payment yet.'):
+                    h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px'}},h('tbody',null,
+                      ...g.money_list.slice().reverse().map(r=>h('tr',{key:r.id},h('td',{style:{padding:'4px 0'}},formatDateIN(r.transaction_date)),h('td',{style:{padding:'4px 0'}},`${r.transaction_type}${r.category&&r.category!==r.transaction_type?' · '+r.category:''}`),h('td',{style:{padding:'4px 0',textAlign:'right'}},money(r.amount)))))),
+                    h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
+                      h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();choosePaymentPatient(g.patient_id);setForm(current=>({...current,patient_id:g.patient_id,transaction_type:'Payment',amount:String(g.balance)}));window.scrollTo({top:0,behavior:'smooth'})}},`Receive ${money(g.balance)}`)))),
+                h('h4',{style:{margin:'14px 0 6px'}},`Charge entries (${items.length})`),
+                h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}},
+                  h('thead',null,h('tr',null,['Date','Type','Item','Amount'].map((x,i)=>h('th',{key:x,style:{textAlign:i===3?'right':'left',padding:'4px 6px',color:'#7a1247'}},x)))),
+                  h('tbody',null,...shown.map(r=>{const d=String(r.description||'').split(' · ')[0];return h('tr',{key:r.id},h('td',{style:{padding:'3px 6px',whiteSpace:'nowrap'}},formatDateIN(r.transaction_date)),h('td',{style:{padding:'3px 6px'}},r.category||'—'),h('td',{style:{padding:'3px 6px'},title:r.description||''},d.length>80?d.slice(0,80)+'…':d||'—'),h('td',{style:{padding:'3px 6px',textAlign:'right',whiteSpace:'nowrap'}},money(r.amount)))}))),
+                items.length>15?h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:e=>{e.stopPropagation();setOpenGuestAll(!openGuestAll)}},openGuestAll?'Show latest 15 only':`Show all ${items.length} entries`):null));
+              return [main,detail];
+            }))
+          )));
+      })():
       h(LogTable,{
         title:quickView==='Complete Transaction History'
           ?'Complete Transaction History'

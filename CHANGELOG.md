@@ -1,3 +1,8 @@
+## 2.18.175 — 27-10-2026 — "Pending Payments (Guest-wise)" replaces the Pending Bills list
+- Guest Payments / Receipts: the "Pending Bills" view (a copy of all charges raised) is replaced by **Pending Payments (Guest-wise)** — S.No, Guest, Room, Total Charges, Paid / Advance, Discount, Pending — highest pending first, with the total pending on top.
+- Tap a Guest: charges by type (Room Charges, Nursing Procedures, Consumables, Pharmacy & Basic Supplies, Physiotherapy…) with entries and amounts, less payments / discounts = Pending; payments received; the charge entries (latest 15, "Show all"); and a "Receive ₹…" button that fills the payment form for that Guest.
+- Balances now come from the WHOLE ledger (the page list reads only the latest 1,000 entries, which a full house reaches in weeks); the "Pending Payments" box and the Accounts Dashboard Outstanding list use the same figures.
+
 ## 2.18.174 — 27-10-2026 — One "Send Receipt" button, at the start of every payment row (no sideways scrolling)
 - Guest Payments / Receipts → Payments / Advances (and Complete Transaction History): "📩 Send Receipt" is now the FIRST column; fewer, shorter columns (Type + Category joined, long descriptions shortened — full text on hover), so staff see it without scrolling right.
 - Accounts Reports → Payment Report: the same "📩 Send Receipt" button first in each Payment / Advance row (Outside Nursing has its own receipts).
