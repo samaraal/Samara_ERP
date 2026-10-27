@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.182';
+  const APP_VERSION = '2.18.183';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14372,13 +14372,10 @@ https://samaraassistedliving.com/`;
     const [posScanToken,setPosScanToken]=React.useState(()=>{try{return new URLSearchParams(window.location.search).get('pos_scan')||''}catch(_){return ''}});
     const [profile,setProfile]=React.useState(null);
     // 2.18.43: Nursing Manager "Switch to Nurse" — same login and employee record, nurse screens; manager alerts stay on.
-    const NURSE_MODE_KEY='samara_nurse_mode_v1';
-    const [nurseMode,setNurseModeState]=React.useState(()=>{try{return localStorage.getItem(NURSE_MODE_KEY)||''}catch(_){return ''}});
-    const setNurseMode=value=>{setNurseModeState(value);try{value?localStorage.setItem(NURSE_MODE_KEY,value):localStorage.removeItem(NURSE_MODE_KEY)}catch(_){}};
     const anyRoleNavRef=React.useRef(next=>setPage(next));
     // 2.18.44: exact Nurse login — role/designation of a Staff Nurse and none of her personal extra menus.
     const toNurseView=p=>({...p,role:'Nurse',designation:'Staff Nurse',department:'Nursing',__nurseMode:{role:p.role,designation:p.designation,department:p.department},__kitchen:undefined,__foodVendor:undefined,__paymentsTrial:undefined,__dutyContext:undefined});
-    const nurseModeOn=p=>Boolean(p)&&isNursingManagerProfile(p)&&(p.nurse_mode_on===undefined?nurseMode===String(p.id):p.nurse_mode_on===true);
+    const nurseModeOn=p=>Boolean(p)&&isNursingManagerProfile(p)&&p.nurse_mode_on===true;
     const engineProfile=nurseModeOn(profile)?toNurseView(profile):profile;
     React.useEffect(()=>{try{SamaraLang.init(profile||{})}catch(_){}},[profile?.id,profile?.role,profile?.ui_language]); // 2.15.70: EN | தமிழ்
     const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
@@ -15082,14 +15079,12 @@ https://samaraassistedliving.com/`;
 
     const realProfile=profile;
     const canNurseMode=isNursingManagerProfile(realProfile);
-    // Server flag (SQL 259) is the source of truth; before that SQL is run, the switch is screens-only (this device).
+    // Only show Nurse mode after the server confirms the same permission mode.
     const nurseOn=nurseModeOn(realProfile);
     const applyNurseMode=async turnOn=>{
-      const {error}=await client.rpc('set_nurse_mode',{p_on:turnOn});
-      const missing=error&&(error.code==='PGRST202'||/set_nurse_mode|could not find the function/i.test(String(error.message||'')));
-      if(error&&!missing){window.alert('Could not switch: '+(error.message||error));return false}
-      setNurseMode(turnOn?String(realProfile.id):'');
-      if(!missing)setProfile(p=>p&&p.id===realProfile.id?{...p,nurse_mode_on:turnOn}:p);
+      const {data,error}=await client.rpc('set_nurse_mode',{p_on:turnOn});
+      if(error||data?.success!==true||data?.nurse_mode_on!==turnOn){window.alert('Could not switch: '+(error?.message||'The server did not confirm the requested role. Please refresh and try again.'));return false}
+      setProfile(p=>p&&p.id===realProfile.id?{...p,nurse_mode_on:turnOn}:p);
       return true;
     };
     const viewProfile=nurseOn?toNurseView(realProfile):realProfile;
@@ -15939,7 +15934,18 @@ https://samaraassistedliving.com/`;
     ];
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['Outside Samara Nursing Procedures','✚','Outside Nursing','Submit completed procedure']);
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
-    return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
+    // These workflows must also be visible on desktop and in the Manager's Nurse view.
+    const nurseTasks=profile?.role==='Nurse'?[
+      ['Charge Approvals','Raise Bill / Charge','Send completed services to Accounts'],
+      ['Approval Requests','Procedure / Equipment Request','Request approval, then confirm and start'],
+      ['Raise Indent','Raise Indent','Request Consumables or Pharmacy items'],
+      ['Received Indents / Used Balance','Received Indents / Used Balance','Confirm receipt, record use or return']
+    ].filter(([target])=>allowedPagesForProfile(profile).includes(target)):[];
+    return h(React.Fragment,null,
+      nurseTasks.length>0&&h('section',{className:'nurse-workflow-actions','aria-label':'Nurse charges, requests and indents',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'8px',padding:'12px 16px'}},
+        nurseTasks.map(([target,label,detail])=>h('button',{key:target,type:'button',className:'btn btn-secondary',onClick:()=>onNavigate(target),style:{minHeight:'70px',display:'grid',gap:'5px',alignContent:'center',textAlign:'left',whiteSpace:'normal'}},
+          h('strong',null,label),h('small',{style:{fontWeight:400}},detail)))),
+      h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
       actions.map(([target,icon,label,sub])=>h('button',{
         type:'button',
         key:target,
@@ -15949,7 +15955,7 @@ https://samaraassistedliving.com/`;
         h('span',{className:'nursing-quick-icon'},icon),
         h('span',{className:'nursing-quick-copy'},h('strong',null,label),h('small',null,sub))
       ))
-    );
+    ));
   }
 
 
