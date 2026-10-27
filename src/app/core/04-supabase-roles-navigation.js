@@ -201,7 +201,7 @@
       'Clinical Dashboard','Nursing Notes','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Approvals','Charge Register', // 2.17.6: Bills & Charges (raise outside bills)
       'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
-      'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','My Profile'
+      'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
     if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
