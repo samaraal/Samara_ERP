@@ -74,6 +74,10 @@
     const ledgerReady=patientLedger.patientId===patientFilter&&!patientLedger.loading&&!patientLedger.error;
     const clearanceBlocked=!ledgerReady||chargeReadiness.loading||!!chargeReadiness.error||chargeReadiness.rows.length>0;
     const [quickView,setQuickView]=React.useState(dischargeTarget?'Complete Transaction History':'Pending Bills');
+    // 2.18.177: the page opens on navigable boxes only; tapping a box shows that section with "← Back".
+    const [panel,setPanel]=React.useState(()=>dischargeTarget||guestFromDues?'receive':dashboardPaymentFocus==='outstanding'?'pending':'');
+    const PANEL_VIEW={pending:'Pending Bills',payments:'Payments / Advances',discounts:'Discounts',refunds:'Refunds',all:'Complete Transaction History'};
+    const openPanel=key=>{if(key==='pending'&&!dischargeTarget)choosePaymentPatient('');setPanel(key);if(PANEL_VIEW[key])setQuickView(PANEL_VIEW[key]);setOpenGuest('');setOpenCat('');window.scrollTo({top:0,behavior:'smooth'})};
     const [form,setForm]=React.useState({
       patient_id:dischargeTarget?.patient_id||guestFromDues||'',
       transaction_type:'Payment',
@@ -1287,7 +1291,30 @@ Please access the Samara Family Portal for detailed account information.`;
       );
     }
 
+    const panelTitle={pending:'Pending Payments (Guest-wise)',receive:dischargeTarget?'Final Payment & Discharge Settlement':'Receive Payment / Advance',payments:'Payments / Advances',discounts:'Discounts',refunds:'Refunds',all:'All Transactions'}[panel]||'';
+    const ledgerSum=types=>(ledgerAll.rows||[]).filter(r=>types.includes(r.transaction_type)).reduce((t,r)=>t+Number(r.amount||0),0);
+    const ledgerCount=types=>(ledgerAll.rows||[]).filter(r=>types.includes(r.transaction_type)).length;
+    const pendingTotal=guestPending.reduce((t,g)=>t+g.balance,0);
+    const boxes=[
+      ['pending','Pending Payments',ledgerAll.loading?'…':money(pendingTotal),ledgerAll.loading?'Loading':`${guestPending.length} Guest${guestPending.length===1?'':'s'} to pay · highest first`,'#b42318','⏳'],
+      ['receive','Receive Payment / Advance','＋','Cash, UPI, card, online link','#7a1247','₹'],
+      ['payments','Payments / Advances',ledgerAll.loading?'…':money(ledgerSum(['Payment','Advance'])),`${ledgerCount(['Payment','Advance'])} receipts · send receipt`,'#2e7d4f','✓'],
+      ['discounts','Discounts',ledgerAll.loading?'…':money(ledgerSum(['Discount'])),`${ledgerCount(['Discount'])} entries`,'#b01867','％'],
+      ['refunds','Refunds',ledgerAll.loading?'…':money(ledgerSum(['Refund'])),`${ledgerCount(['Refund'])} entries`,'#9a6700','↩'],
+      ['all','All Transactions',ledgerAll.loading?'…':String((ledgerAll.rows||[]).length),'every charge, payment, discount, refund','#5d1740','≡']
+    ];
+    const listPanel=['payments','discounts','refunds','all'].includes(panel);
     return h(React.Fragment,null,
+      !panel&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:'14px',margin:'4px 0 16px'}},
+        boxes.map(([key,label,value,sub,color,icon])=>h('button',{key,type:'button',onClick:()=>openPanel(key),
+          style:{textAlign:'left',cursor:'pointer',border:'1px solid #f3c2d8',borderTop:`4px solid ${color}`,borderRadius:'16px',padding:'16px 18px',background:'linear-gradient(135deg,#fff 0%,#fde7f1 100%)',boxShadow:'0 6px 18px rgba(176,24,103,.08)',display:'flex',flexDirection:'column',gap:'6px',minHeight:'118px'}},
+          h('span',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',color:'#5d1740',fontWeight:800,fontSize:'15px'}},label,h('span',{style:{fontSize:'18px',color}},icon)),
+          h('strong',{style:{fontSize:'24px',color}},value),
+          h('small',{style:{color:'#8a5a70'}},sub),
+          h('small',{style:{color:'#b01867',fontWeight:700,marginTop:'auto'}},'Open →')))),
+      panel&&h('div',{style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',margin:'0 0 12px',padding:'10px 14px',borderRadius:'14px',background:'linear-gradient(90deg,#fde7f1,#fff5fa)'}},
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setOpenGuest('');setOpenCat('')}},'← Back'),
+        h('strong',{style:{color:'#5d1740',fontSize:'17px'}},panelTitle)),
       dischargeTarget&&h(Section,{
         title:'Discharge Final Payment',
         subtitle:`${dischargeTarget.patient_name} · ${dischargeTarget.patient_code||'No ID'} · Room ${dischargeTarget.room_no||'—'}${dischargeTarget.bed_no?`-${dischargeTarget.bed_no}`:''}`
@@ -1299,8 +1326,8 @@ Please access the Samara Family Portal for detailed account information.`;
         )
       ),
 
-      h(Section,{
-        title:'Patient Bills, Charges & Transaction History',
+      (panel==='receive'||listPanel)&&h(Section,{
+        title:panel==='receive'?'Select Guest':'Filter by Guest (optional)',
         subtitle:'Select one patient to display only that patient’s financial records'
       },
         h('div',{className:'payment-filter-grid'},
@@ -1321,18 +1348,9 @@ Please access the Samara Family Portal for detailed account information.`;
               ))
             )
           ),
-          h('div',{className:'field'},
-            h('label',null,'Quick View'),
-            h('select',{value:quickView,onChange:e=>setQuickView(e.target.value)},
-              ['Pending Bills','Payments / Advances','Discounts','Refunds','Complete Transaction History']
-                .map(option=>h('option',{key:option,value:option},option==='Pending Bills'?'Pending Payments (Guest-wise)':option))
-            )
-          )
         ),
         h('div',{className:'payment-quick-buttons'},
-          h('button',{type:'button',className:'btn btn-primary',onClick:()=>setQuickView('Pending Bills')},'Pending Payments (Guest-wise)'),
-          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setQuickView('Complete Transaction History')},'Complete Transaction History'),
-          patientFilter&&pendingBills>0&&h(React.Fragment,null,
+          panel==='receive'&&patientFilter&&pendingBills>0&&h(React.Fragment,null,
             h('button',{
               type:'button',
               className:'btn btn-whatsapp',
@@ -1346,7 +1364,7 @@ Please access the Samara Family Portal for detailed account information.`;
               onClick:()=>sendDailyBillWhatsAppApi({resend:true})
             },'Resend Daily Payable WhatsApp')
           )
-          ,patientFilter&&h('div',{className:'online-payment-actions'},
+          ,panel==='receive'&&patientFilter&&h('div',{className:'online-payment-actions'},
             h('button',{type:'button',className:'btn samara-pay-main',disabled:paymentRequestBusy||pendingBills<1,onClick:()=>createOnlinePaymentRequest('outstanding')},paymentRequestBusy?'Preparing secure link…':`Create Online Payment · ${money(pendingBills)}`),
             h('button',{type:'button',className:'btn samara-pay-advance',disabled:paymentRequestBusy,onClick:openAdvancePaymentModal},'Advance Payment'),h('button',{type:'button',className:'btn btn-secondary',disabled:paymentRequestBusy,onClick:()=>syncPendingOnlinePayments({silent:false}),title:'Check Razorpay for any online payments not yet posted to the ledger'},'Sync Online Payments')
           )
@@ -1355,8 +1373,8 @@ Please access the Samara Family Portal for detailed account information.`;
 
       advancePaymentModal&&h('div',{className:'samara-payment-modal',role:'dialog','aria-modal':'true'},h('div',{className:'samara-payment-backdrop',onClick:()=>!paymentRequestBusy&&setAdvancePaymentModal(false)}),h('div',{className:'samara-payment-card'},h('button',{type:'button',className:'samara-payment-close',disabled:paymentRequestBusy,onClick:()=>setAdvancePaymentModal(false),'aria-label':'Close'},'×'),h('div',{className:'samara-payment-brand'},h('img',{src:'./assets/samara-logo.png',alt:'Samara Assisted Living'})),h('div',{className:'samara-payment-heading'},h('div',{className:'samara-payment-icon'},'₹'),h('div',null,h('h2',null,'Enter Advance Payment'),h('p',null,'Create a secure Razorpay payment link for this patient.'))),h('label',{className:'samara-payment-label'},'Advance amount'),h('div',{className:'samara-amount-field'},h('span',null,'₹'),h('input',{type:'number',min:'1',max:'500000',step:'1',autoFocus:true,value:advancePaymentAmount,onChange:e=>setAdvancePaymentAmount(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&!paymentRequestBusy)createOnlinePaymentRequest('advance',advancePaymentAmount)}})),h('p',{className:'samara-payment-note'},'The family will receive a Razorpay-hosted secure payment link. Family Portal login is not required.'),h('div',{className:'samara-payment-actions'},h('button',{type:'button',className:'samara-btn secondary',disabled:paymentRequestBusy,onClick:()=>setAdvancePaymentModal(false)},'Cancel'),h('button',{type:'button',className:'samara-btn primary',disabled:paymentRequestBusy,onClick:()=>createOnlinePaymentRequest('advance',advancePaymentAmount)},paymentRequestBusy?'Preparing…':'Create Payment Link')))),
 
-      patientFilter&&!ledgerReady&&h('div',{className:patientLedger.error?'message error':'message info'},patientLedger.error||'Loading complete patient ledger…'),
-      (!patientFilter||ledgerReady)&&h('div',{className:'payment-summary-grid'},
+      panel==='receive'&&patientFilter&&!ledgerReady&&h('div',{className:patientLedger.error?'message error':'message info'},patientLedger.error||'Loading complete patient ledger…'),
+      panel==='receive'&&patientFilter&&ledgerReady&&h('div',{className:'payment-summary-grid'},
         summaryCards.map(([label,value,klass,format])=>h('div',{
           className:`payment-summary-card ${klass}`,
           key:label
@@ -1428,14 +1446,14 @@ Please access the Samara Family Portal for detailed account information.`;
         refundRequest&&refundRequest.status==='Completed'&&h('div',{className:'message success'},`Refund ${money(refundRequest.accounts_amount||refundRequest.calculated_refund)} completed and posted to the ledger. Accounts clearance has returned to Nursing.`)
       ),
 
-      patientFilter&&h(ChargeReadinessSummary,{state:chargeReadiness}),
+      panel==='receive'&&patientFilter&&h(ChargeReadinessSummary,{state:chargeReadiness}),
       dischargeTarget&&ledgerReady&&Math.abs(netPayable)<=0.009&&message&&h('div',{className:'message error'},message),
-      dischargeTarget&&ledgerReady&&Math.abs(netPayable)<=0.009&&h(Section,{title:'Zero Balance Discharge Clearance',subtitle:'Verify all charges and close the account without recording a payment.'},
+      panel==='receive'&&dischargeTarget&&ledgerReady&&Math.abs(netPayable)<=0.009&&h(Section,{title:'Zero Balance Discharge Clearance',subtitle:'Verify all charges and close the account without recording a payment.'},
         h('label',null,'Accounts Closure Remarks'),
         h('textarea',{value:form.closure_remarks,onChange:e=>setForm({...form,closure_remarks:e.target.value}),rows:3}),
         h('button',{type:'button',className:'btn btn-primary',disabled:saving||loading||clearanceBlocked||!['Admin','Accounts'].includes(profile?.role),onClick:clearZeroBalance},saving?'Checking…':'Verify ₹0 Balance & Clear Accounts')
       ),
-      (!dischargeTarget||(ledgerReady&&pendingBills>0.009))&&h(Section,{
+      panel==='receive'&&(!dischargeTarget||(ledgerReady&&pendingBills>0.009))&&h(Section,{
         title:dischargeTarget?'Final Payment & Discharge Settlement':'Manual Billing & Payment Entry',
         subtitle:dischargeTarget
           ?'Enter payment details. Exact settlement will close the discharge automatically.'
@@ -1593,7 +1611,7 @@ Please access the Samara Family Portal for detailed account information.`;
         )
       ),
 
-      dashboardPaymentFocus==='outstanding'&&h(LogTable,{
+      false&&h(LogTable,{
         title:`Outstanding Patients (${outstandingByPatient.length})`,
         subtitle:'Patient-wise live amount payable represented by the Dashboard Outstanding Amount',
         heads:['Patient','Resident ID','Room / Bed','Outstanding'],
@@ -1605,7 +1623,7 @@ Please access the Samara Family Portal for detailed account information.`;
         ])
       }),
 
-      quickView==='Pending Bills'?(()=>{
+      !panel||panel==='receive'?null:panel==='pending'?(()=>{
         // 2.18.175: Pending Payments — one row per Guest, highest balance first; tap a row for the full breakdown
         const list=patientFilter?guestPending.filter(g=>g.patient_id===patientFilter):guestPending;
         const total=list.reduce((v,g)=>v+g.balance,0);
@@ -1669,7 +1687,7 @@ Please access the Samara Family Portal for detailed account information.`;
                       ...g.money_list.slice().reverse().map(r=>h('tr',{key:r.id},h('td',{style:{padding:'4px 0'}},formatDateIN(r.transaction_date)),h('td',{style:{padding:'4px 0'}},`${r.transaction_type}${r.category&&r.category!==r.transaction_type?' · '+r.category:''}`),h('td',{style:{padding:'4px 0',textAlign:'right'}},money(r.amount)),
                         h('td',{style:{padding:'4px 0 4px 10px',width:'1%',whiteSpace:'nowrap'},onClick:e=>e.stopPropagation()},['Payment','Advance'].includes(r.transaction_type)?h(SendReceiptButton,{transactionId:r.id,amountText:money(r.amount),compact:true}):null))))),
                     h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
-                      h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();choosePaymentPatient(g.patient_id);setForm(current=>({...current,patient_id:g.patient_id,transaction_type:'Payment',amount:String(g.balance)}));window.scrollTo({top:0,behavior:'smooth'})}},`Receive ${money(g.balance)}`)))),
+                      h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();choosePaymentPatient(g.patient_id);setForm(current=>({...current,patient_id:g.patient_id,transaction_type:'Payment',amount:String(g.balance)}));setPanel('receive');window.scrollTo({top:0,behavior:'smooth'})}},`Receive ${money(g.balance)}`)))),
                 h('h4',{style:{margin:'14px 0 6px'}},`Charge entries (${items.length})`),
                 h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}},
                   h('thead',null,h('tr',null,['Date','Type','Item','Amount'].map((x,i)=>h('th',{key:x,style:{textAlign:i===3?'right':'left',padding:'4px 6px',color:'#7a1247'}},x)))),

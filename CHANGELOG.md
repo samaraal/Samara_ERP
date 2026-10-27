@@ -1,3 +1,9 @@
+## 2.18.177 — 27-10-2026 — Guest Payments / Receipts opens on navigable boxes (clean page)
+- The page now opens on one row of boxes only: **Pending Payments** (total + number of Guests), **Receive Payment / Advance**, **Payments / Advances**, **Discounts**, **Refunds**, **All Transactions**. Tap a box to open just that section; "← Back" returns to the boxes.
+- Receive Payment / Advance holds the Guest selection, the Guest's balance boxes, online payment link / advance buttons, daily payable WhatsApp and the payment form. The other boxes show their list with an optional Guest filter.
+- Discharge final settlement and "Receive Payment" from Discharged – Dues Pending open straight on Receive Payment; the Accounts Dashboard "Outstanding" box opens Pending Payments; "Receive ₹…" inside Pending Payments opens the form filled for that Guest.
+- The Quick View dropdown and its buttons are replaced by the boxes.
+
 ## 2.18.176 — 27-10-2026 — Pending Payments: WhatsApp receipt icon on each payment; tap a charge type for its entries
 - Pending Payments → a Guest → Payments received: a round green WhatsApp icon on every Payment / Advance — tap, then "✓ Yes" to send the receipt with PDF to the family again.
 - Charges by type: tap Room Charges, Consumables, Nursing Procedures, etc. to see every entry of that type (S.No, date & time, details, amount, total), with "← Back" to the Guest's breakdown. Internal Accounts notes are left out of the details.
