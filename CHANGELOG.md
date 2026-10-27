@@ -1,3 +1,10 @@
+## 2.18.174 — 27-10-2026 — One "Send Receipt" button, at the start of every payment row (no sideways scrolling)
+- Guest Payments / Receipts → Payments / Advances (and Complete Transaction History): "📩 Send Receipt" is now the FIRST column; fewer, shorter columns (Type + Category joined, long descriptions shortened — full text on hover), so staff see it without scrolling right.
+- Accounts Reports → Payment Report: the same "📩 Send Receipt" button first in each Payment / Advance row (Outside Nursing has its own receipts).
+- Send Receipt = tap, then "✓ Yes, send" (no accidental sends). The server sends the WhatsApp receipt WITH PDF to every family contact, recorded in WhatsApp Inbox and the audit trail. The "Payment receipt ready" box after saving uses the same button.
+- Accounts Reports: the long "Detailed Transaction Register" is folded under one bar "Show all transactions (N)"; it opens by itself when reached from an Accounts Dashboard box (Gross Charges, Discounts, Net Charges).
+- Edge Function staff-payment-request: new "resend_receipt" action.
+
 ## 2.18.173 — 27-10-2026 — Accounts payments (Cash / UPI / bank) get the receipt from the server, with PDF and automatic retry
 - Payments and advances entered by Accounts (Cash, UPI / GPay, bank, cheque…) were receipted from the Accounts person's browser only — no PDF, and no retry if it failed or the screen was closed. Now the server sends the WhatsApp receipt + PDF to every family contact the moment the payment is saved; if it cannot go, the 2-minute background check retries (3 tries). Covered by the Admin "payment receipts not sent" pop-up.
 - No double receipt: if an older app screen already sent it, the server notices and does not send again. "Resend Payment Receipt" stays for a manual resend.

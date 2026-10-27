@@ -295,9 +295,15 @@ async function sendPosReceipt(slipId:string){
 // so until now no receipt went. Every ledger row paid "Razorpay Online" from the Family Portal now gets one receipt,
 // to every active family contact, tracked in ledger_payment_receipts (SQL 307): sent once, retried 3 times.
 const payIdOf=(t:string)=>(String(t||'').match(/pay_[A-Za-z0-9]+/)||[''])[0];
-async function sendLedgerReceipt(txId:string,source='Family Portal'){
-  // claim: create the tracking row, or take over a Failed one (max 3 tries)
+async function sendLedgerReceipt(txId:string,source='Family Portal',force=false){
+  // claim: create the tracking row, or take over a Failed one (max 3 tries).
+  // 2.18.174: force = a staff member pressed "Send Receipt" — always sends again (with PDF), whatever was sent before.
   let claimed:any=null;
+  if(force){
+    const {data:cur}=await admin.from('ledger_payment_receipts').select('receipt_tries,source').eq('billing_transaction_id',txId).maybeSingle();
+    const up=await admin.from('ledger_payment_receipts').upsert({billing_transaction_id:txId,source:cur?.source||source,receipt_status:'Sending',receipt_tries:(Number(cur?.receipt_tries)||0)+1,receipt_claimed_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:'billing_transaction_id'}).select('*').maybeSingle();
+    if(!up.error&&up.data)claimed=up.data;else return {sent:0,error:up.error?.message||'Receipt could not be started.'};
+  }else{
   const ins=await admin.from('ledger_payment_receipts').insert({billing_transaction_id:txId,receipt_status:'Sending',receipt_tries:1,receipt_claimed_at:new Date().toISOString(),source}).select('*').maybeSingle();
   if(!ins.error&&ins.data)claimed=ins.data;
   else{
@@ -305,6 +311,7 @@ async function sendLedgerReceipt(txId:string,source='Family Portal'){
     const up=await admin.from('ledger_payment_receipts').update({receipt_status:'Sending',receipt_claimed_at:new Date().toISOString(),receipt_tries:(Number(cur?.receipt_tries)||0)+1})
       .eq('billing_transaction_id',txId).in('receipt_status',['Failed','Queued']).lt('receipt_tries',3).select('*').maybeSingle();
     if(!up.error&&up.data)claimed=up.data;
+  }
   }
   if(!claimed)return {sent:0,skipped:true};
   let accepted=0;const failures:string[]=[];let pdfNote='';const phones:string[]=[];
@@ -319,9 +326,9 @@ async function sendLedgerReceipt(txId:string,source='Family Portal'){
     targets=targets.filter((t:any,i:number,a:any[])=>a.findIndex(x=>x.mobile===t.mobile)===i);
     if(!targets.length){await done({receipt_status:'Failed',receipt_tries:3,receipt_error:'No valid family WhatsApp number for this Guest.'});return {sent:0,error:'No valid family WhatsApp number for this Guest.'};}
     const amount=Number(tx.amount);
-    const portal=String(claimed.source||source)==='Family Portal';
+    const portal=/^Family Portal/i.test(String(tx.description||''));
     // 2.18.173: an Accounts entry whose receipt the Accounts screen (older app version) already sent -> do not send twice
-    if(!portal){
+    if(!portal&&!force){
       const since=new Date(new Date(tx.recorded_at||tx.transaction_date).getTime()-60*1000).toISOString();
       const {data:prior}=await admin.from('hr_whatsapp_communications').select('id,status').ilike('communication_type','Payment Receipt%').eq('direction','outbound').gte('created_at',since)
         .eq('message_payload->>patient_id',tx.patient_id).not('status','in','(Failed)').limit(20);
@@ -333,7 +340,7 @@ async function sendLedgerReceipt(txId:string,source='Family Portal'){
     const receiptNo=portal?'FP-'+(paymentId?paymentId.replace(/^pay_/,'').slice(0,10).toUpperCase():String(tx.id).slice(0,8).toUpperCase())
       :(voucher||'RCPT-'+String(tx.id).slice(0,8).toUpperCase());
     const pm=String(tx.payment_mode||'').trim();
-    const mode=portal?'Razorpay (Online) - Family Portal':(pm||'Payment');
+    const mode=portal?'Razorpay (Online) - Family Portal':pm==='Razorpay Online'?'Razorpay (Online)':(pm||'Payment');
     const reference=portal?`${receiptNo} / ${paymentId||'Razorpay'}`:[receiptNo,paymentId&&paymentId!==receiptNo?paymentId:''].filter(Boolean).join(' / ');
     const paidAt=tx.transaction_date||tx.recorded_at;
     const towards=tx.transaction_type==='Advance'?'Advance':'Outstanding payment';
@@ -491,6 +498,16 @@ Deno.serve(async req=>{
       const slipId=String(body.slip_id||'');if(!slipId)return json({success:false,error:'Slip ID is required.'},400);
       const result:any=await sendPosReceipt(slipId);
       if(result.skipped){const {data:slip}=await admin.from('pos_card_slips').select('receipt_status,receipt_phone,receipt_error').eq('id',slipId).maybeSingle();return json({success:slip?.receipt_status==='Sent',already:true,...(slip||{})});}
+      return json({success:result.sent>0,...result});
+    }
+
+    if(action==='resend_receipt'){
+      // 2.18.174: "Send Receipt" button (Guest Payments / Receipts, Accounts Reports) — receipt + PDF again, to every family contact
+      await requireStaff(req);
+      const txId=String(body.transaction_id||'');if(!txId)return json({success:false,error:'Transaction ID is required.'},400);
+      const {data:tx}=await admin.from('billing_transactions').select('id,transaction_type').eq('id',txId).maybeSingle();
+      if(!tx||!['Payment','Advance'].includes(tx.transaction_type))return json({success:false,error:'Only a Payment or Advance has a receipt.'},400);
+      const result:any=await sendLedgerReceipt(txId,'Accounts',true);
       return json({success:result.sent>0,...result});
     }
 

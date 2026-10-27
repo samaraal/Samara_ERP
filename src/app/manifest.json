@@ -84,6 +84,10 @@
    "about": "2.18.124 Physiotherapist phone numbers: Call / WhatsApp buttons for staff (SQL 292)"
   },
   {
+   "file": "shared/07-send-receipt-button.js",
+   "about": "2.18.174 Send Receipt button (WhatsApp receipt + PDF from the server, tap + confirm)"
+  },
+  {
    "file": "clinical-alerts/01-alert-engine.js",
    "about": "Clinical alert popup + the background clinical alert engine",
    "lines": 1210

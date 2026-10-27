@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.173';
+  const APP_VERSION = '2.18.174';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3721,6 +3721,46 @@ https://samaraassistedliving.com/`;
     `;
     document.head.appendChild(st);
   })();
+  // 2.18.174: one clear "Send Receipt" button for any Payment / Advance row (Guest Payments / Receipts, Accounts Reports).
+  // Tap once -> "Yes, send" / "Cancel" (no accidental sends). The server sends the WhatsApp receipt + PDF to every
+  // family contact (same as the automatic receipt) and records it in WhatsApp Inbox.
+  function SendReceiptButton({transactionId,amountText=''}){
+    const [stage,setStage]=React.useState('idle'); // idle | confirm | sending | sent | failed
+    const [note,setNote]=React.useState('');
+    React.useEffect(()=>{if(stage!=='confirm')return;const t=setTimeout(()=>setStage('idle'),8000);return()=>clearTimeout(t)},[stage]);
+    const stop=e=>{if(e){e.stopPropagation();e.preventDefault();}};
+    const send=async e=>{
+      stop(e);setStage('sending');setNote('');
+      try{
+        const {data:{session}}=await client.auth.getSession();
+        const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',
+          headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session?.access_token||''}`},
+          body:JSON.stringify({action:'resend_receipt',transaction_id:transactionId})});
+        const result=await response.json().catch(()=>({}));
+        if(response.ok&&result.success){
+          setStage('sent');setNote(`Sent to ${result.sent||1} family contact(s)`);
+          showSamaraActionToast('success','Receipt sent on WhatsApp',`${amountText?amountText+' — ':''}receipt${result.pdf_note?'':' with PDF'} sent to ${result.sent||1} family contact(s).${result.pdf_note?' '+result.pdf_note:''}`);
+          writeAuditEvent('Payment Receipt Resent','Billing',transactionId,{sent:result.sent||1},'Success');
+        }else{
+          const t=result.error||'WhatsApp did not accept the receipt.';
+          setStage('failed');setNote(t);showSamaraActionToast('error','Receipt not sent',t);
+          writeAuditEvent('Payment Receipt Resent','Billing',transactionId,{error:t},'Failed');
+        }
+      }catch(error){
+        const t=error?.message||'Network problem. Please try again.';
+        setStage('failed');setNote(t);showSamaraActionToast('error','Receipt not sent',t);
+      }
+    };
+    const base={type:'button',style:{padding:'6px 10px',fontSize:'12px',whiteSpace:'nowrap',borderRadius:'999px'}};
+    if(stage==='confirm')return h('span',{style:{display:'inline-flex',gap:'6px',alignItems:'center'},onClick:stop},
+      h('button',{...base,className:'btn btn-whatsapp',onClick:send},'✓ Yes, send'),
+      h('button',{...base,className:'btn btn-secondary',onClick:e=>{stop(e);setStage('idle')}},'Cancel'));
+    if(stage==='sending')return h('button',{...base,className:'btn btn-secondary',disabled:true},'Sending…');
+    return h('span',{style:{display:'inline-flex',flexDirection:'column',gap:'2px'}},
+      h('button',{...base,className:'btn btn-whatsapp',title:'Send the WhatsApp receipt (with PDF) to the family',onClick:e=>{stop(e);setStage('confirm')}},
+        stage==='sent'?'✓ Sent · Send again':stage==='failed'?'↻ Try again':'📩 Send Receipt'),
+      note?h('small',{style:{fontSize:'10.5px',color:stage==='failed'?'#b42318':'#2e7d4f',maxWidth:'180px',whiteSpace:'normal'}},note):null);
+  }
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
     patient='Patient',
@@ -46465,7 +46505,7 @@ Please access the Samara Family Portal for detailed account information.`;
         lastPaymentReceipt&&h('div',{className:'message success',style:{marginTop:'10px'}},
           h('strong',null,'Payment receipt ready'),
           h('div',null,`${money(lastPaymentReceipt.amount)} · ${lastPaymentReceipt.category||'Payment'} · ${lastPaymentReceipt.payment_mode}${lastPaymentReceipt.reference?` · ${lastPaymentReceipt.reference}`:''}`),
-          h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Resend Payment Receipt WhatsApp API')
+          lastPaymentReceipt.transaction_id?h('div',{style:{marginTop:'8px'}},h(SendReceiptButton,{transactionId:lastPaymentReceipt.transaction_id,amountText:money(lastPaymentReceipt.amount)})):h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Resend Payment Receipt WhatsApp API')
         )
       ),
 
@@ -46485,33 +46525,18 @@ Please access the Samara Family Portal for detailed account information.`;
         title:quickView==='Complete Transaction History'
           ?'Complete Transaction History'
           :quickView,
-        subtitle:'Payment / Advance rows can resend the original Amount Received WhatsApp without creating another financial transaction.',
-        heads:['Patient','Type','Category','Amount','Mode','Description','Date','WhatsApp'],
+        subtitle:'Tap 📩 Send Receipt on any Payment / Advance to send the WhatsApp receipt with PDF to the family again. No new financial entry is made.',
+        // 2.18.174: "Send Receipt" first and a short description, so staff never scroll sideways to act
+        heads:['Receipt','Date','Patient','Type','Amount','Mode','Description'],
         rows:filteredRows.map(row=>[
+          ['Payment','Advance'].includes(row.transaction_type)&&row.id
+            ?h(SendReceiptButton,{transactionId:row.id,amountText:money(row.amount)}):'—',
+          fmt(row.transaction_date),
           formalName(row.patients||{})||row.patients?.full_name||'—',
-          row.transaction_type,
-          row.category,
+          row.category&&row.category!==row.transaction_type?`${row.transaction_type} · ${row.category}`:row.transaction_type,
           money(row.amount),
           row.payment_mode||'—',
-          row.description||'—',
-          fmt(row.transaction_date),
-          ['Payment','Advance'].includes(row.transaction_type)
-            ?h('button',{
-                type:'button',
-                className:'btn btn-whatsapp',
-                style:{padding:'6px 9px',fontSize:'12px',whiteSpace:'nowrap'},
-                onClick:()=>sendPaymentReceiptWhatsAppApi({
-                  patient_id:row.patient_id,
-                  amount:Number(row.amount||0),
-                  payment_mode:row.payment_mode||'—',
-                  reference:row.payment_reference||row.reference||'',
-                  transaction_id:row.id||'',
-                  date:row.transaction_date||row.created_at||new Date().toISOString(),
-                  category:row.category||row.transaction_type,
-                  description:String(row.description||'').trim()
-                })
-              },'Resend WhatsApp')
-            :'—'
+          (()=>{const d=String(row.description||'').trim();return d?h('span',{title:d},d.length>70?d.slice(0,70)+'…':d):'—'})()
         ])
       }),
 
@@ -52428,6 +52453,8 @@ function Reports(){
     };
     return map[label]?{label,...map[label]}:null;
   });
+  // 2.18.174: the long "every transaction" register is folded; opened by tapping its bar or from a Dashboard box.
+  const [registerOpen,setRegisterOpen]=React.useState(()=>dashFocus?.section==='report-register');
   React.useEffect(()=>{
     if(!dashFocus)return;
     const {label,section,...preset}=dashFocus;
@@ -52657,15 +52684,17 @@ function Reports(){
     h(LogTable,{
       title:`Payment Report (${paymentRows.length})`,
       subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
-      heads:['Date & Time','Voucher / Reference No.','Patient / Invoice ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
+      // 2.18.174: "Send Receipt" first, so staff never scroll sideways to act
+      heads:['Receipt','Date & Time','Patient','Type','Mode','Amount','Voucher / Reference No.','Received / Entered By'],
       rows:paymentRows.map(row=>[
+        ['Payment','Advance'].includes(row.transaction_type)&&row.source!=='Outside Nursing'&&row.id
+          ?h(SendReceiptButton,{transactionId:row.id,amountText:money(row.amount)}):'—',
         transactionDate(row),
-        row.payment_reference||'—',
-        row.patients?.patient_id||'—',
-        formalName(row.patients||{})||row.patients?.full_name||'—',
+        h('span',null,formalName(row.patients||{})||row.patients?.full_name||'—',row.patients?.patient_id?h('small',{style:{display:'block',color:'#8a5a70'}},row.patients.patient_id):null),
         row.transaction_type||'—',
         row.payment_mode||'—',
         money(row.amount),
+        row.payment_reference||'—',
         profileName(row.entered_by)
       ])
     }),
@@ -52747,6 +52776,9 @@ function Reports(){
     }),
 
     h('div',{id:'report-register'}),
+    h('details',{open:registerOpen,onToggle:e=>setRegisterOpen(e.currentTarget.open),style:{margin:'12px 0'}},
+    h('summary',{style:{cursor:'pointer',padding:'12px 16px',borderRadius:'14px',background:'linear-gradient(90deg,#fde7f1,#fff5fa)',color:'#7a1247',fontWeight:700,listStyle:'revert'}},
+      `${registerOpen?'Hide':'Show'} all transactions (${registerRows.length}) — every charge, payment, discount and refund`),
     h(LogTable,{
       title:`Detailed Transaction Register (${registerRows.length})`,
       subtitle:filters.register_type==='All'?'Filtered billing, payment, discount and refund history':`Showing ${filters.register_type} entries only`,
@@ -52762,7 +52794,7 @@ function Reports(){
         money(row.amount),
         row.description||'—'
       ])
-    })
+    }))
   );
 }
 

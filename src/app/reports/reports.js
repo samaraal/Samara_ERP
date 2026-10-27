@@ -31,6 +31,8 @@ function Reports(){
     };
     return map[label]?{label,...map[label]}:null;
   });
+  // 2.18.174: the long "every transaction" register is folded; opened by tapping its bar or from a Dashboard box.
+  const [registerOpen,setRegisterOpen]=React.useState(()=>dashFocus?.section==='report-register');
   React.useEffect(()=>{
     if(!dashFocus)return;
     const {label,section,...preset}=dashFocus;
@@ -260,15 +262,17 @@ function Reports(){
     h(LogTable,{
       title:`Payment Report (${paymentRows.length})`,
       subtitle:'Date-wise receipt, voucher/reference number and payment mode register',
-      heads:['Date & Time','Voucher / Reference No.','Patient / Invoice ID','Patient Name','Type','Mode','Amount','Received / Entered By'],
+      // 2.18.174: "Send Receipt" first, so staff never scroll sideways to act
+      heads:['Receipt','Date & Time','Patient','Type','Mode','Amount','Voucher / Reference No.','Received / Entered By'],
       rows:paymentRows.map(row=>[
+        ['Payment','Advance'].includes(row.transaction_type)&&row.source!=='Outside Nursing'&&row.id
+          ?h(SendReceiptButton,{transactionId:row.id,amountText:money(row.amount)}):'—',
         transactionDate(row),
-        row.payment_reference||'—',
-        row.patients?.patient_id||'—',
-        formalName(row.patients||{})||row.patients?.full_name||'—',
+        h('span',null,formalName(row.patients||{})||row.patients?.full_name||'—',row.patients?.patient_id?h('small',{style:{display:'block',color:'#8a5a70'}},row.patients.patient_id):null),
         row.transaction_type||'—',
         row.payment_mode||'—',
         money(row.amount),
+        row.payment_reference||'—',
         profileName(row.entered_by)
       ])
     }),
@@ -350,6 +354,9 @@ function Reports(){
     }),
 
     h('div',{id:'report-register'}),
+    h('details',{open:registerOpen,onToggle:e=>setRegisterOpen(e.currentTarget.open),style:{margin:'12px 0'}},
+    h('summary',{style:{cursor:'pointer',padding:'12px 16px',borderRadius:'14px',background:'linear-gradient(90deg,#fde7f1,#fff5fa)',color:'#7a1247',fontWeight:700,listStyle:'revert'}},
+      `${registerOpen?'Hide':'Show'} all transactions (${registerRows.length}) — every charge, payment, discount and refund`),
     h(LogTable,{
       title:`Detailed Transaction Register (${registerRows.length})`,
       subtitle:filters.register_type==='All'?'Filtered billing, payment, discount and refund history':`Showing ${filters.register_type} entries only`,
@@ -365,7 +372,7 @@ function Reports(){
         money(row.amount),
         row.description||'—'
       ])
-    })
+    }))
   );
 }
 

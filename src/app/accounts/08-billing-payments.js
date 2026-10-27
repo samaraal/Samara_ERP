@@ -1550,7 +1550,7 @@ Please access the Samara Family Portal for detailed account information.`;
         lastPaymentReceipt&&h('div',{className:'message success',style:{marginTop:'10px'}},
           h('strong',null,'Payment receipt ready'),
           h('div',null,`${money(lastPaymentReceipt.amount)} · ${lastPaymentReceipt.category||'Payment'} · ${lastPaymentReceipt.payment_mode}${lastPaymentReceipt.reference?` · ${lastPaymentReceipt.reference}`:''}`),
-          h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Resend Payment Receipt WhatsApp API')
+          lastPaymentReceipt.transaction_id?h('div',{style:{marginTop:'8px'}},h(SendReceiptButton,{transactionId:lastPaymentReceipt.transaction_id,amountText:money(lastPaymentReceipt.amount)})):h('button',{type:'button',className:'btn btn-whatsapp',style:{marginTop:'8px'},onClick:()=>sendPaymentReceiptWhatsAppApi(lastPaymentReceipt)},'Resend Payment Receipt WhatsApp API')
         )
       ),
 
@@ -1570,33 +1570,18 @@ Please access the Samara Family Portal for detailed account information.`;
         title:quickView==='Complete Transaction History'
           ?'Complete Transaction History'
           :quickView,
-        subtitle:'Payment / Advance rows can resend the original Amount Received WhatsApp without creating another financial transaction.',
-        heads:['Patient','Type','Category','Amount','Mode','Description','Date','WhatsApp'],
+        subtitle:'Tap 📩 Send Receipt on any Payment / Advance to send the WhatsApp receipt with PDF to the family again. No new financial entry is made.',
+        // 2.18.174: "Send Receipt" first and a short description, so staff never scroll sideways to act
+        heads:['Receipt','Date','Patient','Type','Amount','Mode','Description'],
         rows:filteredRows.map(row=>[
+          ['Payment','Advance'].includes(row.transaction_type)&&row.id
+            ?h(SendReceiptButton,{transactionId:row.id,amountText:money(row.amount)}):'—',
+          fmt(row.transaction_date),
           formalName(row.patients||{})||row.patients?.full_name||'—',
-          row.transaction_type,
-          row.category,
+          row.category&&row.category!==row.transaction_type?`${row.transaction_type} · ${row.category}`:row.transaction_type,
           money(row.amount),
           row.payment_mode||'—',
-          row.description||'—',
-          fmt(row.transaction_date),
-          ['Payment','Advance'].includes(row.transaction_type)
-            ?h('button',{
-                type:'button',
-                className:'btn btn-whatsapp',
-                style:{padding:'6px 9px',fontSize:'12px',whiteSpace:'nowrap'},
-                onClick:()=>sendPaymentReceiptWhatsAppApi({
-                  patient_id:row.patient_id,
-                  amount:Number(row.amount||0),
-                  payment_mode:row.payment_mode||'—',
-                  reference:row.payment_reference||row.reference||'',
-                  transaction_id:row.id||'',
-                  date:row.transaction_date||row.created_at||new Date().toISOString(),
-                  category:row.category||row.transaction_type,
-                  description:String(row.description||'').trim()
-                })
-              },'Resend WhatsApp')
-            :'—'
+          (()=>{const d=String(row.description||'').trim();return d?h('span',{title:d},d.length>70?d.slice(0,70)+'…':d):'—'})()
         ])
       }),
 
