@@ -25,6 +25,7 @@
     const [ledgerAll,setLedgerAll]=React.useState({loading:true,rows:[],error:''});
     const [openGuest,setOpenGuest]=React.useState('');
     const [openGuestAll,setOpenGuestAll]=React.useState(false);
+    const [openCat,setOpenCat]=React.useState('');
     const [patientLedger,setPatientLedger]=React.useState({patientId:null,rows:[],loading:true,error:''});
     const [loading,setLoading]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
@@ -1623,7 +1624,7 @@ Please access the Samara Family Portal for detailed account information.`;
             h('thead',null,h('tr',null,['S.No','Guest','Room','Total Charges','Paid / Advance','Discount','Pending'].map((x,i)=>h('th',{key:x,style:i>=3?{textAlign:'right'}:{}},x)))),
             h('tbody',null,...list.flatMap((g,i)=>{
               const open=openGuest===g.patient_id;
-              const main=h('tr',{key:g.patient_id,style:{cursor:'pointer',background:open?'#fde7f1':undefined},onClick:()=>{setOpenGuest(open?'':g.patient_id);setOpenGuestAll(false)}},
+              const main=h('tr',{key:g.patient_id,style:{cursor:'pointer',background:open?'#fde7f1':undefined},onClick:()=>{setOpenGuest(open?'':g.patient_id);setOpenGuestAll(false);setOpenCat('')}},
                 h('td',{style:cell},String(i+1)),
                 h('td',{style:cell},h('strong',null,nameOf(g)),h('small',{style:{display:'block',color:'#8a5a70'}},`${g.patient?.patient_id||''}${g.patient?.is_active===false?' · Discharged':''}`)),
                 h('td',{style:cell},roomOf(g)),
@@ -1635,11 +1636,28 @@ Please access the Samara Family Portal for detailed account information.`;
               const cats=Object.entries(g.cats).sort((a,b)=>b[1].amount-a[1].amount);
               const items=g.charges_list.slice().sort((a,b)=>String(b.transaction_date).localeCompare(String(a.transaction_date)));
               const shown=openGuestAll?items:items.slice(0,15);
+              const catRows=openCat?items.filter(r=>(String(r.category||'Other charges').trim()||'Other charges')===openCat):[];
               const detail=h('tr',{key:g.patient_id+'-d'},h('td',{colSpan:7,style:{background:'#fff7fb',padding:'14px 16px',borderBottom:'2px solid #f3c2d8'}},
+                openCat?h('div',{onClick:e=>e.stopPropagation()},
+                  // 2.18.176: one charge type in full, with Back to the Guest's breakdown
+                  h('div',{style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',marginBottom:'10px'}},
+                    h('button',{type:'button',className:'btn btn-secondary',onClick:e=>{e.stopPropagation();setOpenCat('')}},'← Back'),
+                    h('h4',{style:{margin:0}},`${openCat} — ${nameOf(g)}`),
+                    h('strong',{style:{marginLeft:'auto',color:'#7a1247'}},`${catRows.length} entr${catRows.length===1?'y':'ies'} · ${money(catRows.reduce((t,r)=>t+Number(r.amount||0),0))}`)),
+                  h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px'}},
+                    h('thead',null,h('tr',null,['S.No','Date & Time','Details','Amount'].map((x,i)=>h('th',{key:x,style:{textAlign:i===3?'right':'left',padding:'6px',color:'#7a1247',borderBottom:'1px solid #f3c2d8'}},x)))),
+                    h('tbody',null,...catRows.map((r,i)=>h('tr',{key:r.id},
+                      h('td',{style:{padding:'6px',verticalAlign:'top'}},String(i+1)),
+                      h('td',{style:{padding:'6px',verticalAlign:'top',whiteSpace:'nowrap'}},fmt(r.transaction_date)),
+                      h('td',{style:{padding:'6px',verticalAlign:'top'}},String(r.description||'—').split(' · ').filter(x=>!/^(Accounts verified by|Admin-fixed tariff|Remarks:)/i.test(x.trim())).join(' · ')||'—'),
+                      h('td',{style:{padding:'6px',verticalAlign:'top',textAlign:'right',whiteSpace:'nowrap'}},money(r.amount)))),
+                      h('tr',null,h('td',{colSpan:3,style:{padding:'8px 6px',borderTop:'2px solid #b01867',fontWeight:800}},`Total ${openCat}`),h('td',{style:{padding:'8px 6px',borderTop:'2px solid #b01867',textAlign:'right',fontWeight:800}},money(catRows.reduce((t,r)=>t+Number(r.amount||0),0)))))),
+                  h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'10px'},onClick:e=>{e.stopPropagation();setOpenCat('')}},'← Back')):
+                h(React.Fragment,null,
                 h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:'14px'}},
                   h('div',null,h('h4',{style:{margin:'0 0 6px'}},'Charges by type'),
                     h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px'}},h('tbody',null,
-                      ...cats.map(([c,v])=>h('tr',{key:c},h('td',{style:{padding:'4px 0'}},c),h('td',{style:{padding:'4px 0',color:'#8a5a70'}},`${v.count} entr${v.count===1?'y':'ies'}`),h('td',{style:{padding:'4px 0',textAlign:'right'}},money(v.amount)))),
+                      ...cats.map(([c,v])=>h('tr',{key:c,title:'Tap to see every '+c+' entry',style:{cursor:'pointer'},onClick:e=>{e.stopPropagation();setOpenCat(c)}},h('td',{style:{padding:'6px 0',color:'#b01867',fontWeight:600,textDecoration:'underline',textDecorationStyle:'dotted'}},c),h('td',{style:{padding:'6px 0',color:'#8a5a70'}},`${v.count} entr${v.count===1?'y':'ies'}`),h('td',{style:{padding:'6px 0',textAlign:'right'}},money(v.amount),h('span',{style:{color:'#b01867',marginLeft:'6px'}},'›')))),
                       h('tr',null,h('td',{colSpan:2,style:{padding:'6px 0',borderTop:'1px solid #f3d6e4',fontWeight:700}},'Total charges'),h('td',{style:{padding:'6px 0',borderTop:'1px solid #f3d6e4',textAlign:'right',fontWeight:700}},money(g.charges))),
                       h('tr',null,h('td',{colSpan:2,style:{padding:'4px 0'}},'Less: Paid / Advance'),h('td',{style:{padding:'4px 0',textAlign:'right'}},'− '+money(g.paid))),
                       g.discount?h('tr',null,h('td',{colSpan:2,style:{padding:'4px 0'}},'Less: Discount'),h('td',{style:{padding:'4px 0',textAlign:'right'}},'− '+money(g.discount))):null,
@@ -1648,14 +1666,15 @@ Please access the Samara Family Portal for detailed account information.`;
                   h('div',null,h('h4',{style:{margin:'0 0 6px'}},'Payments received'),
                     !g.money_list.length?h('p',{style:{margin:0,color:'#8a5a70'}},'No payment yet.'):
                     h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'13px'}},h('tbody',null,
-                      ...g.money_list.slice().reverse().map(r=>h('tr',{key:r.id},h('td',{style:{padding:'4px 0'}},formatDateIN(r.transaction_date)),h('td',{style:{padding:'4px 0'}},`${r.transaction_type}${r.category&&r.category!==r.transaction_type?' · '+r.category:''}`),h('td',{style:{padding:'4px 0',textAlign:'right'}},money(r.amount)))))),
+                      ...g.money_list.slice().reverse().map(r=>h('tr',{key:r.id},h('td',{style:{padding:'4px 0'}},formatDateIN(r.transaction_date)),h('td',{style:{padding:'4px 0'}},`${r.transaction_type}${r.category&&r.category!==r.transaction_type?' · '+r.category:''}`),h('td',{style:{padding:'4px 0',textAlign:'right'}},money(r.amount)),
+                        h('td',{style:{padding:'4px 0 4px 10px',width:'1%',whiteSpace:'nowrap'},onClick:e=>e.stopPropagation()},['Payment','Advance'].includes(r.transaction_type)?h(SendReceiptButton,{transactionId:r.id,amountText:money(r.amount),compact:true}):null))))),
                     h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
                       h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();choosePaymentPatient(g.patient_id);setForm(current=>({...current,patient_id:g.patient_id,transaction_type:'Payment',amount:String(g.balance)}));window.scrollTo({top:0,behavior:'smooth'})}},`Receive ${money(g.balance)}`)))),
                 h('h4',{style:{margin:'14px 0 6px'}},`Charge entries (${items.length})`),
                 h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'12.5px'}},
                   h('thead',null,h('tr',null,['Date','Type','Item','Amount'].map((x,i)=>h('th',{key:x,style:{textAlign:i===3?'right':'left',padding:'4px 6px',color:'#7a1247'}},x)))),
                   h('tbody',null,...shown.map(r=>{const d=String(r.description||'').split(' · ')[0];return h('tr',{key:r.id},h('td',{style:{padding:'3px 6px',whiteSpace:'nowrap'}},formatDateIN(r.transaction_date)),h('td',{style:{padding:'3px 6px'}},r.category||'—'),h('td',{style:{padding:'3px 6px'},title:r.description||''},d.length>80?d.slice(0,80)+'…':d||'—'),h('td',{style:{padding:'3px 6px',textAlign:'right',whiteSpace:'nowrap'}},money(r.amount)))}))),
-                items.length>15?h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:e=>{e.stopPropagation();setOpenGuestAll(!openGuestAll)}},openGuestAll?'Show latest 15 only':`Show all ${items.length} entries`):null));
+                items.length>15?h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:e=>{e.stopPropagation();setOpenGuestAll(!openGuestAll)}},openGuestAll?'Show latest 15 only':`Show all ${items.length} entries`):null)));
               return [main,detail];
             }))
           )));

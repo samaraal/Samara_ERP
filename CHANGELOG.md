@@ -1,3 +1,7 @@
+## 2.18.176 — 27-10-2026 — Pending Payments: WhatsApp receipt icon on each payment; tap a charge type for its entries
+- Pending Payments → a Guest → Payments received: a round green WhatsApp icon on every Payment / Advance — tap, then "✓ Yes" to send the receipt with PDF to the family again.
+- Charges by type: tap Room Charges, Consumables, Nursing Procedures, etc. to see every entry of that type (S.No, date & time, details, amount, total), with "← Back" to the Guest's breakdown. Internal Accounts notes are left out of the details.
+
 ## 2.18.175 — 27-10-2026 — "Pending Payments (Guest-wise)" replaces the Pending Bills list
 - Guest Payments / Receipts: the "Pending Bills" view (a copy of all charges raised) is replaced by **Pending Payments (Guest-wise)** — S.No, Guest, Room, Total Charges, Paid / Advance, Discount, Pending — highest pending first, with the total pending on top.
 - Tap a Guest: charges by type (Room Charges, Nursing Procedures, Consumables, Pharmacy & Basic Supplies, Physiotherapy…) with entries and amounts, less payments / discounts = Pending; payments received; the charge entries (latest 15, "Show all"); and a "Receive ₹…" button that fills the payment form for that Guest.
