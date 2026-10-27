@@ -15,13 +15,10 @@
     const [posScanToken,setPosScanToken]=React.useState(()=>{try{return new URLSearchParams(window.location.search).get('pos_scan')||''}catch(_){return ''}});
     const [profile,setProfile]=React.useState(null);
     // 2.18.43: Nursing Manager "Switch to Nurse" — same login and employee record, nurse screens; manager alerts stay on.
-    const NURSE_MODE_KEY='samara_nurse_mode_v1';
-    const [nurseMode,setNurseModeState]=React.useState(()=>{try{return localStorage.getItem(NURSE_MODE_KEY)||''}catch(_){return ''}});
-    const setNurseMode=value=>{setNurseModeState(value);try{value?localStorage.setItem(NURSE_MODE_KEY,value):localStorage.removeItem(NURSE_MODE_KEY)}catch(_){}};
     const anyRoleNavRef=React.useRef(next=>setPage(next));
     // 2.18.44: exact Nurse login — role/designation of a Staff Nurse and none of her personal extra menus.
     const toNurseView=p=>({...p,role:'Nurse',designation:'Staff Nurse',department:'Nursing',__nurseMode:{role:p.role,designation:p.designation,department:p.department},__kitchen:undefined,__foodVendor:undefined,__paymentsTrial:undefined,__dutyContext:undefined});
-    const nurseModeOn=p=>Boolean(p)&&isNursingManagerProfile(p)&&(p.nurse_mode_on===undefined?nurseMode===String(p.id):p.nurse_mode_on===true);
+    const nurseModeOn=p=>Boolean(p)&&isNursingManagerProfile(p)&&p.nurse_mode_on===true;
     const engineProfile=nurseModeOn(profile)?toNurseView(profile):profile;
     React.useEffect(()=>{try{SamaraLang.init(profile||{})}catch(_){}},[profile?.id,profile?.role,profile?.ui_language]); // 2.15.70: EN | தமிழ்
     const dutyContext=window.SamaraDutySwap.useContext({client,profile,setProfile,onChanged:next=>setPage(homePageForProfile(next))});
@@ -725,14 +722,12 @@
 
     const realProfile=profile;
     const canNurseMode=isNursingManagerProfile(realProfile);
-    // Server flag (SQL 259) is the source of truth; before that SQL is run, the switch is screens-only (this device).
+    // Only show Nurse mode after the server confirms the same permission mode.
     const nurseOn=nurseModeOn(realProfile);
     const applyNurseMode=async turnOn=>{
-      const {error}=await client.rpc('set_nurse_mode',{p_on:turnOn});
-      const missing=error&&(error.code==='PGRST202'||/set_nurse_mode|could not find the function/i.test(String(error.message||'')));
-      if(error&&!missing){window.alert('Could not switch: '+(error.message||error));return false}
-      setNurseMode(turnOn?String(realProfile.id):'');
-      if(!missing)setProfile(p=>p&&p.id===realProfile.id?{...p,nurse_mode_on:turnOn}:p);
+      const {data,error}=await client.rpc('set_nurse_mode',{p_on:turnOn});
+      if(error||data?.success!==true||data?.nurse_mode_on!==turnOn){window.alert('Could not switch: '+(error?.message||'The server did not confirm the requested role. Please refresh and try again.'));return false}
+      setProfile(p=>p&&p.id===realProfile.id?{...p,nurse_mode_on:turnOn}:p);
       return true;
     };
     const viewProfile=nurseOn?toNurseView(realProfile):realProfile;
