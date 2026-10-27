@@ -1,3 +1,7 @@
+## 2.18.182 — 27-10-2026 — Nursing Manager: full WhatsApp access
+- Nursing Manager can open all WhatsApp conversations, use patient / family chat links, reply, send approved templates and attachments, and refresh templates.
+- Added WhatsApp Logs and hidden-message restore. SQL 311 removes food-only API and inbox restrictions for active Nursing Managers while retaining other roles’ permissions.
+
 ## 2.18.181 — 27-10-2026 — Expenses: "Daily Wages" head
 - Expense Head now has **Daily Wages** (for day-wage workers / helpers paid by the day); the voice entry recognises "daily wages", "coolie", "கூலி". Shown as its own line in the Net Profit Statement.
 - Record Expense: removed the double "* *" on Amount and Date.
