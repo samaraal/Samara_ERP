@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.172';
+  const APP_VERSION = '2.18.173';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -46028,8 +46028,24 @@ Please access the Samara Family Portal for detailed account information.`;
           }catch(receiptError){
             setMessage(`Payment was saved successfully (Voucher ${actualReference}). The WhatsApp receipt will be sent automatically within a few minutes.`);
           }
-        }else{
-          await sendPaymentReceiptWhatsAppApi(savedPaymentReceipt,{automatic:true});
+        }else if(data?.id){
+          // 2.18.173: Cash / UPI / bank entries — receipt + PDF sent by the SERVER to every family contact, retried by itself
+          // every few minutes if it cannot go now (no more browser-only sending; "Resend" below stays for a manual resend).
+          try{
+            const {data:{session}}=await client.auth.getSession();
+            const response=await fetch(`${cfg.supabaseUrl}/functions/v1/staff-payment-request`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session?.access_token||''}`},body:JSON.stringify({action:'ledger_receipt',transaction_id:data.id})});
+            const result=await response.json().catch(()=>({}));
+            if(response.ok&&result.success){
+              notify('success','Payment saved · WhatsApp receipt sent',`${money(amount)} received. Receipt${result.pdf_note?'':' with PDF'} sent to ${result.sent||1} family contact(s); recorded in WhatsApp Inbox.`);
+              if(result.pdf_note)setMessage(result.pdf_note);
+            }else{
+              const t=result.error||result.receipt_error||'WhatsApp receipt could not be sent yet.';
+              setMessage(`Payment was saved successfully. WhatsApp receipt not sent yet: ${t}. The system will retry automatically.`);
+              notify('warning','Payment saved · receipt will retry',t);
+            }
+          }catch(receiptError){
+            setMessage('Payment was saved successfully. The WhatsApp receipt will be sent automatically within a few minutes.');
+          }
         }
       }
 

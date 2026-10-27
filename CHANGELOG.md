@@ -1,3 +1,9 @@
+## 2.18.173 — 27-10-2026 — Accounts payments (Cash / UPI / bank) get the receipt from the server, with PDF and automatic retry
+- Payments and advances entered by Accounts (Cash, UPI / GPay, bank, cheque…) were receipted from the Accounts person's browser only — no PDF, and no retry if it failed or the screen was closed. Now the server sends the WhatsApp receipt + PDF to every family contact the moment the payment is saved; if it cannot go, the 2-minute background check retries (3 tries). Covered by the Admin "payment receipts not sent" pop-up.
+- No double receipt: if an older app screen already sent it, the server notices and does not send again. "Resend Payment Receipt" stays for a manual resend.
+- The three missed Family Portal receipts (17-10 ₹15,000 and 23-10 ₹10,000 — Mrs. Shanthi T; 26-10 ₹9,999 — Mr. Krishnamoorthy P C) are sent once.
+- New SQL: supabase/sql/308_accounts_payment_auto_receipt.sql · Edge Function staff-payment-request updated.
+
 ## 2.18.172 — 27-10-2026 — Family Portal payments get the automatic WhatsApp receipt; Admin alert if any receipt fails
 - Payments families make themselves in the Family Portal (Razorpay) were posted to the ledger but never got the automatic WhatsApp receipt (only staff payment links / QR, swipe machine and Outside Nursing had it). Now every Family Portal payment gets the receipt + PDF within about 2 minutes, to every active family contact, retried 3 times. Today's ₹25,000 advance is included; older ones are not re-sent.
 - New Admin / Director pop-up: "N payment receipts not sent on WhatsApp" — any route (Family Portal, payment link / QR, swipe machine) that failed 3 times, got stuck, or was never attempted within 15 minutes (e.g. the background job stopped). No manual cross-checking needed: if nothing pops up, every receipt went.
