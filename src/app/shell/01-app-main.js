@@ -152,6 +152,8 @@
       const onPop=e=>{
         // 2.15.4: a dashboard section (Stores / Equipment / Charge Master …) is open → Back closes that section only
         if(e&&e.__samaraDashHandled)return;
+        // 2.18.180: a page section / drill-down is open → go back one level inside the page, stay on the page
+        try{if(window.__samaraStepBack&&window.__samaraStepBack()){try{history.pushState({samaraStep:1},'')}catch(_){};window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});return}}catch(_){}
         try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current))return}catch(_){}
         const nav=navHistoryRef.current;
         if(!nav.stack.length)return;
@@ -191,6 +193,8 @@
     },[profile?.id]);
 
     function goBackPage(){
+      // 2.18.180: first go back one level inside the page (section → list → boxes)
+      try{if(window.__samaraStepBack&&window.__samaraStepBack()){window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});return}}catch(_){}
       // 2.18.167: a dashboard section (Stores, Charge Register list …) is open → Back closes it first.
       try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current)&&history.state&&history.state.samaraStoresView){history.back();return}}catch(_){}
       if(navHistoryRef.current.stack.length){history.back();return}

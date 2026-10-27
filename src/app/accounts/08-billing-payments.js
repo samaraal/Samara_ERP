@@ -77,6 +77,8 @@
     // 2.18.177: the page opens on navigable boxes only; tapping a box shows that section with "← Back".
     const [panel,setPanel]=React.useState(()=>dischargeTarget||guestFromDues?'receive':dashboardPaymentFocus==='outstanding'?'pending':'');
     const PANEL_VIEW={pending:'Pending Bills',payments:'Payments / Advances',discounts:'Discounts',refunds:'Refunds',all:'Complete Transaction History'};
+    // 2.18.180: Back goes one level: charge type → Guest breakdown → list → boxes (then the page Back)
+    const stepBack=useStepBack(()=>{if(openCat){setOpenCat('');return true}if(openGuest){setOpenGuest('');return true}if(panel&&!dischargeTarget){setPanel('');return true}return false});
     const openPanel=key=>{if(key==='pending'&&!dischargeTarget)choosePaymentPatient('');setPanel(key);if(PANEL_VIEW[key])setQuickView(PANEL_VIEW[key]);setOpenGuest('');setOpenCat('');window.scrollTo({top:0,behavior:'smooth'})};
     const [form,setForm]=React.useState({
       patient_id:dischargeTarget?.patient_id||guestFromDues||'',
@@ -1313,7 +1315,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('small',{style:{color:'#8a5a70'}},sub),
           h('small',{style:{color:'#b01867',fontWeight:700,marginTop:'auto'}},'Open →')))),
       panel&&h('div',{style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',margin:'0 0 12px',padding:'10px 14px',borderRadius:'14px',background:'linear-gradient(90deg,#fde7f1,#fff5fa)'}},
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setOpenGuest('');setOpenCat('')}},'← Back'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(!stepBack()){setPanel('');setOpenGuest('');setOpenCat('')}}},'← Back'),
         h('strong',{style:{color:'#5d1740',fontSize:'17px'}},panelTitle)),
       dischargeTarget&&h(Section,{
         title:'Discharge Final Payment',

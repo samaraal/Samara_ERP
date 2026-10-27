@@ -200,6 +200,7 @@
   function PayrollPanel({month,onChanged}){
     const today=todayISOIndia(),end=npMonthEnd(month);
     const [rows,setRows]=React.useState(null),[sel,setSel]=React.useState(''),[d,setD]=React.useState(null),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[confirmSend,setConfirmSend]=React.useState(false);
+    useStepBack(()=>{if(sel){setSel('');setMsg('');return true}return false});
     async function load(){
       const r=await client.rpc('samara_payroll_rpc',{p_action:'month',p:{month}});
       if(r.error){setRows([]);setMsg(/samara_payroll_rpc/i.test(r.error.message)?'The Payroll database update (SQL 310) has not been run yet.':r.error.message);return}
@@ -313,6 +314,7 @@
     const [salaryDate,setSalaryDate]=React.useState('');
     const [range,setRange]=React.useState({from:npMonthStart(today),to:today}),[rangeDraft,setRangeDraft]=React.useState({from:npMonthStart(today),to:today});
     const [detail,setDetail]=React.useState(null);
+    const stepBack=useStepBack(()=>{if(detail){setDetail(null);return true}if(panel){setPanel('');setMsg('');return true}return false});
     const end=npMonthEnd(month);
     const lo=[month,range.from].sort()[0];const hi=[end<today?end:today,range.to,today].sort().reverse()[0];
     async function load(){
@@ -378,7 +380,7 @@
     const rangeRows=rows.filter(r=>r.expense_date>=range.from&&r.expense_date<=range.to);
     const f=(label,node,span)=>h('div',{className:'field',style:{margin:0,...(span?{gridColumn:'1/-1'}:{})}},h('label',null,label),node);
     const open=key=>{setPanel(key);setDetail(null);setMsg('');window.scrollTo({top:0,behavior:'smooth'})};
-    const back=()=>{if(detail){setDetail(null);return}setPanel('');setMsg('')};
+    const back=()=>{stepBack()};
     const title={record:'＋ Record Expense',today:`Today · ${formatDateIN(today)}`,month:npMonthLabel(month),salaries:`Payroll · ${npMonthLabel(month)}`,all:'All Expenses'}[panel]||'';
     const list=(items,emptyText)=>detail?h('div',{className:'section-card'},
         h('h3',{style:{marginTop:0}},`${detail.head} · ${npMoney(detail.amount)}`),

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.179';
+  const APP_VERSION = '2.18.180';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3774,6 +3774,21 @@ https://samaraassistedliving.com/`;
       h('button',{...base,className:'btn btn-whatsapp',title:'Send the WhatsApp receipt (with PDF) to the family',onClick:e=>{stop(e);setStage('confirm')}},
         stage==='sent'?'✓ Sent · Send again':stage==='failed'?'↻ Try again':'📩 Send Receipt'),
       note?h('small',{style:{fontSize:'10.5px',color:stage==='failed'?'#b42318':'#2e7d4f',maxWidth:'180px',whiteSpace:'normal'}},note):null);
+  }
+  // 2.18.180: step-by-step Back. A page with sections / drill-downs registers a handler that goes back ONE level
+  // (e.g. pay sheet → employee list → Expenses boxes) and returns true; it returns false when already at its first
+  // view. The top "‹ Back", the floating Back and the phone back button ask these handlers first (newest first),
+  // and only change page when none of them went back.
+  window.__samaraStepBackers=window.__samaraStepBackers||[];
+  window.__samaraStepBack=function(){
+    const list=window.__samaraStepBackers;
+    for(let i=list.length-1;i>=0;i--){try{if(list[i].current&&list[i].current())return true}catch(_){}}
+    return false;
+  };
+  function useStepBack(handler){
+    const ref=React.useRef(handler);ref.current=handler;
+    React.useEffect(()=>{const list=window.__samaraStepBackers;list.push(ref);return()=>{const i=list.indexOf(ref);if(i>=0)list.splice(i,1)}},[]);
+    return ()=>{if(!window.__samaraStepBack())return false;window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});return true};
   }
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
@@ -14494,6 +14509,8 @@ https://samaraassistedliving.com/`;
       const onPop=e=>{
         // 2.15.4: a dashboard section (Stores / Equipment / Charge Master …) is open → Back closes that section only
         if(e&&e.__samaraDashHandled)return;
+        // 2.18.180: a page section / drill-down is open → go back one level inside the page, stay on the page
+        try{if(window.__samaraStepBack&&window.__samaraStepBack()){try{history.pushState({samaraStep:1},'')}catch(_){};window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});return}}catch(_){}
         try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current))return}catch(_){}
         const nav=navHistoryRef.current;
         if(!nav.stack.length)return;
@@ -14533,6 +14550,8 @@ https://samaraassistedliving.com/`;
     },[profile?.id]);
 
     function goBackPage(){
+      // 2.18.180: first go back one level inside the page (section → list → boxes)
+      try{if(window.__samaraStepBack&&window.__samaraStepBack()){window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});return}}catch(_){}
       // 2.18.167: a dashboard section (Stores, Charge Register list …) is open → Back closes it first.
       try{const reg=window.__samaraDashViews;if(reg&&[...reg].some(r=>r&&r.current)&&history.state&&history.state.samaraStoresView){history.back();return}}catch(_){}
       if(navHistoryRef.current.stack.length){history.back();return}
@@ -45046,6 +45065,8 @@ function ShiftHandover({profile,onNavigate}){
     // 2.18.177: the page opens on navigable boxes only; tapping a box shows that section with "← Back".
     const [panel,setPanel]=React.useState(()=>dischargeTarget||guestFromDues?'receive':dashboardPaymentFocus==='outstanding'?'pending':'');
     const PANEL_VIEW={pending:'Pending Bills',payments:'Payments / Advances',discounts:'Discounts',refunds:'Refunds',all:'Complete Transaction History'};
+    // 2.18.180: Back goes one level: charge type → Guest breakdown → list → boxes (then the page Back)
+    const stepBack=useStepBack(()=>{if(openCat){setOpenCat('');return true}if(openGuest){setOpenGuest('');return true}if(panel&&!dischargeTarget){setPanel('');return true}return false});
     const openPanel=key=>{if(key==='pending'&&!dischargeTarget)choosePaymentPatient('');setPanel(key);if(PANEL_VIEW[key])setQuickView(PANEL_VIEW[key]);setOpenGuest('');setOpenCat('');window.scrollTo({top:0,behavior:'smooth'})};
     const [form,setForm]=React.useState({
       patient_id:dischargeTarget?.patient_id||guestFromDues||'',
@@ -46282,7 +46303,7 @@ Please access the Samara Family Portal for detailed account information.`;
           h('small',{style:{color:'#8a5a70'}},sub),
           h('small',{style:{color:'#b01867',fontWeight:700,marginTop:'auto'}},'Open →')))),
       panel&&h('div',{style:{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap',margin:'0 0 12px',padding:'10px 14px',borderRadius:'14px',background:'linear-gradient(90deg,#fde7f1,#fff5fa)'}},
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setOpenGuest('');setOpenCat('')}},'← Back'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(!stepBack()){setPanel('');setOpenGuest('');setOpenCat('')}}},'← Back'),
         h('strong',{style:{color:'#5d1740',fontSize:'17px'}},panelTitle)),
       dischargeTarget&&h(Section,{
         title:'Discharge Final Payment',
@@ -51838,6 +51859,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   function PayrollPanel({month,onChanged}){
     const today=todayISOIndia(),end=npMonthEnd(month);
     const [rows,setRows]=React.useState(null),[sel,setSel]=React.useState(''),[d,setD]=React.useState(null),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[confirmSend,setConfirmSend]=React.useState(false);
+    useStepBack(()=>{if(sel){setSel('');setMsg('');return true}return false});
     async function load(){
       const r=await client.rpc('samara_payroll_rpc',{p_action:'month',p:{month}});
       if(r.error){setRows([]);setMsg(/samara_payroll_rpc/i.test(r.error.message)?'The Payroll database update (SQL 310) has not been run yet.':r.error.message);return}
@@ -51951,6 +51973,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const [salaryDate,setSalaryDate]=React.useState('');
     const [range,setRange]=React.useState({from:npMonthStart(today),to:today}),[rangeDraft,setRangeDraft]=React.useState({from:npMonthStart(today),to:today});
     const [detail,setDetail]=React.useState(null);
+    const stepBack=useStepBack(()=>{if(detail){setDetail(null);return true}if(panel){setPanel('');setMsg('');return true}return false});
     const end=npMonthEnd(month);
     const lo=[month,range.from].sort()[0];const hi=[end<today?end:today,range.to,today].sort().reverse()[0];
     async function load(){
@@ -52016,7 +52039,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const rangeRows=rows.filter(r=>r.expense_date>=range.from&&r.expense_date<=range.to);
     const f=(label,node,span)=>h('div',{className:'field',style:{margin:0,...(span?{gridColumn:'1/-1'}:{})}},h('label',null,label),node);
     const open=key=>{setPanel(key);setDetail(null);setMsg('');window.scrollTo({top:0,behavior:'smooth'})};
-    const back=()=>{if(detail){setDetail(null);return}setPanel('');setMsg('')};
+    const back=()=>{stepBack()};
     const title={record:'＋ Record Expense',today:`Today · ${formatDateIN(today)}`,month:npMonthLabel(month),salaries:`Payroll · ${npMonthLabel(month)}`,all:'All Expenses'}[panel]||'';
     const list=(items,emptyText)=>detail?h('div',{className:'section-card'},
         h('h3',{style:{marginTop:0}},`${detail.head} · ${npMoney(detail.amount)}`),

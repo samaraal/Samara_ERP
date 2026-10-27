@@ -1,3 +1,8 @@
+## 2.18.180 — 27-10-2026 — Back goes to the previous step, not the main dashboard
+- New shared step-by-step Back: on pages with sections, every Back (the page's "← Back", the top "‹ Back", the floating Back and the phone back button) goes back ONE level, and leaves the page only from its first view.
+- Expenses: pay sheet → Payroll employee list → Expenses boxes; expense entry → list → boxes.
+- Guest Payments / Receipts: charge type entries → Guest breakdown → Pending Payments list → boxes.
+
 ## 2.18.179 — 27-10-2026 — Payroll: salary by days worked (30-day month), payslip PDF + WhatsApp
 - Expenses → **Payroll (Salaries)**: employees of the month (S.No, HR salary, roster duties / offs, Saved · net). Tap an employee for the pay sheet, "← Back to employees".
 - Rules (decided 27-10-2026): per-day = monthly salary ÷ 30; paid days = days worked + weekly offs (max 4) + casual leave (1 per month, unused carried forward), capped at 30; loss of pay = 30 − paid days; other leave unpaid; net = per-day × paid days + overtime + incentives + other earnings − advance − other deductions.
