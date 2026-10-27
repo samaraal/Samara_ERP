@@ -1,3 +1,11 @@
+## 2.18.179 — 27-10-2026 — Payroll: salary by days worked (30-day month), payslip PDF + WhatsApp
+- Expenses → **Payroll (Salaries)**: employees of the month (S.No, HR salary, roster duties / offs, Saved · net). Tap an employee for the pay sheet, "← Back to employees".
+- Rules (decided 27-10-2026): per-day = monthly salary ÷ 30; paid days = days worked + weekly offs (max 4) + casual leave (1 per month, unused carried forward), capped at 30; loss of pay = 30 − paid days; other leave unpaid; net = per-day × paid days + overtime + incentives + other earnings − advance − other deductions.
+- Days worked, weekly offs, casual and other leave are pre-filled from the Duty Roster and approved leave (staff not on the roster are filled as full attendance and flagged); every number can be corrected. Overtime and incentives are typed by Admin, with notes.
+- Save records the net pay as that month's Salaries expense (Net Profit). Void (with reason) removes both so it can be entered again.
+- 📄 Payslip PDF (attendance, earnings, deductions, net pay in words) and Send payslip on WhatsApp to the employee's mobile in HR (template samara_payslip — submitted to Meta; until approved, sent as a direct document only if the employee messaged Samara in the last 24 hours).
+- New SQL: supabase/sql/310_payroll.sql · New Edge Function: payroll-payslip.
+
 ## 2.18.178 — 27-10-2026 — Expenses: record each expense the moment it is spent (bill photo + voice)
 - ACCOUNTS / BILLING → **Expenses** (was Monthly Expenses), Admin / Directors only, opens on boxes: **＋ Record Expense**, **Today**, **This Month**, **Salaries**, **All Expenses** — each opens its section with "← Back".
 - Record Expense: amount, head, date (today), paid by, paid to, reference, what it was for; **bill photo compulsory** (📷 Take photo / choose photo or PDF) or tick **No bill** with the reason; **🎤 Speak the expense** in Tamil or English fills the form (amount, head, paid by, paid to) for checking. Counted in the Net Profit Statement at once.

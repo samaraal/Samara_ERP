@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.178';
+  const APP_VERSION = '2.18.179';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -51819,6 +51819,124 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         :h('button',{type:'button',className:'btn btn-secondary',disabled:state!=='idle',onClick:start},state==='processing'?'Filling…':'🎤 Speak the expense'),
       h('small',{style:{color:msg.startsWith('✓')?'#2e7d4f':'#7a1247',flex:'1 1 220px'}},msg||'e.g. “Electricity bill 4500 rupees paid to TNEB by UPI”'));
   }
+  // 2.18.179: Payroll — salary by days on a 30-day month (weekly offs max 4 paid, 1 casual leave a month carried forward,
+  // other leave unpaid). Days come from the Duty Roster + approved leave, editable; overtime / incentives typed by Admin.
+  function payCalc(d,opening){
+    const sal=Number(d.monthly_salary)||0,dw=Math.max(0,Number(d.days_worked)||0),wo=Math.max(0,Number(d.weekly_offs)||0),clu=Math.max(0,Number(d.cl_used)||0);
+    const clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(30,dw+Math.min(wo,4)+clp);
+    const earned=Math.round(sal*paid/30);
+    const add=['overtime','incentives','other_earnings'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
+    const less=['advance_deduction','other_deduction'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
+    return {perDay:Math.round(sal/30*100)/100,clav,clp,clClose:clav-clp,paid,lop:30-paid,earned,add,less,net:earned+add-less,extraCl:Math.max(0,clu-clav),offsOver:Math.max(0,wo-4)};
+  }
+  async function payslipCall(action,payrollId){
+    const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
+    const r=await fetch(`${cfg.supabaseUrl}/functions/v1/payroll-payslip`,{method:'POST',headers:{'Content-Type':'application/json','apikey':cfg.supabasePublishableKey,'Authorization':`Bearer ${session.access_token}`},body:JSON.stringify({action,payroll_id:payrollId})});
+    if(action==='pdf'){const ct=r.headers.get('content-type')||'';if(ct.includes('pdf'))return await r.blob();const j=await r.json().catch(()=>({}));throw new Error(j.error||'Payslip could not be made.')}
+    const j=await r.json().catch(()=>({}));if(!j.success)throw new Error(j.error||'Payslip could not be sent.');return j;
+  }
+  function PayrollPanel({month,onChanged}){
+    const today=todayISOIndia(),end=npMonthEnd(month);
+    const [rows,setRows]=React.useState(null),[sel,setSel]=React.useState(''),[d,setD]=React.useState(null),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[confirmSend,setConfirmSend]=React.useState(false);
+    async function load(){
+      const r=await client.rpc('samara_payroll_rpc',{p_action:'month',p:{month}});
+      if(r.error){setRows([]);setMsg(/samara_payroll_rpc/i.test(r.error.message)?'The Payroll database update (SQL 310) has not been run yet.':r.error.message);return}
+      setRows(r.data||[]);
+    }
+    React.useEffect(()=>{setSel('');setD(null);setRows(null);setMsg('');load()},[month]);
+    const emp=(rows||[]).find(x=>x.id===sel);
+    function openEmp(x){
+      setSel(x.id);setMsg('');setConfirmSend(false);
+      const onRoster=Number(x.roster_entries)>0;
+      setD({monthly_salary:x.salary!=null?String(x.salary):'',
+        days_worked:String(onRoster?Number(x.roster_days):Math.max(0,30-4-Math.min(Number(x.leave_cl)||0,(Number(x.cl_opening)||0)+1)-(Number(x.leave_other)||0))),
+        weekly_offs:String(onRoster?Number(x.roster_offs):4),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
+        overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:'',deduction_note:'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    async function save(){
+      if(busy)return;setBusy(true);setMsg('');
+      try{
+        const c=payCalc(d,emp.cl_opening);
+        if(!(Number(d.monthly_salary)>0))throw new Error('Enter the monthly salary (or set it in HR).');
+        if(c.net<0)throw new Error('Deductions are more than the salary earned.');
+        if(!d.paid_on||d.paid_on<month)throw new Error(`Choose the paid-on date (on or after 01-${month.slice(5,7)}-${month.slice(0,4)}).`);
+        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
+        if(r.error)throw r.error;
+        showSamaraActionToast('success','Salary saved',`${emp.name} · Net ${npMoney(r.data?.net_pay)} — counted in Net Profit.`);
+        await load();onChanged&&onChanged();setMsg('✓ Saved. You can now open the payslip or send it on WhatsApp.');
+      }catch(e){setMsg(e.message||'Unable to save.')}finally{setBusy(false)}
+    }
+    async function pdf(id){try{setBusy(true);const b=await payslipCall('pdf',id);const u=URL.createObjectURL(b);window.open(u,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(u),60000)}catch(e){setMsg(e.message)}finally{setBusy(false)}}
+    async function send(id){try{setBusy(true);setConfirmSend(false);const j=await payslipCall('send',id);showSamaraActionToast('success','Payslip sent on WhatsApp',`Sent to ${j.to}.`);setMsg('✓ Payslip sent on WhatsApp to '+j.to+'.');await load()}catch(e){setMsg(e.message);showSamaraActionToast('error','Payslip not sent',e.message)}finally{setBusy(false)}}
+    async function voidIt(row){
+      const reason=window.prompt(`Void the saved salary of ${row.employee_name} for ${npMonthLabel(month)}? It will also be removed from Net Profit. Give the reason:`);if(reason==null)return;
+      const r=await client.rpc('samara_payroll_rpc',{p_action:'void',p:{id:row.id,reason}});
+      if(r.error)setMsg(r.error.message);else{setMsg('✓ Salary voided. You can enter it again.');await load();onChanged&&onChanged()}
+    }
+    const num=(k,label,hint,extra={})=>h('div',{className:'field',style:{margin:0}},h('label',null,label),
+      h('input',{type:'number',inputMode:'decimal',min:'0',step:extra.step||'0.5',value:emp?.saved?String(emp.saved[k]??''):d[k],disabled:!!emp?.saved,onChange:e=>setD({...d,[k]:e.target.value}),style:{fontWeight:700}}),
+      hint?h('small',{style:{color:'#8a5a70'}},hint):null);
+    const box={border:'1px solid #f3c2d8',borderRadius:'14px',padding:'14px',background:'#fff'};
+    const line=(k,v,strong)=>h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px dashed #f3d6e4',fontWeight:strong?800:500}},h('span',null,k),h('span',null,v));
+    if(rows===null)return h(Section,{title:'Payroll'},h('p',null,'Loading employees…'));
+    if(sel&&emp&&d){
+      const sv=emp.saved;const src=sv||d;const c=sv?{perDay:sv.per_day,clav:Number(sv.cl_opening)+Number(sv.cl_credit),clp:sv.cl_paid,clClose:sv.cl_closing,paid:sv.paid_days,lop:sv.lop_days,earned:sv.earned,add:Number(sv.overtime)+Number(sv.incentives)+Number(sv.other_earnings),less:Number(sv.advance_deduction)+Number(sv.other_deduction),net:sv.net_pay,extraCl:Math.max(0,Number(sv.cl_used)-Number(sv.cl_opening)-1),offsOver:Math.max(0,Number(sv.weekly_offs)-4)}:payCalc(d,emp.cl_opening);
+      const onRoster=Number(emp.roster_entries)>0;
+      return h(Section,{title:`${emp.name} · ${npMonthLabel(month)}`,subtitle:`${emp.designation||''}${emp.department?' · '+emp.department:''} · HR salary ${emp.salary!=null?npMoney(emp.salary):'not set'}`,
+          actions:h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSel('');setMsg('')}},'← Back to employees')},
+        msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
+        sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
+          :h('div',{className:'notice'},onRoster?`From the Duty Roster: ${emp.roster_days} duty days, ${emp.roster_offs} weekly offs · approved leave: ${emp.leave_cl} casual, ${emp.leave_other} other. Correct any number before saving.`:'⚠ Not on the Duty Roster this month — days are filled as full attendance. Please check and correct.'),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
+          h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'1. Days (30-day month)'),
+            h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
+              num('monthly_salary','Monthly salary (₹)',null,{step:'1'}),
+              num('days_worked','Days worked',onRoster?`Roster: ${emp.roster_days}`:'Not on roster'),
+              num('weekly_offs','Weekly offs','Paid up to 4'+(onRoster?` · roster ${emp.roster_offs}`:'')),
+              num('cl_used','Casual leave taken',`Available ${c.clav} (carried ${Number(emp.cl_opening)||0} + 1)`),
+              num('other_leave','Other leave (unpaid)',`Approved: ${emp.leave_other}`))),
+          h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'2. Overtime, incentives & deductions'),
+            h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
+              num('overtime','Overtime (₹)',null,{step:'1'}),num('incentives','Incentives (₹)',null,{step:'1'}),
+              num('other_earnings','Other earnings (₹)',null,{step:'1'}),num('advance_deduction','Advance recovered (₹)',null,{step:'1'}),
+              num('other_deduction','Other deductions (₹)',null,{step:'1'})),
+            h('div',{className:'field',style:{margin:'10px 0 0'}},h('label',null,'Note on earnings'),h('input',{value:src.earnings_note||'',disabled:!!sv,onChange:e=>setD({...d,earnings_note:e.target.value}),placeholder:'e.g. 3 extra night duties, festival incentive'})),
+            h('div',{className:'field',style:{margin:'10px 0 0'}},h('label',null,'Note on deductions'),h('input',{value:src.deduction_note||'',disabled:!!sv,onChange:e=>setD({...d,deduction_note:e.target.value}),placeholder:'e.g. advance given on 10-10-2026'}))),
+          h('div',{style:{...box,background:'linear-gradient(135deg,#fff,#fde7f1)'}},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'3. Salary'),
+            line('Per-day rate (salary ÷ 30)',npMoney(c.perDay)),
+            line('Paid days',`${c.paid} / 30`),
+            line('Loss of pay days',String(c.lop)),
+            line(`Casual leave paid / balance carried`,`${c.clp} / ${c.clClose}`),
+            c.extraCl>0?h('small',{style:{color:'#b42318'}},`${c.extraCl} casual leave day(s) beyond the balance are unpaid.`):null,
+            c.offsOver>0?h('small',{style:{color:'#b42318',display:'block'}},`${c.offsOver} weekly off(s) above 4 are not paid.`):null,
+            line('Salary for paid days',npMoney(c.earned)),
+            line('+ Overtime / incentives / other',npMoney(c.add)),
+            line('− Deductions',npMoney(c.less)),
+            h('div',{style:{marginTop:'10px',padding:'12px',borderRadius:'12px',background:'#b01867',color:'#fff'}},h('div',{style:{fontSize:'12px'}},'NET PAY'),h('div',{style:{fontSize:'26px',fontWeight:800}},npMoney(c.net))),
+            !sv&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginTop:'12px'}},
+              h('div',{className:'field',style:{margin:0}},h('label',null,'Paid on'),h(StrictDateInput,{value:d.paid_on,min:month,max:today,onChange:e=>setD({...d,paid_on:e.target.value})})),
+              h('div',{className:'field',style:{margin:0}},h('label',null,'Paid by'),h('select',{value:d.paid_mode,onChange:e=>setD({...d,paid_mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x))))),
+            !sv?h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save,style:{width:'100%',marginTop:'12px',padding:'13px',fontSize:'16px'}},busy?'Saving…':`Save salary · ${npMoney(c.net)}`)
+              :h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
+                h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>pdf(sv.id)},'📄 Payslip PDF'),
+                confirmSend?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-whatsapp',disabled:busy,onClick:()=>send(sv.id)},`✓ Yes, send to ${emp.mobile||'mobile in HR'}`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setConfirmSend(false)},'Cancel'))
+                  :h('button',{type:'button',className:'btn btn-whatsapp',disabled:busy,onClick:()=>setConfirmSend(true)},sv.payslip_sent_at?'Send payslip again on WhatsApp':'Send payslip on WhatsApp'),
+                h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>voidIt(sv)},'Void (to correct)')),
+            sv&&sv.payslip_error?h('small',{style:{color:'#b42318',display:'block',marginTop:'6px'}},`Last WhatsApp attempt: ${sv.payslip_error}`):null)));
+    }
+    const saved=(rows||[]).filter(x=>x.saved);const total=saved.reduce((t,x)=>t+Number(x.saved.net_pay||0),0);
+    return h(Section,{title:`Payroll · ${npMonthLabel(month)}`,subtitle:`30-day month · weekly offs up to 4 paid · 1 casual leave a month (unused carried forward) · other leave unpaid. ${saved.length} of ${(rows||[]).length} saved · ${npMoney(total)}.`},
+      msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
+      h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('thead',null,h('tr',null,['S.No','Employee','HR Salary','Roster','Status',''].map(x=>h('th',{key:x},x)))),
+        h('tbody',null,(rows||[]).length?(rows||[]).map((x,i)=>h('tr',{key:x.id,style:{cursor:'pointer'},onClick:()=>openEmp(x)},
+          h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`)),
+          h('td',null,x.salary!=null?npMoney(x.salary):h('span',{style:{color:'#b42318'}},'Not set')),
+          h('td',null,Number(x.roster_entries)>0?`${x.roster_days} duty · ${x.roster_offs} off`:h('span',{style:{color:'#9a6700'}},'Not on roster')),
+          h('td',null,x.saved?h('span',{className:'badge success'},`Saved · ${npMoney(x.saved.net_pay)}${x.saved.payslip_sent_at?' · 📩':''}`):h('span',{className:'badge'},'Not saved')),
+          h('td',{style:{color:'#b01867',fontWeight:700,whiteSpace:'nowrap'}},x.saved?'View →':'Open →'))):h('tr',null,h('td',{colSpan:6,className:'empty'},'No employees found.'))))));
+  }
   function MonthlyExpenses({profile,onNavigate}){
     const isAdmin=profile?.role==='Admin';
     const today=todayISOIndia();
@@ -51899,7 +52017,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const f=(label,node,span)=>h('div',{className:'field',style:{margin:0,...(span?{gridColumn:'1/-1'}:{})}},h('label',null,label),node);
     const open=key=>{setPanel(key);setDetail(null);setMsg('');window.scrollTo({top:0,behavior:'smooth'})};
     const back=()=>{if(detail){setDetail(null);return}setPanel('');setMsg('')};
-    const title={record:'＋ Record Expense',today:`Today · ${formatDateIN(today)}`,month:npMonthLabel(month),salaries:`Salaries · ${npMonthLabel(month)}`,all:'All Expenses'}[panel]||'';
+    const title={record:'＋ Record Expense',today:`Today · ${formatDateIN(today)}`,month:npMonthLabel(month),salaries:`Payroll · ${npMonthLabel(month)}`,all:'All Expenses'}[panel]||'';
     const list=(items,emptyText)=>detail?h('div',{className:'section-card'},
         h('h3',{style:{marginTop:0}},`${detail.head} · ${npMoney(detail.amount)}`),
         h('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'14px'}},h('tbody',null,
@@ -51917,7 +52035,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       ['record','＋ Record Expense','Spent now?','Bill photo · voice · 30 seconds','#b01867'],
       ['today','Today',npMoney(sum(todayRows)),`${todayRows.length} entr${todayRows.length===1?'y':'ies'}`,'#7a1247'],
       ['month','This Month',npMoney(sum(monthRows)),`${monthRows.length} entries · ${npMonthLabel(month)}`,'#5d1740'],
-      ['salaries','Salaries',`${paidIds.size} / ${staff.length}`,`recorded for ${npMonthLabel(month)}`,'#2e7d4f'],
+      ['salaries','Payroll (Salaries)',`${paidIds.size} / ${staff.length}`,`saved for ${npMonthLabel(month)} · payslips`,'#2e7d4f'],
       ['all','All Expenses','By period','filter, view bills','#9a6700']];
     return h(React.Fragment,null,
       !panel&&h(Section,{title:'Expenses',subtitle:'Admin / Directors only · record each expense when it is spent — it counts in the Net Profit Statement at once',actions:h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate&&onNavigate('Net Profit Statement')},'Net Profit Statement →')},
@@ -51958,16 +52076,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           f('To',h(StrictDateInput,{value:rangeDraft.to,min:'2026-08-27',max:today,onChange:e=>setRangeDraft({...rangeDraft,to:e.target.value})})),
           h('button',{type:'button',className:'btn btn-primary',onClick:()=>{if(rangeDraft.from&&rangeDraft.to&&rangeDraft.from<=rangeDraft.to)setRange(rangeDraft);else setMsg('Choose a valid From and To date.')}},'Apply')),
         list(rangeRows,'No expenses in this period.')),
-      panel==='salaries'&&h(Section,{title:`Salaries paid · ${npMonthLabel(month)}`,subtitle:'Pre-filled from HR (current salary) — change for leave, advances, overtime or part-month, then Record. If a salary was already paid through Outgoing Payments (Salaries), do not record it here too.',actions:h('div',{style:{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}},
-          h('span',{style:{fontWeight:700,color:'#7b6871'}},'Paid on'),h(StrictDateInput,{value:salaryDate,min:month<'2026-08-27'?'2026-08-27':month,max:end<today?end:today,onChange:e=>setSalaryDate(e.target.value)}),
-          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>recordSalary(staff)},'Record all entered'))},
-        h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Employee','Designation','HR Salary','Amount Paid (₹)','Status',''].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,staff.length?staff.map(s=>{const done=paidIds.has(String(s.id));return h('tr',{key:s.id},
-            h('td',null,s.name),h('td',null,`${s.designation||'—'}${s.department?` · ${s.department}`:''}`),h('td',null,s.salary!=null?`${npMoney(s.salary)} ${s.frequency||''}`:'Not set in HR'),
-            h('td',null,h('input',{type:'number',min:'0',step:'0.01',value:salary[s.id]||'',disabled:done,onChange:e=>setSalary(v=>({...v,[s.id]:e.target.value})),style:{maxWidth:'140px'}})),
-            h('td',null,done?h('span',{className:'badge success'},'Recorded'):h('span',{className:'badge'},'Not recorded')),
-            h('td',null,done?null:h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!(Number(salary[s.id])>0),onClick:()=>recordSalary([s])},'Record')))}):h('tr',null,h('td',{colSpan:6,className:'empty'},'No active employees found.'))))))
+      panel==='salaries'&&h(PayrollPanel,{month,onChanged:load})
     );
   }
   function WhatsAppDeliveryLogs({profile}){
