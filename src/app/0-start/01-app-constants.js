@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.177';
+  const APP_VERSION = '2.18.178';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification

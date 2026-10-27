@@ -1,3 +1,9 @@
+## 2.18.178 — 27-10-2026 — Expenses: record each expense the moment it is spent (bill photo + voice)
+- ACCOUNTS / BILLING → **Expenses** (was Monthly Expenses), Admin / Directors only, opens on boxes: **＋ Record Expense**, **Today**, **This Month**, **Salaries**, **All Expenses** — each opens its section with "← Back".
+- Record Expense: amount, head, date (today), paid by, paid to, reference, what it was for; **bill photo compulsory** (📷 Take photo / choose photo or PDF) or tick **No bill** with the reason; **🎤 Speak the expense** in Tamil or English fills the form (amount, head, paid by, paid to) for checking. Counted in the Net Profit Statement at once.
+- Lists: S.No, date, head, paid to, amount, bill mark, total; tap an entry for full details, **View bill**, and Remove (with reason, kept for audit). All Expenses has From / To with Apply.
+- New SQL: supabase/sql/309_expense_bills.sql (bill columns, private expense-bills storage — Admin only, bill-or-reason rule).
+
 ## 2.18.177 — 27-10-2026 — Guest Payments / Receipts opens on navigable boxes (clean page)
 - The page now opens on one row of boxes only: **Pending Payments** (total + number of Guests), **Receive Payment / Advance**, **Payments / Advances**, **Discounts**, **Refunds**, **All Transactions**. Tap a box to open just that section; "← Back" returns to the boxes.
 - Receive Payment / Advance holds the Guest selection, the Guest's balance boxes, online payment link / advance buttons, daily payable WhatsApp and the payment form. The other boxes show their list with an optional Guest filter.

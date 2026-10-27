@@ -116,7 +116,8 @@
     'Charge Approvals':'Bills & Charges Approval',
     'Payments':'Guest Payments / Receipts',
     'Patient Ledger':'Guest Ledger',
-    'Package Expiry Dashboard':'Package Expiry'
+    'Package Expiry Dashboard':'Package Expiry',
+    'Monthly Expenses':'Expenses'
   };
   // Sub-heading to show above items[i] in the ACCOUNTS / BILLING menu (or '' for none).
   const navSubheadBefore=(sectionTitle,items,i)=>{
