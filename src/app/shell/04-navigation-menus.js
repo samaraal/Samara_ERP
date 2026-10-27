@@ -167,7 +167,18 @@
     ];
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['Outside Samara Nursing Procedures','✚','Outside Nursing','Submit completed procedure']);
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
-    return h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
+    // These workflows must also be visible on desktop and in the Manager's Nurse view.
+    const nurseTasks=profile?.role==='Nurse'?[
+      ['Charge Approvals','Raise Bill / Charge','Send completed services to Accounts'],
+      ['Approval Requests','Procedure / Equipment Request','Request approval, then confirm and start'],
+      ['Raise Indent','Raise Indent','Request Consumables or Pharmacy items'],
+      ['Received Indents / Used Balance','Received Indents / Used Balance','Confirm receipt, record use or return']
+    ].filter(([target])=>allowedPagesForProfile(profile).includes(target)):[];
+    return h(React.Fragment,null,
+      nurseTasks.length>0&&h('section',{className:'nurse-workflow-actions','aria-label':'Nurse charges, requests and indents',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'8px',padding:'12px 16px'}},
+        nurseTasks.map(([target,label,detail])=>h('button',{key:target,type:'button',className:'btn btn-secondary',onClick:()=>onNavigate(target),style:{minHeight:'70px',display:'grid',gap:'5px',alignContent:'center',textAlign:'left',whiteSpace:'normal'}},
+          h('strong',null,label),h('small',{style:{fontWeight:400}},detail)))),
+      h('section',{className:'nursing-mobile-quick-actions','aria-label':'Nursing quick actions'},
       actions.map(([target,icon,label,sub])=>h('button',{
         type:'button',
         key:target,
@@ -177,7 +188,7 @@
         h('span',{className:'nursing-quick-icon'},icon),
         h('span',{className:'nursing-quick-copy'},h('strong',null,label),h('small',null,sub))
       ))
-    );
+    ));
   }
 
 

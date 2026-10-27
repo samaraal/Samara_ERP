@@ -1,3 +1,7 @@
+## 2.18.183 — 27-10-2026 — Complete Nurse access when switching roles
+- Nurse dashboard now shows Raise Bill / Charge, Procedure / Equipment Request, Raise Indent and Received Indents / Used Balance on desktop and phone, including the Nursing Manager’s Nurse view.
+- The role switch requires server confirmation. SQL 312 repairs the approval-request check and remaining Nurse workflow checks while preserving approvals and the Manager role.
+
 ## 2.18.182 — 27-10-2026 — Nursing Manager: full WhatsApp access
 - Nursing Manager can open all WhatsApp conversations, use patient / family chat links, reply, send approved templates and attachments, and refresh templates.
 - Added WhatsApp Logs and hidden-message restore. SQL 311 removes food-only API and inbox restrictions for active Nursing Managers while retaining other roles’ permissions.
