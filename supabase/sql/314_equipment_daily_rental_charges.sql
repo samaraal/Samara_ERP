@@ -114,7 +114,8 @@ begin
   end if;
   select charge_from into v_from from public.equipment_rental_settings where id=1;
   for r in
-    select per.*, pt.discharge_date::date as discharge_d, o.rental_from,
+    -- discharge_date is trusted only once the Guest is discharged (for active Guests it can hold the admission date)
+    select per.*, case when coalesce(pt.is_active,true) then null else pt.discharge_date::date end as discharge_d, o.rental_from,
            row_number() over (partition by per.patient_id, per.item_id order by per.start_d) as period_no
       from public.equipment_rental_periods() per
       join public.patients pt on pt.id=per.patient_id and (coalesce(pt.is_active,true) or pt.discharge_date is not null)
