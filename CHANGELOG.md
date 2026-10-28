@@ -1,3 +1,7 @@
+## 2.18.199 — 29-10-2026 — Profit by Service: lists open by default
+- The Item-wise / Guest-wise list now shows straight away under each head (it was hidden until the head row was tapped, so choosing "Guest-wise" seemed to do nothing).
+- Each head shows a clear "▲ Hide list / ▼ Show N items" chip; changing Item-wise ↔ Guest-wise opens all lists again.
+
 ## 2.18.198 — 29-10-2026 — New: Profit by Service (Admin / Directors)
 - ACCOUNTS / BILLING → Profit · Admin only → **Profit by Service**: net profit of Consumables (incl. Pharmacy & Basic Supplies), Nursing Procedures and Physiotherapy alone.
 - Filters: This Month / Last Month / any From–To period, any Guest or All Guests, any head or all three; Item-wise or Guest-wise. Tap a head to expand. Bold TOTAL row. Print / PDF and Excel.
