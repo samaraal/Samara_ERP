@@ -172,6 +172,11 @@
    "lines": 301
   },
   {
+   "file": "global-ui/14-sidebar-readability.js",
+   "about": "Left menu readability (dark heading text on white pill) + icons for headings / pages showing a plain pink square",
+   "lines": 72
+  },
+  {
    "file": "stores/kitchen-cash.js",
    "about": "Kitchen petty cash and custody workflow"
   },

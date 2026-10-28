@@ -1,3 +1,8 @@
+## 2.19.1 — 29-10-2026 — Left menu: readable headings and proper icons
+- Version numbers now keep the last part to 2 digits (2.18.200 → 2.19.1).
+- Menu section headings that showed white text on the light-pink part of the left menu are now dark plum on a soft white pill (the open section keeps its pink band). The open list of pages gets a light panel, so page names stay readable over the deep-pink lower menu.
+- Headings and pages that showed only a plain pink square (e.g. CHARGE MASTER, Net Profit Statement, Profit by Service, Expenses, My Profile) now get a fitting icon chosen from their name. Existing icons are unchanged.
+
 ## 2.18.200 — 29-10-2026 — Charge Register Net Profit uses the same cost rule as Profit by Service
 - A stock receipt entered at the box / pack price (cost per piece more than double the item's charge rate) is now left out of the item's average purchase price, instead of raising the cost of every charge of that item. Same rule as Profit by Service and the Net Profit Statement.
 - Consumables profit now matches on both pages. Charge Register also shows Outside Services (charged = paid, no profit).
