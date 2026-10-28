@@ -29,7 +29,7 @@
   {
    "file": "core/04-supabase-roles-navigation.js",
    "about": "Supabase client, audit log writer, roles, departments, menu per role, page permissions",
-   "lines": 229
+   "lines": 298
   },
   {
    "file": "core/05-whatsapp-phone-helpers.js",
@@ -186,7 +186,7 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 953
+   "lines": 955
   },
   {
    "file": "shell/02-login-password.js",
@@ -546,6 +546,11 @@
    "file": "accounts/12-net-profit.js",
    "about": "ACCOUNTS / BILLING → Net Profit Statement + Monthly Expenses (Admin / Directors only)",
    "lines": 207
+  },
+  {
+   "file": "accounts/13-service-profit.js",
+   "about": "ACCOUNTS / BILLING → Profit by Service: Consumables, Nursing Procedures, Physiotherapy (Admin only)",
+   "lines": 119
   },
   {
    "file": "reports/whatsapp-delivery-logs.js",

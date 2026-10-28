@@ -1,3 +1,9 @@
+## 2.18.198 — 29-10-2026 — New: Profit by Service (Admin / Directors)
+- ACCOUNTS / BILLING → Profit · Admin only → **Profit by Service**: net profit of Consumables (incl. Pharmacy & Basic Supplies), Nursing Procedures and Physiotherapy alone.
+- Filters: This Month / Last Month / any From–To period, any Guest or All Guests, any head or all three; Item-wise or Guest-wise. Tap a head to expand. Bold TOTAL row. Print / PDF and Excel.
+- Cost: Consumables = quantity × average purchase price from stock receipts (items with no purchase price are listed and kept out of profit); Physiotherapy = the outsourced session fee of the same session; Nursing Procedures = nil (salaries stay in the Net Profit Statement).
+- Database: supabase/sql/316_service_profit.sql (get_service_profit) — applied.
+
 ## 2.18.197 — 29-10-2026 — No more "unsaved entry" reminders from filter dates
 - Changing the From / To dates on view-only pages (Charge Register, reports, statements, logs, dashboards) was being kept as an "unsaved entry" and shown again at every sign-in, e.g. "Charge Register — Approved · This Month".
 - Now only a real entry form — one with a Save / Submit / Record / Approve … button — is kept as an unsaved entry. Filters are never kept.
