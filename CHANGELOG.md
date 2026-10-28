@@ -1,3 +1,10 @@
+## 2.18.190 — 28-10-2026 — Equipment daily rental charged automatically (Air Bed With Motor, Air Mattress)
+- Found: equipment issued to a Guest (Approval Requests → Started) was only recorded in the equipment register; the charge had to be raised by hand in Bills & Charges and never was, and Air Bed / Air Mattress had no Charge Master rate.
+- Charge Master: Air Bed With Motor ₹250 / day, Air Mattress ₹200 / day (Admin / Director can change it there).
+- New (SQL 314): one rental charge per Guest per equipment type per day while it is with the Guest — the issue day and the return day are both charged; stops on return or discharge. Locked per Guest + equipment type + date, so two shifts / two nurses / a same-day swap never charge twice. Runs every hour; days not yet charged are caught up.
+- Manual Bills & Charges entries for Air Bed / Air Mattress are blocked (automatic now). Other equipment is unchanged. Database only — no app files changed.
+- S. Swaminathan (MOG-2026-10-0013): Air Bed charged from 23-10-2026 (approved), Air Mattress from its issue day 28-10-2026.
+
 ## 2.18.189 — 28-10-2026 — Clear request amounts and consistent approval-date totals
 - Requests raised without an amount are identified explicitly, rather than counted as zero. "Request Amount Recorded" totals only saved request values and shows how many requests lack amounts; historical requests are never recalculated from later master rates.
 - Approved Today opens an Approval date filter, so choosing the same day retains earlier services approved that day. Service date remains a separate selectable basis; totals state their scope and use one approved-amount calculation.
