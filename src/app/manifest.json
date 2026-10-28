@@ -57,6 +57,11 @@
    "lines": 90
   },
   {
+   "file": "core/10-samara-ask-dialog.js",
+   "about": "Samara in-app ask / confirm dialog beside the pressed button (instead of the browser prompt box)",
+   "lines": 88
+  },
+  {
    "file": "shared/01-camera-and-global-search.js",
    "about": "Camera capture popup, global search",
    "lines": 87

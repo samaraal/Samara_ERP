@@ -791,21 +791,24 @@
     }
     // 2.17.5: outside bill (SQL 247) — Accounts verifies the bill amount; the handling fee from Charge Master
     // is added as a separate Guest bill line; NM Petty Cash / credit / family-paid are handled in the database.
-    async function decideOutside(row,decision){
-      let amount=0;
+    async function decideOutside(row,decision,anchor){
+      let amount=0;const remarksAsked=undefined;
       if(decision!=='Rejected'){
         const master=(tariffs||[]).find(t=>t.category===OUTSIDE_CATEGORY&&((row.charge_item_code&&t.charge_code===row.charge_item_code)||t.service_name===row.service_name)&&t.is_active!==false);
         const familyPaid=row.outside_paid_by==='Family paid directly';
-        const entered=prompt(`${row.service_name||'Outside bill'} · ${row.service_provider||''} · Bill ${row.bill_number||'—'}\nPaid by: ${row.outside_paid_by}\n\nOpen and check the uploaded bill, then enter the bill amount exactly as printed:`,row.requested_amount!=null?String(row.requested_amount):'');
-        if(entered===null)return;
+        const ask=await samaraAsk({anchor,title:`${row.service_name||'Outside bill'}${row.service_provider?` · ${row.service_provider}`:''}`,
+          message:`Bill ${row.bill_number||'—'} · Paid by: ${row.outside_paid_by}\nOpen and check the uploaded bill, then enter the bill amount exactly as printed.`,
+          fields:[{key:'amount',label:'Bill amount (₹)',type:'number',value:row.requested_amount!=null?String(row.requested_amount):'',required:true}],okLabel:'Next'});
+        if(ask===null)return;
+        const entered=ask.amount;
         amount=Number(entered);
         if(!Number.isFinite(amount)||amount<=0){notify('error','Enter the verified bill amount greater than zero.');return}
         const fee=familyPaid?0:outsideFeeAmount(master,amount);
-        if(!confirm(familyPaid
+        if(!(await samaraConfirm({anchor,title:'Please confirm',okLabel:'Confirm',message:familyPaid
           ?`Family paid this bill directly (${money(amount)}).\nIt will be kept for the record only — nothing is charged to the Guest. Continue?`
-          :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`))return;
+          :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`})))return;
       }
-      const remarks=decision==='Rejected'?returnReason(row):(prompt('Decision remarks:',decision)||decision);
+      const remarks=decision==='Rejected'?await returnReason(row,anchor):(remarksAsked??await askRemarks(decision,anchor));
       if(remarks===null)return;
       setBusy(true);
       const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:row.id,p_decision:decision,p_approved_amount:decision==='Rejected'?0:amount,p_remarks:remarks});
@@ -815,17 +818,26 @@
       outsideFillMissingFamilyLinks();
       await load();
     }
+    // 2.18.191: Samara dialog beside the pressed button (not the browser box at the top of the screen)
+    async function askRemarks(decision,anchor){
+      const ask=await samaraAsk({anchor,title:decision==='Partially Approved'?'Partial approval':'Approve charge',
+        fields:[{key:'remarks',label:'Decision remarks',value:decision}],okLabel:decision==='Partially Approved'?'Approve partly':'Approve'});
+      return ask===null?null:(ask.remarks||decision);
+    }
     // 2.18.147: a Return always needs the reason — the nurse sees it and corrects the request
-    function returnReason(row){
-      const entered=prompt(`Return to Nursing for correction\n${row.service_name||row.description||'Charge'} · Qty ${row.quantity||1}${row.unit?` ${row.unit}`:''}\n\nWhat should the nurse correct? (the nurse sees this)`,'');
-      if(entered===null)return null;
-      const reason=String(entered).trim();
+    async function returnReason(row,anchor){
+      const ask=await samaraAsk({anchor,title:'Return to Nursing for correction',
+        message:`${row.service_name||row.description||'Charge'} · Qty ${row.quantity||1}${row.unit?` ${row.unit}`:''}`,
+        fields:[{key:'reason',label:'What should the nurse correct? (the nurse sees this)',type:'textarea',value:'',required:true}],okLabel:'Return'});
+      if(ask===null)return null;
+      const reason=String(ask.reason||'').trim();
       if(reason.length<5){notify('error','Write what the nurse should correct (at least a few words).');return null}
       return reason;
     }
-    async function decide(row,decision){
+    async function decide(row,decision,anchor){
       if(!canApprove||busy)return;
-      if(row.outside_paid_by)return decideOutside(row,decision);
+      if(row.outside_paid_by)return decideOutside(row,decision,anchor);
+      let remarksAsked;
       const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
       const tariff=(isOther||storeCategories.includes(row.category))?null:tariffs.find(t=>(row.charge_item_code&&t.charge_code===row.charge_item_code)||(t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false));
       const storeAmount=currentStoreRequestAmount(row);
@@ -838,16 +850,19 @@
           return;
         }
         const defaultAmount=amount>0?String(amount):'';
-        const entered=prompt(
-          row.bill_available
+        const ask=await samaraAsk({anchor,title:decision==='Partially Approved'?'Partial approval':'Approve charge',
+          message:row.bill_available
             ?'Verify the uploaded bill and enter the actual bill amount:'
             :isOther
               ?'Enter the verified amount for this custom / Other charge:'
               :storeAmount.fromMaster
                 ?`Store rate ${money(storeAmount.rate)} × ${Number(row.quantity||1)} = ${money(amount)}. Verify the approved amount:`
                 :`Fixed rate is ${money(amount)}. Verify the approved amount:`,
-          defaultAmount
-        );
+          fields:[{key:'amount',label:'Approved amount (₹)',type:'number',value:defaultAmount,required:true},
+                  {key:'remarks',label:'Decision remarks',value:decision}],
+          okLabel:decision==='Partially Approved'?'Approve partly':'Approve'});
+        const entered=ask===null?null:ask.amount;
+        if(ask!==null)remarksAsked=ask.remarks||decision;
         if(entered===null)return;
         amount=Number(entered);
         if(!Number.isFinite(amount)||amount<=0){
@@ -855,7 +870,7 @@
           return;
         }
       }
-      const remarks=decision==='Rejected'?returnReason(row):(prompt('Decision remarks:',decision)||decision);
+      const remarks=decision==='Rejected'?await returnReason(row,anchor):(remarksAsked??await askRemarks(decision,anchor));
       if(remarks===null)return;
       setBusy(true);
       const result=await client.rpc('decide_bill_charge_request_v5',{
@@ -985,9 +1000,9 @@
         amountParts.length?h('div',{style:{marginTop:'4px',fontSize:'13px',display:'flex',flexWrap:'wrap',gap:'4px 10px'}},...amountParts.map((x,i)=>typeof x==='string'?h('span',{key:i},x):x)):null,
         showRemarks?h('div',{style:{...muted,marginTop:'3px',fontStyle:'italic'}},`Remarks: ${remarks}`):null,
         canApprove&&status==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'8px'}},
-          h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
-          h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
-          h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Return')
+          h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved',e.currentTarget)}},'Approve'),
+          h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
+          h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected',e.currentTarget)}},'Return')
         ),
         r.resubmitted_from&&h('div',{style:{...muted,marginTop:'3px'}},'Corrected and resubmitted after a return'),
         status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px',width:'100%'},disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit')

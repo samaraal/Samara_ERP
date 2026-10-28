@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.189';
+  const APP_VERSION = '2.18.191';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3115,6 +3115,94 @@ https://samaraassistedliving.com/`;
       return h('section',{className:'content'},box);
     }
   }
+  // 2.18.191: Samara in-app dialog in place of the browser's own prompt() / confirm() box.
+  // The browser box always opens at the very top of the screen, far from the button pressed, and cannot be
+  // styled. samaraAsk() opens a baby-pink Samara box right next to the button that was pressed (anchor),
+  // and returns a Promise: the typed values ({key: value}) on OK, or null on Cancel / Esc / tap outside.
+  //   await samaraAsk({anchor, title, message, fields:[{key,label,value,type,placeholder,required}], okLabel})
+  //   await samaraConfirm({anchor, title, message, okLabel})   -> true / false
+  function samaraEnsureAskStyle(){
+    if(document.getElementById('samara-ask-style'))return;
+    const style=document.createElement('style');style.id='samara-ask-style';
+    style.textContent=`
+      .samara-ask-backdrop{position:fixed;inset:0;z-index:2147483600;background:rgba(43,6,25,.18);animation:samaraAskFade .15s ease-out both}
+      .samara-ask-box{position:fixed;z-index:2147483601;width:min(420px,calc(100vw - 20px));box-sizing:border-box;
+        background:linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%);color:#3b0f25;border:2px solid #e9a9c4;
+        border-radius:18px;box-shadow:0 18px 48px rgba(160,21,79,.30);padding:16px 18px 14px;
+        font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;animation:samaraAskPop .18s cubic-bezier(.2,1.2,.4,1) both}
+      .samara-ask-box h3{margin:0 0 6px;font-size:17px;font-weight:900;color:#a80d4f}
+      .samara-ask-box .samara-ask-msg{margin:0 0 10px;font-size:14px;line-height:1.45;font-weight:600;white-space:pre-line;color:#4d2238}
+      .samara-ask-box label{display:block;margin:8px 0 4px;font-size:13px;font-weight:800;color:#8a3a62}
+      .samara-ask-box input,.samara-ask-box textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e9a9c4;border-radius:12px;
+        background:#fff;color:#2b0f1e;font-size:15px;font-weight:700;font-family:inherit;outline:none}
+      .samara-ask-box textarea{min-height:64px;resize:vertical}
+      .samara-ask-box input:focus,.samara-ask-box textarea:focus{border-color:#c2185b;box-shadow:0 0 0 3px rgba(214,51,138,.18)}
+      .samara-ask-box .samara-ask-err{min-height:16px;margin:6px 0 0;font-size:12.5px;font-weight:800;color:#c0123c}
+      .samara-ask-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+      .samara-ask-actions button{min-height:42px;min-width:92px;padding:8px 16px;border-radius:12px;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit}
+      .samara-ask-ok{border:0;color:#fff;background:linear-gradient(135deg,#a80d4f,#d6338a);box-shadow:0 6px 16px rgba(168,13,79,.28)}
+      .samara-ask-cancel{border:1.5px solid #e9a9c4;background:#fff;color:#8a1c52}
+      @keyframes samaraAskFade{from{opacity:0}to{opacity:1}}
+      @keyframes samaraAskPop{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+      @media(max-width:600px){.samara-ask-box{left:10px!important;right:10px!important;width:auto}}
+    `;document.head.appendChild(style);
+  }
+  // place the box just below (or above, if no room) the button that was pressed; centred if there is no anchor
+  function samaraPlaceAskBox(box,anchor){
+    const vw=window.innerWidth,vh=window.innerHeight,bw=box.offsetWidth,bh=box.offsetHeight,gap=10;
+    const r=anchor&&anchor.isConnected&&anchor.getBoundingClientRect?anchor.getBoundingClientRect():null;
+    if(!r||(!r.width&&!r.height)){box.style.left=Math.max(10,(vw-bw)/2)+'px';box.style.top=Math.max(10,(vh-bh)/2)+'px';return}
+    let top=r.bottom+gap;
+    if(top+bh>vh-10)top=r.top-bh-gap;           // not enough room below → open above the button
+    if(top<10)top=Math.max(10,(vh-bh)/2);       // neither fits → centre
+    let left=r.left;
+    if(left+bw>vw-10)left=vw-bw-10;
+    box.style.left=Math.max(10,left)+'px';box.style.top=top+'px';
+  }
+  function samaraAsk({anchor=null,title='',message='',fields=[],okLabel='OK',cancelLabel='Cancel'}={}){
+    return new Promise(resolve=>{
+      samaraEnsureAskStyle();
+      const pressed=anchor||(document.activeElement&&document.activeElement!==document.body?document.activeElement:null);
+      const backdrop=document.createElement('div');backdrop.className='samara-ask-backdrop';
+      const box=document.createElement('div');box.className='samara-ask-box';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');
+      if(title){const h3=document.createElement('h3');h3.textContent=title;box.appendChild(h3)}
+      if(message){const p=document.createElement('p');p.className='samara-ask-msg';p.textContent=message;box.appendChild(p)}
+      const inputs=fields.map((f,i)=>{
+        const id=`samara-ask-${Date.now()}-${i}`;
+        if(f.label){const l=document.createElement('label');l.htmlFor=id;l.textContent=f.label;box.appendChild(l)}
+        const el=document.createElement(f.type==='textarea'?'textarea':'input');el.id=id;
+        if(f.type!=='textarea'){el.type=f.type==='number'?'text':'text';if(f.type==='number')el.inputMode='decimal'}
+        el.value=f.value==null?'':String(f.value);if(f.placeholder)el.placeholder=f.placeholder;
+        box.appendChild(el);return el;
+      });
+      const err=document.createElement('p');err.className='samara-ask-err';if(fields.length)box.appendChild(err);
+      const actions=document.createElement('div');actions.className='samara-ask-actions';
+      const cancel=document.createElement('button');cancel.type='button';cancel.className='samara-ask-cancel';cancel.textContent=cancelLabel;
+      const ok=document.createElement('button');ok.type='button';ok.className='samara-ask-ok';ok.textContent=okLabel;
+      actions.append(cancel,ok);box.appendChild(actions);
+      document.body.append(backdrop,box);
+      samaraPlaceAskBox(box,pressed);
+      const done=value=>{document.removeEventListener('keydown',onKey,true);backdrop.remove();box.remove();try{pressed&&pressed.focus&&pressed.focus({preventScroll:true})}catch(_){}resolve(value)};
+      const submit=()=>{
+        const values={};
+        for(let i=0;i<fields.length;i++){
+          const v=String(inputs[i].value||'').trim(),f=fields[i];
+          if(f.required&&!v){err.textContent=`Please enter ${String(f.label||'a value').toLowerCase()}.`;inputs[i].focus();return}
+          values[f.key||String(i)]=v;
+        }
+        done(fields.length?values:true);
+      };
+      const onKey=e=>{
+        if(e.key==='Escape'){e.preventDefault();e.stopPropagation();done(null)}
+        else if(e.key==='Enter'&&!(e.target&&e.target.tagName==='TEXTAREA')&&box.contains(e.target)){e.preventDefault();submit()}
+      };
+      document.addEventListener('keydown',onKey,true);
+      ok.addEventListener('click',submit);cancel.addEventListener('click',()=>done(null));backdrop.addEventListener('click',()=>done(null));
+      setTimeout(()=>{const first=inputs[0];if(first){first.focus();try{first.select()}catch(_){}}else ok.focus()},30);
+    });
+  }
+  async function samaraConfirm(opts={}){return (await samaraAsk({...opts,fields:[]}))===true}
+
   function CameraCaptureModal({config,onClose}){
     const videoRef=React.useRef(null),canvasRef=React.useRef(null),streamRef=React.useRef(null);
     const [error,setError]=React.useState(''),[ready,setReady]=React.useState(false),[captured,setCaptured]=React.useState('');
@@ -50577,21 +50665,24 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     }
     // 2.17.5: outside bill (SQL 247) — Accounts verifies the bill amount; the handling fee from Charge Master
     // is added as a separate Guest bill line; NM Petty Cash / credit / family-paid are handled in the database.
-    async function decideOutside(row,decision){
-      let amount=0;
+    async function decideOutside(row,decision,anchor){
+      let amount=0;const remarksAsked=undefined;
       if(decision!=='Rejected'){
         const master=(tariffs||[]).find(t=>t.category===OUTSIDE_CATEGORY&&((row.charge_item_code&&t.charge_code===row.charge_item_code)||t.service_name===row.service_name)&&t.is_active!==false);
         const familyPaid=row.outside_paid_by==='Family paid directly';
-        const entered=prompt(`${row.service_name||'Outside bill'} · ${row.service_provider||''} · Bill ${row.bill_number||'—'}\nPaid by: ${row.outside_paid_by}\n\nOpen and check the uploaded bill, then enter the bill amount exactly as printed:`,row.requested_amount!=null?String(row.requested_amount):'');
-        if(entered===null)return;
+        const ask=await samaraAsk({anchor,title:`${row.service_name||'Outside bill'}${row.service_provider?` · ${row.service_provider}`:''}`,
+          message:`Bill ${row.bill_number||'—'} · Paid by: ${row.outside_paid_by}\nOpen and check the uploaded bill, then enter the bill amount exactly as printed.`,
+          fields:[{key:'amount',label:'Bill amount (₹)',type:'number',value:row.requested_amount!=null?String(row.requested_amount):'',required:true}],okLabel:'Next'});
+        if(ask===null)return;
+        const entered=ask.amount;
         amount=Number(entered);
         if(!Number.isFinite(amount)||amount<=0){notify('error','Enter the verified bill amount greater than zero.');return}
         const fee=familyPaid?0:outsideFeeAmount(master,amount);
-        if(!confirm(familyPaid
+        if(!(await samaraConfirm({anchor,title:'Please confirm',okLabel:'Confirm',message:familyPaid
           ?`Family paid this bill directly (${money(amount)}).\nIt will be kept for the record only — nothing is charged to the Guest. Continue?`
-          :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`))return;
+          :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`})))return;
       }
-      const remarks=decision==='Rejected'?returnReason(row):(prompt('Decision remarks:',decision)||decision);
+      const remarks=decision==='Rejected'?await returnReason(row,anchor):(remarksAsked??await askRemarks(decision,anchor));
       if(remarks===null)return;
       setBusy(true);
       const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:row.id,p_decision:decision,p_approved_amount:decision==='Rejected'?0:amount,p_remarks:remarks});
@@ -50601,17 +50692,26 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       outsideFillMissingFamilyLinks();
       await load();
     }
+    // 2.18.191: Samara dialog beside the pressed button (not the browser box at the top of the screen)
+    async function askRemarks(decision,anchor){
+      const ask=await samaraAsk({anchor,title:decision==='Partially Approved'?'Partial approval':'Approve charge',
+        fields:[{key:'remarks',label:'Decision remarks',value:decision}],okLabel:decision==='Partially Approved'?'Approve partly':'Approve'});
+      return ask===null?null:(ask.remarks||decision);
+    }
     // 2.18.147: a Return always needs the reason — the nurse sees it and corrects the request
-    function returnReason(row){
-      const entered=prompt(`Return to Nursing for correction\n${row.service_name||row.description||'Charge'} · Qty ${row.quantity||1}${row.unit?` ${row.unit}`:''}\n\nWhat should the nurse correct? (the nurse sees this)`,'');
-      if(entered===null)return null;
-      const reason=String(entered).trim();
+    async function returnReason(row,anchor){
+      const ask=await samaraAsk({anchor,title:'Return to Nursing for correction',
+        message:`${row.service_name||row.description||'Charge'} · Qty ${row.quantity||1}${row.unit?` ${row.unit}`:''}`,
+        fields:[{key:'reason',label:'What should the nurse correct? (the nurse sees this)',type:'textarea',value:'',required:true}],okLabel:'Return'});
+      if(ask===null)return null;
+      const reason=String(ask.reason||'').trim();
       if(reason.length<5){notify('error','Write what the nurse should correct (at least a few words).');return null}
       return reason;
     }
-    async function decide(row,decision){
+    async function decide(row,decision,anchor){
       if(!canApprove||busy)return;
-      if(row.outside_paid_by)return decideOutside(row,decision);
+      if(row.outside_paid_by)return decideOutside(row,decision,anchor);
+      let remarksAsked;
       const isOther=String(row.service_code||'').toUpperCase()==='OTHER';
       const tariff=(isOther||storeCategories.includes(row.category))?null:tariffs.find(t=>(row.charge_item_code&&t.charge_code===row.charge_item_code)||(t.category===row.category&&t.service_name===row.service_name&&t.is_active!==false));
       const storeAmount=currentStoreRequestAmount(row);
@@ -50624,16 +50724,19 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           return;
         }
         const defaultAmount=amount>0?String(amount):'';
-        const entered=prompt(
-          row.bill_available
+        const ask=await samaraAsk({anchor,title:decision==='Partially Approved'?'Partial approval':'Approve charge',
+          message:row.bill_available
             ?'Verify the uploaded bill and enter the actual bill amount:'
             :isOther
               ?'Enter the verified amount for this custom / Other charge:'
               :storeAmount.fromMaster
                 ?`Store rate ${money(storeAmount.rate)} × ${Number(row.quantity||1)} = ${money(amount)}. Verify the approved amount:`
                 :`Fixed rate is ${money(amount)}. Verify the approved amount:`,
-          defaultAmount
-        );
+          fields:[{key:'amount',label:'Approved amount (₹)',type:'number',value:defaultAmount,required:true},
+                  {key:'remarks',label:'Decision remarks',value:decision}],
+          okLabel:decision==='Partially Approved'?'Approve partly':'Approve'});
+        const entered=ask===null?null:ask.amount;
+        if(ask!==null)remarksAsked=ask.remarks||decision;
         if(entered===null)return;
         amount=Number(entered);
         if(!Number.isFinite(amount)||amount<=0){
@@ -50641,7 +50744,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           return;
         }
       }
-      const remarks=decision==='Rejected'?returnReason(row):(prompt('Decision remarks:',decision)||decision);
+      const remarks=decision==='Rejected'?await returnReason(row,anchor):(remarksAsked??await askRemarks(decision,anchor));
       if(remarks===null)return;
       setBusy(true);
       const result=await client.rpc('decide_bill_charge_request_v5',{
@@ -50771,9 +50874,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         amountParts.length?h('div',{style:{marginTop:'4px',fontSize:'13px',display:'flex',flexWrap:'wrap',gap:'4px 10px'}},...amountParts.map((x,i)=>typeof x==='string'?h('span',{key:i},x):x)):null,
         showRemarks?h('div',{style:{...muted,marginTop:'3px',fontStyle:'italic'}},`Remarks: ${remarks}`):null,
         canApprove&&status==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'8px'}},
-          h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved')}},'Approve'),
-          h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved')}},'Partial'),
-          h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected')}},'Return')
+          h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved',e.currentTarget)}},'Approve'),
+          h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
+          h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected',e.currentTarget)}},'Return')
         ),
         r.resubmitted_from&&h('div',{style:{...muted,marginTop:'3px'}},'Corrected and resubmitted after a return'),
         status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px',width:'100%'},disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit')

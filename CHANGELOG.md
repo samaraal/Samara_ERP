@@ -1,3 +1,8 @@
+## 2.18.191 — 29-10-2026 — Bills & Charges: Approve / Partial / Return box opens beside the button, in Samara pink
+- The browser's own box ("app.samaraassistedliving.com says") always opened at the very top of the screen, far from the Approve button, and could not be coloured. It is replaced by a Samara box (baby-pink, magenta buttons) that opens right next to the button pressed — just below it, or just above when the button is near the bottom.
+- Approve / Partial now ask once: approved amount + decision remarks in one box (was two boxes one after the other). Return asks the reason for the nurse in the same box style. Outside-bill checks (amount, confirm) use it too. Enter = OK, Esc / tap outside = Cancel.
+- New shared helper samaraAsk() / samaraConfirm() (core/10-samara-ask-dialog.js) so other screens can move off the browser box step by step.
+
 ## 2.18.190 — 28-10-2026 — Equipment daily rental charged automatically (Air Bed With Motor, Air Mattress)
 - Found: equipment issued to a Guest (Approval Requests → Started) was only recorded in the equipment register; the charge had to be raised by hand in Bills & Charges and never was, and Air Bed / Air Mattress had no Charge Master rate.
 - Charge Master: Air Bed With Motor ₹250 / day, Air Mattress ₹200 / day (Admin / Director can change it there).
