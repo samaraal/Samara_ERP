@@ -27,9 +27,14 @@
       if(!r.error)setRows(r.data||[]);else console.warn(r.error);
       // 2.18.164: Admin only — purchase cost per store item = weighted average of stock receipts with a unit cost.
       if(profile?.role==='Admin'){
-        const rc=await client.from('consumable_store_receipts').select('item_id,unit_cost,quantity,voided_at').limit(10000);
+        const [rc,it]=await Promise.all([client.from('consumable_store_receipts').select('item_id,unit_cost,quantity,voided_at').limit(10000),
+          client.from('consumable_store_items').select('id,charge_rate').limit(5000)]);
         if(rc.error){console.warn('Purchase cost:',rc.error);return;}
-        const acc={};(rc.data||[]).forEach(x=>{const c=Number(x.unit_cost),q=Number(x.quantity)||0;if(x.voided_at||!(c>0)||!(q>0))return;const k=String(x.item_id);acc[k]=acc[k]||{q:0,v:0};acc[k].q+=q;acc[k].v+=q*c;});
+        // 2.18.200: same rule as Profit by Service / Net Profit — a receipt priced per box / pack (cost per piece more than
+        // double the item's charge rate) is left out of the average, so it cannot spoil the cost of every charge of that item.
+        const rate={};(it.data||[]).forEach(x=>{rate[String(x.id)]=Number(x.charge_rate)||0});
+        const acc={};(rc.data||[]).forEach(x=>{const c=Number(x.unit_cost),q=Number(x.quantity)||0;if(x.voided_at||!(c>0)||!(q>0))return;const k=String(x.item_id);
+          if(rate[k]>0&&c>2*rate[k])return;acc[k]=acc[k]||{q:0,v:0};acc[k].q+=q;acc[k].v+=q*c;});
         setAvgCost(Object.fromEntries(Object.entries(acc).map(([k,a])=>[k,a.v/a.q])));setCostReady(true);
       }
     },[]);

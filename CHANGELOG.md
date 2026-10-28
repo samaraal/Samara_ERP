@@ -1,3 +1,8 @@
+## 2.18.200 — 29-10-2026 — Charge Register Net Profit uses the same cost rule as Profit by Service
+- A stock receipt entered at the box / pack price (cost per piece more than double the item's charge rate) is now left out of the item's average purchase price, instead of raising the cost of every charge of that item. Same rule as Profit by Service and the Net Profit Statement.
+- Consumables profit now matches on both pages. Charge Register also shows Outside Services (charged = paid, no profit).
+- 12 such receipts found (gloves, masks, Micropore, diapers, catheters, Bifilac …) — Stores to correct to price per piece.
+
 ## 2.18.199 — 29-10-2026 — Profit by Service: lists open by default
 - The Item-wise / Guest-wise list now shows straight away under each head (it was hidden until the head row was tapped, so choosing "Guest-wise" seemed to do nothing).
 - Each head shows a clear "▲ Hide list / ▼ Show N items" chip; changing Item-wise ↔ Guest-wise opens all lists again.

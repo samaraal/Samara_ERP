@@ -396,7 +396,7 @@
   {
    "file": "nursing/nursing-charge-register.js",
    "about": "Charge Register: view-only charges register for Admin / Nursing Manager (filters by status, category, patient, raised-by, period)",
-   "lines": 292
+   "lines": 298
   },
   {
    "file": "nursing/duty-assignment.js",
