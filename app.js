@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.2';
+  const APP_VERSION = '2.19.3';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -52003,15 +52003,18 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   const npMonthLabel=iso=>new Date(`${npMonthStart(iso)}T00:00:00`).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   const NP_FIRST_MONTH='2026-08-01'; // Samara inaugurated 27-08-2026
   function npMonthOptions(){const out=[];let m=npMonthStart(todayISOIndia());while(m>=NP_FIRST_MONTH){out.push(m);m=npShiftMonth(m,-1)}return out}
+  const npIsInvestment=head=>/facility development/i.test(String(head||''));
   function npStatementTotals(s){
     if(!s)return null;
     const gross=(s.income||[]).reduce((t,x)=>t+Number(x.amount||0),0);
     const netIncome=gross-Number(s.discounts||0);
     const erp=(s.erp_expenses||[]).reduce((t,x)=>t+Number(x.amount||0),0);
-    const opex=erp+Number(s.outgoing_total||0)+Number(s.manual_total||0);
+    // 2.19.3: Facility Development (furniture & setup) is an INVESTMENT, not a running expense — kept out of profit, shown separately
+    const invest=[...(s.manual_expenses||[]),...(s.outgoing_expenses||[])].filter(x=>npIsInvestment(x.head)).reduce((t,x)=>t+Number(x.amount||0),0);
+    const opex=erp+Number(s.outgoing_total||0)+Number(s.manual_total||0)-invest;
     const operating=netIncome-opex;
     const net=operating-Number(s.equipment||0);
-    return {gross,netIncome,erp,opex,operating,net,margin:netIncome?net/netIncome*100:0};
+    return {gross,netIncome,erp,opex,operating,net,invest,margin:netIncome?net/netIncome*100:0};
   }
 
   function NetProfitStatement({profile,onNavigate}){
@@ -52052,16 +52055,20 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       const oHeads=[...new Set([...(cur.outgoing_expenses||[]).map(x=>x.head),...((prev&&prev.outgoing_expenses)||[]).map(x=>x.head)])];
       if(oHeads.length){lines.push(['EXPENSES — paid through Outgoing Payments',null,null,'head']);
         const oAmt=(s,hd)=>Number(((s&&s.outgoing_expenses)||[]).find(x=>x.head===hd)?.amount||0);
-        oHeads.forEach(hd=>lines.push([hd,oAmt(cur,hd),prev?oAmt(prev,hd):null,'row']));}
+        oHeads.filter(hd=>!npIsInvestment(hd)).forEach(hd=>lines.push([hd,oAmt(cur,hd),prev?oAmt(prev,hd):null,'row']));}
       lines.push(['EXPENSES — Monthly Expenses entered',null,null,'head']);
       const heads=[...new Set([...(cur.manual_expenses||[]).map(x=>x.head),...((prev&&prev.manual_expenses)||[]).map(x=>x.head)])];
       const mAmt=(s,hd)=>Number(((s&&s.manual_expenses)||[]).find(x=>x.head===hd)?.amount||0);
       if(!heads.length)lines.push(['No monthly expenses entered for this period (salaries, rent, electricity …)',0,prev?0:null,'note']);
-      heads.forEach(hd=>lines.push([hd,mAmt(cur,hd),prev?mAmt(prev,hd):null,'row']));
+      heads.filter(hd=>!npIsInvestment(hd)).forEach(hd=>lines.push([hd,mAmt(cur,hd),prev?mAmt(prev,hd):null,'row']));
       lines.push(['TOTAL OPERATING EXPENSES',T.opex,P?P.opex:null,'total']);
       lines.push(['OPERATING PROFIT (before equipment)',T.operating,P?P.operating:null,'profit']);
       lines.push(['Less: equipment purchases (counted in full when bought)',-Number(cur.equipment||0),prev?-Number(prev.equipment||0):null,'row']);
       lines.push(['NET PROFIT',T.net,P?P.net:null,'profit']);
+      if(T.invest||(P&&P.invest)){
+        lines.push(['INVESTMENT — not counted in profit',null,null,'head']);
+        lines.push(['Facility Development (Furniture & Setup)',T.invest,P?P.invest:null,'row']);
+      }
     }
     const colour=v=>({color:Number(v)<0?'#b42336':'#087f5b'});
     const cell=(v,kind)=>v==null?'':(['profit','total'].includes(kind)?h('strong',{style:kind==='profit'?colour(v):null},npMoney(v)):npMoney(v));
@@ -52102,7 +52109,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       cur&&T?h(React.Fragment,null,
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'12px',margin:'0 0 14px'}},
           stat('Net Income',npMoney(T.netIncome),`Charges ${npMoney(T.gross)} − discounts ${npMoney(cur.discounts)}`),
-          stat('Operating Expenses',npMoney(T.opex),`ERP ${npMoney(T.erp)}${Number(cur.outgoing_total)?` · paid out ${npMoney(cur.outgoing_total)}`:''} · entered ${npMoney(cur.manual_total)}`),
+          stat('Operating Expenses',npMoney(T.opex),`ERP ${npMoney(T.erp)}${Number(cur.outgoing_total)?` · paid out ${npMoney(cur.outgoing_total)}`:''} · entered ${npMoney(cur.manual_total)}${T.invest?` · Investment ${npMoney(T.invest)} not counted`:''}`),
           stat('Operating Profit',npMoney(T.operating),'before equipment',T.operating),
           stat('Net Profit',npMoney(T.net),`Margin ${T.margin.toFixed(1)}%${P?` · ${prevName}: ${npMoney(P.net)}`:''}`,T.net),
           stat('Cash Collected',npMoney(cur.collected),`Outstanding from Guests today ${npMoney(cur.outstanding_now)}`)),

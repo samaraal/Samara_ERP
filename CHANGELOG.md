@@ -1,3 +1,8 @@
+## 2.19.3 — 29-10-2026 — Net Profit: Facility Development is an investment, not an expense
+- Expenses under "Facility Development (Furniture & Setup)" are no longer deducted in the Net Profit Statement (Operating Expenses, Operating Profit, Net Profit, Margin).
+- They are shown separately at the end under "INVESTMENT — not counted in profit", and the Operating Expenses card notes the amount left out. Print / PDF and Excel follow the same.
+- Expenses page unchanged — Facility Development is still recorded there as before.
+
 ## 2.19.2 — 29-10-2026 — Left menu: group labels readable
 - Group labels inside an open menu section (e.g. "REPORTS", "PROFIT · ADMIN ONLY") were white on the new light panel — now deep pink.
 
