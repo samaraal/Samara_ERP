@@ -158,3 +158,10 @@ revoke all on function public.samara_fix_sun_duplicates_29102026(boolean) from p
 select public.samara_fix_sun_duplicates_29102026(false);
 -- APPLY:
 -- select public.samara_fix_sun_duplicates_29102026(true);
+
+-- APPLIED 29-10-2026 02:14 IST (19 receipts voided; merges: JMS IV SET, ABS.COTTON, LOX 2% JELLY. FRES NS 100 ML and FRIENDS DIAPER XL
+-- were already switched off by the Nursing Manager at 00:19/00:25, so only their duplicate receipts were voided).
+-- Follow-up: IV SET, COTTON 400 and 2% LOX GEL had been switched off ("Remove Item", 29-10 00:14-00:23) and now hold the
+-- merged stock, so they were switched back on:
+-- update public.consumable_store_items set active=true where item_code in (CON-0072,CON-0112,PHA-0020) and active=false;
+-- Result: IV SET 7 · COTTON 400 2 · 2% LOX GEL 3 · Adult Diapers 123 · Normal Saline 100 ML 25 (all active).
