@@ -195,6 +195,7 @@
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
     const [registerLoading,setRegisterLoading]=React.useState(true),[registerError,setRegisterError]=React.useState('');
+    const registerLoadInFlight=React.useRef(false);
     const [storeCharges,setStoreCharges]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [diagnostics,setDiagnostics]=React.useState([]);
@@ -365,6 +366,8 @@
       }
     }
     async function load(){
+      if(registerLoadInFlight.current)return;
+      registerLoadInFlight.current=true;
       try{
       const authResult=await client.auth.getUser();
       const authUserId=authResult.data?.user?.id||null;
@@ -443,6 +446,8 @@
       }catch(error){
         console.warn('Charge register load failed',error);
         setRegisterError(samaraFriendlyError(error));setRegisterLoading(false);
+      }finally{
+        registerLoadInFlight.current=false;
       }
     }
     React.useEffect(()=>{

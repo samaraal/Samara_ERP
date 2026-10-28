@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.187';
+  const APP_VERSION = '2.18.188';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -49981,6 +49981,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const [patients]=usePatients();
     const [rows,setRows]=React.useState([]);
     const [registerLoading,setRegisterLoading]=React.useState(true),[registerError,setRegisterError]=React.useState('');
+    const registerLoadInFlight=React.useRef(false);
     const [storeCharges,setStoreCharges]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [diagnostics,setDiagnostics]=React.useState([]);
@@ -50151,6 +50152,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       }
     }
     async function load(){
+      if(registerLoadInFlight.current)return;
+      registerLoadInFlight.current=true;
       try{
       const authResult=await client.auth.getUser();
       const authUserId=authResult.data?.user?.id||null;
@@ -50229,6 +50232,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       }catch(error){
         console.warn('Charge register load failed',error);
         setRegisterError(samaraFriendlyError(error));setRegisterLoading(false);
+      }finally{
+        registerLoadInFlight.current=false;
       }
     }
     React.useEffect(()=>{

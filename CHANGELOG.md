@@ -1,3 +1,7 @@
+## 2.18.188 — 28-10-2026 — Charge register loads without database timeouts
+- Live verification found a row-by-row permission check taking 13.5 seconds for 328 charges. The same permission checks now run once per statement (measured 0.09 seconds); role lists, write checks and grants remain the same.
+- Background refreshes no longer overlap. Supabase migration 20261028151617 is applied and saved in supabase/migrations; no charge or patient records are changed.
+
 ## 2.18.187 — 28-10-2026 — Bills & Charges: navigable Charge Master and Charges Raised
 - Charge Master opens from its own top box with the complete item catalogue, rates and approval settings; the large master table no longer fills the approval screen.
 - Charges Raised includes patient (including discharged history), service date / period, category, item and status filters. Matching counts and amounts follow the same filters; each charge opens its full details.
