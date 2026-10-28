@@ -521,7 +521,7 @@
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 1253
+   "lines": 1308
   },
   {
    "file": "accounts/09a-outside-bills.js",

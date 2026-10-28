@@ -1,3 +1,8 @@
+## 2.18.195 — 29-10-2026 — Bills & Charges register: rows with totals instead of boxes
+- The register (Bills & Charges / Charge Register) now shows a heading per Guest and ONE ROW PER ITEM for the chosen period with its total, e.g. "NUR-0001 · Nebulization — 2 × ₹100.00 = ₹200.00 · 2 Approved". A changed rate shows as "3 × ₹100 + 2 × ₹120". Status counts per row (Approved / Pending / Returned). No horizontal scrolling on any screen.
+- Tap a row to see every entry: date & time, qty, price, requested by, approved / returned by and when, remarks, and "Full details". Accounts approve / part-approve / return each entry inside the row (rows with pending entries open automatically for Accounts); nurses correct & resubmit returned entries there.
+- Nurses see counts and status only ("Nebulization – 2 times") — no prices anywhere. Admin / Director / Nursing Manager see prices and a "Total approved" per Guest.
+
 ## 2.18.194 — 29-10-2026 — "Unsaved entries" reminder no longer repeats on every login
 - The reminder "You have N unsaved entries on this device" appeared on the sign-in screen and came back after every sign-in / reload, because "Not now" was only remembered until the page reloaded.
 - Now: never shown on the sign-in screen (only inside the ERP); "Not now" is remembered on this device until that entry changes again; new "Discard all" button to throw the old unsaved entries away (with a confirm). Restore from the same form works as before; drafts still expire after 12 hours.

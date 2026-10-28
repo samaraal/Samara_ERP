@@ -302,6 +302,7 @@
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
     const [selectedChargeDetail,setSelectedChargeDetail]=React.useState(null);
+    const [openGroups,setOpenGroups]=React.useState({}); // 2.18.195: register rows opened / closed by the user
     // 2.18.147: Accounts RETURN a request to Nursing (stored as 'Rejected'); the nurse corrects and resubmits it
     const [resubmitFrom,setResubmitFrom]=React.useState(null);
     const statusText=s=>s==='Rejected'?'Returned':(s||'Pending');
@@ -974,46 +975,100 @@
       canManageTariffs&&navCard('Charge Master','Open','master','Full item catalogue, rates and approval settings')
     );
 
-    const chargeMobileCard=r=>{
+    // 2.18.195: register as ROWS — Guest heading → one row per item for the whole period with a total
+    // (e.g. "Nebulization – 2 × ₹100 = ₹200"); tap a row for every entry. Nurses see counts and status only (no ₹).
+    const isNurseView=profile?.role==='Nurse';
+    const groupKeyOf=r=>`${r.patient_id}|${itemKey(r)}`;
+    const entryStatus=r=>r.resubmitted_as?'Returned · Resubmitted':statusText(r.approval_status||'Pending');
+    const statusTone=s=>/Returned/.test(s)?{background:'#fde8ec',color:'#b4232f',border:'1px solid #f3b5bf'}
+      :s==='Pending'?{background:'#fff4dc',color:'#8a5a00',border:'1px solid #f2d27b'}
+      :s==='Partially Approved'?{background:'#e9f1ff',color:'#1f4f9a',border:'1px solid #bcd2f5'}
+      :{background:'#e7f6ee',color:'#13643a',border:'1px solid #b7e2c8'};
+    const chip=(text,s,key)=>h('span',{key,style:{...statusTone(s),borderRadius:'999px',padding:'2px 9px',fontSize:'12px',fontWeight:800,whiteSpace:'nowrap'}},text);
+    const rateBreakup=list=>{
+      const byRate=new Map();
+      list.forEach(r=>{const amt=approvedChargeAmount(r);if(!(amt>0))return;const q=Number(r.quantity||1)||1;const rate=Math.round(amt/q*100)/100;byRate.set(rate,(byRate.get(rate)||0)+q)});
+      return [...byRate.entries()].sort((x,y)=>x[0]-y[0]).map(([rate,q])=>`${q} × ${money(rate)}`).join(' + ');
+    };
+    const registerGroups=(()=>{
+      const pts=new Map();
+      filtered.forEach(r=>{const pk=String(r.patient_id||'');if(!pts.has(pk))pts.set(pk,new Map());const items=pts.get(pk);const k=groupKeyOf(r);if(!items.has(k))items.set(k,[]);items.get(k).push(r)});
+      const when=r=>String(r.service_datetime||r.charge_date||'');
+      return [...pts.entries()].map(([pid,items])=>({pid,name:pFor(pid)?.full_name||'',
+        items:[...items.entries()].map(([k,list])=>({k,list:list.sort((x,y)=>when(x).localeCompare(when(y))),first:list[0]}))
+          .sort((x,y)=>samaraAlpha(x.first.service_name||x.first.description,y.first.service_name||y.first.description))}))
+        .sort((x,y)=>samaraAlpha(x.name,y.name));
+    })();
+    const groupOpen=g=>{
+      if(Object.prototype.hasOwnProperty.call(openGroups,g.k))return openGroups[g.k];
+      if(workflowRequestId&&g.list.some(r=>String(r.id)===workflowRequestId))return true;
+      return Boolean(canApprove&&g.list.some(r=>(r.approval_status||'Pending')==='Pending')); // Accounts: rows with pending entries open
+    };
+    const toggleGroup=g=>setOpenGroups(o=>({...o,[g.k]:!groupOpen(g)}));
+    const entryLine=r=>{
       const status=r.approval_status||'Pending';
-      const isNurse=profile?.role==='Nurse';
-      const store=isNurse||status!=='Pending'?null:currentStoreRequestAmount(r);
-      const requested=recordedRequestAmount(r);
-      const approvedAmt=r.approved_amount??r.final_amount;
-      const provider=r.service_provider||r.hospital_name||r.laboratory_name||'';
+      const q=Number(r.quantity||1)||1;
+      const amt=approvedChargeAmount(r);
+      const store=isNurseView||status!=='Pending'?null:currentStoreRequestAmount(r);
+      const decidedAt=r.decision_date||r.approved_at;
       const remarks=String(r.decision_remarks||r.approval_remarks||r.remarks||'').trim();
-      const showRemarks=remarks&&remarks.toLowerCase()!==String(status).toLowerCase();
-      const muted={color:'#7a5a68',fontSize:'13px',overflowWrap:'anywhere'};
-      const info=[pLabel(r.patient_id),`Service ${formatDateIN(r.charge_date)}`,approvalDateView&&approvalDay(r)?`Approved ${formatDateIN(approvalDay(r))}`:'',`Qty ${r.quantity||1}${r.unit?` ${r.unit}`:''}`,r.category,provider].filter(Boolean).join(' · ');
-      const amountParts=isNurse?[]:[
-        requested!==null?`Request recorded ${money(requested)}`:'Request amount not entered',
-        store?.fromMaster?`Current tariff ${money(store.amount)}`:null,
-        approvedAmt!=null&&status!=='Pending'&&status!=='Rejected'?h('strong',{key:'ap'},`${status} ${money(approvedAmt)}`):null,
-        r.decision_by_name?`by ${r.decision_by_name}`:null
+      const parts=[
+        r.service_datetime?formatDateTimeIN(r.service_datetime):formatDateIN(r.charge_date),
+        `Qty ${q}${r.unit?` ${r.unit}`:''}`,
+        !isNurseView&&amt>0?money(amt):null,
+        !isNurseView&&store?.fromMaster?`tariff ${money(store.amount)}`:null,
+        `requested by ${r.raised_by_name||'Nursing staff'}`,
+        status!=='Pending'&&r.decision_by_name?`${status==='Rejected'?'returned':'approved'} by ${r.decision_by_name}${decidedAt?` · ${fmt(decidedAt)}`:''}`:null
       ].filter(Boolean);
-      return h('article',{key:r.id||`${r.patient_id}-${r.charge_date}-${r.service_name}`,className:'card samara-charge-card',id:`charge-request-${r.id}`,role:'button',tabIndex:0,title:'Open full request details',onClick:()=>setSelectedChargeDetail(r),onKeyDown:e=>{if(e.target===e.currentTarget&&(e.key==='Enter'||e.key===' ')){e.preventDefault();setSelectedChargeDetail(r)}},style:{padding:'10px 12px',marginBottom:'0',width:'100%',maxWidth:'100%',boxSizing:'border-box',overflow:'hidden',cursor:'pointer',scrollMarginTop:'110px',border:workflowRequestId===String(r.id)?'2px solid #a6104e':undefined}},
-        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},
-          h('strong',{style:{minWidth:0,flex:'1 1 auto',fontSize:'15px',overflowWrap:'anywhere'}},`${r.charge_item_code?`${r.charge_item_code} · `:''}${r.service_name||r.description||'Charge'}`),
-          h('span',{className:'badge','data-charge-decision':true,tabIndex:-1,'aria-label':`Decision: ${statusText(status)}`,style:{flex:'0 0 auto',whiteSpace:'nowrap'}},r.resubmitted_as?'Returned · Resubmitted':statusText(status))
+      return h('div',{key:r.id,id:`charge-request-${r.id}`,style:{padding:'8px 10px',borderTop:'1px dashed #f0d2df',minWidth:0}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'flex-start',flexWrap:'wrap'}},
+          h('span',{style:{flex:'1 1 260px',minWidth:0,fontSize:'13.5px',color:'#4a2a39',overflowWrap:'anywhere'}},'• '+parts.join(' · ')),
+          h('span',{'data-charge-decision':true,tabIndex:-1},chip(entryStatus(r),entryStatus(r)))
         ),
-        h('div',{style:{...muted,marginTop:'3px'}},info),
-        amountParts.length?h('div',{style:{marginTop:'4px',fontSize:'13px',display:'flex',flexWrap:'wrap',gap:'4px 10px'}},...amountParts.map((x,i)=>typeof x==='string'?h('span',{key:i},x):x)):null,
-        showRemarks?h('div',{style:{...muted,marginTop:'3px',fontStyle:'italic'}},`Remarks: ${remarks}`):null,
-        canApprove&&status==='Pending'&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'6px',marginTop:'8px'}},
-          h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved',e.currentTarget)}},'Approve'),
-          h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
-          h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected',e.currentTarget)}},'Return')
-        ),
-        r.resubmitted_from&&h('div',{style:{...muted,marginTop:'3px'}},'Corrected and resubmitted after a return'),
-        status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px',width:'100%'},disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit')
+        remarks&&remarks.toLowerCase()!==String(status).toLowerCase()?h('div',{style:{fontSize:'12.5px',color:'#7a5a68',fontStyle:'italic',marginTop:'2px',overflowWrap:'anywhere'}},`Remarks: ${remarks}`):null,
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'6px'}},
+          canApprove&&status==='Pending'&&h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved',e.currentTarget)}},'Approve'),
+          canApprove&&status==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
+          canApprove&&status==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected',e.currentTarget)}},'Return'),
+          status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit'),
+          h('button',{type:'button',className:'btn btn-secondary',style:{minHeight:'32px',padding:'4px 10px',fontSize:'12.5px'},onClick:e=>{e.stopPropagation();setSelectedChargeDetail(r)}},'Full details')
+        )
       );
     };
-
+    const groupRow=g=>{
+      const r0=g.first;const open=groupOpen(g);
+      const qty=g.list.reduce((t,r)=>t+(Number(r.quantity||1)||1),0);
+      const counts=new Map();g.list.forEach(r=>{const s=entryStatus(r);counts.set(s,(counts.get(s)||0)+1)});
+      const total=g.list.reduce((t,r)=>t+approvedChargeAmount(r),0);
+      const breakup=rateBreakup(g.list);
+      const unitWord=r0.unit&&!/^service$/i.test(r0.unit)?` ${r0.unit}`:(qty===1?' time':' times');
+      const amountText=isNurseView?`${qty}${unitWord}`
+        :breakup?`${breakup} = ${money(total)}`:`${qty}${unitWord} · priced by Accounts`;
+      return h('div',{key:g.k,style:{border:'1px solid #efcfdd',borderRadius:'12px',background:open?'#fff':'#fffafd',marginTop:'6px',minWidth:0,overflow:'hidden'}},
+        h('button',{type:'button','aria-expanded':open,onClick:()=>toggleGroup(g),style:{display:'flex',flexWrap:'wrap',alignItems:'center',gap:'6px 12px',width:'100%',textAlign:'left',background:'transparent',border:0,padding:'10px 12px',cursor:'pointer',font:'inherit',color:'#3b0f25'}},
+          h('span',{style:{fontWeight:900,color:'#a80d4f',width:'14px'}},open?'▾':'▸'),
+          h('span',{style:{flex:'1 1 220px',minWidth:0,fontWeight:800,overflowWrap:'anywhere'}},`${r0.charge_item_code?`${r0.charge_item_code} · `:''}${r0.service_name||r0.description||'Charge'}`,
+            h('small',{style:{display:'block',fontWeight:600,color:'#8b6b79'}},`${r0.category||''}${g.list.length>1?` · ${g.list.length} entries`:''}`)),
+          h('span',{style:{flex:'0 1 auto',fontWeight:800,whiteSpace:'normal',color:'#3b0f25'}},amountText),
+          h('span',{style:{display:'flex',gap:'4px',flexWrap:'wrap'}},...[...counts.entries()].map(([s,n],i)=>chip(g.list.length>1?`${n} ${s}`:s,s,i)))
+        ),
+        open&&h('div',{style:{paddingBottom:'4px'}},...g.list.map(entryLine))
+      );
+    };
+    const guestBlock=G=>{
+      const total=G.items.reduce((t,g)=>t+g.list.reduce((x,r)=>x+approvedChargeAmount(r),0),0);
+      return h('div',{key:G.pid,style:{marginBottom:'14px',minWidth:0}},
+        h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:'8px',flexWrap:'wrap',padding:'4px 2px',borderBottom:'2px solid #e9a9c4'}},
+          h('strong',{style:{fontSize:'15.5px',color:'#3b0f25',overflowWrap:'anywhere'}},pLabel(G.pid)),
+          !isNurseView&&total>0?h('strong',{style:{color:'#a80d4f'}},`Total approved ${money(total)}`):null),
+        ...G.items.map(groupRow)
+      );
+    };
     function canResubmit(r){return Boolean(canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)&&!r.physiotherapy_session_id)}
-    const responsiveRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'Tap a request to see full details.'},
+    const responsiveRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'One row per item with its total · tap a row to see every entry.'},
       registerLoading?h('p',{role:'status'},'Loading charges…'):
       registerError?h('div',{role:'alert'},h('p',null,registerError),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setRegisterLoading(true);load()}},'Retry loading charges')):
-      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(100%,340px),1fr))',gap:'10px',width:'100%',maxWidth:'100%',minWidth:0}},filtered.length?filtered.map(chargeMobileCard):h('div',{className:'empty',style:{padding:'18px'}},'No charges match the selected filters.'))
+      h('div',{style:{width:'100%',maxWidth:'100%',minWidth:0}},filtered.length?registerGroups.map(guestBlock):h('div',{className:'empty',style:{padding:'18px'}},'No charges match the selected filters.'))
     );
     const register=h(React.Fragment,null,
       workflowRequestId&&h('div',{className:'message warning',style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'10px',marginBottom:'10px'}},
