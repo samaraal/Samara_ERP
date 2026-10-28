@@ -174,7 +174,7 @@
   {
    "file": "global-ui/14-sidebar-readability.js",
    "about": "Left menu readability (dark heading text on white pill) + icons for headings / pages showing a plain pink square",
-   "lines": 72
+   "lines": 73
   },
   {
    "file": "stores/kitchen-cash.js",

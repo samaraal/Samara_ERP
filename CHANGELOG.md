@@ -1,3 +1,6 @@
+## 2.19.2 — 29-10-2026 — Left menu: group labels readable
+- Group labels inside an open menu section (e.g. "REPORTS", "PROFIT · ADMIN ONLY") were white on the new light panel — now deep pink.
+
 ## 2.19.1 — 29-10-2026 — Left menu: readable headings and proper icons
 - Version numbers now keep the last part to 2 digits (2.18.200 → 2.19.1).
 - Menu section headings that showed white text on the light-pink part of the left menu are now dark plum on a soft white pill (the open section keeps its pink band). The open list of pages gets a light panel, so page names stay readable over the deep-pink lower menu.

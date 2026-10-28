@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.1';
+  const APP_VERSION = '2.19.2';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13640,6 +13640,7 @@ https://samaraassistedliving.com/`;
       html body .sidebar .nav-section.expanded .nav-submenu{background:rgba(255,255,255,.93)!important;border-radius:14px!important;box-shadow:0 4px 12px rgba(107,15,60,.10)!important}
       html body .sidebar .nav-section.expanded .nav-submenu button:not(.active){color:#3f1a2c!important;text-shadow:none!important}
       html body .sidebar .nav-section.expanded .nav-submenu button:not(.active) *{color:#3f1a2c!important}
+      html body .sidebar .nav-submenu .nav-subhead{color:#a0105a!important;opacity:1!important;font-weight:900!important;letter-spacing:.06em!important;border-top:1px solid #f1d3e1!important;text-shadow:none!important}
       ${Object.entries(ICONS).map(([k,b])=>`html body .sidebar button[data-icon-fix="${k}"]::before{content:''!important;-webkit-mask-image:${svg(b)}!important;mask-image:${svg(b)}!important;-webkit-mask-repeat:no-repeat!important;mask-repeat:no-repeat!important;-webkit-mask-position:center!important;mask-position:center!important;-webkit-mask-size:contain!important;mask-size:contain!important;background-image:none!important}`).join('\n')}
     `;
     function addStyle(){
