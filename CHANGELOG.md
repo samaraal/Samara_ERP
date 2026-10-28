@@ -1,3 +1,8 @@
+## 2.18.186 — 28-10-2026 — Clinical alerts stand out from the pink dashboards
+- The clinical alert pop-up was baby-pink on baby-pink pages, so it blended in. Now: the page behind it is dimmed, the alert is a white card with a solid colour band by urgency — Samara magenta = due, red = overdue / escalated / critical, soft pink = for information.
+- Attention animation (alerts only): the card drops in, the bell rings, the card glows / pulses, a shimmer sweeps the band and the OK button pulses; escalations pulse faster and give a short shake. Respects the phone's "reduce motion" setting. Dashboards are unchanged.
+- Tapping the dimmed page also closes the alert (as before it closes itself after 20 seconds).
+
 ## 2.18.185 — 28-10-2026 — Razorpay safety net: no Family Portal payment is ever lost
 - Found: a Family Portal payment was recorded ONLY when the family's phone came back to the portal after paying. If the page closed while the UPI app was open, the session had expired, or the outstanding changed meanwhile, Razorpay kept the money (Captured) but the ERP had no ledger entry and sent no receipt (MOG-2026-10-0013, ₹8,083, 26-10-2026).
 - New Edge Function **razorpay-reconcile** (every 5 minutes, SQL 313): asks Razorpay for captured payments of the last 3 days; any Family Portal payment not in the ledger is posted at its real payment time ("Recorded by background check") and its WhatsApp receipt + PDF is queued automatically. Payments under 10 minutes old are left to the portal; staff payment links / QRs and Outside Nursing are untouched; never posts the same payment twice.

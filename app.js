@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.184';
+  const APP_VERSION = '2.18.186';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3790,6 +3790,9 @@ https://samaraassistedliving.com/`;
     React.useEffect(()=>{const list=window.__samaraStepBackers;list.push(ref);return()=>{const i=list.indexOf(ref);if(i>=0)list.splice(i,1)}},[]);
     return ()=>{if(!window.__samaraStepBack())return false;window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}});return true};
   }
+  // 2.18.186: the alert must stand out from the baby-pink dashboards — dimmed page behind it, white card,
+  // a solid colour band by urgency (Samara magenta = due · red = overdue / escalated / critical · soft pink =
+  // information) and attention animation (drop-in, ringing bell, pulsing glow, shimmer). Alerts only.
   function showClinicalAlertPopup({
     heading='CLINICAL ALERT',
     patient='Patient',
@@ -3799,89 +3802,107 @@ https://samaraassistedliving.com/`;
     dueText='Due now',
     message='Please attend and record immediately.',
     priority='Routine',
+    overdue=false,
     test=false
   }={}){
     try{
       document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove());
+      const level=/INFORMATION/i.test(heading)?'info':(/ESCALATION/i.test(heading)||overdue||String(priority)==='Critical'||/overdue/i.test(String(dueText||'')))?'urgent':'due';
+
+      if(!document.getElementById('samara-clinical-alert-style-v2')){
+        document.getElementById('samara-clinical-alert-responsive-style')?.remove();
+        const style=document.createElement('style');style.id='samara-clinical-alert-style-v2';
+        style.textContent=`
+          .samara-clinical-alert-overlay{position:fixed;inset:0;z-index:2147483647;display:flex;justify-content:center;align-items:flex-start;
+            padding:max(18px, env(safe-area-inset-top)) 12px 12px;background:rgba(43,6,25,.48);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+            animation:samaraAlertFade .25s ease-out both;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif}
+          .samara-clinical-alert-card{--band1:#a80d4f;--band2:#d6338a;--glow:rgba(214,51,138,.55);--label:#8a3a62;
+            width:min(1000px,calc(100vw - 24px));box-sizing:border-box;background:#fff;color:#2b0f1e;border-radius:22px;overflow:hidden;
+            border:3px solid var(--band1);box-shadow:0 24px 70px rgba(43,6,25,.45);
+            animation:samaraAlertDrop .55s cubic-bezier(.2,1.25,.4,1) both, samaraAlertGlow 1.6s ease-in-out .55s 6}
+          .samara-clinical-alert-card.level-urgent{--band1:#c0123c;--band2:#ef4444;--glow:rgba(239,68,68,.6)}
+          .samara-clinical-alert-card.level-urgent{animation:samaraAlertDrop .55s cubic-bezier(.2,1.25,.4,1) both, samaraAlertGlow 1s ease-in-out .55s 10, samaraAlertShake .5s ease-in-out .6s 2}
+          .samara-clinical-alert-card.level-info{--band1:#e9a9c4;--band2:#fbd3e4;--glow:rgba(233,169,196,.5)}
+          .samara-clinical-alert-band{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:14px;
+            padding:14px 20px;background:linear-gradient(110deg,var(--band1),var(--band2));color:#fff}
+          .level-info .samara-clinical-alert-band{color:#5a1236}
+          .samara-clinical-alert-band::after{content:'';position:absolute;top:0;bottom:0;width:38%;left:-45%;
+            background:linear-gradient(100deg,transparent,rgba(255,255,255,.45),transparent);animation:samaraAlertShimmer 2.4s ease-in-out .6s 4}
+          .samara-clinical-alert-bell{width:52px;height:52px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:50%;
+            background:#fff;font-size:28px;box-shadow:0 0 0 0 rgba(255,255,255,.7);transform-origin:50% 12%;
+            animation:samaraAlertRing 1.2s ease-in-out .5s 8, samaraAlertBellHalo 1.2s ease-out .5s 8}
+          .samara-clinical-alert-title{font-size:27px;line-height:1.05;font-weight:950;letter-spacing:1.2px;text-shadow:0 1px 2px rgba(0,0,0,.18)}
+          .level-info .samara-clinical-alert-title{text-shadow:none}
+          .samara-clinical-alert-test{font-size:11px;font-weight:950;padding:5px 9px;border-radius:999px;background:#fff;color:#7b1747}
+          .samara-clinical-alert-main{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:18px;align-items:center;padding:20px 24px 22px}
+          .samara-clinical-alert-detail-grid{display:grid;grid-template-columns:minmax(220px,1fr) minmax(280px,1.35fr);gap:9px 28px;font-size:15.5px;line-height:1.35}
+          .samara-clinical-alert-detail-grid>div{display:grid;grid-template-columns:100px minmax(0,1fr);gap:8px;min-width:0}
+          .samara-clinical-alert-detail-grid .l{color:var(--label);font-weight:800}
+          .samara-clinical-alert-detail-grid .v{font-weight:900;overflow-wrap:anywhere}
+          .samara-clinical-alert-detail-grid .v.big{font-size:18px;color:var(--band1)}
+          .level-info .samara-clinical-alert-detail-grid .v.big{color:#8a1c52}
+          .samara-clinical-alert-ok{min-width:90px;min-height:62px;padding:10px 14px;border:0;border-radius:16px;cursor:pointer;color:#fff;font-size:21px;font-weight:950;
+            background:linear-gradient(135deg,var(--band1),var(--band2));box-shadow:0 8px 20px var(--glow);animation:samaraAlertBtn 1.6s ease-in-out .8s 6}
+          .samara-clinical-alert-ok:focus{outline:none}.samara-clinical-alert-ok:focus-visible{outline:3px solid #fff;outline-offset:-6px}
+          .level-info .samara-clinical-alert-ok{background:linear-gradient(135deg,#a80d4f,#d6338a);box-shadow:0 8px 20px rgba(168,13,79,.3);animation:none}
+          @keyframes samaraAlertFade{from{opacity:0}to{opacity:1}}
+          @keyframes samaraAlertDrop{0%{opacity:0;transform:translateY(-60px) scale(.92)}100%{opacity:1;transform:none}}
+          @keyframes samaraAlertGlow{0%,100%{box-shadow:0 24px 70px rgba(43,6,25,.45),0 0 0 0 var(--glow)}50%{box-shadow:0 24px 70px rgba(43,6,25,.45),0 0 0 14px rgba(255,255,255,0),0 0 34px 10px var(--glow)}}
+          @keyframes samaraAlertShake{0%,100%{transform:none}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+          @keyframes samaraAlertShimmer{0%{left:-45%}60%,100%{left:120%}}
+          @keyframes samaraAlertRing{0%,55%,100%{transform:rotate(0)}10%{transform:rotate(16deg)}20%{transform:rotate(-14deg)}30%{transform:rotate(10deg)}40%{transform:rotate(-8deg)}48%{transform:rotate(4deg)}}
+          @keyframes samaraAlertBellHalo{0%{box-shadow:0 0 0 0 rgba(255,255,255,.75)}100%{box-shadow:0 0 0 16px rgba(255,255,255,0)}}
+          @keyframes samaraAlertBtn{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+          @media(prefers-reduced-motion:reduce){.samara-clinical-alert-overlay *,.samara-clinical-alert-overlay{animation:none!important}}
+          @media(max-width:700px){
+            .samara-clinical-alert-overlay{padding:calc(10px + env(safe-area-inset-top)) 7px 8px}
+            .samara-clinical-alert-card{width:calc(100vw - 14px);border-radius:19px}
+            .samara-clinical-alert-band{padding:11px 14px;gap:10px}
+            .samara-clinical-alert-bell{width:42px;height:42px;font-size:23px}
+            .samara-clinical-alert-title{font-size:20px;letter-spacing:.6px}
+            .samara-clinical-alert-main{grid-template-columns:1fr;gap:12px;padding:14px 14px 16px}
+            .samara-clinical-alert-detail-grid{grid-template-columns:1fr;gap:7px;font-size:14px}
+            .samara-clinical-alert-detail-grid>div{grid-template-columns:86px minmax(0,1fr)}
+            .samara-clinical-alert-ok{width:100%;min-height:50px;font-size:18px}
+          }
+        `;document.head.appendChild(style);
+      }
+
       const overlay=document.createElement('div');
       overlay.className='samara-clinical-alert-overlay';
       overlay.setAttribute('role','alert');
       overlay.setAttribute('aria-live','assertive');
-      Object.assign(overlay.style,{
-        position:'fixed',left:'0',right:'0',top:'0',zIndex:'2147483647',
-        display:'flex',justifyContent:'center',alignItems:'flex-start',
-        padding:'max(12px, env(safe-area-inset-top)) 10px 10px',pointerEvents:'none'
-      });
-
       const card=document.createElement('div');
-      card.className='samara-clinical-alert-card';
-      Object.assign(card.style,{
-        width:'min(1080px, calc(100vw - 24px))',boxSizing:'border-box',
-        display:'grid',gridTemplateColumns:'74px minmax(0,1fr) 78px',alignItems:'center',
-        gap:'18px',minHeight:'160px',padding:'22px 24px',borderRadius:'22px',
-        // 2.18.168: Samara logo theme — baby pink gradient, dark plum text
-        background:'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)',
-        color:'#3b0f25',border:'2px solid #e9a9c4',
-        boxShadow:'0 20px 56px rgba(160,21,79,.28)',pointerEvents:'auto',
-        fontFamily:"Inter,system-ui,-apple-system,'Segoe UI',sans-serif"
-      });
+      card.className=`samara-clinical-alert-card level-${level}`;
 
-      const icon=document.createElement('div');
-      icon.textContent='🔔';
-      Object.assign(icon.style,{width:'70px',height:'70px',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:'50%',background:'#fff',border:'1.5px solid #efc3d6',fontSize:'35px'});
+      const band=document.createElement('div');band.className='samara-clinical-alert-band';
+      const bell=document.createElement('div');bell.className='samara-clinical-alert-bell';bell.textContent=level==='info'?'ℹ️':'🔔';
+      const title=document.createElement('strong');title.className='samara-clinical-alert-title';title.textContent=heading;
+      band.append(bell,title);
+      if(test){const t=document.createElement('span');t.className='samara-clinical-alert-test';t.textContent='TEST';band.appendChild(t);}
 
-      const body=document.createElement('div');
-      Object.assign(body.style,{display:'grid',gap:'12px',minWidth:'0'});
-      const head=document.createElement('div');
-      Object.assign(head.style,{display:'flex',alignItems:'center',justifyContent:'center',gap:'10px',flexWrap:'wrap',textAlign:'center'});
-      const title=document.createElement('strong');
-      title.textContent=heading;
-      // heading centred, its own colour: information = teal, escalation = red, alert = Samara magenta
-      const headColor=/INFORMATION/i.test(heading)?'#0b7a75':/ESCALATION/i.test(heading)?'#c0123c':'#a80d4f';
-      Object.assign(title.style,{fontSize:'25px',lineHeight:'1.08',fontWeight:'950',letterSpacing:'.6px',color:headColor,padding:'4px 18px',borderRadius:'999px',background:'#fff',border:`2px solid ${headColor}`});
-      head.appendChild(title);
-      if(test){
-        const testPill=document.createElement('span');testPill.textContent='TEST';
-        Object.assign(testPill.style,{fontSize:'11px',fontWeight:'950',padding:'5px 9px',borderRadius:'999px',background:'#ffe0ee',color:'#7b1747'});
-        head.appendChild(testPill);
-      }
-      const grid=document.createElement('div');
-      grid.className='samara-clinical-alert-detail-grid';
-      Object.assign(grid.style,{display:'grid',gridTemplateColumns:'minmax(220px,1fr) minmax(280px,1.35fr)',gap:'8px 28px',fontSize:'15px',lineHeight:'1.35',fontWeight:'700'});
-      const row=(label,value)=>{
+      const main=document.createElement('div');main.className='samara-clinical-alert-main';
+      const grid=document.createElement('div');grid.className='samara-clinical-alert-detail-grid';
+      const row=(label,value,big=false)=>{
         const d=document.createElement('div');
-        Object.assign(d.style,{display:'grid',gridTemplateColumns:'100px minmax(0,1fr)',gap:'8px',minWidth:'0'});
-        const l=document.createElement('span');l.textContent=label;Object.assign(l.style,{color:'#8a3a62',fontWeight:'800'});
-        const v=document.createElement('span');v.textContent=value||'—';Object.assign(v.style,{fontWeight:'900',overflowWrap:'anywhere'});
+        const l=document.createElement('span');l.className='l';l.textContent=label;
+        const v=document.createElement('span');v.className=big?'v big':'v';v.textContent=value||'—';
         d.append(l,v);return d;
       };
       grid.append(
-        row('Resident',patient),row('Details',details||alertType),
-        row('Room',room||'—'),row('Due Time',dueText||'Due now'),
+        row('Resident',patient,true),row('Details',details||alertType),
+        row('Room',room||'—',true),row('Due Time',dueText||'Due now'),
         row('Alert Type',alertType),row('Message',message)
       );
-      body.append(head,grid);
-
-      const ok=document.createElement('button');ok.type='button';ok.textContent='OK';
-      Object.assign(ok.style,{minWidth:'76px',minHeight:'58px',padding:'10px 14px',border:'0',borderRadius:'14px',background:'linear-gradient(135deg,#a80d4f,#d6338a)',color:'#fff',fontSize:'20px',fontWeight:'950',cursor:'pointer',boxShadow:'0 6px 16px rgba(168,13,79,.3)'});
+      const ok=document.createElement('button');ok.type='button';ok.className='samara-clinical-alert-ok';ok.textContent='OK';
       ok.addEventListener('click',()=>overlay.remove());
-      card.append(icon,body,ok);overlay.appendChild(card);document.body.appendChild(overlay);
+      // a tap on the dimmed page also closes it, so staff are never stuck behind it
+      overlay.addEventListener('click',event=>{if(event.target===overlay)overlay.remove()});
+      main.append(grid,ok);
+      card.append(band,main);overlay.appendChild(card);document.body.appendChild(overlay);
+      try{ok.focus({preventScroll:true})}catch(_){}
 
-      if(!document.getElementById('samara-clinical-alert-responsive-style')){
-        const style=document.createElement('style');style.id='samara-clinical-alert-responsive-style';
-        style.textContent=`
-          @media(max-width:700px){
-            .samara-clinical-alert-overlay{padding:calc(8px + env(safe-area-inset-top)) 7px 8px!important}
-            .samara-clinical-alert-card{width:calc(100vw - 14px)!important;min-height:0!important;grid-template-columns:52px minmax(0,1fr)!important;gap:10px 12px!important;padding:16px 14px!important;border-radius:19px!important;align-items:start!important}
-            .samara-clinical-alert-card>div:first-child{width:50px!important;height:50px!important;font-size:27px!important}
-            .samara-clinical-alert-card>div:nth-child(2)>div:first-child strong{font-size:20px!important}
-            .samara-clinical-alert-detail-grid{grid-template-columns:1fr!important;gap:7px!important;font-size:14px!important}
-            .samara-clinical-alert-detail-grid>div{grid-template-columns:86px minmax(0,1fr)!important}
-            .samara-clinical-alert-card>button{grid-column:1/3!important;width:100%!important;min-height:48px!important;font-size:17px!important;margin-top:3px!important}
-          }
-        `;document.head.appendChild(style);
-      }
-      try{if(navigator.vibrate)navigator.vibrate(priority==='Critical'?[180,80,180,80,180]:[130,70,130])}catch(_){}
+      try{if(navigator.vibrate)navigator.vibrate(level==='urgent'?[180,80,180,80,180]:[130,70,130])}catch(_){}
       window.setTimeout(()=>{if(overlay.isConnected)overlay.remove()},20000);
     }catch(error){console.warn('Clinical popup unavailable:',error)}
   }
@@ -5032,7 +5053,8 @@ https://samaraassistedliving.com/`;
             details:nextToAnnounce.description||nextToAnnounce.title||'Clinical task due',
             dueText:String(nextToAnnounce.alert_type||'').toLowerCase()==='daily care'?'Pending for current shift':infoOnce(nextToAnnounce)?'Please review':overdue>0?englishOverdueLabel(overdue):'Due now',
             message:infoOnce(nextToAnnounce)?'For information — already recorded. Please review and close it in Clinical Escalations.':nextToAnnounce.is_escalated?'Escalated — please attend and record immediately.':'Please attend and record immediately.',
-            priority:nextToAnnounce.priority||'Routine'
+            priority:nextToAnnounce.priority||'Routine',
+            overdue:overdue>0
           });
         }
       }
