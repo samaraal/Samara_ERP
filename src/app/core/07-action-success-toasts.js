@@ -161,7 +161,10 @@
     if(top<10)top=Math.max(10,Math.min(vh-ch-10,p.top)); // neither fits → beside it
     let left=(p.left+p.right)/2-cw/2;
     left=Math.max(10,Math.min(vw-cw-10,left));
-    Object.assign(overlay.style,{right:'auto',bottom:'auto',top:top+'px',left:left+'px',padding:'0',display:'block'});
+    // !important: the global layout CSS pins .samara-save-confirmation to the top with !important rules
+    const set=(k,v)=>overlay.style.setProperty(k,v,'important');
+    set('inset','auto');set('right','auto');set('bottom','auto');set('top',top+'px');set('left',left+'px');
+    set('padding','0');set('display','block');set('width',cw+'px');
   }
 
   const showSamaraActionToast = (type='success',title='',text='') => {

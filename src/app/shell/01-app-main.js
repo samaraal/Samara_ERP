@@ -268,6 +268,9 @@
         if(!success&&!error)return;
 
         handled.add(element);
+        // 2.18.193: the page's own message is copied into the Samara box below — hide the original so the
+        // same message never shows twice (it was appearing unstyled at the bottom of Bills & Charges).
+        if(!element.matches('.message'))try{element.style.setProperty('display','none','important')}catch(_){}
         const type=success?'success':'error';
         const strong=element.querySelector('strong');
         const title=(strong?.textContent||'').trim()||

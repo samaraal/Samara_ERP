@@ -1,3 +1,7 @@
+## 2.18.193 — 29-10-2026 — One "Saved" message, next to the button (fix for 2.18.192)
+- 2.18.192 did not move the message: an older global style rule pinned it to the top with !important. The position beside the pressed button now overrides it.
+- Bills & Charges showed the message twice — the Samara box plus the page's own old toast, which also appeared unstyled at the bottom of the page. The old page toast is removed there, and anywhere else a page's own toast is copied into the Samara box, the original is hidden, so a message appears only once.
+
 ## 2.18.192 — 29-10-2026 — "Saved" message opens next to the button pressed
 - The green "Saved" / red "Action failed" / amber warning message used to open at the very top of the screen. It now opens right beside the button that was just pressed (just below it, or just above when the button is near the bottom), like the approval box in 2.18.191 — across the whole ERP.
 - If nothing was pressed in the last 2 minutes (e.g. an automatic message), it stays at the top as before. OK and the 10-second auto close are unchanged.

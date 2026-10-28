@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.192';
+  const APP_VERSION = '2.18.193';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2430,7 +2430,10 @@ function initSamaraInaugurationInvitation(){
     if(top<10)top=Math.max(10,Math.min(vh-ch-10,p.top)); // neither fits → beside it
     let left=(p.left+p.right)/2-cw/2;
     left=Math.max(10,Math.min(vw-cw-10,left));
-    Object.assign(overlay.style,{right:'auto',bottom:'auto',top:top+'px',left:left+'px',padding:'0',display:'block'});
+    // !important: the global layout CSS pins .samara-save-confirmation to the top with !important rules
+    const set=(k,v)=>overlay.style.setProperty(k,v,'important');
+    set('inset','auto');set('right','auto');set('bottom','auto');set('top',top+'px');set('left',left+'px');
+    set('padding','0');set('display','block');set('width',cw+'px');
   }
 
   const showSamaraActionToast = (type='success',title='',text='') => {
@@ -14764,6 +14767,9 @@ https://samaraassistedliving.com/`;
         if(!success&&!error)return;
 
         handled.add(element);
+        // 2.18.193: the page's own message is copied into the Samara box below — hide the original so the
+        // same message never shows twice (it was appearing unstyled at the bottom of Bills & Charges).
+        if(!element.matches('.message'))try{element.style.setProperty('display','none','important')}catch(_){}
         const type=success?'success':'error';
         const strong=element.querySelector('strong');
         const title=(strong?.textContent||'').trim()||
@@ -50244,7 +50250,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       return()=>clearTimeout(timer);
     },[workflowRequestId,rows]);
 
-    const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
+    const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text)}; // 2.18.193: one message only (the old page toast duplicated it)
     function openChargeView(view){
       setWorkflowRequestId('');
       setGuestSearch('');

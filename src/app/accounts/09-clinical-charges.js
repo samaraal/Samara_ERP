@@ -341,7 +341,7 @@
       return()=>clearTimeout(timer);
     },[workflowRequestId,rows]);
 
-    const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text);setToast({type,text});setTimeout(()=>setToast(null),4500)};
+    const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text)}; // 2.18.193: one message only (the old page toast duplicated it)
     function openChargeView(view){
       setWorkflowRequestId('');
       setGuestSearch('');

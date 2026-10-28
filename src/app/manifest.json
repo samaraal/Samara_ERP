@@ -44,7 +44,7 @@
   {
    "file": "core/07-action-success-toasts.js",
    "about": "After-save behaviour, success/failure toasts and their CSS",
-   "lines": 518
+   "lines": 521
   },
   {
    "file": "core/08-date-utils.js",
@@ -186,7 +186,7 @@
   {
    "file": "shell/01-app-main.js",
    "about": "App() - the main shell: login state, page switching, global watchers switched on here",
-   "lines": 873
+   "lines": 953
   },
   {
    "file": "shell/02-login-password.js",
@@ -521,7 +521,7 @@
   {
    "file": "accounts/09-clinical-charges.js",
    "about": "Charge master, clinical charges",
-   "lines": 1070
+   "lines": 1253
   },
   {
    "file": "accounts/09a-outside-bills.js",
