@@ -1,3 +1,8 @@
+## 2.18.189 — 28-10-2026 — Clear request amounts and consistent approval-date totals
+- Requests raised without an amount are identified explicitly, rather than counted as zero. "Request Amount Recorded" totals only saved request values and shows how many requests lack amounts; historical requests are never recalculated from later master rates.
+- Approved Today opens an Approval date filter, so choosing the same day retains earlier services approved that day. Service date remains a separate selectable basis; totals state their scope and use one approved-amount calculation.
+- Charge cards and full details distinguish recorded request amounts, pending tariff estimates and approved amounts. No patient charges, approvals or ledger entries are changed.
+
 ## 2.18.188 — 28-10-2026 — Charge register loads without database timeouts
 - Live verification found a row-by-row permission check taking 13.5 seconds for 328 charges. The same permission checks now run once per statement (measured 0.09 seconds); role lists, write checks and grants remain the same.
 - Background refreshes no longer overlap. Supabase migration 20261028151617 is applied and saved in supabase/migrations; no charge or patient records are changed.

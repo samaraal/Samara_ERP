@@ -288,7 +288,7 @@
       outside_paid_by:'',outside_bill_amount:'',outside_route:'',related_code:''
     });
     const [form,setForm]=React.useState(fresh());
-    const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All',item:'All'});
+    const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All',item:'All',date_basis:'Service date'});
     const [period,setPeriod]=React.useState({mode:'All dates',date:todayISOIndia(),month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia()});
     // 2.18.104: register filters are a DRAFT until Apply. `filter`/`period` stay the applied values,
     // so quick views, notifications and menu resets still take effect at once (and refresh the draft).
@@ -298,7 +298,7 @@
     const appliedKey=JSON.stringify([filter,period]);
     React.useEffect(()=>{setDraftFilter(filter);setDraftPeriod(period)},[appliedKey]);
     const filterDirty=JSON.stringify([draftFilter,draftPeriod])!==appliedKey;
-    const applyRegisterFilters=()=>{setWorkflowRequestId('');setQuickView(current=>current==='Approved Today'?current:'All');setFilter({...draftFilter});setPeriod({...draftPeriod})};
+    const applyRegisterFilters=()=>{setWorkflowRequestId('');setQuickView('All');setFilter({...draftFilter});setPeriod({...draftPeriod})};
     const [quickView,setQuickView]=React.useState('All');
     const [workflowRequestId,setWorkflowRequestId]=React.useState('');
     const [selectedChargeDetail,setSelectedChargeDetail]=React.useState(null);
@@ -316,7 +316,7 @@
         setPeriod(current=>({...current,mode:'All dates'}));
         setWorkflowRequestId(String(target.request_id));
         setQuickView('All');
-        setFilter({patient_id:'',status:'All',category:'All',item:'All'});
+        setFilter({patient_id:'',status:'All',category:'All',item:'All',date_basis:'Service date'});
         openView('charges');
         return true;
       };
@@ -345,10 +345,10 @@
     function openChargeView(view){
       setWorkflowRequestId('');
       setGuestSearch('');
-      setPeriod(current=>({...current,mode:view==='Today'?'Today':'All dates'}));
+      setPeriod(current=>({...current,mode:['Today','Approved Today'].includes(view)?'Today':'All dates'}));
       setQuickView(view);
       // Summary counts cover the whole accessible register: clear every old filter on drill-down.
-      setFilter({patient_id:'',status:view==='Pending'?'Pending':view==='Returned'?'Rejected':'All',category:'All',item:'All'});
+      setFilter({patient_id:'',status:view==='Pending'?'Pending':view==='Returned'?'Rejected':'All',category:'All',item:'All',date_basis:view==='Approved Today'?'Approval date':'Service date'});
       openView('charges');
     }
     // 2.15.14: discharged Guests' names also show (they are not in the active list)
@@ -767,6 +767,28 @@
       const saved=Number(row?.requested_amount||row?.estimated_amount||0);
       return saved>0?{amount:saved,fromMaster:false}: {amount:0,fromMaster:false,rate:rate||0,item};
     }
+    // Historical request totals use only amounts actually recorded on the request.
+    // Nursing submits services without money; missing amounts are not zero, and a
+    // later tariff or approval must never be presented as the original request amount.
+    function recordedRequestAmount(row){
+      const raw=row.requested_amount??row.estimated_amount;
+      if(raw===null||raw===undefined||raw==='')return null;
+      const value=Number(raw);return Number.isFinite(value)?value:null;
+    }
+    function approvedChargeAmount(row){
+      if(!['Approved','Partially Approved'].includes(row.approval_status))return 0;
+      const value=Number(row.approved_amount??row.final_amount??0);
+      return Number.isFinite(value)?value:0;
+    }
+    function approvalDay(row){
+      if(!['Approved','Partially Approved'].includes(row.approval_status))return '';
+      const decided=row.decision_date||row.approved_at||row.decision_at;
+      const date=decided?new Date(decided):null;
+      if(!date||Number.isNaN(date.getTime()))return String(row.charge_date||'').slice(0,10);
+      const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+      const part=key=>parts.find(p=>p.type===key)?.value;
+      return `${part('year')}-${part('month')}-${part('day')}`;
+    }
     // 2.17.5: outside bill (SQL 247) — Accounts verifies the bill amount; the handling fee from Charge Master
     // is added as a separate Guest bill line; NM Petty Cash / credit / family-paid are handled in the database.
     async function decideOutside(row,decision){
@@ -865,14 +887,17 @@
     }
     if(period.mode==='Custom period'){periodFrom=period.from;periodTo=period.to;}
     const periodInvalid=period.mode!=='All dates'&&(!validRegisterDay(periodFrom)||!validRegisterDay(periodTo)||periodFrom>periodTo);
+    const approvalDateView=filter.date_basis==='Approval date';
+    const registerDay=row=>approvalDateView?approvalDay(row):String(row.charge_date||'').slice(0,10);
     const itemKey=row=>JSON.stringify([row.category||'',row.charge_item_code||row.store_item_id||row.service_name||row.description||'Charge']);
     const registerPatients=[...new Map([...patients,...rows.map(r=>pFor(r.patient_id))].filter(p=>p.id).map(p=>[String(p.id),p])).values()].sort((a,b)=>samaraAlpha(a.full_name,b.full_name));
     const registerItems=[...new Map(rows.filter(r=>draftFilter.category==='All'||r.category===draftFilter.category).map(r=>[itemKey(r),r])).values()]
       .sort((a,b)=>samaraAlpha(a.service_name||a.description,b.service_name||b.description)||samaraAlpha(a.category,b.category));
     const filtered=rows.filter(r=>
       !registerLoading&&!registerError&&
-      !periodInvalid&&(!periodFrom||String(r.charge_date||'').slice(0,10)>=periodFrom)&&
-      (!periodTo||String(r.charge_date||'').slice(0,10)<=periodTo)&&
+      !periodInvalid&&(!approvalDateView||!!approvalDay(r))&&
+      (!periodFrom||registerDay(r)>=periodFrom)&&
+      (!periodTo||registerDay(r)<=periodTo)&&
       (!workflowRequestId||String(r.id)===workflowRequestId)&&
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
       (filter.status==='All'||(r.approval_status||'Pending')===filter.status)&&
@@ -884,12 +909,12 @@
       (quickView!=='Approved Today'||isApprovedToday(r))
     );
     const registerTotals=filtered.reduce((totals,row)=>{
-      const requested=currentStoreRequestAmount(row).amount;
-      const approved=Number(row.approved_amount??row.final_amount??0);
-      totals.requested+=Number.isFinite(requested)?requested:0;
-      totals.approved+=Number.isFinite(approved)?approved:0;
+      const requested=recordedRequestAmount(row);
+      if(requested===null)totals.unpriced+=1;
+      else{totals.requested+=requested;totals.recorded+=1;}
+      totals.approved+=approvedChargeAmount(row);
       return totals;
-    },{requested:0,approved:0});
+    },{requested:0,approved:0,recorded:0,unpriced:0});
     const pending=rows.filter(r=>(r.approval_status||'Pending')==='Pending').length;
 
     // Dashboard summary should be operational, not a lifetime cumulative total.
@@ -897,20 +922,10 @@
     // Decision timestamps are stored as decision_date / approved_at. Use the Indian day,
     // including approvals of older charges; charge_date is only a legacy fallback.
     function isApprovedToday(row){
-      if(!['Approved','Partially Approved'].includes(row.approval_status))return false;
-      const decided=row.decision_date||row.approved_at||row.decision_at;
-      if(decided&&!Number.isNaN(new Date(decided).getTime()))return formatDateIN(decided)===formatDateIN(todayISOIndia());
-      return row.charge_date===todayISOIndia();
+      return approvalDay(row)===todayISOIndia();
     };
     const approvedToday=rows.filter(isApprovedToday);
-    const approvedTodayValue=approvedToday.reduce((sum,row)=>{
-      const value=row.approved_amount!==null&&row.approved_amount!==undefined
-        ?Number(row.approved_amount)
-        :row.final_amount!==null&&row.final_amount!==undefined
-          ?Number(row.final_amount)
-          :0;
-      return sum+(Number.isFinite(value)?value:0);
-    },0);
+    const approvedTodayValue=approvedToday.reduce((sum,row)=>sum+approvedChargeAmount(row),0);
 
     const navCard=(label,value,view,subtitle)=>h('button',{
       type:'button',
@@ -947,15 +962,17 @@
     const chargeMobileCard=r=>{
       const status=r.approval_status||'Pending';
       const isNurse=profile?.role==='Nurse';
-      const store=isNurse?null:currentStoreRequestAmount(r);
+      const store=isNurse||status!=='Pending'?null:currentStoreRequestAmount(r);
+      const requested=recordedRequestAmount(r);
       const approvedAmt=r.approved_amount??r.final_amount;
       const provider=r.service_provider||r.hospital_name||r.laboratory_name||'';
       const remarks=String(r.decision_remarks||r.approval_remarks||r.remarks||'').trim();
       const showRemarks=remarks&&remarks.toLowerCase()!==String(status).toLowerCase();
       const muted={color:'#7a5a68',fontSize:'13px',overflowWrap:'anywhere'};
-      const info=[pLabel(r.patient_id),formatDateIN(r.charge_date),`Qty ${r.quantity||1}${r.unit?` ${r.unit}`:''}`,r.category,provider].filter(Boolean).join(' · ');
+      const info=[pLabel(r.patient_id),`Service ${formatDateIN(r.charge_date)}`,approvalDateView&&approvalDay(r)?`Approved ${formatDateIN(approvalDay(r))}`:'',`Qty ${r.quantity||1}${r.unit?` ${r.unit}`:''}`,r.category,provider].filter(Boolean).join(' · ');
       const amountParts=isNurse?[]:[
-        store&&store.amount>0?`Requested ${money(store.amount)}`:null,
+        requested!==null?`Request recorded ${money(requested)}`:'Request amount not entered',
+        store?.fromMaster?`Current tariff ${money(store.amount)}`:null,
         approvedAmt!=null&&status!=='Pending'&&status!=='Rejected'?h('strong',{key:'ap'},`${status} ${money(approvedAmt)}`):null,
         r.decision_by_name?`by ${r.decision_by_name}`:null
       ].filter(Boolean);
@@ -1039,8 +1056,8 @@
         ['Resubmission of',r.resubmitted_from?'A request returned earlier by Accounts':'']
       ];
       if(!nurse){
-        const req=r.requested_amount??r.estimated_amount, apv=r.approved_amount??r.final_amount;
-        list.push(['Rate',r.unit_cost!=null&&Number(r.unit_cost)>0?money(r.unit_cost):''],['Requested amount',req!=null&&Number(req)>0?money(req):''],
+        const req=recordedRequestAmount(r), apv=r.approved_amount??r.final_amount;
+        list.push(['Rate',r.unit_cost!=null&&Number(r.unit_cost)>0?money(r.unit_cost):''],['Request amount recorded',req!==null?money(req):'Not entered — Accounts prices the charge'],
           ['Approved amount',st!=='Pending'&&st!=='Rejected'&&apv!=null?money(apv):''],
           ['Outside bill amount',r.outside_bill_amount!=null?money(r.outside_bill_amount):''],['Handling charge',Number(r.outside_handling_fee)>0?money(r.outside_handling_fee):'']);
       }
@@ -1175,8 +1192,9 @@
         canRaise&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Raise Bill / Charge')
       ),
       summary,
-      view&&h(DashboardBackBar,{title:'Bills & Charges',viewTitle:quickView==='All'?'Charges Raised':quickView==='Today'?'Today’s Entries':quickView==='Pending'?'Pending Approval':quickView==='Returned'?'Returned by Accounts':quickView,onBack:backToDashboard}),
-      h(Section,{title:'Charges Raised',subtitle:quickView==='Approved Today'?'Approved today (India time), including charges with earlier service dates. Apply filters below to explore the register.':'Consumables, procedures, physiotherapy, pharmacy and all other charges. Filter below; click a charge for full details.'},
+      h('p',{className:'small-note'},'Top boxes show all patients. The totals below follow the applied filters.'),
+      view&&h(DashboardBackBar,{title:'Bills & Charges',viewTitle:quickView==='All'?(approvalDateView?'Approved Charges':'Charges Raised'):quickView==='Today'?'Today’s Entries':quickView==='Pending'?'Pending Approval':quickView==='Returned'?'Returned by Accounts':quickView,onBack:backToDashboard}),
+      h(Section,{title:approvalDateView?'Approved Charges':'Charges Raised',subtitle:approvalDateView?'Filtered by approval date (India time), including charges with earlier service dates. Each row also shows its service date.':'Consumables, procedures, physiotherapy, pharmacy and all other charges. Filter below; click a charge for full details.'},
         h('div',{className:'clinical-charge-filters samara-filter-row'},
           h('div',{className:'field'},h('label',null,'Search Patient'),h('input',{type:'search',value:guestSearch,onChange:e=>setGuestSearch(e.target.value),placeholder:'Name / ID / Room (3 characters)'})),
           (()=>{const q=guestSearch.trim().toLowerCase();const list=q.length<3?registerPatients:registerPatients.filter(p=>p.id===draftFilter.patient_id||[p.full_name,p.patient_id,p.room_no,formalName(p)].some(v=>String(v||'').toLowerCase().includes(q)));
@@ -1184,6 +1202,7 @@
           h('div',{className:'field'},h('label',null,'Status'),h('select',{value:draftFilter.status,onChange:e=>setDraftFilter({...draftFilter,status:e.target.value})},['All','Pending','Approved','Partially Approved','Rejected'].map(x=>h('option',{key:x,value:x},statusText(x))))),
           miniSelect('Category',draftFilter.category,['All',...[...new Set([...Object.keys(categories),...rows.map(r=>r.category).filter(Boolean)])].sort(samaraAlpha)],v=>setDraftFilter({...draftFilter,category:v,item:'All'})),
           h('div',{className:'field'},h('label',null,'Item / Service'),h('select',{'aria-label':'Item / Service filter',value:draftFilter.item,onChange:e=>setDraftFilter({...draftFilter,item:e.target.value})},h('option',{value:'All'},'All items / services'),registerItems.map(r=>h('option',{key:itemKey(r),value:itemKey(r)},[r.charge_item_code,r.service_name||r.description||'Charge',r.category].filter(Boolean).join(' · '))))),
+          miniSelect('Date basis',draftFilter.date_basis,['Service date','Approval date'],v=>setDraftFilter({...draftFilter,date_basis:v,status:v==='Approval date'?'All':draftFilter.status})),
           miniSelect('Period',draftPeriod.mode,['All dates','Today','This Week','Day','Week','Month','Custom period'],v=>setDraftPeriod({...draftPeriod,mode:v})),
           ['Day','Week'].includes(draftPeriod.mode)&&miniInput(draftPeriod.mode==='Week'?'Choose a date in the week (Mon–Sun)':'Date',draftPeriod.date,v=>setDraftPeriod({...draftPeriod,date:v}),false,'date'),
           draftPeriod.mode==='Month'&&miniInput('Month',draftPeriod.month,v=>setDraftPeriod({...draftPeriod,month:v}),false,'month'),
@@ -1192,11 +1211,12 @@
           h(ApplyFilterButton,{dirty:filterDirty,onApply:applyRegisterFilters})
         ),
         periodInvalid&&h('p',{role:'alert',style:{color:'#a00050'}},'Select a valid period. From date must be on or before To date.'),
-        !periodInvalid&&periodFrom&&h('p',null,`Charge dates: ${formatDateIN(periodFrom)} to ${formatDateIN(periodTo)} (inclusive)`),
+        !periodInvalid&&periodFrom&&h('p',null,`${approvalDateView?'Approval':'Service'} dates: ${formatDateIN(periodFrom)} to ${formatDateIN(periodTo)} (inclusive)`),
         h('div',{className:'grid stats','aria-live':'polite'},
           h('div',{className:'card stat'},h('span',null,'Matching Entries'),h('strong',null,summaryValue(filtered.length))),
-          profile?.role!=='Nurse'&&h('div',{className:'card stat'},h('span',null,'Total Request Amount'),h('strong',null,summaryValue(money(registerTotals.requested)))),
-          profile?.role!=='Nurse'&&h('div',{className:'card stat'},h('span',null,'Total Approved Amount'),h('strong',null,summaryValue(money(registerTotals.approved))))
+          profile?.role!=='Nurse'&&h('div',{className:'card stat'},h('span',null,'Request Amount Recorded'),h('strong',null,summaryValue(registerTotals.recorded?money(registerTotals.requested):filtered.length?'Not entered':money(0))),
+            h('small',null,registerTotals.unpriced?`${registerTotals.recorded} of ${filtered.length} requests included an amount; ${registerTotals.unpriced} had no amount entered. Accounts prices those charges.`:'Sum of the amounts recorded on the matching requests.')),
+          profile?.role!=='Nurse'&&h('div',{className:'card stat'},h('span',null,'Total Approved Amount'),h('strong',null,summaryValue(money(registerTotals.approved))),h('small',null,'Approved and partially approved charges in this filtered list.'))
         )
       ),
       h('div',{id:'bill-charge-register',style:{scrollMarginTop:'90px'}},
