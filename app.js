@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.191';
+  const APP_VERSION = '2.18.192';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -2405,6 +2405,34 @@ function initSamaraInaugurationInvitation(){
     window.setTimeout(()=>{try{control.focus({preventScroll:true})}catch(_error){control.focus()}},180);
   }
 
+  // 2.18.192: the "Saved" / error message opens next to the button the staff member just pressed (like the
+  // approval box), instead of at the very top of the screen. Remembers the last button / control pressed;
+  // if nothing was pressed in the last 2 minutes it stays at the top as before.
+  let samaraLastPress=null;
+  try{
+    const remember=el=>{
+      const target=el&&el.closest?el.closest('button,a,[role="button"],input,select,textarea,label,.btn')||el:null;
+      if(!target||!target.getBoundingClientRect||target===document.body)return;
+      if(target.closest&&target.closest('.samara-save-confirmation'))return;
+      const r=target.getBoundingClientRect();
+      if(!r.width&&!r.height)return;
+      samaraLastPress={top:r.top,bottom:r.bottom,left:r.left,right:r.right,at:Date.now()};
+    };
+    document.addEventListener('pointerdown',e=>remember(e.target),true);
+    document.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')remember(document.activeElement)},true);
+  }catch(_){}
+  function samaraPlaceNearLastPress(overlay,card){
+    const p=samaraLastPress;
+    if(!p||Date.now()-p.at>120000)return;
+    const vw=window.innerWidth,vh=window.innerHeight,cw=card.offsetWidth,ch=card.offsetHeight,gap=10;
+    let top=p.bottom+gap;
+    if(top+ch>vh-10)top=p.top-ch-gap;                    // no room below → just above the button
+    if(top<10)top=Math.max(10,Math.min(vh-ch-10,p.top)); // neither fits → beside it
+    let left=(p.left+p.right)/2-cw/2;
+    left=Math.max(10,Math.min(vw-cw-10,left));
+    Object.assign(overlay.style,{right:'auto',bottom:'auto',top:top+'px',left:left+'px',padding:'0',display:'block'});
+  }
+
   const showSamaraActionToast = (type='success',title='',text='') => {
     try{
       document.querySelectorAll('.samara-save-confirmation').forEach(node=>node.remove());
@@ -2511,6 +2539,7 @@ function initSamaraInaugurationInvitation(){
       card.append(ok);
       overlay.appendChild(card);
       document.body.appendChild(overlay);
+      try{samaraPlaceNearLastPress(overlay,card)}catch(_){}
 
       if(fieldTarget)focusSamaraNoticeField(fieldTarget);
 

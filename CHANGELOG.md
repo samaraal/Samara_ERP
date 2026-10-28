@@ -1,3 +1,7 @@
+## 2.18.192 — 29-10-2026 — "Saved" message opens next to the button pressed
+- The green "Saved" / red "Action failed" / amber warning message used to open at the very top of the screen. It now opens right beside the button that was just pressed (just below it, or just above when the button is near the bottom), like the approval box in 2.18.191 — across the whole ERP.
+- If nothing was pressed in the last 2 minutes (e.g. an automatic message), it stays at the top as before. OK and the 10-second auto close are unchanged.
+
 ## 2.18.191 — 29-10-2026 — Bills & Charges: Approve / Partial / Return box opens beside the button, in Samara pink
 - The browser's own box ("app.samaraassistedliving.com says") always opened at the very top of the screen, far from the Approve button, and could not be coloured. It is replaced by a Samara box (baby-pink, magenta buttons) that opens right next to the button pressed — just below it, or just above when the button is near the bottom.
 - Approve / Partial now ask once: approved amount + decision remarks in one box (was two boxes one after the other). Return asks the reason for the nurse in the same box style. Outside-bill checks (amount, confirm) use it too. Enter = OK, Esc / tap outside = Cancel.
