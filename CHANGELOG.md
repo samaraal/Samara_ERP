@@ -1,3 +1,7 @@
+## 2.18.184 — 28-10-2026 — Expenses: Facility Development head, boxes always up to date
+- Expense Head now has **Facility Development (Furniture & Setup)** — cots, beds, mattresses, chairs, tables, curtains, almirahs, fans, heaters and other set-up items for the new facility. Voice entry recognises "cot", "chair", "curtain", "கட்டில்", "நாற்காலி", "திரைச்சீலை", "மெத்தை" etc. Shown as its own line in the Net Profit Statement. (Daily Wages stays as its own head.)
+- Expenses boxes (Today / This Month) no longer show old numbers: the list reloads whenever a box is opened or Back is pressed, when the page comes back into view, and every minute (Today also rolls over at midnight).
+
 ## 2.18.183 — 27-10-2026 — Complete Nurse access when switching roles
 - Nurse dashboard now shows Raise Bill / Charge, Procedure / Equipment Request, Raise Indent and Received Indents / Used Balance on desktop and phone, including the Nursing Manager’s Nurse view.
 - The role switch requires server confirmation. SQL 312 repairs the approval-request check and remaining Nurse workflow checks while preserving approvals and the Manager role.
