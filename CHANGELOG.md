@@ -1,3 +1,8 @@
+## 2.18.185 — 28-10-2026 — Razorpay safety net: no Family Portal payment is ever lost
+- Found: a Family Portal payment was recorded ONLY when the family's phone came back to the portal after paying. If the page closed while the UPI app was open, the session had expired, or the outstanding changed meanwhile, Razorpay kept the money (Captured) but the ERP had no ledger entry and sent no receipt (MOG-2026-10-0013, ₹8,083, 26-10-2026).
+- New Edge Function **razorpay-reconcile** (every 5 minutes, SQL 313): asks Razorpay for captured payments of the last 3 days; any Family Portal payment not in the ledger is posted at its real payment time ("Recorded by background check") and its WhatsApp receipt + PDF is queued automatically. Payments under 10 minutes old are left to the portal; staff payment links / QRs and Outside Nursing are untouched; never posts the same payment twice.
+- Also tracked in the repo for the first time: the live Family Portal functions razorpay-create-order and razorpay-verify-payment (unchanged).
+
 ## 2.18.184 — 28-10-2026 — Expenses: Facility Development head, boxes always up to date
 - Expense Head now has **Facility Development (Furniture & Setup)** — cots, beds, mattresses, chairs, tables, curtains, almirahs, fans, heaters and other set-up items for the new facility. Voice entry recognises "cot", "chair", "curtain", "கட்டில்", "நாற்காலி", "திரைச்சீலை", "மெத்தை" etc. Shown as its own line in the Net Profit Statement. (Daily Wages stays as its own head.)
 - Expenses boxes (Today / This Month) no longer show old numbers: the list reloads whenever a box is opened or Back is pressed, when the page comes back into view, and every minute (Today also rolls over at midnight).

@@ -8,3 +8,7 @@ verify_jwt = false
 
 [functions.daily-patient-report]
 verify_jwt = false
+
+[functions.razorpay-reconcile]
+# Cron only: checks x-cron-secret itself (SQL 313).
+verify_jwt = false
