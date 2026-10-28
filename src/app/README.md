@@ -15,6 +15,9 @@ The live site still loads **one** `app.js`. It is rebuilt by joining these files
 3. `node tools/build-app.js --check` confirms `app.js` matches `src/app` without changing anything.
 4. Still bump the version number (index.html, service-worker.js, bootstrap-error.js,
    `0-start/01-app-constants.js`) for every release, as before. The build warns if they differ.
+   **Version number rule (Admin, 29-10-2026):** the last part stays at most 2 digits.
+   After 2.18.200 the next release is **2.19.1**, then 2.19.2 … 2.19.99; after 2.19.99 comes **2.20.1**, and so on.
+   (The app compares versions part by part as numbers, so 2.19.1 is correctly newer than 2.18.200.)
 
 ## Important: these files are pieces of one big function
 
