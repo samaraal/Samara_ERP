@@ -11,6 +11,8 @@
     const NUMERIC=/^\s*[₹+-]?\d[\d,.]*\s*(%|kg|ml|mg|g|l|days?|hrs?|hours?|mins?|minutes?|years?|months?|weeks?)?\s*$/i;
     const collator=new Intl.Collator('en',{numeric:true,sensitivity:'base'});
     const textOf=o=>String(o.textContent||'').replace(/\s+/g,' ').trim();
+    // sort by the NAME: ignore a leading code ("CON-0001 · ", "MOG-2026-10-0013 · ") and a title (Mr. / Mrs. / Dr. …)
+    const keyOf=o=>textOf(o).replace(/^[A-Z]{2,5}-[\d-]+\s*[·:-]\s*/,'').replace(/^(mr|mrs|ms|miss|dr|master|sri|smt|thiru|selvi)\.?\s+/i,'');
     function shouldSkip(sel,opts){
       if(sel.hasAttribute('data-keep-order')||sel.closest('[data-keep-order]'))return true;
       const body=opts.filter(o=>!TOP.test(textOf(o))&&!LAST.test(textOf(o)));
@@ -29,7 +31,7 @@
       opts.forEach((o,i)=>{const t=textOf(o);
         if(i<2&&TOP.test(t)&&body.length===0)top.push(o);else if(LAST.test(t))last.push(o);else body.push(o);});
       const allNumeric=body.every(o=>NUMERIC.test(textOf(o)));
-      body.sort((a,b)=>allNumeric?(parseFloat(textOf(a).replace(/[^\d.-]/g,''))-parseFloat(textOf(b).replace(/[^\d.-]/g,''))):collator.compare(textOf(a),textOf(b)));
+      body.sort((a,b)=>allNumeric?(parseFloat(textOf(a).replace(/[^\d.-]/g,''))-parseFloat(textOf(b).replace(/[^\d.-]/g,''))):collator.compare(keyOf(a),keyOf(b))||collator.compare(textOf(a),textOf(b)));
       const want=[...top,...body,...last];
       if(want.every((o,i)=>opts[i]===o))return false;      // already in order
       const value=sel.value;

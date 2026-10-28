@@ -1,3 +1,6 @@
+## 2.19.7 — 29-10-2026 — A–Z dropdowns sort by the name
+- Items and Guests are put in order by their NAME, ignoring a leading code ("CON-0001 · Adult Diapers" under A) and titles (Mr. / Mrs. / Dr. …).
+
 ## 2.19.6 — 29-10-2026 — All dropdowns in A–Z order (global)
 - Every dropdown in the ERP now lists its choices alphabetically (e.g. Expense Head: Bank Charges, Daily Wages, Electricity, Facility Development …).
 - "Select … / All / —" stays on top and "Other" stays last. Lists whose order has meaning are left as they are: months, weekdays, shifts, times, periods (Today / This Week …), levels (Low / Medium / High), Yes / No; number lists sort 1, 2, 10.
