@@ -1,3 +1,8 @@
+## 2.18.187 — 28-10-2026 — Bills & Charges: navigable Charge Master and Charges Raised
+- Charge Master opens from its own top box with the complete item catalogue, rates and approval settings; the large master table no longer fills the approval screen.
+- Charges Raised includes patient (including discharged history), service date / period, category, item and status filters. Matching counts and amounts follow the same filters; each charge opens its full details.
+- Every top box opens its matching data and clears old filters. Approved Today uses the recorded decision time in India, including earlier service dates. Loading and errors are explicit; Nursing amount restrictions and Accounts approval actions are preserved. No SQL or Edge Function changes.
+
 ## 2.18.186 — 28-10-2026 — Clinical alerts stand out from the pink dashboards
 - The clinical alert pop-up was baby-pink on baby-pink pages, so it blended in. Now: the page behind it is dimmed, the alert is a white card with a solid colour band by urgency — Samara magenta = due, red = overdue / escalated / critical, soft pink = for information.
 - Attention animation (alerts only): the card drops in, the bell rings, the card glows / pulses, a shimmer sweeps the band and the OK button pulses; escalations pulse faster and give a short shake. Respects the phone's "reduce motion" setting. Dashboards are unchanged.
