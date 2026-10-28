@@ -3,7 +3,7 @@
   // Expenses = every ERP source (stock receipts, food vendor, kitchen, petty cash, outsourced physio, outside bills)
   // + Monthly Expenses entered here (salaries paid, rent, electricity …). Equipment purchases count in full
   // in the month bought, on their own line: Operating Profit (before equipment) and Net Profit (after).
-  const NP_HEADS=['Salaries','Daily Wages','Rent','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
+  const NP_HEADS=['Salaries','Facility Development (Furniture & Setup)','Daily Wages','Rent','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
   const NP_MODES=['Cash','UPI','Bank Transfer','Cheque','Card'];
   const npMoney=v=>`₹${(Number(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const npMonthStart=iso=>`${String(iso).slice(0,7)}-01`;
@@ -131,7 +131,10 @@
   // Tamil / English voice fills the form. Page opens on boxes; each box opens its section with "← Back".
   const EXP_BILL_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
   const EXP_HEAD_WORDS=[
-    ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|helper|கூலி|சம்பளம் நாள்)/i],
+    ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|கூலி|சம்பளம் நாள்)/i],
+    // 2.18.184: new facility — cots, chairs, curtains, furniture, heaters etc.
+    ['Facility Development (Furniture & Setup)',/(\b(cots?|beds?|mattress(es)?|pillows?|bedsheets?|chairs?|tables?|curtains?|furniture|almirah|cupboards?|wardrobes?|racks?|shelf|shelves|sofas?|fans?|heaters?|geysers?|interiors?|facility development|new facility|setup)\b|கட்டில்|நாற்காலி|சேர்|திரைச்சீலை|ஸ்கிரீன்|மெத்தை|பீரோ|மேசை|டேபிள்)/i],
+    ['Daily Wages',/\bhelpers?\b/i],
     ['Electricity',/(electric|current|eb bill|tneb|power bill|கரண்ட்|மின்)/i],['Water',/(water|tanker|can water|தண்ணீர்)/i],
     ['Rent',/(rent|வாடகை)/i],['Internet & Phone',/(internet|wifi|wi-fi|broadband|phone bill|recharge|mobile bill|airtel|jio)/i],
     ['Maintenance & Repairs',/(repair|maintenance|plumb|electrician|carpenter|paint|ac service|fix)/i],
@@ -315,17 +318,29 @@
     const [salaryDate,setSalaryDate]=React.useState('');
     const [range,setRange]=React.useState({from:npMonthStart(today),to:today}),[rangeDraft,setRangeDraft]=React.useState({from:npMonthStart(today),to:today});
     const [detail,setDetail]=React.useState(null);
-    const stepBack=useStepBack(()=>{if(detail){setDetail(null);return true}if(panel){setPanel('');setMsg('');return true}return false});
+    const stepBack=useStepBack(()=>{if(detail){setDetail(null);return true}if(panel){setPanel('');setMsg('');loadRef.current&&loadRef.current();return true}return false});
     const end=npMonthEnd(month);
     const lo=[month,range.from].sort()[0];const hi=[end<today?end:today,range.to,today].sort().reverse()[0];
     async function load(){
       if(!isAdmin)return;
+      const seq=++loadSeq.current;
       const [a,b]=await Promise.all([client.rpc('samara_expense_rpc',{p_action:'list',p:{from:lo<'2026-08-27'?'2026-08-27':lo,to:hi}}),client.rpc('samara_expense_rpc',{p_action:'salary_prefill',p:{}})]);
+      if(seq!==loadSeq.current)return;
       if(a.error){setMsg(/samara_expense_rpc/i.test(a.error.message)?'The Net Profit database update (SQL 305) has not been run yet.':a.error.message);return}
       setRows(a.data||[]);setStaff(b.data||[]);
       setSalary(Object.fromEntries((b.data||[]).map(s=>[s.id,s.salary!=null?String(s.salary):''])));
     }
+    // 2.18.184: the boxes must never show old numbers — reload on every box open / Back, when the
+    // tab comes back into view, and every minute (also rolls "Today" over at midnight).
+    const loadSeq=React.useRef(0),loadRef=React.useRef(null);
+    loadRef.current=load;
     React.useEffect(()=>{setSalaryDate(end<today?end:today);load()},[month,range.from,range.to]);
+    React.useEffect(()=>{
+      if(!isAdmin)return;
+      const again=()=>{if(document.visibilityState==='visible')loadRef.current&&loadRef.current()};
+      const t=setInterval(again,60000);document.addEventListener('visibilitychange',again);
+      return()=>{clearInterval(t);document.removeEventListener('visibilitychange',again)};
+    },[]);
     React.useEffect(()=>()=>{if(billPreview)URL.revokeObjectURL(billPreview)},[billPreview]);
     if(!isAdmin)return h(Section,{title:'Expenses'},h('p',null,'Admin / Directors only.'));
     async function add(payload){const r=await client.rpc('samara_expense_rpc',{p_action:'add',p:payload});if(r.error)throw r.error;}
@@ -380,7 +395,7 @@
     const monthRows=rows.filter(r=>r.expense_date>=month&&r.expense_date<=end);
     const rangeRows=rows.filter(r=>r.expense_date>=range.from&&r.expense_date<=range.to);
     const f=(label,node,span)=>h('div',{className:'field',style:{margin:0,...(span?{gridColumn:'1/-1'}:{})}},h('label',null,label),node);
-    const open=key=>{setPanel(key);setDetail(null);setMsg('');window.scrollTo({top:0,behavior:'smooth'})};
+    const open=key=>{setPanel(key);setDetail(null);setMsg('');load();window.scrollTo({top:0,behavior:'smooth'})};
     const back=()=>{stepBack()};
     const title={record:'＋ Record Expense',today:`Today · ${formatDateIN(today)}`,month:npMonthLabel(month),salaries:`Payroll · ${npMonthLabel(month)}`,all:'All Expenses'}[panel]||'';
     const list=(items,emptyText)=>detail?h('div',{className:'section-card'},
