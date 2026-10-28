@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.18.193';
+  const APP_VERSION = '2.18.194';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13431,6 +13431,15 @@ https://samaraassistedliving.com/`;
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushAll()});
 
     // ---------- drafts on this device ----------
+    // 2.18.194: "Not now" / "Discard" are remembered on this device until that entry changes again
+    // (it used to be forgotten on every reload / sign-in, so the same reminder came back each login).
+    const DISMISS_KEY='samara_draft_dismissed:v1';
+    const dismissedMap=()=>{try{return JSON.parse(ls.get(DISMISS_KEY)||'{}')||{}}catch(_){return {}}};
+    function rememberDismiss(list){const m=dismissedMap();const now=Date.now();
+      list.forEach(d=>{m[d.key]=Number(d.savedAt||0)});
+      Object.keys(m).forEach(k=>{if(now-Number(m[k]||0)>MAX_AGE_MS)delete m[k]});
+      ls.set(DISMISS_KEY,JSON.stringify(m))}
+    const isDismissed=d=>dismissed.has(d.key)||Number(dismissedMap()[d.key]||-1)===Number(d.savedAt||0);
     function readDraft(k){try{const d=JSON.parse(ls.get(k)||'null');return d&&d.v===1?d:null}catch(_){return null}}
     function myDrafts(){
       const now=Date.now(),out=[];
@@ -13511,14 +13520,15 @@ https://samaraassistedliving.com/`;
           setTimeout(()=>{if(bar&&/restored/.test(bar.textContent))hideBar()},9000);
         }],
         ['Discard','sdb-alt',()=>{if(!window.confirm('Discard this unsaved entry? It cannot be brought back.'))return;ls.del(d.key);dismissed.add(d.key);hideBar()}],
-        ['Not now','sdb-alt',()=>{dismissed.add(d.key);hideBar()}]
+        ['Not now','sdb-alt',()=>{dismissed.add(d.key);rememberDismiss([d]);hideBar()}]
       ],{c,key:d.key});
     }
     function offerSummary(list){
       summaryShown=true;
       const sub=list.slice(0,4).map(d=>`${d.page||'Page'}${d.title?` — ${d.title}`:''} (${fmtTime(d.savedAt)})`).join('\n');
       const buttons=list.slice(0,3).filter((d,i,a)=>d.page&&a.findIndex(x=>x.page===d.page)===i).map(d=>[`Open ${d.page}`,'sdb-main',()=>{hideBar();window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:d.page}}))}]);
-      buttons.push(['Not now','sdb-alt',()=>{list.forEach(d=>dismissed.add(d.key));hideBar()}]);
+      buttons.push(['Discard all','sdb-alt',()=>{if(!window.confirm(`Discard ${list.length===1?'this unsaved entry':`these ${list.length} unsaved entries`}? ${list.length===1?'It':'They'} cannot be brought back.`))return;list.forEach(d=>{ls.del(d.key);dismissed.add(d.key)});hideBar()}]);
+      buttons.push(['Not now','sdb-alt',()=>{list.forEach(d=>dismissed.add(d.key));rememberDismiss(list);hideBar()}]);
       showBar(`📝 You have ${list.length} unsaved ${list.length===1?'entry':'entries'} on this device`,`${sub}\nOpen the same form again to restore it.`,buttons,{summary:true});
       const s=bar&&bar.querySelector('.sdb-sub');if(s)s.style.whiteSpace='pre-line';
     }
@@ -13539,9 +13549,11 @@ https://samaraassistedliving.com/`;
         }
       });
       if(!userId||restoring)return;
+      // 2.18.194: only inside the ERP — never on the sign-in screen (shown after the 30-minute idle sign-out)
+      if(!document.querySelector('section.content')){if(bar&&barFor&&barFor.summary)hideBar();return}
       if(bar&&barFor&&barFor.c&&!barFor.c.isConnected)hideBar();
       if(bar)return;
-      const drafts=myDrafts().filter(d=>!dismissed.has(d.key));
+      const drafts=myDrafts().filter(d=>!isDismissed(d));
       if(!drafts.length)return;
       const page=currentPage();
       const here=drafts.filter(d=>d.page===page);

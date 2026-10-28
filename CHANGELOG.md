@@ -1,3 +1,7 @@
+## 2.18.194 — 29-10-2026 — "Unsaved entries" reminder no longer repeats on every login
+- The reminder "You have N unsaved entries on this device" appeared on the sign-in screen and came back after every sign-in / reload, because "Not now" was only remembered until the page reloaded.
+- Now: never shown on the sign-in screen (only inside the ERP); "Not now" is remembered on this device until that entry changes again; new "Discard all" button to throw the old unsaved entries away (with a confirm). Restore from the same form works as before; drafts still expire after 12 hours.
+
 ## 2.18.193 — 29-10-2026 — One "Saved" message, next to the button (fix for 2.18.192)
 - 2.18.192 did not move the message: an older global style rule pinned it to the top with !important. The position beside the pressed button now overrides it.
 - Bills & Charges showed the message twice — the Samara box plus the page's own old toast, which also appeared unstyled at the bottom of the page. The old page toast is removed there, and anywhere else a page's own toast is copied into the Samara box, the original is hidden, so a message appears only once.
