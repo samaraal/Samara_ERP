@@ -1,3 +1,7 @@
+## 2.19.4 — 29-10-2026 — Net Profit: equipment purchases are investment too
+- Equipment purchases (air beds, concentrators, biomedical items) are no longer deducted from Net Profit. Net Profit = Net Income − Operating Expenses.
+- New section "INVESTMENT — Facility Development (not counted in profit)": Furniture & Setup + Equipment purchases + TOTAL INVESTMENT. The "Operating Profit (before equipment)" card is replaced by an "Investment" card.
+
 ## 2.19.3 — 29-10-2026 — Net Profit: Facility Development is an investment, not an expense
 - Expenses under "Facility Development (Furniture & Setup)" are no longer deducted in the Net Profit Statement (Operating Expenses, Operating Profit, Net Profit, Margin).
 - They are shown separately at the end under "INVESTMENT — not counted in profit", and the Operating Expenses card notes the amount left out. Print / PDF and Excel follow the same.

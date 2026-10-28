@@ -22,8 +22,9 @@
     const invest=[...(s.manual_expenses||[]),...(s.outgoing_expenses||[])].filter(x=>npIsInvestment(x.head)).reduce((t,x)=>t+Number(x.amount||0),0);
     const opex=erp+Number(s.outgoing_total||0)+Number(s.manual_total||0)-invest;
     const operating=netIncome-opex;
-    const net=operating-Number(s.equipment||0);
-    return {gross,netIncome,erp,opex,operating,net,invest,margin:netIncome?net/netIncome*100:0};
+    // 2.19.4: equipment purchases are also an investment (facility development) — not deducted from profit
+    const net=operating;const equipment=Number(s.equipment||0);
+    return {gross,netIncome,erp,opex,operating,net,invest,equipment,investTotal:invest+equipment,margin:netIncome?net/netIncome*100:0};
   }
 
   function NetProfitStatement({profile,onNavigate}){
@@ -71,13 +72,11 @@
       if(!heads.length)lines.push(['No monthly expenses entered for this period (salaries, rent, electricity …)',0,prev?0:null,'note']);
       heads.filter(hd=>!npIsInvestment(hd)).forEach(hd=>lines.push([hd,mAmt(cur,hd),prev?mAmt(prev,hd):null,'row']));
       lines.push(['TOTAL OPERATING EXPENSES',T.opex,P?P.opex:null,'total']);
-      lines.push(['OPERATING PROFIT (before equipment)',T.operating,P?P.operating:null,'profit']);
-      lines.push(['Less: equipment purchases (counted in full when bought)',-Number(cur.equipment||0),prev?-Number(prev.equipment||0):null,'row']);
       lines.push(['NET PROFIT',T.net,P?P.net:null,'profit']);
-      if(T.invest||(P&&P.invest)){
-        lines.push(['INVESTMENT — not counted in profit',null,null,'head']);
-        lines.push(['Facility Development (Furniture & Setup)',T.invest,P?P.invest:null,'row']);
-      }
+      lines.push(['INVESTMENT — Facility Development (not counted in profit)',null,null,'head']);
+      lines.push(['Furniture & Setup',T.invest,P?P.invest:null,'row']);
+      lines.push(['Equipment purchases (air beds, concentrators, biomedical …)',T.equipment,P?P.equipment:null,'row']);
+      lines.push(['TOTAL INVESTMENT',T.investTotal,P?P.investTotal:null,'total']);
     }
     const colour=v=>({color:Number(v)<0?'#b42336':'#087f5b'});
     const cell=(v,kind)=>v==null?'':(['profit','total'].includes(kind)?h('strong',{style:kind==='profit'?colour(v):null},npMoney(v)):npMoney(v));
@@ -118,7 +117,7 @@
       cur&&T?h(React.Fragment,null,
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'12px',margin:'0 0 14px'}},
           stat('Net Income',npMoney(T.netIncome),`Charges ${npMoney(T.gross)} − discounts ${npMoney(cur.discounts)}`),
-          stat('Operating Expenses',npMoney(T.opex),`ERP ${npMoney(T.erp)}${Number(cur.outgoing_total)?` · paid out ${npMoney(cur.outgoing_total)}`:''} · entered ${npMoney(cur.manual_total)}${T.invest?` · Investment ${npMoney(T.invest)} not counted`:''}`),
+          stat('Operating Expenses',npMoney(T.opex),`ERP ${npMoney(T.erp)}${Number(cur.outgoing_total)?` · paid out ${npMoney(cur.outgoing_total)}`:''} · entered ${npMoney(cur.manual_total)}${T.investTotal?` · Investment ${npMoney(T.investTotal)} not counted`:''}`),
           stat('Operating Profit',npMoney(T.operating),'before equipment',T.operating),
           stat('Net Profit',npMoney(T.net),`Margin ${T.margin.toFixed(1)}%${P?` · ${prevName}: ${npMoney(P.net)}`:''}`,T.net),
           stat('Cash Collected',npMoney(cur.collected),`Outstanding from Guests today ${npMoney(cur.outstanding_now)}`)),
