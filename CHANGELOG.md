@@ -1,3 +1,8 @@
+## 2.19.6 — 29-10-2026 — All dropdowns in A–Z order (global)
+- Every dropdown in the ERP now lists its choices alphabetically (e.g. Expense Head: Bank Charges, Daily Wages, Electricity, Facility Development …).
+- "Select … / All / —" stays on top and "Other" stays last. Lists whose order has meaning are left as they are: months, weekdays, shifts, times, periods (Today / This Week …), levels (Low / Medium / High), Yes / No; number lists sort 1, 2, 10.
+- What is already chosen is never changed — only the order the choices appear in.
+
 ## 2.19.5 — 29-10-2026 — Net Profit: Investment card
 - The "Operating Profit (before equipment)" card is replaced by an "Investment" card (Furniture & Setup + Equipment, not in profit); page note updated.
 

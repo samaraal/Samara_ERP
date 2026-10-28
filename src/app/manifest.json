@@ -177,6 +177,11 @@
    "lines": 73
   },
   {
+   "file": "global-ui/15-alphabetical-dropdowns.js",
+   "about": "GLOBAL: every dropdown in A–Z order (Select/All on top, Other last; months/shifts/levels/periods kept as is)",
+   "lines": 69
+  },
+  {
    "file": "stores/kitchen-cash.js",
    "about": "Kitchen petty cash and custody workflow"
   },
