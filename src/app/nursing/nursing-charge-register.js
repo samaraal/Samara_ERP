@@ -195,19 +195,24 @@
     const pTot=profitItems.reduce((t,x)=>({b:t.b+x.b,c:t.c+x.c}),{b:0,c:0});
 
     const heads=isProfit?PROFIT_HEADS:cols.map(c=>c.h);
+    // 2.18.196: total of the money column of the list (Approved Amount / Amount), shown in bold, printed and in Excel
+    const moneyCol=cols.findIndex(c=>c.num);
+    const listTotal=moneyCol<0?0:Math.round(filtered.reduce((t,r)=>t+(Number(cols[moneyCol].plain(r))||0),0)*100)/100;
+    const totalLabel=moneyCol<0?'':`Total ${cols[moneyCol].h}`;
     const plainRows=()=>isProfit?profitPlain():filtered.map(r=>cols.map(c=>c.plain(r)));
     const moneyIdx=isProfit?[4,5,6,7,8]:cols.map((c,i)=>c.num?i:-1).filter(i=>i>=0);
     function printList(){
       const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
       const w=samaraPrintBar(window.open('','_blank'));if(!w){alert('Please allow pop-ups to print.');return;}
-      const foot=isProfit?`<tr><th colspan="5">Total (items with purchase price)</th><th>${esc(money(pTot.b))}</th><th></th><th>${esc(money(pTot.c))}</th><th>${esc(money(pTot.c-pTot.b))}</th><th></th></tr>`:'';
+      const foot=isProfit?`<tr><th colspan="5">Total (items with purchase price)</th><th>${esc(money(pTot.b))}</th><th></th><th>${esc(money(pTot.c))}</th><th>${esc(money(pTot.c-pTot.b))}</th><th></th></tr>`
+        :moneyCol>=0?`<tr>${heads.map((x,i)=>i===0?`<th>TOTAL (${filtered.length})</th>`:i===moneyCol?`<th style="font-size:12px">${esc(money(listTotal))}</th>`:'<th></th>').join('')}</tr>`:'';
       w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Charge Register</title><style>body{font-family:Arial,sans-serif;font-size:10.5px;margin:16px}h2{margin:0 0 2px;color:#8f1d5a}p{margin:0 0 8px;color:#555}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d9b3c6;padding:4px 5px;text-align:left;vertical-align:top}th{background:#fbe3ee}@page{size:A4 landscape;margin:10mm}</style></head><body><h2>Samara — Charge Register</h2><p>${esc(listTitle)} · ${isProfit?`${profitItems.length} items`:`${filtered.length} charge${filtered.length===1?'':'s'}`} · Printed ${esc(formatDateIN(new Date()))}</p><table><thead><tr>${heads.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${plainRows().map(r=>`<tr>${r.map((v,i)=>`<td>${esc(moneyIdx.includes(i)&&typeof v==='number'?money(v):(v===0?'0':v||'—'))}</td>`).join('')}</tr>`).join('')}${foot}</tbody></table></body></html>`);
       w.document.close();w.focus();setTimeout(()=>w.print(),300);
     }
     async function downloadExcel(){
       try{
         if(!window.XLSX)await new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';sc.async=true;sc.onload=resolve;sc.onerror=()=>reject(new Error('Excel library could not be loaded — check the internet connection.'));document.head.appendChild(sc);});
-        const data=[heads,...plainRows()];if(isProfit)data.push(['Total (items with purchase price)','','','','',Math.round(pTot.b*100)/100,'',Math.round(pTot.c*100)/100,Math.round((pTot.c-pTot.b)*100)/100,'']);
+        const data=[heads,...plainRows()];if(!isProfit&&moneyCol>=0)data.push(heads.map((x,i)=>i===0?`TOTAL (${filtered.length})`:i===moneyCol?listTotal:''));if(isProfit)data.push(['Total (items with purchase price)','','','','',Math.round(pTot.b*100)/100,'',Math.round(pTot.c*100)/100,Math.round((pTot.c-pTot.b)*100)/100,'']);
         const ws=window.XLSX.utils.aoa_to_sheet(data);ws['!cols']=heads.map(x=>({wch:Math.max(12,Math.min(38,x.length+8))}));
         const wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,isProfit?'Net Profit':'Charge Register');
         window.XLSX.writeFile(wb,`Samara_${isProfit?'Net_Profit':'Charge_Register'}_${formatDateIN(new Date())}.xlsx`);
@@ -276,6 +281,9 @@
         filterPanel),
       isProfit?(isAdmin?profitView():h('p',null,'Admin only.')):
       h(LogTable,{title:`Charges (${filtered.length})`,heads,rows:filtered.map(r=>cols.map(c=>c.cell(r))),onRowClick:i=>setDetail(filtered[i])}),
+      !isProfit&&moneyCol>=0&&filtered.length?h('div',{style:{display:'flex',justifyContent:'flex-end',alignItems:'baseline',gap:'14px',flexWrap:'wrap',margin:'-4px 0 14px',padding:'14px 18px',borderRadius:'14px',background:'linear-gradient(135deg,#fcdde9,#fff7fa)',border:'2px solid #e9a9c4'}},
+        h('span',{style:{fontSize:'16px',fontWeight:800,color:'#7d1748'}},`${totalLabel} · ${filtered.length} charge${filtered.length===1?'':'s'}`),
+        h('strong',{style:{fontSize:'26px',fontWeight:900,color:'#a80d4f'}},money(listTotal))):null,
       detail?h(RowDetailModal,{title:'Charge Details',subtitle:`${guestLabel(detail.patient_id)} · ${itemOf(detail)}`,fields:detailFields(detail),onClose:()=>setDetail(null)},
         linked(detail).length?h('div',{style:{marginTop:'12px',display:'grid',gap:'8px'}},h('strong',{style:{color:'#7d1748'}},'Return / Resubmit history'),
           linked(detail).map(([label,x])=>h('button',{key:x.id,type:'button',className:'btn btn-secondary',style:{textAlign:'left',justifyContent:'flex-start'},onClick:()=>setDetail(x)},

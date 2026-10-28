@@ -1,3 +1,7 @@
+## 2.18.196 — 29-10-2026 — Charge Register: bold total
+- Every Charge Register list (Approved, Pending, Returned, All) now shows its total in large bold numbers below the table, e.g. "Total Approved Amount · 7 charges ₹2,145.00" — it follows the filters applied.
+- The same TOTAL row is added to Print / PDF and Excel.
+
 ## 2.18.195 — 29-10-2026 — Bills & Charges register: rows with totals instead of boxes
 - The register (Bills & Charges / Charge Register) now shows a heading per Guest and ONE ROW PER ITEM for the chosen period with its total, e.g. "NUR-0001 · Nebulization — 2 × ₹100.00 = ₹200.00 · 2 Approved". A changed rate shows as "3 × ₹100 + 2 × ₹120". Status counts per row (Approved / Pending / Returned). No horizontal scrolling on any screen.
 - Tap a row to see every entry: date & time, qty, price, requested by, approved / returned by and when, remarks, and "Full details". Accounts approve / part-approve / return each entry inside the row (rows with pending entries open automatically for Accounts); nurses correct & resubmit returned entries there.
