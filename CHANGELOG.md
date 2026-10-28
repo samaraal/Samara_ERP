@@ -1,3 +1,8 @@
+## 2.18.197 — 29-10-2026 — No more "unsaved entry" reminders from filter dates
+- Changing the From / To dates on view-only pages (Charge Register, reports, statements, logs, dashboards) was being kept as an "unsaved entry" and shown again at every sign-in, e.g. "Charge Register — Approved · This Month".
+- Now only a real entry form — one with a Save / Submit / Record / Approve … button — is kept as an unsaved entry. Filters are never kept.
+- Old filter-only reminders already stored on each device are removed automatically once.
+
 ## 2.18.196 — 29-10-2026 — Charge Register: bold total
 - Every Charge Register list (Approved, Pending, Returned, All) now shows its total in large bold numbers below the table, e.g. "Total Approved Amount · 7 charges ₹2,145.00" — it follows the filters applied.
 - The same TOTAL row is added to Print / PDF and Excel.

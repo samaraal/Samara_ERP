@@ -73,6 +73,16 @@
       if(userId)keyCache.set(c,k);return k;
     }
     const ownDrafts=c=>Boolean(c.closest('.admission-form')); // Admission has its own drafts
+    // 2.18.197: only a real ENTRY form is kept as a draft — one that has a Save / Submit / Record … button.
+    // View-only pages (Charge Register, WhatsApp Logs, reports) only have filters (dates, Apply, Today…) — never drafts.
+    function isEntryForm(c){
+      if(!c)return false;
+      return [...c.querySelectorAll('button,input[type="submit"]')].some(b=>{
+        if(b.closest('#samara-draft-bar'))return false;
+        const text=clean(b.textContent||b.value||b.getAttribute('aria-label'));
+        return b.type==='submit'&&!NOT_SAVE_WORDS.test(text)||(SAVE_WORDS.test(text)&&!NOT_SAVE_WORDS.test(text));
+      });
+    }
 
     // ---------- state ----------
     const state=new Map(); // container -> {dirty, lastInputAt, pendingSaveAt, timer}
@@ -107,7 +117,8 @@
       const el=e.target;if(!trackable(el))return;
       // voice typing fills the field the nurse is in (not a real key press) — count it; other code changing fields does not count
       if(!e.isTrusted&&document.activeElement!==el)return;
-      const c=containerOf(el);if(!c)return;
+      if(/^(Charge Register|WhatsApp Logs|Accounts Reports|Stock Report|Payment Statements|Accounts Statement|Net Profit Statement|Prescription History|Medication History|Movement History|Complete Transaction History|Intelligent Reports|Full Intelligent Report|Admission Register)$|Dashboard$/i.test(currentPage()))return; // view-only pages: filters only
+      const c=containerOf(el);if(!c||!isEntryForm(c))return;
       const t=String(el.type||'').toLowerCase();
       // Only typing (text, numbers, dates, times, notes) or ticking a box makes an entry "unsaved work";
       // choosing from a dropdown alone does not (dropdowns are still kept in the draft).
@@ -143,6 +154,9 @@
       Object.keys(m).forEach(k=>{if(now-Number(m[k]||0)>MAX_AGE_MS)delete m[k]});
       ls.set(DISMISS_KEY,JSON.stringify(m))}
     const isDismissed=d=>dismissed.has(d.key)||Number(dismissedMap()[d.key]||-1)===Number(d.savedAt||0);
+    // 2.18.197: one-time clean-up of "drafts" that earlier versions kept from view-only pages (filters only)
+    try{if(!ls.get('samara_draft_cleanup:2.18.197')){ls.keys().forEach(k=>{try{const d=JSON.parse(ls.get(k)||'null');
+      if(d&&/^(Charge Register|WhatsApp Logs|Accounts Reports|Stock Report|Payment Statements|Accounts Statement|Net Profit Statement|Prescription History|Medication History|Movement History|Complete Transaction History|Intelligent Reports|Full Intelligent Report|Admission Register)$|Dashboard$/i.test(String(d.page||'')))ls.del(k)}catch(_){}});ls.set('samara_draft_cleanup:2.18.197','1')}}catch(_){}
     function readDraft(k){try{const d=JSON.parse(ls.get(k)||'null');return d&&d.v===1?d:null}catch(_){return null}}
     function myDrafts(){
       const now=Date.now(),out=[];

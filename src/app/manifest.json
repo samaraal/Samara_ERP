@@ -169,7 +169,7 @@
   {
    "file": "global-ui/13-unsaved-entry-guard.js",
    "about": "GLOBAL WATCHER: unsaved-entry guard (update box waits) + device drafts with Restore / Discard",
-   "lines": 286
+   "lines": 301
   },
   {
    "file": "stores/kitchen-cash.js",
