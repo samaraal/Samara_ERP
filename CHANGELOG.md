@@ -1,3 +1,6 @@
+## 2.19.5 — 29-10-2026 — Net Profit: Investment card
+- The "Operating Profit (before equipment)" card is replaced by an "Investment" card (Furniture & Setup + Equipment, not in profit); page note updated.
+
 ## 2.19.4 — 29-10-2026 — Net Profit: equipment purchases are investment too
 - Equipment purchases (air beds, concentrators, biomedical items) are no longer deducted from Net Profit. Net Profit = Net Income − Operating Expenses.
 - New section "INVESTMENT — Facility Development (not counted in profit)": Furniture & Setup + Equipment purchases + TOTAL INVESTMENT. The "Operating Profit (before equipment)" card is replaced by an "Investment" card.
