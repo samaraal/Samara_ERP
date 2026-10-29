@@ -423,11 +423,7 @@
       }catch(e){setMessage(e.message||String(e))}finally{setBusy(false)}
     }
     React.useEffect(()=>{load()},[]);
-    React.useEffect(()=>{
-      if(!initialView)return;
-      const target=initialView==='balance'?'patient-received-balance':'patient-raise-indent';
-      setTimeout(()=>document.getElementById(target)?.scrollIntoView({behavior:'smooth',block:'start'}),120);
-    },[initialView]);
+    // 2.19.13: removed a stray copy of Patient Consumables' scroll effect (it used an undefined 'initialView' and crashed this page)
     async function resolve(row){
       const remarks=window.prompt('Enter resolution / corrective action taken (mandatory):','');
       if(remarks===null)return;

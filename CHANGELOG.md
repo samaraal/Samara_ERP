@@ -1,3 +1,6 @@
+## 2.19.13 — 29-10-2026 — Clinical Escalations page fixed
+- The Clinical Escalations page showed "This page had a problem" on opening. A leftover piece of code copied from Patient Consumables referred to something that does not exist on this page; it is removed. Nothing else changed.
+
 ## 2.19.12 — 29-10-2026 — MIS & Audit: every box opens its list / page; Bills & Charges and Nursing Procedures
 - Tap High / Medium / Low / Checks passed → that list across all areas (Clinical, Financial, Operational together); "Show by area" goes back.
 - Tap any key-number box → opens the page behind it (e.g. Collected → Payments, Escalations raised → Clinical Escalations, Out of stock → Stock Report).
