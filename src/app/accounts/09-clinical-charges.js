@@ -332,6 +332,12 @@
       document.addEventListener('click',onMenu,true);
       return()=>{window.removeEventListener('samara-workflow-target',onTarget);document.removeEventListener('click',onMenu,true)};
     },[profile?.id,profile?.role]);
+    const fetchedTarget=React.useRef('');
+    React.useEffect(()=>{
+      if(!workflowRequestId||registerLoading||rows.some(row=>String(row.id)===workflowRequestId)||fetchedTarget.current===workflowRequestId)return;
+      fetchedTarget.current=workflowRequestId; // 2.19.9: raised after the page was opened — load this one charge now
+      refreshOne(workflowRequestId).catch(()=>{});
+    },[workflowRequestId,rows,registerLoading]);
     React.useEffect(()=>{
       if(!workflowRequestId||!rows.some(row=>String(row.id)===workflowRequestId))return;
       const timer=setTimeout(()=>{
@@ -345,6 +351,19 @@
       return()=>clearTimeout(timer);
     },[workflowRequestId,rows]);
 
+    // 2.19.9: put one request into the list at once (new charge from a notification, or just decided),
+    // instead of waiting for the full charge history to reload.
+    const mergeRow=row=>{if(!row?.id)return;setRows(list=>{const i=list.findIndex(r=>String(r.id)===String(row.id));if(i<0)return [row,...list];const next=list.slice();next[i]={...list[i],...row};return next})};
+    async function refreshOne(id){
+      if(!id)return;
+      const res=await client.from('bill_charge_requests').select('*').eq('id',id).maybeSingle();
+      if(!res.error&&res.data&&(profile?.role!=='Nurse'||res.data.raised_by===profile?.id||res.data.raised_by===profile?.auth_user_id))mergeRow(res.data);
+    }
+    const afterDecision=async row=>{
+      await refreshOne(row.id).catch(()=>{});
+      window.dispatchEvent(new CustomEvent('samara-charge-decided',{detail:{request_id:row.id}})); // next pop-up at once
+      load();
+    };
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text)}; // 2.18.193: one message only (the old page toast duplicated it)
     function openChargeView(view){
       setWorkflowRequestId('');
@@ -369,8 +388,9 @@
         if((result.data||[]).length<pageSize)return {data,error:null};
       }
     }
+    const reloadQueued=React.useRef(false);
     async function load(){
-      if(registerLoadInFlight.current)return;
+      if(registerLoadInFlight.current){reloadQueued.current=true;return} // 2.19.9: run again once this one ends (was dropped)
       registerLoadInFlight.current=true;
       try{
       const authResult=await client.auth.getUser();
@@ -470,6 +490,7 @@
         setRegisterError(samaraFriendlyError(error));setRegisterLoading(false);
       }finally{
         registerLoadInFlight.current=false;
+        if(reloadQueued.current){reloadQueued.current=false;setTimeout(load,0)}
       }
     }
     React.useEffect(()=>{
@@ -478,7 +499,7 @@
       const refreshTimer=setInterval(load,15000);
       window.addEventListener('focus',load);
       const ch=client.channel('clinical-charges-v2')
-        .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},payload=>{if(payload?.new?.id&&profile?.role!=='Nurse')mergeRow(payload.new);load()})
         .on('postgres_changes',{event:'*',schema:'public',table:'diagnostic_services'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'charge_tariff_master'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'consumable_store_items'},load)
@@ -838,7 +859,7 @@
       if(result.error){notify('error',result.error.message);return}
       notify('success',decision==='Rejected'?'Outside bill returned to Nursing for correction.':result.data?.family_paid?'Outside bill recorded (paid by family — not charged).':`Outside bill posted: ${money(result.data?.bill_amount)}${Number(result.data?.handling_fee)>0?` + handling ${money(result.data?.handling_fee)}`:''}.`);
       outsideFillMissingFamilyLinks();
-      await load();
+      await afterDecision(row);
     }
     // 2.18.191: Samara dialog beside the pressed button (not the browser box at the top of the screen)
     async function askRemarks(decision,anchor){
@@ -907,7 +928,7 @@
         notify('success',decision==='Rejected'
           ?`Returned to Nursing for correction by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}.`
           :`Charge ${decision.toLowerCase()} by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}. Returned automatically to Nursing.`);
-        await load();
+        await afterDecision(row);
       }
     }
 

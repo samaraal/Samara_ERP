@@ -1,3 +1,9 @@
+## 2.19.9 — 29-10-2026 — Next charge notification appears at once
+- Accounts: after a charge is Approved / Returned, the next waiting charge pop-up appears straight away (was: up to 30 seconds later). Close / × also brings up the next waiting pop-up at once.
+- A newly raised charge now pops up for Accounts within about a second (live), instead of at the next 30-second check.
+- Charge Approvals: a notification for a charge raised after the page was opened loads that one charge at once (was: waited for the whole charge history to reload). The decided row updates at once; a refresh asked for while another is running is no longer dropped.
+- Frontend only. No Supabase change.
+
 ## 2.19.8 — 29-10-2026 — Charge notification opens the approval box quickly
 - Tapping "Open & Take Action" on a charge-raised notification (or opening Charge Approvals) no longer waits for the whole charge history to load. Pending requests and the rates needed to Approve / Return are loaded first, so the request and its Approve button appear in a moment.
 - The full history then loads in the background; until it is in, the "Charges Raised", "Today’s Entries" and "Approved Today" cards show "…". "Pending Approval" works at once.

@@ -342,6 +342,7 @@
   function WorkflowActionPopups({profile,onNavigate}){
     const [item,setItem]=React.useState(null);
     const closed=React.useRef(new Set());
+    const lastCandidates=React.useRef([]); // 2.19.9: the next pop-up shows at once after Close (not at the next 30-second check)
     // 2.15.96: information-only pop-ups (staff back on duty, new food-vendor WhatsApp) stay closed after Close /
     // Open, also after a page refresh or app update, on this device. Action pop-ups behave as before.
     const SEEN_KEY=`samara_popup_seen_v1_${profile?.id||'anon'}`;
@@ -370,6 +371,7 @@
         if(remembered(current.key))try{const saved=JSON.parse(localStorage.getItem(SEEN_KEY)||'{}')||{};saved[current.key]=Date.now();localStorage.setItem(SEEN_KEY,JSON.stringify(saved))}catch(_error){}
       }
       setItem(null);
+      return current;
     };
     const load=React.useCallback(async()=>{
       if(!canReceive){setItem(null);return}
@@ -526,21 +528,30 @@
           candidates.push({key:`spot-prep-${r.id}-${pending.length}`,kind:'Spot Assessment',title:`Get ready: ${r.person_name} — arriving ${day}`,detail:`Still to prepare: ${pending.join(', ')}. Tick each item in the Spot Assessment when it is ready.`,page:'Spot Assessment',record:{id:r.id,label:r.person_name},at:d.planned_admission});
         });
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
+        lastCandidates.current=candidates;
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error);/* 2.18.172: never keep an old 'not attended' count on screen when the re-check failed */setItem(cur=>cur&&/^charge-overdue-/.test(String(cur.key||''))?null:cur)}
     },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash,spotPrep]);
-    React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
+    React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);window.addEventListener('samara-charge-decided',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load);window.removeEventListener('samara-charge-decided',load)}},[load]);
+    // 2.19.9: Accounts — a newly raised charge pops up at once (live), not at the next 30-second check
+    React.useEffect(()=>{
+      if(!isAccounts)return;
+      let t=null;const soon=()=>{clearTimeout(t);t=setTimeout(load,800)};
+      const ch=client.channel('charge-popups-'+(profile?.id||'acc')).on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},soon).subscribe();
+      return()=>{clearTimeout(t);client.removeChannel(ch)};
+    },[isAccounts,load,profile?.id]);
+    const closeShowNext=current=>{dismiss(current);const next=lastCandidates.current.find(x=>!closed.current.has(x.key));if(next)setTimeout(()=>setItem(next),150)};
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules
     // do not stretch it to the whole screen or add a second floating Close button.
     return h('div',{className:'samara-workflow-popup',role:'presentation'},h('div',{className:'samara-workflow-popup-card',role:'alertdialog','aria-modal':'true','aria-label':item.title},
       h('div',{className:'samara-workflow-popup-head'},
         h('div',null,h('h3',null,item.title),h('small',null,item.kind+' workflow')),
-        h('button',{type:'button',className:'samara-workflow-popup-x','aria-label':'Close',onClick:()=>dismiss(item)},'×')),
+        h('button',{type:'button',className:'samara-workflow-popup-x','aria-label':'Close',onClick:()=>closeShowNext(item)},'×')),
       h('div',{className:'samara-workflow-popup-detail'},item.detail),
       h('div',{className:'samara-workflow-popup-actions'},
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>closeShowNext(item)},'Close'),
         item.food?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(item.food)){dismiss(item);load();}}},'Mark handled'):null,
         item.food?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openFoodVendorMessage(item.food,onNavigate)}},'Open order message'):
         item.waPhone?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);try{sessionStorage.setItem('samara_whatsapp_open_phone',item.waPhone)}catch(_error){}onNavigate('WhatsApp Inbox')}},'Open WhatsApp chat'):

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.8';
+  const APP_VERSION = '2.19.9';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8290,6 +8290,7 @@ https://samaraassistedliving.com/`;
   function WorkflowActionPopups({profile,onNavigate}){
     const [item,setItem]=React.useState(null);
     const closed=React.useRef(new Set());
+    const lastCandidates=React.useRef([]); // 2.19.9: the next pop-up shows at once after Close (not at the next 30-second check)
     // 2.15.96: information-only pop-ups (staff back on duty, new food-vendor WhatsApp) stay closed after Close /
     // Open, also after a page refresh or app update, on this device. Action pop-ups behave as before.
     const SEEN_KEY=`samara_popup_seen_v1_${profile?.id||'anon'}`;
@@ -8318,6 +8319,7 @@ https://samaraassistedliving.com/`;
         if(remembered(current.key))try{const saved=JSON.parse(localStorage.getItem(SEEN_KEY)||'{}')||{};saved[current.key]=Date.now();localStorage.setItem(SEEN_KEY,JSON.stringify(saved))}catch(_error){}
       }
       setItem(null);
+      return current;
     };
     const load=React.useCallback(async()=>{
       if(!canReceive){setItem(null);return}
@@ -8474,21 +8476,30 @@ https://samaraassistedliving.com/`;
           candidates.push({key:`spot-prep-${r.id}-${pending.length}`,kind:'Spot Assessment',title:`Get ready: ${r.person_name} — arriving ${day}`,detail:`Still to prepare: ${pending.join(', ')}. Tick each item in the Spot Assessment when it is ready.`,page:'Spot Assessment',record:{id:r.id,label:r.person_name},at:d.planned_admission});
         });
         candidates.sort((a,b)=>Number(!!b.urgent)-Number(!!a.urgent)||new Date(b.at||0)-new Date(a.at||0));
+        lastCandidates.current=candidates;
         const next=candidates.find(x=>!closed.current.has(x.key));
         setItem(current=>current&&candidates.some(x=>x.key===current.key)?current:(next||null));
       }catch(error){console.warn('Workflow action pop-up unavailable:',error);/* 2.18.172: never keep an old 'not attended' count on screen when the re-check failed */setItem(cur=>cur&&/^charge-overdue-/.test(String(cur.key||''))?null:cur)}
     },[profile?.id,role,isManagement,isAccounts,isNursing,foodManager,kitchenCash,pettyCash,spotPrep]);
-    React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load)}},[load]);
+    React.useEffect(()=>{load();const timer=setInterval(load,30000);window.addEventListener('focus',load);window.addEventListener('samara-discharge-workflow-changed',load);window.addEventListener('samara-charge-decided',load);return()=>{clearInterval(timer);window.removeEventListener('focus',load);window.removeEventListener('samara-discharge-workflow-changed',load);window.removeEventListener('samara-charge-decided',load)}},[load]);
+    // 2.19.9: Accounts — a newly raised charge pops up at once (live), not at the next 30-second check
+    React.useEffect(()=>{
+      if(!isAccounts)return;
+      let t=null;const soon=()=>{clearTimeout(t);t=setTimeout(load,800)};
+      const ch=client.channel('charge-popups-'+(profile?.id||'acc')).on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},soon).subscribe();
+      return()=>{clearTimeout(t);client.removeChannel(ch)};
+    },[isAccounts,load,profile?.id]);
+    const closeShowNext=current=>{dismiss(current);const next=lastCandidates.current.find(x=>!closed.current.has(x.key));if(next)setTimeout(()=>setItem(next),150)};
     if(!item||(item.food&&!foodManager))return null;
     // v2.14.39: compact alert card with its own classes, so phone "full-screen form" rules
     // do not stretch it to the whole screen or add a second floating Close button.
     return h('div',{className:'samara-workflow-popup',role:'presentation'},h('div',{className:'samara-workflow-popup-card',role:'alertdialog','aria-modal':'true','aria-label':item.title},
       h('div',{className:'samara-workflow-popup-head'},
         h('div',null,h('h3',null,item.title),h('small',null,item.kind+' workflow')),
-        h('button',{type:'button',className:'samara-workflow-popup-x','aria-label':'Close',onClick:()=>dismiss(item)},'×')),
+        h('button',{type:'button',className:'samara-workflow-popup-x','aria-label':'Close',onClick:()=>closeShowNext(item)},'×')),
       h('div',{className:'samara-workflow-popup-detail'},item.detail),
       h('div',{className:'samara-workflow-popup-actions'},
-        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>dismiss(item)},'Close'),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>closeShowNext(item)},'Close'),
         item.food?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(item.food)){dismiss(item);load();}}},'Mark handled'):null,
         item.food?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);openFoodVendorMessage(item.food,onNavigate)}},'Open order message'):
         item.waPhone?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{dismiss(item);try{sessionStorage.setItem('samara_whatsapp_open_phone',item.waPhone)}catch(_error){}onNavigate('WhatsApp Inbox')}},'Open WhatsApp chat'):
@@ -50423,6 +50434,12 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       document.addEventListener('click',onMenu,true);
       return()=>{window.removeEventListener('samara-workflow-target',onTarget);document.removeEventListener('click',onMenu,true)};
     },[profile?.id,profile?.role]);
+    const fetchedTarget=React.useRef('');
+    React.useEffect(()=>{
+      if(!workflowRequestId||registerLoading||rows.some(row=>String(row.id)===workflowRequestId)||fetchedTarget.current===workflowRequestId)return;
+      fetchedTarget.current=workflowRequestId; // 2.19.9: raised after the page was opened — load this one charge now
+      refreshOne(workflowRequestId).catch(()=>{});
+    },[workflowRequestId,rows,registerLoading]);
     React.useEffect(()=>{
       if(!workflowRequestId||!rows.some(row=>String(row.id)===workflowRequestId))return;
       const timer=setTimeout(()=>{
@@ -50436,6 +50453,19 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       return()=>clearTimeout(timer);
     },[workflowRequestId,rows]);
 
+    // 2.19.9: put one request into the list at once (new charge from a notification, or just decided),
+    // instead of waiting for the full charge history to reload.
+    const mergeRow=row=>{if(!row?.id)return;setRows(list=>{const i=list.findIndex(r=>String(r.id)===String(row.id));if(i<0)return [row,...list];const next=list.slice();next[i]={...list[i],...row};return next})};
+    async function refreshOne(id){
+      if(!id)return;
+      const res=await client.from('bill_charge_requests').select('*').eq('id',id).maybeSingle();
+      if(!res.error&&res.data&&(profile?.role!=='Nurse'||res.data.raised_by===profile?.id||res.data.raised_by===profile?.auth_user_id))mergeRow(res.data);
+    }
+    const afterDecision=async row=>{
+      await refreshOne(row.id).catch(()=>{});
+      window.dispatchEvent(new CustomEvent('samara-charge-decided',{detail:{request_id:row.id}})); // next pop-up at once
+      load();
+    };
     const notify=(type,text)=>{showSamaraActionToast(type,type==='success'?'Saved successfully':'Action failed',text)}; // 2.18.193: one message only (the old page toast duplicated it)
     function openChargeView(view){
       setWorkflowRequestId('');
@@ -50460,8 +50490,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         if((result.data||[]).length<pageSize)return {data,error:null};
       }
     }
+    const reloadQueued=React.useRef(false);
     async function load(){
-      if(registerLoadInFlight.current)return;
+      if(registerLoadInFlight.current){reloadQueued.current=true;return} // 2.19.9: run again once this one ends (was dropped)
       registerLoadInFlight.current=true;
       try{
       const authResult=await client.auth.getUser();
@@ -50561,6 +50592,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         setRegisterError(samaraFriendlyError(error));setRegisterLoading(false);
       }finally{
         registerLoadInFlight.current=false;
+        if(reloadQueued.current){reloadQueued.current=false;setTimeout(load,0)}
       }
     }
     React.useEffect(()=>{
@@ -50569,7 +50601,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       const refreshTimer=setInterval(load,15000);
       window.addEventListener('focus',load);
       const ch=client.channel('clinical-charges-v2')
-        .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},load)
+        .on('postgres_changes',{event:'*',schema:'public',table:'bill_charge_requests'},payload=>{if(payload?.new?.id&&profile?.role!=='Nurse')mergeRow(payload.new);load()})
         .on('postgres_changes',{event:'*',schema:'public',table:'diagnostic_services'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'charge_tariff_master'},load)
         .on('postgres_changes',{event:'*',schema:'public',table:'consumable_store_items'},load)
@@ -50929,7 +50961,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       if(result.error){notify('error',result.error.message);return}
       notify('success',decision==='Rejected'?'Outside bill returned to Nursing for correction.':result.data?.family_paid?'Outside bill recorded (paid by family — not charged).':`Outside bill posted: ${money(result.data?.bill_amount)}${Number(result.data?.handling_fee)>0?` + handling ${money(result.data?.handling_fee)}`:''}.`);
       outsideFillMissingFamilyLinks();
-      await load();
+      await afterDecision(row);
     }
     // 2.18.191: Samara dialog beside the pressed button (not the browser box at the top of the screen)
     async function askRemarks(decision,anchor){
@@ -50998,7 +51030,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         notify('success',decision==='Rejected'
           ?`Returned to Nursing for correction by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}.`
           :`Charge ${decision.toLowerCase()} by ${formalName(profile)||profile?.full_name||profile?.role} at ${fmt(new Date())}. Returned automatically to Nursing.`);
-        await load();
+        await afterDecision(row);
       }
     }
 
