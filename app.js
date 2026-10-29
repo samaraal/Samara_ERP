@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.9';
+  const APP_VERSION = '2.19.10';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -3179,17 +3179,44 @@ https://samaraassistedliving.com/`;
       @media(max-width:600px){.samara-ask-box{left:10px!important;right:10px!important;width:auto}}
     `;document.head.appendChild(style);
   }
-  // place the box just below (or above, if no room) the button that was pressed; centred if there is no anchor
+  // place the box just below the button that was pressed; centred if there is no anchor.
+  // 2.19.10: never open ABOVE the button — that covered the very details being approved (charge name, qty,
+  // rate). If there is no room below, the page is scrolled up to make room (a little temporary space is
+  // added at the very end of the page when needed), so the details above the button stay in view.
+  function samaraScrollerOf(el){
+    for(let n=el&&el.parentElement;n&&n!==document.body&&n!==document.documentElement;n=n.parentElement){
+      const oy=getComputedStyle(n).overflowY;
+      if((oy==='auto'||oy==='scroll')&&n.scrollHeight>n.clientHeight+2)return n;
+    }
+    return document.scrollingElement||document.documentElement;
+  }
   function samaraPlaceAskBox(box,anchor){
     const vw=window.innerWidth,vh=window.innerHeight,bw=box.offsetWidth,bh=box.offsetHeight,gap=10;
-    const r=anchor&&anchor.isConnected&&anchor.getBoundingClientRect?anchor.getBoundingClientRect():null;
-    if(!r||(!r.width&&!r.height)){box.style.left=Math.max(10,(vw-bw)/2)+'px';box.style.top=Math.max(10,(vh-bh)/2)+'px';return}
+    let r=anchor&&anchor.isConnected&&anchor.getBoundingClientRect?anchor.getBoundingClientRect():null;
+    if(!r||(!r.width&&!r.height)){box.style.left=Math.max(10,(vw-bw)/2)+'px';box.style.top=Math.max(10,(vh-bh)/2)+'px';return null}
+    let spacer=null;
+    const short=r.bottom+gap+bh-(vh-10);
+    if(short>0&&bh+gap+r.height<vh-20){
+      const sc=samaraScrollerOf(anchor);
+      const room=sc.scrollHeight-sc.clientHeight-sc.scrollTop;
+      if(room<short){spacer=document.createElement('div');spacer.className='samara-ask-spacer';spacer.style.cssText=`height:${Math.ceil(short-room)+4}px;pointer-events:none`;
+        (sc===document.scrollingElement||sc===document.documentElement?document.body:sc).appendChild(spacer);}
+      sc.scrollTop+=Math.ceil(short);
+      r=anchor.getBoundingClientRect();
+      const still=r.bottom+gap+bh-(vh-10); // a short page: the extra space must first make the page scrollable
+      if(still>1){
+        if(!spacer){spacer=document.createElement('div');spacer.className='samara-ask-spacer';spacer.style.cssText='height:0;pointer-events:none';(sc===document.scrollingElement||sc===document.documentElement?document.body:sc).appendChild(spacer)}
+        spacer.style.height=(parseFloat(spacer.style.height)||0)+Math.ceil(still)+4+'px';
+        sc.scrollTop+=Math.ceil(still);
+        r=anchor.getBoundingClientRect();
+      }
+    }
     let top=r.bottom+gap;
-    if(top+bh>vh-10)top=r.top-bh-gap;           // not enough room below → open above the button
-    if(top<10)top=Math.max(10,(vh-bh)/2);       // neither fits → centre
+    if(top+bh>vh-10)top=Math.max(10,vh-bh-10); // still no room (very small screen): keep it on screen
     let left=r.left;
     if(left+bw>vw-10)left=vw-bw-10;
     box.style.left=Math.max(10,left)+'px';box.style.top=top+'px';
+    return spacer;
   }
   function samaraAsk({anchor=null,title='',message='',fields=[],okLabel='OK',cancelLabel='Cancel'}={}){
     return new Promise(resolve=>{
@@ -3213,8 +3240,8 @@ https://samaraassistedliving.com/`;
       const ok=document.createElement('button');ok.type='button';ok.className='samara-ask-ok';ok.textContent=okLabel;
       actions.append(cancel,ok);box.appendChild(actions);
       document.body.append(backdrop,box);
-      samaraPlaceAskBox(box,pressed);
-      const done=value=>{document.removeEventListener('keydown',onKey,true);backdrop.remove();box.remove();try{pressed&&pressed.focus&&pressed.focus({preventScroll:true})}catch(_){}resolve(value)};
+      const spacer=samaraPlaceAskBox(box,pressed);
+      const done=value=>{document.removeEventListener('keydown',onKey,true);backdrop.remove();box.remove();if(spacer)spacer.remove();try{pressed&&pressed.focus&&pressed.focus({preventScroll:true})}catch(_){}resolve(value)};
       const submit=()=>{
         const values={};
         for(let i=0;i<fields.length;i++){

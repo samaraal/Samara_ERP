@@ -1,3 +1,7 @@
+## 2.19.10 — 29-10-2026 — Approve / Return box no longer hides the charge details
+- The Approve, Partial, Return and other Samara pop-up boxes now always open BELOW the button pressed. When there is no room below, the page scrolls up so the box fits, keeping the charge details (item, quantity, rate, raised by) above the button in view. Previously the box opened above the button and covered them.
+- Applies to every Samara pop-up box opened from a button. Frontend only. No Supabase change.
+
 ## 2.19.9 — 29-10-2026 — Next charge notification appears at once
 - Accounts: after a charge is Approved / Returned, the next waiting charge pop-up appears straight away (was: up to 30 seconds later). Close / × also brings up the next waiting pop-up at once.
 - A newly raised charge now pops up for Accounts within about a second (live), instead of at the next 30-second check.
