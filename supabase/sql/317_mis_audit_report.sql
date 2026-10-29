@@ -181,18 +181,18 @@ begin
         where not coalesce(p.is_trial,false) and coalesce(a.late_entry,false) and a.scheduled_date between $1 and $2$q$,
     p_from, p_to);
 
-  c := c || public.mis_check('escalations_open','Clinical escalations not yet resolved','high','Clinical Escalations',
-    'Raised to Manager / Admin and still open.',
+  c := c || public.mis_check('escalations_open','Clinical escalations raised in the period and still open','high','Clinical Escalations',
+    'Raised to Manager / Admin in this period and not yet attended. (Older escalations stay in the record for audit and training; they are not counted here.)',
     $q$select e.created_at as sort_at, to_char(e.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', e.alert_type, e.priority, 'to '||e.escalated_to_role, e.escalation_reason) as detail, null::numeric as amount
          from public.clinical_alert_escalations e left join public.patients p on p.id=e.patient_id
-        where e.resolved_at is null and (e.created_at at time zone 'Asia/Kolkata')::date <= $2
+        where e.resolved_at is null and (e.created_at at time zone 'Asia/Kolkata')::date between $1 and $2
           and not coalesce(p.is_trial,false)$q$,
     p_from, p_to);
 
-  c := c || public.mis_check('escalations_raised','Clinical escalations raised in the period','low','Clinical Escalations',
-    'Every alert that reached Manager / Admin because it was not done in time.',
+  c := c || public.mis_check('escalations_raised','Clinical escalations raised in the period (audit & training)','low','Clinical Escalations',
+    'Every alert that reached Manager / Admin because it was not done in time — attended or not. Use for staff training.',
     $q$select e.created_at as sort_at, to_char(e.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', e.alert_type, e.priority, case when e.resolved_at is null then 'OPEN' else coalesce(e.resolution_action,'Resolved') end) as detail,
