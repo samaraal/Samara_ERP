@@ -1,3 +1,6 @@
+## 2.19.16 — 29-10-2026 — Physiotherapist-wise summary in the Accounts colours
+- Larger figures on a plum header band: Sessions (teal), Total (blue), Paid (green), Balance (red; green when nil); a Total row for more than one physiotherapist. On phones each physiotherapist shows as a card with labelled figures.
+
 ## 2.19.15 — 29-10-2026 — Physiotherapist Accounts: Name / Sessions / Total / Paid / Balance
 - The "Sessions by physiotherapist" box on the Ledger / Statement is now "Physiotherapist-wise summary" with columns Name · Sessions · Total ₹ · Paid ₹ · Balance ₹ for the selected period (Paid = payments made − refunds received for that physiotherapist; Balance = Total − Paid), plus a Total row when there is more than one physiotherapist. The PDF / WhatsApp statement note shows the same.
 

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.15';
+  const APP_VERSION = '2.19.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -39080,9 +39080,7 @@ function RoomsBeds({profile,onNavigate}){
           clickTable('Sessions done — '+(statementPhysio?statementPhysio.full_name:org.name),['Date','Guest','Room','Scheduled','Actual','Physiotherapist','Status'],workList.map(r=>[formatDateIN(r.session_date),r.guest_name,r.room||'—',clock(r.scheduled_time),clock(r.actual_time),r.physiotherapist,r.status]),i=>setDetail({title:'Session details',fields:workFields(workList[i])}))
         ):h(React.Fragment,null,
           h('p',null,'Opening payable ₹'+money(data.opening)+' · Closing payable ₹'+money(ledgerRows().at(-1)?.balance??data.opening)),
-          physioSummary(ledgerRows()).length>0&&(()=>{const list=physioSummary(ledgerRows());const sum=k=>list.reduce((t,x)=>t+Number(x[k]||0),0);
-            return h(LogTable,{title:'Physiotherapist-wise summary',subtitle:'For the selected period · Paid = payments made − refunds received · Balance = Total − Paid',heads:['Name','Sessions','Total ₹','Paid ₹','Balance ₹'],
-              rows:[...list.map(x=>[x.name,x.sessions,money(x.amount),money(x.paid),money(x.balance)]),...(list.length>1?[[h('strong',null,'Total'),h('strong',null,sum('sessions')),h('strong',null,money(sum('amount'))),h('strong',null,money(sum('paid'))),h('strong',null,money(sum('balance')))]]:[])]})})(),
+          physioSummary(ledgerRows()).length>0&&h(PhysioPaySummary,{list:physioSummary(ledgerRows())}),
           clickTable('Statement entries',['Date','Voucher','Type','Physiotherapist / Guest','Debit ₹','Credit ₹','Balance payable ₹'],ledgerRows().map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind+(row.reversed_at?' (reversed)':''),[row.snapshot?.physiotherapist,row.snapshot?.patient_name].filter(Boolean).join(' · ')||row.reference||row.notes||'—',row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance)]),i=>setDetail({title:'Statement entry',fields:ledgerFields(ledgerRows()[i])})),
           workList.length>0&&clickTable('Sessions done in the period',['Date','Guest','Room','Scheduled','Actual','Physiotherapist','Status','Fee'],workList.map(r=>[formatDateIN(r.session_date),r.guest_name,r.room||'—',clock(r.scheduled_time),clock(r.actual_time),r.physiotherapist,r.status,r.pay_basis==='Salary'?'Salary':r.fee_amount!=null?'₹'+money(r.fee_amount):'Not posted']),i=>setDetail({title:'Session details',fields:workFields(workList[i])})))),
       detail&&h(RowDetailModal,{title:detail.title,fields:detail.fields,onClose:()=>setDetail(null)}),
@@ -39260,6 +39258,46 @@ function RoomsBeds({profile,onNavigate}){
     const organisations=await client.rpc('physio_organisation_options');if(organisations.error)return {data:[],error:organisations.error};
     const groups=new Map();for(const s of result.data){const organisation_name=(organisations.data||[]).find(o=>o.id===s.organisation_id)?.name||'Unassigned',physiotherapist_name=s.physiotherapist_name||'Not recorded',key=organisation_name+'\0'+physiotherapist_name;if(!groups.has(key))groups.set(key,{organisation_name,physiotherapist_name,completed:0,pending:0,not_done:0});const r=groups.get(key);if(s.status==='Completed')r.completed++;else if(s.status==='Pending')r.pending++;else if(s.status==='Not Done')r.not_done++}
     return {data:[...groups.values()].sort((a,b)=>a.organisation_name.localeCompare(b.organisation_name)||a.physiotherapist_name.localeCompare(b.physiotherapist_name)),error:null};
+  }
+
+  // 2.19.16: Physiotherapist-wise summary in the Accounts colours — Name · Sessions · Total · Paid · Balance (larger figures)
+  function PhysioPaySummary({list}){
+    React.useEffect(()=>{
+      if(document.getElementById('physio-pay-summary-style'))return;
+      const st=document.createElement('style');st.id='physio-pay-summary-style';
+      st.textContent=`
+        .pps{border:1px solid #ead0de;border-radius:18px;overflow:hidden;background:#fff;margin:14px 0;box-shadow:0 8px 22px rgba(101,27,64,.08)}
+        .pps-head{background:linear-gradient(100deg,#651b40,#b51660);color:#fff;padding:14px 18px}
+        .pps-head h3{margin:0;font-size:20px;color:#fff}
+        .pps-head small{display:block;margin-top:3px;font-size:13px;color:#ffe3ef}
+        .pps-row{display:grid;grid-template-columns:minmax(0,1.6fr) repeat(4,minmax(0,1fr));gap:10px;align-items:center;padding:14px 18px;border-top:1px solid #f3e1ea}
+        .pps-row.pps-cols{background:#fff5f9;padding:9px 18px;font-size:12.5px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#7a1247;border-top:0}
+        .pps-row.pps-total{background:#fff8ec;border-top:2px solid #ead0de}
+        .pps-name{font-size:19px;font-weight:900;color:#651b40;overflow-wrap:anywhere}
+        .pps-num{font-size:22px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+        .pps-num small{display:none;font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.8}
+        .pps-sessions{color:#0f8b73}.pps-total-amt{color:#123f8c}.pps-paid{color:#087c39}.pps-bal{color:#c62828}.pps-bal.pps-clear{color:#087c39}
+        @media(max-width:700px){
+          .pps-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+          .pps-row.pps-cols{display:none}
+          .pps-name{grid-column:1/-1}
+          .pps-num small{display:block}
+        }`;
+      document.head.appendChild(st);
+    },[]);
+    const inr=v=>'₹'+Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const sum=k=>list.reduce((t,x)=>t+Number(x[k]||0),0);
+    const row=(x,cls,key)=>h('div',{key,className:'pps-row '+(cls||'')},
+      h('div',{className:'pps-name'},x.name),
+      h('div',{className:'pps-num pps-sessions'},h('small',null,'Sessions'),x.sessions),
+      h('div',{className:'pps-num pps-total-amt'},h('small',null,'Total'),inr(x.amount)),
+      h('div',{className:'pps-num pps-paid'},h('small',null,'Paid'),inr(x.paid)),
+      h('div',{className:'pps-num pps-bal'+(Number(x.balance)<=0?' pps-clear':'')},h('small',null,'Balance'),inr(x.balance)));
+    return h('section',{className:'pps'},
+      h('div',{className:'pps-head'},h('h3',null,'Physiotherapist-wise summary'),h('small',null,'For the selected period · Paid = payments made − refunds received · Balance = Total − Paid')),
+      h('div',{className:'pps-row pps-cols'},h('span',null,'Name'),h('span',null,'Sessions'),h('span',null,'Total'),h('span',null,'Paid'),h('span',null,'Balance')),
+      list.map((x,i)=>row(x,'',i)),
+      list.length>1&&row({name:'Total',sessions:sum('sessions'),amount:sum('amount'),paid:sum('paid'),balance:sum('balance')},'pps-total','total'));
   }
   // 2.18.63: Outside Samara Nursing — "Start a New Procedure" (SQL 267).
   // Start: patient (or a new outside patient in the same form), procedure, place, SOURCE (who asked for it) and WHO APPROVED it
