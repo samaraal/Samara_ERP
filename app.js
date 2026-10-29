@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.17';
+  const APP_VERSION = '2.19.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -40159,8 +40159,13 @@ function RoomsBeds({profile,onNavigate}){
         requestToken.current=null;
         await writeAuditEvent('Request Approval Item','NursingProcedureRequest',res.data,{patient_id:form.patient_id,category:form.category});
         const auto=!needsApproval(selectedItem);
-        showSamaraActionToast('success',auto?'Ready to start':'Request sent',auto?'No Nursing Manager approval needed — open it under "Ready to Start" and tap Confirm & Start.':'Sent to the Nursing Manager for approval.');
         setForm({...emptyForm});setShowRequest(false);setBox(auto?'Approved':'Requested');await load();
+        // 2.19.18: approved automatically → offer to start it now (avoids raising the same request again)
+        if(auto&&!isEquipment&&res.data){
+          const now=await samaraConfirm({title:'Approved — ready to start',message:'No Nursing Manager approval is needed, so it is already under "Ready to Start".\n\nIs it being done now? Start it now (the charge is raised for Accounts).',okLabel:'Start now',cancelLabel:'Later'});
+          if(now){const one=await client.from('nursing_procedure_requests').select('*').eq('id',res.data).maybeSingle();if(one.data){await startItem(one.data,true);return}}
+          showSamaraActionToast('success','Ready to start','Open it under "Ready to Start" and tap Confirm & Start when done. Do not raise it again.');
+        }else showSamaraActionToast('success',auto?'Ready to start':'Request sent',auto?'No Nursing Manager approval needed — open it under "Ready to Start" and tap Confirm & Start.':'Sent to the Nursing Manager for approval.');
       }catch(error){showSamaraActionToast('error','Approval Request',/bme_request_start/.test(error.message||'')?'Install SQL 185 to enable Biomedical Equipment approval requests.':error.message)}
       finally{submitLock.current=false;setBusy(false)}
     }
@@ -40178,9 +40183,9 @@ function RoomsBeds({profile,onNavigate}){
       load();
     }
 
-    async function startItem(row){
-      if(!canStart||busy)return;
-      if(!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
+    async function startItem(row,skipConfirm=false){
+      if(!canStart||(busy&&!skipConfirm))return;
+      if(!skipConfirm&&!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
       setBusy(true);
       let res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);

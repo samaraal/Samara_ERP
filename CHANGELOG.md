@@ -1,3 +1,8 @@
+## 2.19.18 — 30-10-2026 — Approval Requests: no duplicate open requests; "Start now?" after auto-approval
+- An item that needs no Nursing Manager approval (e.g. Nebulization) goes straight to "Ready to Start". The app now asks "Start now?" right after the request, so it is not raised again by mistake.
+- A second request for the same Guest + item is refused while one is still open (Pending Approval / Ready to Start), with the time and who raised the first (SQL 323).
+- The three leftover duplicate requests of 29-10-2026 evening (Joseph, Swaminathan, Shanthi — never started, not charged) are cancelled with a note (SQL 323).
+
 ## 2.19.17 — 29-10-2026 — Repeat check: same service for the same Guest within 1 hour needs a reason
 - Approval Requests → Confirm & Start: if the same procedure (e.g. Blood Glucose Monitoring) was already started for the Guest within the last 60 minutes, the app shows when and by whom, and asks why it is being done again. With a reason it starts (the reason is printed on the charge for Accounts); Cancel = not started, not charged.
 - Bills & Charges raised directly: the same rule for the same item within 60 minutes.
