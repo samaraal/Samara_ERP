@@ -1,4 +1,4 @@
--- ERP 2.19.11 (updated 29-10-2026: Bills & Charges counts, Nursing Procedures, Discrepancies & Deviations analysis) — MIS & AUDIT REPORT (Admin / Directors) (29-10-2026). Run once in Supabase SQL Editor. Safe to run again.
+-- ERP 2.19.11 (updated 29-10-2026: Bills & Charges counts, Nursing Procedures, Discrepancies & Deviations analysis, physiotherapy fee vs charge) — MIS & AUDIT REPORT (Admin / Directors) (29-10-2026). Run once in Supabase SQL Editor. Safe to run again.
 --
 -- What: one report that AUDITS ERP entries for a period (IST dates) across three areas and gives the key numbers:
 --   • Clinical    — vitals slots not recorded, medicine doses not recorded / missed / withheld without the doctor's
@@ -379,16 +379,22 @@ begin
         where r.charge_date between $1 and $2 and (coalesce(r.error_count,0) > 0 or r.status ilike '%fail%')$q$,
     p_from, p_to);
 
-  c := c || public.mis_check('physio_unbilled','Physiotherapy sessions done but not billed','medium','Physiotherapist Accounts',
-    'Completed over 24 hours ago with no charge — usually the Guest''s physiotherapy rate is not set.',
+  c := c || public.mis_check('physio_unbilled','Physiotherapy sessions done but not billed to the Guest','high','Physiotherapist Accounts',
+    'Completed over 1 hour ago with no Guest charge — usually the Guest''s physiotherapy rate is not set. Amount = physiotherapist fee already posted for it (Samara pays, Guest not charged).',
     $q$select (s.session_date::timestamp at time zone 'Asia/Kolkata') as sort_at, to_char(s.session_date,'DD-MM-YYYY') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
-              case when exists(select 1 from public.patient_physio_rates r where r.patient_id=s.patient_id and r.effective_from<=s.session_date)
-                   then 'Completed session not billed' else 'No Guest physiotherapy rate set' end as detail, null::numeric as amount
+              concat_ws(' · ', coalesce(s.physiotherapist_name,'Physiotherapist'),
+                case when exists(select 1 from public.patient_physio_rates r where r.patient_id=s.patient_id and r.effective_from<=s.session_date)
+                     then 'Completed session not billed' else 'No Guest physiotherapy rate set' end,
+                case when f.fee is not null then 'fee ₹'||f.fee||' already posted to the physiotherapist' end) as detail,
+              f.fee as amount
          from public.physiotherapy_sessions s join public.patients p on p.id=s.patient_id
+         left join lateral (select sum(l.amount) as fee from public.physio_supplier_ledger l
+                             where l.session_id=s.id and l.kind='Session fee' and l.reversed_at is null) f on true
         where not coalesce(p.is_trial,false) and s.status='Completed' and s.charge_request_id is null
+          and not exists(select 1 from public.bill_charge_requests b where b.physiotherapy_session_id=s.id and coalesce(b.approval_status,'Pending')<>'Rejected')
           and s.session_date between $1 and $2
-          and coalesce(s.session_at, s.session_date::timestamp at time zone 'Asia/Kolkata') < now() - interval '24 hours'$q$,
+          and coalesce(s.session_at, s.session_date::timestamp at time zone 'Asia/Kolkata') < now() - interval '1 hour'$q$,
     p_from, p_to);
 
   c := c || public.mis_check('np_started_not_charged','Nursing procedures done but no charge raised','high','Approval Requests',
@@ -905,6 +911,35 @@ begin
          left join public.medication_orders mo on mo.id=a.order_id
         where not coalesce(p.is_trial,false) and a.status='Given' and a.scheduled_date between $1 and $2
         group by a.order_id, a.scheduled_date, a.scheduled_time, p.title, p.full_name having count(*) > 1$q$,
+    p_from, p_to);
+
+  -- 10b. physiotherapy: Samara pays the physiotherapist but the Guest is not charged, or pays more than it charges
+  c := c || public.mis_check('physio_fee_not_charged','Physiotherapist paid for a session the Guest was not charged for','high','Physiotherapist Accounts',
+    'A session fee is posted to the physiotherapist, but there is no Guest charge for that session (or it was returned). Set the Guest''s physiotherapy rate to bill it.',
+    $q$select l.created_at as sort_at, to_char(coalesce(s.session_date,l.entry_date),'DD-MM-YYYY')||coalesce(' '||to_char(s.scheduled_time,'HH12:MI AM'),'') as date,
+              coalesce(concat_ws(' ', nullif(p.title,''), p.full_name), l.snapshot->>'patient_name','—') as who,
+              concat_ws(' · ', l.snapshot->>'physiotherapist', 'fee ₹'||l.amount,
+                case when exists(select 1 from public.patient_physio_rates r where r.patient_id=s.patient_id and r.effective_from<=s.session_date) then 'Guest rate set — charge missing' else 'No Guest rate set' end) as detail,
+              l.amount as amount
+         from public.physio_supplier_ledger l
+         left join public.physiotherapy_sessions s on s.id=l.session_id
+         left join public.patients p on p.id=s.patient_id
+        where l.kind='Session fee' and l.reversed_at is null and not coalesce(p.is_trial,false)
+          and coalesce(s.session_date,l.entry_date) between $1 and $2
+          and not exists(select 1 from public.bill_charge_requests b where b.physiotherapy_session_id=l.session_id and coalesce(b.approval_status,'Pending')<>'Rejected')$q$,
+    p_from, p_to);
+  c := c || public.mis_check('physio_loss','Physiotherapy sessions where the fee paid is more than the Guest charge','medium','Physiotherapist Accounts',
+    'Samara pays the physiotherapist more than it charges the Guest for the same session — a loss on each session. Amount = loss.',
+    $q$with f as (select l.session_id, sum(l.amount) as fee, max(l.snapshot->>'physiotherapist') as physio
+                   from public.physio_supplier_ledger l where l.kind='Session fee' and l.reversed_at is null and l.session_id is not null group by 1)
+       select (s.session_date::timestamp at time zone 'Asia/Kolkata') as sort_at, to_char(s.session_date,'DD-MM-YYYY') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              concat_ws(' · ', f.physio, 'fee ₹'||f.fee, 'charged ₹'||coalesce(b.approved_amount,b.final_amount,b.requested_amount)) as detail,
+              f.fee - coalesce(b.approved_amount,b.final_amount,b.requested_amount) as amount
+         from f join public.physiotherapy_sessions s on s.id=f.session_id join public.patients p on p.id=s.patient_id
+         join public.bill_charge_requests b on b.physiotherapy_session_id=s.id and coalesce(b.approval_status,'Pending')<>'Rejected'
+        where not coalesce(p.is_trial,false) and s.session_date between $1 and $2
+          and f.fee > coalesce(b.approved_amount,b.final_amount,b.requested_amount)$q$,
     p_from, p_to);
 
   -- 11. the same payment entered twice
