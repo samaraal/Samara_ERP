@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.7';
+  const APP_VERSION = '2.19.8';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -50287,6 +50287,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const [rows,setRows]=React.useState([]);
     const [registerLoading,setRegisterLoading]=React.useState(true),[registerError,setRegisterError]=React.useState('');
     const registerLoadInFlight=React.useRef(false);
+    // 2.19.8: first open shows PENDING requests at once; the full history follows in the background
+    const [historyLoading,setHistoryLoading]=React.useState(true);
+    const historyLoadedRef=React.useRef(false);
     const [storeCharges,setStoreCharges]=React.useState([]);
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [diagnostics,setDiagnostics]=React.useState([]);
@@ -50464,9 +50467,38 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       const authResult=await client.auth.getUser();
       const authUserId=authResult.data?.user?.id||null;
 
-      const masterRequest=['Admin','Accounts'].includes(profile?.role)
+      const masterRequest=Promise.resolve(['Admin','Accounts'].includes(profile?.role)
         ?client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name')
-        :client.rpc('get_charge_service_catalog');
+        :client.rpc('get_charge_service_catalog')); // 2.19.8: one fetch, shared by both stages
+      const storeMasterRequest=(async()=>{const q=c=>client.from('consumable_store_items').select(c).eq('active',true).order('item_name');const r=await q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,used_for_charge_code');return r.error&&/used_for/.test(r.error.message||'')?q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate'):r})(); // 2.18.149 "Used for" (SQL 302)
+      const ownRequests=list=>profile?.role==='Nurse'
+        ?list.filter(row=>
+            row.raised_by===authUserId||
+            row.raised_by===profile.id||
+            String(row.raised_by_name||'').trim().toLowerCase()===
+              String(formalName(profile)||profile?.full_name||profile?.username||'').trim().toLowerCase()
+          )
+        :list;
+      const applyMaster=c=>{
+        if(c?.error)return;
+        const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
+        setCatalog(masterRows);
+        if(['Admin','Accounts'].includes(profile?.role))setTariffs(masterRows);
+      };
+      // 2.19.8: FIRST open only — Pending requests + rates (all that Approve / Return needs) are shown at once,
+      // so a notification's "Open & Take Action" reaches the approval box in a moment instead of after the
+      // whole charge history has loaded. The full history (below) then replaces this list.
+      if(!historyLoadedRef.current)try{
+        const [pq,mq,sq]=await Promise.all([
+          client.from('bill_charge_requests').select('*').or('approval_status.is.null,approval_status.eq.Pending')
+            .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000),
+          masterRequest,
+          storeMasterRequest
+        ]);
+        applyMaster(mq);
+        if(!sq?.error)setStoreMaster(sq.data||[]);
+        if(!pq.error&&!historyLoadedRef.current){setRows(ownRequests(pq.data||[]));setRegisterError('');setRegisterLoading(false);}
+      }catch(quickError){console.warn('Pending charges quick load skipped',quickError)} // the full load below still runs
       const [a,b,c,d,e,f,g]=await Promise.all([
         loadRegisterRequests(),
         client.from('diagnostic_services')
@@ -50474,7 +50506,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           .order('ordered_at',{ascending:false})
           .limit(500),
         masterRequest,
-        (async()=>{const q=c=>client.from('consumable_store_items').select(c).eq('active',true).order('item_name');const r=await q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,used_for_charge_code');return r.error&&/used_for/.test(r.error.message||'')?q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate'):r})(), // 2.18.149 "Used for" (SQL 302)
+        storeMasterRequest,
         client.from('patient_consumable_indents').select('id,patient_id,store_item_id,item_name,unit,status,received_qty,received_at').eq('status','Received').order('received_at',{ascending:true}),
         client.from('bill_charge_store_allocations').select('id,charge_request_id,indent_id,patient_id,store_item_id,allocated_qty').order('created_at',{ascending:true}),
         client.from('patient_store_returns').select('id,indent_id,patient_id,store_item_id,quantity,status').neq('status','Rejected')
@@ -50489,16 +50521,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       if(!approvalResult.error)setApprovalCategories(new Set((approvalResult.data||[]).filter(r=>r.requires_approval===true).map(r=>r.category)));
 
       const allRequests=a.data||[];
-      const visibleRequests=profile?.role==='Nurse'
-        ?allRequests.filter(row=>
-            row.raised_by===authUserId||
-            row.raised_by===profile.id||
-            String(row.raised_by_name||'').trim().toLowerCase()===
-              String(formalName(profile)||profile?.full_name||profile?.username||'').trim().toLowerCase()
-          )
-        :allRequests;
+      const visibleRequests=ownRequests(allRequests);
 
-      if(!a.error)setRows(visibleRequests);
+      if(!a.error){setRows(visibleRequests);historyLoadedRef.current=true;setHistoryLoading(false);}
       setRegisterLoading(false);
       if(!d?.error)setStoreMaster(d.data||[]);
       if(!e?.error)setReceivedIndents(e.data||[]);
@@ -50524,11 +50549,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           setEquipmentLinks(links);
         }
       }
-      if(!c.error){
-        const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
-        setCatalog(masterRows);
-        if(['Admin','Accounts'].includes(profile?.role))setTariffs(masterRows);
-      }
+      applyMaster(c);
       const visibleRequestIds=new Set(visibleRequests.map(row=>row.id));
       setDiagnostics(
         profile?.role==='Nurse'
@@ -51038,7 +51059,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       type:'button',
       className:'card stat',
       onClick:()=>view==='master'?openView('master'):openChargeView(view),
-      disabled:view!=='master'&&(registerLoading||!!registerError),
+      disabled:view!=='master'&&(registerLoading||!!registerError||(historyLoading&&view!=='Pending')), // 2.19.8: other views wait for the full history
       title:`Open ${label}`,
       style:{
         textAlign:'left',
@@ -51055,14 +51076,15 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     );
 
     const summaryValue=value=>registerLoading?'…':registerError?'—':value;
+    const historyValue=value=>historyLoading&&!registerError?'…':summaryValue(value); // 2.19.8: counts that need the full history
     const returnedCount=rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)).length;
     const summary=h('div',{className:'grid stats',style:{gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))'}},
-      navCard('Charges Raised',summaryValue(rows.length),'All','View all charges · filter by patient, date, category and item'),
-      navCard('Today’s Entries',summaryValue(rows.filter(r=>r.charge_date===todayISOIndia()).length),'Today','Click to show today’s charges'),
+      navCard('Charges Raised',historyValue(rows.length),'All','View all charges · filter by patient, date, category and item'),
+      navCard('Today’s Entries',historyValue(rows.filter(r=>r.charge_date===todayISOIndia()).length),'Today','Click to show today’s charges'),
       navCard('Pending Approval',summaryValue(pending),'Pending','Click to show pending approvals'),
       returnedCount>0&&navCard('Returned by Accounts',summaryValue(returnedCount),'Returned','Open returned requests to correct and resubmit'),
-      navCard('Approved Today',summaryValue(approvedToday.length),'Approved Today','Click to show approvals made today'),
-      profile?.role!=='Nurse'&&navCard('Approved Value Today',summaryValue(money(approvedTodayValue)),'Approved Today','Click to view charges making up this approved value'),
+      navCard('Approved Today',historyValue(approvedToday.length),'Approved Today','Click to show approvals made today'),
+      profile?.role!=='Nurse'&&navCard('Approved Value Today',historyValue(money(approvedTodayValue)),'Approved Today','Click to view charges making up this approved value'),
       canManageTariffs&&navCard('Charge Master','Open','master','Full item catalogue, rates and approval settings')
     );
 

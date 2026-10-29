@@ -1,3 +1,8 @@
+## 2.19.8 — 29-10-2026 — Charge notification opens the approval box quickly
+- Tapping "Open & Take Action" on a charge-raised notification (or opening Charge Approvals) no longer waits for the whole charge history to load. Pending requests and the rates needed to Approve / Return are loaded first, so the request and its Approve button appear in a moment.
+- The full history then loads in the background; until it is in, the "Charges Raised", "Today’s Entries" and "Approved Today" cards show "…". "Pending Approval" works at once.
+- Frontend only (Charge Approvals page). No Supabase change.
+
 ## 2.19.7 — 29-10-2026 — A–Z dropdowns sort by the name
 - Items and Guests are put in order by their NAME, ignoring a leading code ("CON-0001 · Adult Diapers" under A) and titles (Mr. / Mrs. / Dr. …).
 
