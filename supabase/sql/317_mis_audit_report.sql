@@ -1,4 +1,4 @@
--- ERP 2.19.11 — MIS & AUDIT REPORT (Admin / Directors) (29-10-2026). Run once in Supabase SQL Editor. Safe to run again.
+-- ERP 2.19.11 (updated 29-10-2026: Bills & Charges counts + Nursing Procedures) — MIS & AUDIT REPORT (Admin / Directors) (29-10-2026). Run once in Supabase SQL Editor. Safe to run again.
 --
 -- What: one report that AUDITS ERP entries for a period (IST dates) across three areas and gives the key numbers:
 --   • Clinical    — vitals slots not recorded, medicine doses not recorded / missed / withheld without the doctor's
@@ -114,6 +114,7 @@ begin
   k := k || public.mis_kpi('Escalations raised','', $q$select count(*) from public.clinical_alert_escalations e where (e.created_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'to Manager / Admin');
   k := k || public.mis_kpi('Incidents reported','', $q$select count(*) from public.incidents i where (i.incident_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to);
   k := k || public.mis_kpi('Falls','', $q$select count(*) from public.incidents i where i.incident_type='Fall' and (i.incident_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to);
+  k := k || public.mis_kpi('Nursing procedures done','', $q$select count(*) from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id where not coalesce(p.is_trial,false) and r.status='Started' and coalesce(r.category,'Nursing Procedures')<>'Biomedical Equipment' and (r.started_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'confirmed & started');
   k := k || public.mis_kpi('Physiotherapy sessions done','', $q$select count(*) from public.physiotherapy_sessions s join public.patients p on p.id=s.patient_id where not coalesce(p.is_trial,false) and s.status='Completed' and s.session_date between $1 and $2$q$, p_from, p_to);
 
   -- Audit checks
@@ -245,6 +246,24 @@ begin
           and n.cnt < public.nursing_notes_needed(sh.patient_id, sh.ss)$q$,
     p_from, p_to);
 
+  c := c || public.mis_check('np_waiting_approval','Nursing procedure requests waiting for approval over 1 hour','medium','Approval Requests',
+    'Requested by the nurse, not yet approved or declined by the Nursing Manager / Admin.',
+    $q$select r.requested_at as sort_at, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              concat_ws(' · ', r.procedure_code, r.procedure_name, 'by '||r.requested_by_name) as detail, null::numeric as amount
+         from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
+        where not coalesce(p.is_trial,false) and r.status='Requested' and r.requested_at < now() - interval '1 hour'$q$,
+    p_from, p_to);
+
+  c := c || public.mis_check('np_not_started','Approved nursing procedures not started after 24 hours','low','Approval Requests',
+    'Approved, but the nurse has not confirmed it was done (Start). If done, it is also not billed.',
+    $q$select r.decision_at as sort_at, to_char(r.decision_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              concat_ws(' · ', coalesce(r.category,'Nursing Procedures'), r.procedure_name, 'approved by '||r.decision_by_name) as detail, null::numeric as amount
+         from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
+        where not coalesce(p.is_trial,false) and r.status='Approved' and r.decision_at < now() - interval '24 hours'$q$,
+    p_from, p_to);
+
   c := c || public.mis_check('verbal_orders','Telephone / verbal doctor orders not confirmed','medium','Medicines',
     'Doctor''s verbal or telephone order still waiting for written confirmation past its due time.',
     $q$select r.reviewed_at as sort_at, to_char(r.reviewed_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
@@ -294,12 +313,17 @@ begin
   end if;
 
   -- Key numbers
-  k := k || public.mis_kpi('Charges raised','₹', $q$select coalesce(sum(t.amount),0) from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and t.transaction_type='Charge' and coalesce(t.source_date,(t.transaction_date at time zone 'Asia/Kolkata')::date) between $1 and $2$q$, p_from, p_to, 'posted to Guest bills');
+  k := k || public.mis_kpi('Charged to Guest bills','₹', $q$select coalesce(sum(t.amount),0) from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and t.transaction_type='Charge' and coalesce(t.source_date,(t.transaction_date at time zone 'Asia/Kolkata')::date) between $1 and $2$q$, p_from, p_to, 'posted to Guest bills');
   k := k || public.mis_kpi('Collected','₹', $q$select coalesce(sum(t.amount),0) from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and t.transaction_type in ('Payment','Advance') and (t.transaction_date at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'payments + advances');
   k := k || public.mis_kpi('Discounts given','₹', $q$select coalesce(sum(t.amount),0) from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and t.transaction_type='Discount' and coalesce(t.source_date,(t.transaction_date at time zone 'Asia/Kolkata')::date) between $1 and $2$q$, p_from, p_to);
   k := k || public.mis_kpi('Refunds paid','₹', $q$select coalesce(sum(t.amount),0) from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and t.transaction_type='Refund' and (t.transaction_date at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to);
   k := k || public.mis_kpi('Due from current Guests','₹', format($q$select coalesce(sum(greatest(b,0)),0) from (select t.patient_id, sum(%s) b from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and coalesce(p.is_active,true) group by 1) x$q$, bal), p_from, p_to, 'today, net of advances');
   k := k || public.mis_kpi('Advance held','₹', format($q$select coalesce(sum(greatest(-b,0)),0) from (select t.patient_id, sum(%s) b from public.billing_transactions t join public.patients p on p.id=t.patient_id where not coalesce(p.is_trial,false) and coalesce(p.is_active,true) group by 1) x$q$, bal), p_from, p_to, 'today, current Guests');
+  k := k || public.mis_kpi('Charge requests raised','', $q$select count(*) from public.bill_charge_requests b join public.patients p on p.id=b.patient_id where not coalesce(p.is_trial,false) and coalesce(b.status,'')<>'Cancelled' and (coalesce(b.raised_at,b.created_at) at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'Bills & Charges requests');
+  k := k || public.mis_kpi('Charge requests approved','', $q$select count(*) from public.bill_charge_requests b join public.patients p on p.id=b.patient_id where not coalesce(p.is_trial,false) and b.approval_status in ('Approved','Partially Approved') and (coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'decided in the period');
+  k := k || public.mis_kpi('Approved value','₹', $q$select coalesce(sum(coalesce(b.approved_amount,b.final_amount,0)),0) from public.bill_charge_requests b join public.patients p on p.id=b.patient_id where not coalesce(p.is_trial,false) and b.approval_status in ('Approved','Partially Approved') and (coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'Bills & Charges approved');
+  k := k || public.mis_kpi('Charge requests returned','', $q$select count(*) from public.bill_charge_requests b join public.patients p on p.id=b.patient_id where not coalesce(p.is_trial,false) and b.approval_status='Rejected' and (coalesce(b.decision_date,b.approved_at,b.updated_at) at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'to Nursing for correction');
+  k := k || public.mis_kpi('Nursing Procedures approved','₹', $q$select coalesce(sum(coalesce(b.approved_amount,b.final_amount,0)),0) from public.bill_charge_requests b join public.patients p on p.id=b.patient_id where not coalesce(p.is_trial,false) and b.category='Nursing Procedures' and b.approval_status in ('Approved','Partially Approved') and (coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to, 'charged to Guests');
   k := k || public.mis_kpi('Waiting with Accounts','₹', $q$select coalesce(sum(coalesce(b.requested_amount,b.estimated_amount,0)),0) from public.bill_charge_requests b join public.patients p on p.id=b.patient_id where not coalesce(p.is_trial,false) and coalesce(b.approval_status,'Pending')='Pending' and coalesce(b.status,'Raised') not in ('Posted','Rejected','Cancelled','Recorded') and b.billing_transaction_id is null$q$, p_from, p_to, 'charges pending approval now');
   k := k || public.mis_kpi('Expenses recorded','₹', $q$select coalesce(sum(e.amount),0) from public.samara_monthly_expenses e where e.voided_at is null and e.expense_date between $1 and $2 and e.head !~* 'facility development'$q$, p_from, p_to, 'excl. Facility Development');
 
@@ -365,6 +389,17 @@ begin
         where not coalesce(p.is_trial,false) and s.status='Completed' and s.charge_request_id is null
           and s.session_date between $1 and $2
           and coalesce(s.session_at, s.session_date::timestamp at time zone 'Asia/Kolkata') < now() - interval '24 hours'$q$,
+    p_from, p_to);
+
+  c := c || public.mis_check('np_started_not_charged','Nursing procedures done but no charge raised','high','Approval Requests',
+    'The nurse confirmed and started the procedure, but no Bills & Charges request exists for it — not billed.',
+    $q$select r.started_at as sort_at, to_char(r.started_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              concat_ws(' · ', r.procedure_code, r.procedure_name, 'started by '||r.started_by_name) as detail, null::numeric as amount
+         from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
+        where not coalesce(p.is_trial,false) and r.status='Started' and r.charge_request_id is null
+          and coalesce(r.category,'Nursing Procedures') <> 'Biomedical Equipment'
+          and (r.started_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
     p_from, p_to);
 
   c := c || public.mis_check('physio_rate_changes','Guest physiotherapy rate set or changed','medium','Physiotherapist Accounts',
