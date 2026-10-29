@@ -651,18 +651,18 @@ begin
 
   c := c || public.mis_check('whatsapp_failed','Food-vendor WhatsApp messages that failed','medium','Food & Diet',
     'Order / modification messages Meta could not deliver.',
-    $q$select m.created_at as sort_at, to_char(m.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select m.updated_at as sort_at, to_char(m.updated_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
               coalesce(m.kind,'message') as who, coalesce(left(m.error,100),'Failed') as detail, null::numeric as amount
          from public.fv_messages m
-        where m.status='Failed' and (m.created_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
+        where m.status='Failed' and (m.updated_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
     p_from, p_to);
 
   c := c || public.mis_check('app_errors','App errors seen by staff','low','System Health',
-    'Errors the ERP recorded on staff screens, grouped by message.',
-    $q$select max(e.created_at) as sort_at, count(*)||'×' as date, coalesce(e.page,'—') as who, left(e.message,120) as detail, null::numeric as amount
+    'Errors the ERP recorded on staff screens — each line is one kind of error, with how many times it happened.',
+    $q$select max(e.created_at) as sort_at, count(*)||'×' as date, coalesce(e.page,'—') as who, min(left(e.message,120)) as detail, null::numeric as amount
          from public.client_errors e
         where (e.created_at at time zone 'Asia/Kolkata')::date between $1 and $2
-        group by e.page, left(e.message,120)$q$,
+        group by e.page, left(regexp_replace(coalesce(e.message,''),'[0-9a-f]{8}-[0-9a-f-]{27}|[0-9]+','#','gi'),80)$q$,
     p_from, p_to);
 
   return jsonb_build_object('key','operational','title','Operational','subtitle','Beds, stores, equipment, staff roster, discharges, enquiries, food, system',
