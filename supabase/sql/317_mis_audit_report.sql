@@ -1,4 +1,4 @@
--- ERP 2.19.11 (updated 29-10-2026: Bills & Charges counts + Nursing Procedures) — MIS & AUDIT REPORT (Admin / Directors) (29-10-2026). Run once in Supabase SQL Editor. Safe to run again.
+-- ERP 2.19.11 (updated 29-10-2026: Bills & Charges counts, Nursing Procedures, Discrepancies & Deviations analysis) — MIS & AUDIT REPORT (Admin / Directors) (29-10-2026). Run once in Supabase SQL Editor. Safe to run again.
 --
 -- What: one report that AUDITS ERP entries for a period (IST dates) across three areas and gives the key numbers:
 --   • Clinical    — vitals slots not recorded, medicine doses not recorded / missed / withheld without the doctor's
@@ -705,6 +705,230 @@ begin
 end $f$;
 revoke all on function public.mis_section_operational(date,date) from public, anon, authenticated;
 
+-- ═════════════════════════════════ DISCREPANCIES & DEVIATIONS (analysis) ═════════════════════════════════
+-- Entries compared with each other and with what should be true: repeated charges close together, charges with no
+-- matching clinical record, rates different from Charge Master, unusual quantities, charges outside the stay, readings
+-- that are impossible or copied, entries made in a batch, doses given early or twice, receipts entered twice.
+create or replace function public.mis_section_analysis(p_from date, p_to date)
+returns jsonb language plpgsql security definer set search_path=public,pg_temp as $f$
+declare k jsonb := '[]'; c jsonb := '[]';
+  -- every live charge request (not returned / cancelled) with one "service time" and one item key
+  ch constant text := $q$
+    select b.*, coalesce(b.service_datetime, b.raised_at, b.created_at) as svc_at,
+           coalesce(nullif(b.charge_item_code,''), b.store_item_id::text, lower(trim(coalesce(b.service_name,b.description)))) as item_key,
+           coalesce(b.service_name,b.description,'Charge') as item_name,
+           concat_ws(' ', nullif(p.title,''), p.full_name) as guest
+      from public.bill_charge_requests b join public.patients p on p.id=b.patient_id
+     where not coalesce(p.is_trial,false) and coalesce(b.approval_status,'Pending') <> 'Rejected'
+       and coalesce(b.status,'') not in ('Cancelled') $q$;
+  -- blood-sugar type charges
+  sugar constant text := $q$ (item_name ~* '(blood\s*sugar|glucose\s*monitor|grbs|cbg|rbs|glucometer)') $q$;
+begin
+  k := k || public.mis_kpi('Charges analysed','', format($q$with x as (%s) select count(*) from x where (x.svc_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch), p_from, p_to);
+  k := k || public.mis_kpi('Vitals readings analysed','', $q$select count(*) from public.vital_signs v where (v.recorded_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to);
+  k := k || public.mis_kpi('Medicine entries analysed','', $q$select count(*) from public.medication_administrations a where a.scheduled_date between $1 and $2$q$, p_from, p_to);
+  k := k || public.mis_kpi('Blood sugar readings','', $q$select count(*) from public.vital_signs v where v.blood_sugar is not null and v.blood_sugar::text not in ('','0') and (v.recorded_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, p_from, p_to);
+  k := k || public.mis_kpi('Blood sugar charges','', format($q$with x as (%s) select coalesce(sum(coalesce(x.quantity,1)),0) from x where %s and (x.svc_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch, sugar), p_from, p_to);
+
+  -- 1. the same item charged again for the same Guest within 2 hours (e.g. Blood Sugar Monitoring twice in 15 minutes)
+  c := c || public.mis_check('repeat_charge_2h','Same item charged again for the same Guest within 2 hours','high','Charge Approvals',
+    'Each line is a charge raised shortly after an earlier charge of the same item for the same Guest — check whether the service was really given twice.',
+    format($q$with x as (%s), y as (
+         select x.*, lag(x.svc_at) over w as prev_at, lag(x.raised_by_name) over w as prev_by, lag(x.id) over w as prev_id
+           from x window w as (partition by x.patient_id, x.item_key order by x.svc_at, x.created_at))
+       select y.svc_at as sort_at, to_char(y.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, y.guest as who,
+              y.item_name||' — again '||greatest(0,round(extract(epoch from (y.svc_at-y.prev_at))/60))::int||' min after the previous charge'
+                ||' (by '||coalesce(y.raised_by_name,'?')||coalesce(', earlier by '||y.prev_by,'')||') · '||coalesce(y.approval_status,'Pending') as detail,
+              coalesce(y.approved_amount,y.final_amount,y.requested_amount,y.estimated_amount) as amount
+         from y
+        where y.prev_at is not null and y.svc_at - y.prev_at < interval '2 hours'
+          and (y.svc_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch),
+    p_from, p_to);
+
+  -- 2. more blood-sugar charges than blood-sugar readings recorded for the Guest that day
+  c := c || public.mis_check('sugar_charge_vs_reading','Blood sugar charged more times than it was recorded','high','Vital Signs',
+    'Per Guest per day: blood-sugar charges compared with blood-sugar readings entered in Vital Signs.',
+    format($q$with x as (%s), cg as (
+         select x.patient_id, x.guest, (x.svc_at at time zone 'Asia/Kolkata')::date as d, sum(coalesce(x.quantity,1)) as n, sum(coalesce(x.approved_amount,x.final_amount,x.requested_amount,0)) as amt
+           from x where %s and (x.svc_at at time zone 'Asia/Kolkata')::date between $1 and $2 group by 1,2,3),
+       rd as (
+         select v.patient_id, (v.recorded_at at time zone 'Asia/Kolkata')::date as d, count(*) as n
+           from public.vital_signs v where v.blood_sugar is not null and v.blood_sugar::text not in ('','0')
+            and (v.recorded_at at time zone 'Asia/Kolkata')::date between $1 and $2 group by 1,2)
+       select (cg.d::timestamp at time zone 'Asia/Kolkata') as sort_at, to_char(cg.d,'DD-MM-YYYY') as date, cg.guest as who,
+              cg.n||' charged · '||coalesce(rd.n,0)||' reading(s) recorded' as detail, cg.amt as amount
+         from cg left join rd on rd.patient_id=cg.patient_id and rd.d=cg.d
+        where cg.n > coalesce(rd.n,0)$q$, ch, sugar),
+    p_from, p_to);
+
+  -- 3. approved price per unit differs from the Charge Master rate (service items; stores, physio, outside bills excluded)
+  c := c || public.mis_check('rate_deviation','Approved price different from the Charge Master rate','medium','Charge Approvals',
+    'Approved amount ÷ quantity is not the fixed Charge Master rate for that item.',
+    $q$select coalesce(b.decision_date,b.approved_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              coalesce(b.service_name,b.description)||' · rate ₹'||t.amount||' × '||coalesce(b.quantity,1)||' = ₹'||(t.amount*coalesce(b.quantity,1))
+                ||', approved ₹'||coalesce(b.approved_amount,b.final_amount)||' by '||coalesce(b.decision_by_name,'?') as detail,
+              coalesce(b.approved_amount,b.final_amount) - t.amount*coalesce(b.quantity,1) as amount
+         from public.bill_charge_requests b join public.patients p on p.id=b.patient_id
+         join public.charge_tariff_master t on t.charge_code=b.charge_item_code and t.amount is not null
+        where not coalesce(p.is_trial,false) and b.approval_status in ('Approved','Partially Approved')
+          and b.physiotherapy_session_id is null and b.outside_paid_by is null and not coalesce(b.bill_available,false)
+          and b.category not in ('Consumables','Pharmacy','Pharmacy & Basic Supplies')
+          and abs(coalesce(b.approved_amount,b.final_amount) - t.amount*coalesce(b.quantity,1)) >= 1
+          and (coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
+    p_from, p_to);
+
+  -- 4. quantity far above what is normal for that item
+  c := c || public.mis_check('unusual_quantity','Unusually large quantity charged','medium','Charge Approvals',
+    'Quantity is more than 3 times the usual quantity for that item (last 90 days).',
+    format($q$with x as (%s), norm as (
+         select item_key, percentile_cont(0.5) within group (order by coalesce(quantity,1)) as med, count(*) as n
+           from x where x.svc_at > now() - interval '90 days' group by 1)
+       select x.svc_at as sort_at, to_char(x.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, x.guest as who,
+              x.item_name||' · qty '||x.quantity||' (usual '||round(norm.med::numeric,1)||') · by '||coalesce(x.raised_by_name,'?') as detail,
+              coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
+         from x join norm on norm.item_key=x.item_key
+        where norm.n >= 5 and coalesce(x.quantity,1) > greatest(2, 3*norm.med)
+          and (x.svc_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch),
+    p_from, p_to);
+
+  -- 5. charged for a day the Guest was not with Samara
+  c := c || public.mis_check('charge_outside_stay','Charge dated before admission or after departure','high','Patient Ledger',
+    'The service date is outside the Guest''s stay.',
+    format($q$with x as (%s)
+       select x.svc_at as sort_at, to_char(x.charge_date,'DD-MM-YYYY') as date, x.guest as who,
+              x.item_name||' · admitted '||to_char(p.admission_date,'DD-MM-YYYY')||coalesce(' · left '||to_char(coalesce(public.discharge_billing_cutoff(p.id),p.discharge_date::date),'DD-MM-YYYY'),'') as detail,
+              coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
+         from x join public.patients p on p.id=x.patient_id
+        where x.charge_date between $1 and $2
+          and (x.charge_date < p.admission_date::date
+               or (not coalesce(p.is_active,true) and x.charge_date > coalesce(public.discharge_billing_cutoff(p.id),p.discharge_date::date)))$q$, ch),
+    p_from, p_to);
+
+  -- 6. charge raised long after, or before, the service
+  c := c || public.mis_check('late_billing','Charges raised more than 48 hours after the service','low','Charge Approvals',
+    'Late billing — risk of missed charges.',
+    format($q$with x as (%s)
+       select x.raised_at as sort_at, to_char(x.service_datetime at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, x.guest as who,
+              x.item_name||' · raised '||to_char(x.raised_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')||' by '||coalesce(x.raised_by_name,'?') as detail,
+              coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
+         from x where x.service_datetime is not null and x.raised_at - x.service_datetime > interval '48 hours'
+          and (x.raised_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch),
+    p_from, p_to);
+  c := c || public.mis_check('charged_before_service','Charges raised before the service time','medium','Charge Approvals',
+    'The service time is more than an hour after the charge was raised — charged before it was done.',
+    format($q$with x as (%s)
+       select x.raised_at as sort_at, to_char(x.service_datetime at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, x.guest as who,
+              x.item_name||' · raised at '||to_char(x.raised_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')||' by '||coalesce(x.raised_by_name,'?') as detail,
+              coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
+         from x where x.service_datetime is not null and x.service_datetime - x.raised_at > interval '1 hour'
+          and (x.raised_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch),
+    p_from, p_to);
+
+  -- 7. vitals readings that cannot be right (typing errors)
+  c := c || public.mis_check('vitals_implausible','Vitals readings that look like typing errors','medium','Vital Signs',
+    'Outside what is humanly possible — e.g. temperature 9.8, SpO₂ above 100, BP 1200, sugar 9.',
+    $q$select v.recorded_at as sort_at, to_char(v.recorded_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              concat_ws(' · ',
+                case when t.c is not null and (t.c<33 or t.c>43) then 'Temp '||v.temperature end,
+                case when nullif(v.spo2::text,'')::numeric not between 50 and 100 and nullif(v.spo2::text,'')::numeric<>0 then 'SpO₂ '||v.spo2 end,
+                case when nullif(v.pulse::text,'')::numeric not between 25 and 220 and nullif(v.pulse::text,'')::numeric<>0 then 'Pulse '||v.pulse end,
+                case when nullif(v.systolic::text,'')::numeric not between 50 and 260 and nullif(v.systolic::text,'')::numeric<>0 then 'Systolic '||v.systolic end,
+                case when nullif(v.diastolic::text,'')::numeric not between 25 and 160 and nullif(v.diastolic::text,'')::numeric<>0 then 'Diastolic '||v.diastolic end,
+                case when nullif(v.diastolic::text,'')::numeric >= nullif(v.systolic::text,'')::numeric then 'Diastolic ≥ systolic' end,
+                case when nullif(v.respiration::text,'')::numeric not between 5 and 60 and nullif(v.respiration::text,'')::numeric<>0 then 'Resp '||v.respiration end,
+                case when nullif(v.blood_sugar::text,'')::numeric not between 20 and 600 and nullif(v.blood_sugar::text,'')::numeric<>0 then 'Sugar '||v.blood_sugar end) as detail,
+              null::numeric as amount
+         from public.vital_signs v join public.patients p on p.id=v.patient_id
+         cross join lateral (select case when nullif(v.temperature::text,'')::numeric between 70 and 115 then (nullif(v.temperature::text,'')::numeric-32)*5/9
+                                         when nullif(v.temperature::text,'')::numeric = 0 then null
+                                         else nullif(v.temperature::text,'')::numeric end as c) t
+        where not coalesce(p.is_trial,false) and (v.recorded_at at time zone 'Asia/Kolkata')::date between $1 and $2
+          and ((t.c is not null and (t.c<33 or t.c>43))
+            or (nullif(v.spo2::text,'')::numeric not between 50 and 100 and nullif(v.spo2::text,'')::numeric<>0)
+            or (nullif(v.pulse::text,'')::numeric not between 25 and 220 and nullif(v.pulse::text,'')::numeric<>0)
+            or (nullif(v.systolic::text,'')::numeric not between 50 and 260 and nullif(v.systolic::text,'')::numeric<>0)
+            or (nullif(v.diastolic::text,'')::numeric not between 25 and 160 and nullif(v.diastolic::text,'')::numeric<>0)
+            or nullif(v.diastolic::text,'')::numeric >= nullif(v.systolic::text,'')::numeric
+            or (nullif(v.respiration::text,'')::numeric not between 5 and 60 and nullif(v.respiration::text,'')::numeric<>0)
+            or (nullif(v.blood_sugar::text,'')::numeric not between 20 and 600 and nullif(v.blood_sugar::text,'')::numeric<>0))$q$,
+    p_from, p_to);
+
+  -- 8. a vitals reading exactly the same as the Guest's previous one (copied, not measured?)
+  c := c || public.mis_check('vitals_copied','Vitals exactly the same as the previous reading','medium','Vital Signs',
+    'Temperature, BP, pulse and SpO₂ all identical to the Guest''s previous reading — check they were really measured.',
+    $q$with v as (
+         select v.*, lag(row(v.temperature,v.systolic,v.diastolic,v.pulse,v.spo2)::text) over (partition by v.patient_id order by v.recorded_at) as prev_set,
+                row(v.temperature,v.systolic,v.diastolic,v.pulse,v.spo2)::text as this_set,
+                lag(v.recorded_at) over (partition by v.patient_id order by v.recorded_at) as prev_at
+           from public.vital_signs v where v.recorded_at >= ($1::timestamp at time zone 'Asia/Kolkata') - interval '2 days')
+       select v.recorded_at as sort_at, to_char(v.recorded_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              'Same as reading at '||to_char(v.prev_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')||' · T '||coalesce(v.temperature::text,'-')||' BP '||coalesce(v.systolic::text,'-')||'/'||coalesce(v.diastolic::text,'-')||' P '||coalesce(v.pulse::text,'-')||' SpO₂ '||coalesce(v.spo2::text,'-')||coalesce(' · by '||pr.full_name,'') as detail,
+              null::numeric as amount
+         from v join public.patients p on p.id=v.patient_id left join public.profiles pr on pr.id=v.recorded_by or pr.auth_user_id=v.recorded_by
+        where not coalesce(p.is_trial,false) and v.prev_set = v.this_set
+          and num_nonnulls(v.temperature,v.systolic,v.diastolic,v.pulse,v.spo2) >= 4
+          and (v.recorded_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
+    p_from, p_to);
+
+  -- 9. one staff member entering vitals for many Guests within 10 minutes (entered later from paper, not at the bedside?)
+  c := c || public.mis_check('vitals_batch_entry','Vitals for many Guests entered within 10 minutes by one staff member','low','Vital Signs',
+    '6 or more Guests'' vitals saved by the same person inside 10 minutes — usually entered later, not at the bedside.',
+    $q$select min(v.recorded_at) as sort_at, to_char(min(v.recorded_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              coalesce(pr.full_name,'Staff') as who, count(distinct v.patient_id)||' Guests in '||greatest(1,round(extract(epoch from max(v.recorded_at)-min(v.recorded_at))/60))::int||' min' as detail,
+              null::numeric as amount
+         from public.vital_signs v left join public.profiles pr on pr.id=v.recorded_by or pr.auth_user_id=v.recorded_by
+        where (v.recorded_at at time zone 'Asia/Kolkata')::date between $1 and $2 and v.recorded_by is not null
+        group by v.recorded_by, pr.full_name, floor(extract(epoch from v.recorded_at)/600)
+       having count(distinct v.patient_id) >= 6$q$,
+    p_from, p_to);
+
+  -- 10. medicines: given far too early, or the same dose given twice
+  c := c || public.mis_check('dose_given_early','Medicines given more than 1 hour before the scheduled time','medium','Medicines',
+    'Given well before its time — check the timing or whether the right dose was recorded.',
+    $q$select a.administered_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              coalesce(mo.medicine_name,'Medicine')||' · given at '||to_char(a.administered_at at time zone 'Asia/Kolkata','HH12:MI AM') as detail, null::numeric as amount
+         from public.medication_administrations a join public.patients p on p.id=a.patient_id
+         left join public.medication_orders mo on mo.id=a.order_id
+        where not coalesce(p.is_trial,false) and a.status='Given' and a.scheduled_date between $1 and $2
+          and a.administered_at < ((a.scheduled_date + coalesce(a.rescheduled_time, a.scheduled_time::time)) at time zone 'Asia/Kolkata') - interval '60 minutes'$q$,
+    p_from, p_to);
+  c := c || public.mis_check('dose_given_twice','Same dose recorded as Given twice','high','Medicines',
+    'Two Given entries for the same medicine, date and time — possible double dose or double entry.',
+    $q$select max(a.administered_at) as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              coalesce(max(mo.medicine_name),'Medicine')||' · '||count(*)||' Given entries' as detail, null::numeric as amount
+         from public.medication_administrations a join public.patients p on p.id=a.patient_id
+         left join public.medication_orders mo on mo.id=a.order_id
+        where not coalesce(p.is_trial,false) and a.status='Given' and a.scheduled_date between $1 and $2
+        group by a.order_id, a.scheduled_date, a.scheduled_time, p.title, p.full_name having count(*) > 1$q$,
+    p_from, p_to);
+
+  -- 11. the same payment entered twice
+  c := c || public.mis_check('duplicate_receipts','Same payment amount entered twice for a Guest within 24 hours','high','Payments',
+    'Two receipts of the same amount for the same Guest close together — possible double entry.',
+    $q$with t as (
+         select t.*, lag(t.transaction_date) over w as prev_at, lag(t.payment_mode) over w as prev_mode
+           from public.billing_transactions t
+          where t.transaction_type in ('Payment','Advance') and t.transaction_date > ($1::timestamp at time zone 'Asia/Kolkata') - interval '1 day'
+         window w as (partition by t.patient_id, t.amount order by t.transaction_date))
+       select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+              concat_ws(' ', nullif(p.title,''), p.full_name) as who,
+              t.payment_mode||' · same amount '||round(extract(epoch from t.transaction_date-t.prev_at)/3600,1)||' h after a '||coalesce(t.prev_mode,'')||' receipt' as detail, t.amount as amount
+         from t join public.patients p on p.id=t.patient_id
+        where not coalesce(p.is_trial,false) and t.prev_at is not null and t.transaction_date - t.prev_at < interval '24 hours'
+          and (t.transaction_date at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
+    p_from, p_to);
+
+  return jsonb_build_object('key','analysis','title','Discrepancies & Deviations',
+    'subtitle','Entries cross-checked against each other — repeated charges, charges without a matching record, wrong rates, impossible or copied readings, double doses, double receipts',
+    'kpis',k,'checks',c);
+end $f$;
+revoke all on function public.mis_section_analysis(date,date) from public, anon, authenticated;
+
 -- ═════════════════════════════════════════ REPORT ═════════════════════════════════════════
 create or replace function public.mis_audit_report_core(p_from date, p_to date)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $f$
@@ -712,7 +936,8 @@ begin
   if p_from is null or p_to is null or p_from > p_to then raise exception 'Choose a valid period'; end if;
   if p_to - p_from > 92 then raise exception 'Choose a period of up to 3 months'; end if;
   return jsonb_build_object('from',p_from,'to',p_to,'generated_at',now(),
-    'sections', jsonb_build_array(public.mis_section_clinical(p_from,p_to),
+    'sections', jsonb_build_array(public.mis_section_analysis(p_from,p_to),
+                                  public.mis_section_clinical(p_from,p_to),
                                   public.mis_section_financial(p_from,p_to),
                                   public.mis_section_operational(p_from,p_to)));
 end $f$;

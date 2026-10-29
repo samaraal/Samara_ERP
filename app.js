@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.13';
+  const APP_VERSION = '2.19.14';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -54009,6 +54009,8 @@ function AuditTrail(){
     'Due from current Guests':'Accounts Dashboard','Advance held':'Accounts Dashboard','Charge requests raised':'Charge Approvals',
     'Charge requests approved':'Charge Approvals','Approved value':'Charge Approvals','Charge requests returned':'Charge Approvals',
     'Nursing Procedures approved':'Charge Approvals','Waiting with Accounts':'Charge Approvals','Expenses recorded':'Monthly Expenses',
+    'Charges analysed':'Charge Approvals','Vitals readings analysed':'Vital Signs','Medicine entries analysed':'Medicines',
+    'Blood sugar readings':'Vital Signs','Blood sugar charges':'Charge Approvals',
     'Beds':'Rooms','Occupancy now':'Rooms','Average occupancy':'Rooms','Admissions':'Admission Register','Discharges':'Discharge',
     'New enquiries':'Enquiry Register','Active staff':'Employees','Stock items out of stock':'Stock Report','App errors seen by staff':'System Health'
   };
@@ -54116,7 +54118,7 @@ function AuditTrail(){
     const passed=current?(current.checks||[]).filter(c=>misCheckSeverity(c)==='ok'):[];
 
     return h('div',{className:'mis-wrap'},
-      h(Section,{title:'MIS & Audit',subtitle:`Admin / Directors only · audit of ERP entries — Clinical, Financial, Operational · ${periodName}`,
+      h(Section,{title:'MIS & Audit',subtitle:`Admin / Directors only · audit of ERP entries — discrepancies & deviations, Clinical, Financial, Operational · ${periodName}`,
         actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy||rangeBad,onClick:load},busy?'Checking…':'Re-check'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:!data,onClick:printReport},'Print / PDF'))},

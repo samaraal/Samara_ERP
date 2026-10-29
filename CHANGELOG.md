@@ -1,3 +1,8 @@
+## 2.19.14 — 29-10-2026 — MIS & Audit: Discrepancies & Deviations analysis
+- New first tab "Discrepancies & Deviations": entries cross-checked against each other, not just counted —
+  the same item charged again for the same Guest within 2 hours (e.g. Blood Sugar Monitoring twice in 15 minutes); blood sugar charged more times than readings recorded; approved price different from the Charge Master rate; unusually large quantities; charges dated outside the Guest's stay; charges raised 48+ hours late or before the service; impossible vitals (typing errors); vitals identical to the previous reading (copied?); many Guests' vitals entered within 10 minutes by one person; medicines given over an hour early or recorded as Given twice; the same payment entered twice within 24 hours.
+- Supabase: re-run SQL 317 (updated).
+
 ## 2.19.13 — 29-10-2026 — Clinical Escalations page fixed
 - The Clinical Escalations page showed "This page had a problem" on opening. A leftover piece of code copied from Patient Consumables referred to something that does not exist on this page; it is removed. Nothing else changed.
 
