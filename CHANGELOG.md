@@ -1,3 +1,10 @@
+## 2.19.12 — 29-10-2026 — MIS & Audit: every box opens its list / page; Bills & Charges and Nursing Procedures
+- Tap High / Medium / Low / Checks passed → that list across all areas (Clinical, Financial, Operational together); "Show by area" goes back.
+- Tap any key-number box → opens the page behind it (e.g. Collected → Payments, Escalations raised → Clinical Escalations, Out of stock → Stock Report).
+- Financial key numbers now also show Charge requests raised / approved / returned, Approved value and Nursing Procedures approved (₹). "Charges raised" is renamed "Charged to Guest bills".
+- New checks: Nursing procedure requests waiting for approval over 1 hour; approved but not started after 24 hours; done (started) but no charge raised. Nursing procedures done is a new clinical key number.
+- Supabase: re-run SQL 317 (updated).
+
 ## 2.19.11 — 29-10-2026 — MIS & Audit (Admin / Directors)
 - New page OVERVIEW → MIS & Audit: audits ERP entries for a period (Today / Yesterday / This Week / Month / Period) across Clinical, Financial and Operational — 50 checks, problems first (High / Medium / Low, tap to see each entry, button to open the page to fix it), then the key numbers. Print / PDF.
 - Clinical: vitals slots not recorded, medicine doses with no entry / missed / refused / withheld without the doctor's instruction / given late, late MAR entries, open escalations, incidents & falls, medication errors, nursing notes short, verbal orders not confirmed, physiotherapy not done, lab reports overdue.

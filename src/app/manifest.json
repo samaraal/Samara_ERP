@@ -585,7 +585,7 @@
   {
    "file": "reports/mis-audit.js",
    "about": "MIS & Audit report (Admin / Directors): clinical, financial, operational audit + KPIs",
-   "lines": 185
+   "lines": 221
   },
   {
    "file": "z-end/01-form-helpers-and-start-app.js",

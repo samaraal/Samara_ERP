@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.11';
+  const APP_VERSION = '2.19.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -53955,7 +53955,11 @@ function AuditTrail(){
       .mis-chips button{border:1.5px solid #e9a9c4;background:#fff;color:#8a1c52;border-radius:999px;padding:7px 14px;font-weight:800;cursor:pointer;font-size:14px}
       .mis-chips button[aria-pressed="true"]{background:linear-gradient(135deg,#a80d4f,#d6338a);color:#fff;border-color:transparent}
       .mis-health{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-      .mis-health .mis-hcard{border-radius:16px;padding:12px 14px;border:1.5px solid;min-width:0}
+      .mis-health .mis-hcard{border-radius:16px;padding:12px 14px;border:1.5px solid;min-width:0;text-align:left;cursor:pointer;font:inherit;transition:transform .12s,box-shadow .12s}
+      .mis-health .mis-hcard:hover{transform:translateY(-1px)}
+      button.mis-kpi{text-align:left;cursor:pointer;font:inherit;color:inherit;transition:transform .12s,box-shadow .12s}
+      button.mis-kpi:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(166,16,78,.12);border-color:#d98bb0}
+      .mis-kpi-go{display:block;margin-top:4px;font-size:11.5px;font-weight:800;color:#a80d4f;opacity:.75}
       .mis-health strong{display:block;font-size:26px;line-height:1.1}
       .mis-health span{font-size:13px;font-weight:800}
       .mis-tabs{display:flex;flex-wrap:wrap;gap:8px;border-bottom:2px solid #f0d2df;padding-bottom:8px}
@@ -54000,6 +54004,18 @@ function AuditTrail(){
     if(k.unit==='%')return Number(k.value).toLocaleString('en-IN',{maximumFractionDigits:1})+'%';
     return Number(k.value).toLocaleString('en-IN',{maximumFractionDigits:1})+(k.unit?` ${k.unit}`:'');
   }
+  // 2.19.12: every key-number box opens the page behind that number
+  const MIS_KPI_PAGE={
+    'Guests now':'Patients','Guest-days':'Patients','Vitals recorded on time':'Vital Signs','Medicine doses recorded':'Medicines',
+    'Critical vitals readings':'Vital Signs','Escalations raised':'Clinical Escalations','Incidents reported':'Incidents','Falls':'Incidents',
+    'Nursing procedures done':'Approval Requests','Physiotherapy sessions done':'Physiotherapy Dashboard',
+    'Charged to Guest bills':'Patient Ledger','Collected':'Payments','Discounts given':'Patient Ledger','Refunds paid':'Refunds',
+    'Due from current Guests':'Accounts Dashboard','Advance held':'Accounts Dashboard','Charge requests raised':'Charge Approvals',
+    'Charge requests approved':'Charge Approvals','Approved value':'Charge Approvals','Charge requests returned':'Charge Approvals',
+    'Nursing Procedures approved':'Charge Approvals','Waiting with Accounts':'Charge Approvals','Expenses recorded':'Monthly Expenses',
+    'Beds':'Rooms','Occupancy now':'Rooms','Average occupancy':'Rooms','Admissions':'Admission Register','Discharges':'Discharge',
+    'New enquiries':'Enquiry Register','Active staff':'Employees','Stock items out of stock':'Stock Report','App errors seen by staff':'System Health'
+  };
   function misCheckSeverity(c){return c.error?'error':(Number(c.count||0)>0?(c.severity||'medium'):'ok')}
 
   function MisAudit({profile,onNavigate}){
@@ -54021,6 +54037,14 @@ function AuditTrail(){
     const [data,setData]=React.useState(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
     const [tab,setTab]=React.useState('');
     const [open,setOpen]=React.useState({});
+    const [sevFilter,setSevFilter]=React.useState(''); // 2.19.12: tap a High / Medium / Low / Passed box → that list, all areas
+    // open a page this login may open; pages kept for nurses (Vital Signs, Medicines …) fall back to the Clinical Dashboard
+    const go=page=>{
+      if(!onNavigate||!page)return;
+      let target=page;
+      try{if(typeof allowedPagesForProfile==='function'){const ok=allowedPagesForProfile(profile)||[];if(ok.length&&!ok.includes(page))target=ok.includes('Clinical Dashboard')&&/Vital|Medicine|Nursing Notes/.test(page)?'Clinical Dashboard':(ok.includes(page)?page:null)}}catch(_e){}
+      if(target)onNavigate(target);
+    };
     React.useEffect(()=>{misEnsureStyle()},[]);
     async function load(){
       if(!isAdmin||rangeBad)return;
@@ -54073,12 +54097,12 @@ function AuditTrail(){
     );
 
     const checkCard=(c,i)=>{
-      const sev=misCheckSeverity(c),S=MIS_SEVERITY[sev];const id=`${current?.key}-${c.key||i}`;const isOpen=!!open[id];
+      const sev=misCheckSeverity(c),S=MIS_SEVERITY[sev];const id=`${c.sectionKey||current?.key}-${c.key||i}`;const isOpen=!!open[id];
       const rows=c.rows||[];
       return h('div',{key:id,className:'mis-check',style:{borderColor:sev==='high'?'#f3b5bf':undefined}},
         h('button',{type:'button',className:'mis-check-head','aria-expanded':isOpen,onClick:()=>setOpen(o=>({...o,[id]:!o[id]}))},
           h('span',{className:'mis-sev',style:{background:S.bg,color:S.fg,borderColor:S.bd}},S.label),
-          h('span',{className:'mis-check-title'},h('b',null,c.title),h('small',null,c.error?'This check could not run: '+c.error:(c.detail||''))),
+          h('span',{className:'mis-check-title'},h('b',null,sevFilter&&c.section?`${c.section} · ${c.title}`:c.title),h('small',null,c.error?'This check could not run: '+c.error:(c.detail||''))),
           !c.error&&h('span',{className:'mis-count'},c.amount!==null&&c.amount!==undefined&&Number(c.amount)?`${c.count} · ${misMoney(c.amount)}`:String(c.count))),
         isOpen&&h('div',{className:'mis-rows'},
           rows.length?h(React.Fragment,null,
@@ -54086,10 +54110,12 @@ function AuditTrail(){
             rows.map((r,j)=>h('div',{key:j,className:'mis-row'},h('span',null,r.date||'—'),h('span',null,r.who||'—'),h('span',null,r.detail||''),h('span',{className:'mis-amt'},misMoney(r.amount)))),
             Number(c.count)>rows.length&&h('p',{className:'small-note'},`Showing ${rows.length} of ${c.count}. Open the page for the full list.`)
           ):h('p',{className:'small-note'},'No item list for this check.'),
-          c.page&&onNavigate&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>onNavigate(c.page)},`Open ${c.page}`))
+          c.page&&onNavigate&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>go(c.page)},`Open ${c.page}`))
       );
     };
 
+    const allTagged=sections.flatMap(s=>(s.checks||[]).map(c=>({...c,section:s.title,sectionKey:s.key})));
+    const filtered=sevFilter?allTagged.filter(c=>misCheckSeverity(c)===sevFilter).sort((a,b)=>Number(b.count||0)-Number(a.count||0)):null;
     const issues=current?(current.checks||[]).filter(c=>misCheckSeverity(c)!=='ok').sort((a,b)=>MIS_SEVERITY[misCheckSeverity(a)].rank-MIS_SEVERITY[misCheckSeverity(b)].rank||Number(b.count||0)-Number(a.count||0)):[];
     const passed=current?(current.checks||[]).filter(c=>misCheckSeverity(c)==='ok'):[];
 
@@ -54103,17 +54129,27 @@ function AuditTrail(){
         error&&h('p',{className:'message error',role:'alert'},error),
         busy&&!data&&h('p',null,'Checking ERP entries…'),
         data&&h('div',{className:'mis-health',style:{marginTop:'12px'}},
-          [['high','High priority'],['medium','Medium'],['low','Low'],['ok','Checks passed']].map(([k,l])=>{const S=MIS_SEVERITY[k];return h('div',{key:k,className:'mis-hcard',style:{background:S.bg,color:S.fg,borderColor:S.bd}},h('strong',null,sevCount(k)),h('span',null,l))}),
-          sevCount('error')>0&&h('div',{className:'mis-hcard',style:{background:MIS_SEVERITY.error.bg,color:MIS_SEVERITY.error.fg,borderColor:MIS_SEVERITY.error.bd}},h('strong',null,sevCount('error')),h('span',null,'Checks not run'))
+          [['high','High priority'],['medium','Medium'],['low','Low'],['ok','Checks passed'],...(sevCount('error')>0?[['error','Checks not run']]:[])].map(([k,l])=>{const S=MIS_SEVERITY[k];const on=sevFilter===k;
+            return h('button',{key:k,type:'button',className:'mis-hcard','aria-pressed':on,title:`Show ${l.toLowerCase()} — all areas`,
+              onClick:()=>{setSevFilter(on?'':k);setTimeout(()=>{try{document.getElementById('mis-findings')?.scrollIntoView({behavior:'smooth',block:'start'})}catch(_e){}},50)},
+              style:{background:S.bg,color:S.fg,borderColor:on?S.fg:S.bd,boxShadow:on?`0 0 0 3px ${S.bd}`:'none'}},h('strong',null,sevCount(k)),h('span',null,l))})
         )),
       data&&h(Section,{title:current?.title||'',subtitle:current?.subtitle||''},
         h('div',{className:'mis-tabs',role:'tablist'},sections.map(s=>{const n=(s.checks||[]).filter(c=>['high','medium'].includes(misCheckSeverity(c))).length;
-          return h('button',{key:s.key,type:'button',role:'tab','aria-selected':current?.key===s.key,onClick:()=>setTab(s.key)},s.title,n>0&&h('span',{className:'mis-badge'},n))})),
+          return h('button',{key:s.key,type:'button',role:'tab','aria-selected':current?.key===s.key,onClick:()=>{setTab(s.key);setSevFilter('')}},s.title,n>0&&h('span',{className:'mis-badge'},n))})),
         h('h4',{style:{margin:'14px 0 8px',color:'#8a3a62'}},'Key numbers'),
-        h('div',{className:'mis-kpis'},(current?.kpis||[]).map((k,i)=>h('div',{key:i,className:'mis-kpi'},h('small',null,k.label),h('strong',null,misKpiValue(k)),k.note&&h('em',null,k.note)))),
-        h('h4',{style:{margin:'16px 0 8px',color:'#8a3a62'}},issues.length?`Audit findings (${issues.length}) — tap one to see the entries`:'Audit findings'),
-        issues.length?h('div',{style:{display:'grid',gap:'8px'}},issues.map(checkCard)):h('p',{style:{color:'#13643a',fontWeight:800}},'✓ No problems found in this area for the period.'),
-        passed.length>0&&h(React.Fragment,null,h('h4',{style:{margin:'16px 0 8px',color:'#13643a'}},`Checks passed (${passed.length})`),h('div',{className:'mis-passed'},passed.map((c,i)=>h('span',{key:i},'✓ '+c.title))))
+        h('div',{className:'mis-kpis'},(current?.kpis||[]).map((k,i)=>{const pg=MIS_KPI_PAGE[k.label];
+          return h(pg?'button':'div',{key:i,className:'mis-kpi',type:pg?'button':undefined,title:pg?`Open ${pg}`:undefined,onClick:pg?()=>go(pg):undefined},
+            h('small',null,k.label),h('strong',null,misKpiValue(k)),k.note&&h('em',null,k.note),pg&&h('span',{className:'mis-kpi-go'},`Open ${pg} →`))})),
+        filtered?h('div',{id:'mis-findings'},
+          h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap',margin:'16px 0 8px'}},
+            h('h4',{style:{margin:0,color:MIS_SEVERITY[sevFilter].fg}},`${MIS_SEVERITY[sevFilter].label==='OK'?'Checks passed':MIS_SEVERITY[sevFilter].label+(sevFilter==='error'?'':' findings')} — all areas (${filtered.length})`),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSevFilter('')},'Show by area')),
+          filtered.length?h('div',{style:{display:'grid',gap:'8px'}},filtered.map(checkCard)):h('p',null,'None.')):
+        h(React.Fragment,null,
+        h('h4',{id:'mis-findings',style:{margin:'16px 0 8px',color:'#8a3a62'}},issues.length?`Audit findings (${issues.length}) — tap one to see the entries`:'Audit findings'),
+        issues.length?h('div',{style:{display:'grid',gap:'8px'}},issues.map(checkCard)):h('p',{style:{color:'#13643a',fontWeight:800}},'✓ No problems found in this area for the period.')),
+        !filtered&&passed.length>0&&h(React.Fragment,null,h('h4',{style:{margin:'16px 0 8px',color:'#13643a'}},`Checks passed (${passed.length})`),h('div',{className:'mis-passed'},passed.map((c,i)=>h('span',{key:i},'✓ '+c.title))))
       ),
       data&&h('p',{className:'small-note'},`Checked ${formatDateTimeIN(data.generated_at||new Date())} · India time. Trial Guests are left out. The morning WhatsApp summary covers the previous day.`)
     );
