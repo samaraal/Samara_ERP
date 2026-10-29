@@ -112,8 +112,19 @@
       if(!canStart||busy)return;
       if(!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
       setBusy(true);
-      const res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
+      let res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);
+      // 2.19.17 (SQL 321): same procedure for the same Guest within 60 minutes → ask why it is done again
+      if(res.error&&/REPEAT CHECK/i.test(res.error.message||'')){
+        const ask=await samaraAsk({title:'Done again within 1 hour?',message:String(res.error.message).replace(/^.*?REPEAT CHECK:\s*/i,'')+'\n\nIf this is a genuine second check (e.g. low sugar re-checked), write why. Otherwise press Cancel — it will not be charged twice.',
+          fields:[{key:'reason',label:'Reason for doing it again',required:true,placeholder:'e.g. Sugar 62 mg/dL — re-checked after glucose as per protocol'}],okLabel:'Yes, start again'});
+        if(!ask)return showSamaraActionToast('error','Not started','Not started — it was already done for this Guest within the last hour.');
+        setBusy(true);
+        const rr=await client.rpc('set_procedure_repeat_reason',{p_request_id:row.id,p_reason:ask.reason});
+        if(rr.error){setBusy(false);return showSamaraActionToast('error','Approval Request',rr.error.message)}
+        res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
+        setBusy(false);
+      }
       if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
       await writeAuditEvent('Start Approved Item','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row),charge_request_id:res.data?.charge_request_id});
       showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);

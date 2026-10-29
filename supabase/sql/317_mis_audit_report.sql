@@ -744,7 +744,8 @@ begin
            from x window w as (partition by x.patient_id, x.item_key order by x.svc_at, x.created_at))
        select y.svc_at as sort_at, to_char(y.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, y.guest as who,
               y.item_name||' — again '||greatest(0,round(extract(epoch from (y.svc_at-y.prev_at))/60))::int||' min after the previous charge'
-                ||' (by '||coalesce(y.raised_by_name,'?')||coalesce(', earlier by '||y.prev_by,'')||') · '||coalesce(y.approval_status,'Pending') as detail,
+                ||' (by '||coalesce(y.raised_by_name,'?')||coalesce(', earlier by '||y.prev_by,'')||') · '||coalesce(y.approval_status,'Pending')
+                ||coalesce(' · reason given: '||nullif(to_jsonb(y)->>'repeat_reason',''),' · no reason given') as detail,
               coalesce(y.approved_amount,y.final_amount,y.requested_amount,y.estimated_amount) as amount
          from y
         where y.prev_at is not null and y.svc_at - y.prev_at < interval '2 hours'

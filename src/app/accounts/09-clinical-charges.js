@@ -710,7 +710,16 @@
           outside_paid_by:draft.outside_paid_by,outside_route:String(draft.outside_route||'').trim()||null,paid_by_samara:draft.outside_paid_by!=='Family paid directly',
           charge_item_code:isOther?null:((catalog||[]).find(x=>x.category===OUTSIDE_CATEGORY&&x.service_name===effectiveService&&x.is_active!==false)?.charge_code||null)});
       }
-      const saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      let saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      // 2.19.17 (SQL 321): the same item for the same Guest within 60 minutes needs a reason
+      if(saved.error&&/REPEAT CHECK/i.test(saved.error.message||'')){
+        const ask=await samaraAsk({title:'Charged again within 1 hour?',message:String(saved.error.message).replace(/^.*?REPEAT CHECK:\s*/i,'')+'\n\nIf it was really done a second time, write why. Otherwise press Cancel.',
+          fields:[{key:'reason',label:'Reason for charging again',required:true}],okLabel:'Yes, charge again'});
+        if(!ask)throw new Error(`Not saved — ${effectiveService} was already charged for this Guest within the last hour.`);
+        payload.repeat_reason=String(ask.reason||'').trim();
+        payload.remarks=[payload.remarks,'Repeat: '+payload.repeat_reason].filter(Boolean).join(' · ');
+        saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      }
       if(saved.error)throw saved.error;
       if(nurseRaised&&storeCategories.includes(draft.category)&&draft.store_item_id){
         let remaining=qty;

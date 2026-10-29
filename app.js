@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.16';
+  const APP_VERSION = '2.19.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -40182,8 +40182,19 @@ function RoomsBeds({profile,onNavigate}){
       if(!canStart||busy)return;
       if(!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
       setBusy(true);
-      const res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
+      let res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);
+      // 2.19.17 (SQL 321): same procedure for the same Guest within 60 minutes → ask why it is done again
+      if(res.error&&/REPEAT CHECK/i.test(res.error.message||'')){
+        const ask=await samaraAsk({title:'Done again within 1 hour?',message:String(res.error.message).replace(/^.*?REPEAT CHECK:\s*/i,'')+'\n\nIf this is a genuine second check (e.g. low sugar re-checked), write why. Otherwise press Cancel — it will not be charged twice.',
+          fields:[{key:'reason',label:'Reason for doing it again',required:true,placeholder:'e.g. Sugar 62 mg/dL — re-checked after glucose as per protocol'}],okLabel:'Yes, start again'});
+        if(!ask)return showSamaraActionToast('error','Not started','Not started — it was already done for this Guest within the last hour.');
+        setBusy(true);
+        const rr=await client.rpc('set_procedure_repeat_reason',{p_request_id:row.id,p_reason:ask.reason});
+        if(rr.error){setBusy(false);return showSamaraActionToast('error','Approval Request',rr.error.message)}
+        res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
+        setBusy(false);
+      }
       if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
       await writeAuditEvent('Start Approved Item','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row),charge_request_id:res.data?.charge_request_id});
       showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
@@ -50883,7 +50894,16 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           outside_paid_by:draft.outside_paid_by,outside_route:String(draft.outside_route||'').trim()||null,paid_by_samara:draft.outside_paid_by!=='Family paid directly',
           charge_item_code:isOther?null:((catalog||[]).find(x=>x.category===OUTSIDE_CATEGORY&&x.service_name===effectiveService&&x.is_active!==false)?.charge_code||null)});
       }
-      const saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      let saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      // 2.19.17 (SQL 321): the same item for the same Guest within 60 minutes needs a reason
+      if(saved.error&&/REPEAT CHECK/i.test(saved.error.message||'')){
+        const ask=await samaraAsk({title:'Charged again within 1 hour?',message:String(saved.error.message).replace(/^.*?REPEAT CHECK:\s*/i,'')+'\n\nIf it was really done a second time, write why. Otherwise press Cancel.',
+          fields:[{key:'reason',label:'Reason for charging again',required:true}],okLabel:'Yes, charge again'});
+        if(!ask)throw new Error(`Not saved — ${effectiveService} was already charged for this Guest within the last hour.`);
+        payload.repeat_reason=String(ask.reason||'').trim();
+        payload.remarks=[payload.remarks,'Repeat: '+payload.repeat_reason].filter(Boolean).join(' · ');
+        saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
+      }
       if(saved.error)throw saved.error;
       if(nurseRaised&&storeCategories.includes(draft.category)&&draft.store_item_id){
         let remaining=qty;

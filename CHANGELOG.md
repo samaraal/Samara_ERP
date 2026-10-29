@@ -1,3 +1,10 @@
+## 2.19.17 — 29-10-2026 — Repeat check: same service for the same Guest within 1 hour needs a reason
+- Approval Requests → Confirm & Start: if the same procedure (e.g. Blood Glucose Monitoring) was already started for the Guest within the last 60 minutes, the app shows when and by whom, and asks why it is being done again. With a reason it starts (the reason is printed on the charge for Accounts); Cancel = not started, not charged.
+- Bills & Charges raised directly: the same rule for the same item within 60 minutes.
+- MIS "Same item charged again within 2 hours" now shows the reason given (or "no reason given").
+- Equipment: only one Air Bed / Air Mattress in use per Guest; only one rental charged per Guest per day (SQL 320).
+- Supabase: run SQL 320, 321 and the updated 317.
+
 ## 2.19.16 — 29-10-2026 — Physiotherapist-wise summary in the Accounts colours
 - Larger figures on a plum header band: Sessions (teal), Total (blue), Paid (green), Balance (red; green when nil); a Total row for more than one physiotherapist. On phones each physiotherapist shows as a card with labelled figures.
 
