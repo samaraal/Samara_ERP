@@ -41,7 +41,7 @@
       .mis-check-title small{display:block;color:#7a5a68;font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
       .mis-count{flex:0 0 auto;font-size:20px;font-weight:900;color:#4a1430}
       .mis-rows{border-top:1px dashed #f0d2df;padding:8px 12px 12px}
-      .mis-row{display:grid;grid-template-columns:120px minmax(0,1.2fr) minmax(0,2fr) 100px;gap:8px;padding:6px 0;border-bottom:1px solid #f7e6ee;font-size:13.5px;color:#4a2a39}
+      .mis-row{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,2fr) 100px;gap:8px;padding:6px 0;border-bottom:1px solid #f7e6ee;font-size:13.5px;color:#4a2a39}
       .mis-row span{min-width:0;overflow-wrap:anywhere}
       .mis-row .mis-amt{text-align:right;font-weight:800}
       .mis-row.mis-row-head{font-weight:900;color:#8a3a62;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -53,6 +53,8 @@
         .mis-row span:nth-child(3){grid-column:1/-1}
         .mis-row.mis-row-head{display:none}
         .mis-health strong{font-size:22px}
+        .mis-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .mis-kpi strong{font-size:19px}
       }`;
     document.head.appendChild(st);
   }

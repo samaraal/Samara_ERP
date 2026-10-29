@@ -1,3 +1,11 @@
+## 2.19.11 — 29-10-2026 — MIS & Audit (Admin / Directors)
+- New page OVERVIEW → MIS & Audit: audits ERP entries for a period (Today / Yesterday / This Week / Month / Period) across Clinical, Financial and Operational — 50 checks, problems first (High / Medium / Low, tap to see each entry, button to open the page to fix it), then the key numbers. Print / PDF.
+- Clinical: vitals slots not recorded, medicine doses with no entry / missed / refused / withheld without the doctor's instruction / given late, late MAR entries, open escalations, incidents & falls, medication errors, nursing notes short, verbal orders not confirmed, physiotherapy not done, lab reports overdue.
+- Financial: charges waiting with Accounts, returned and not corrected, daily room / nursing charge missing, billing run errors, physiotherapy not billed, Guest physio rate changes, approved ≠ requested, possible duplicates, items with no rate, non-cash receipts without reference, receipts not sent, refunds pending, dues, expenses without a bill.
+- Operational: occupancy, admissions / discharges, consent pending, stock out / low / expired / expiring, indents stuck, equipment faults / service overdue, nursing shifts with no nurse rostered, staff not back after leave, leave waiting, discharges overdue, enquiry follow-ups overdue, food orders not received, WhatsApp failures, app errors.
+- Morning WhatsApp summary of the previous day to Admin / Directors at 7:30 AM (after Meta approves template samara_mis_daily_summary — see docs/META_TEMPLATE_samara_mis_daily_summary.md).
+- Supabase: run SQL 317 (report) then SQL 318 (WhatsApp summary); deploy Edge Function mis-daily-summary-dispatch.
+
 ## 2.19.10 — 29-10-2026 — Approve / Return box no longer hides the charge details
 - The Approve, Partial, Return and other Samara pop-up boxes now always open BELOW the button pressed. When there is no room below, the page scrolls up so the box fits, keeping the charge details (item, quantity, rate, raised by) above the button in view. Previously the box opened above the button and covered them.
 - Applies to every Samara pop-up box opened from a button. Frontend only. No Supabase change.
