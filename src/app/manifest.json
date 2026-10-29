@@ -583,6 +583,11 @@
    "lines": 111
   },
   {
+   "file": "reports/mis-audit.js",
+   "about": "MIS & Audit report (Admin / Directors): clinical, financial, operational audit + KPIs",
+   "lines": 183
+  },
+  {
    "file": "z-end/01-form-helpers-and-start-app.js",
    "about": "Small form helpers, then STARTS the app and CLOSES the main closure",
    "lines": 13

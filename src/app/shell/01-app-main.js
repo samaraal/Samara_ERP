@@ -882,6 +882,7 @@
           page==='Medication Errors'&&h(MedicationErrors,{profile,onNavigate:setPage}),
           page==='Notifications'&&h(Notifications,{profile,onNavigate:setPage,engine:alertEngine,physioAlerts:physioNotifications.alerts}),
           page==='Audit Trail'&&h(AuditTrail),
+          page==='MIS & Audit'&&h(MisAudit,{profile,onNavigate:setPage}), // 2.19.11 (Admin / Directors)
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
           page==='System Maintenance'&&h(SystemMaintenance,{profile}),
