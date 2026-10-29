@@ -1,3 +1,6 @@
+## 2.19.15 — 29-10-2026 — Physiotherapist Accounts: Name / Sessions / Total / Paid / Balance
+- The "Sessions by physiotherapist" box on the Ledger / Statement is now "Physiotherapist-wise summary" with columns Name · Sessions · Total ₹ · Paid ₹ · Balance ₹ for the selected period (Paid = payments made − refunds received for that physiotherapist; Balance = Total − Paid), plus a Total row when there is more than one physiotherapist. The PDF / WhatsApp statement note shows the same.
+
 ## 2.19.14 — 29-10-2026 — MIS & Audit: Discrepancies & Deviations analysis
 - New first tab "Discrepancies & Deviations": entries cross-checked against each other, not just counted —
   the same item charged again for the same Guest within 2 hours (e.g. Blood Sugar Monitoring twice in 15 minutes); blood sugar charged more times than readings recorded; approved price different from the Charge Master rate; unusually large quantities; charges dated outside the Guest's stay; charges raised 48+ hours late or before the service; impossible vitals (typing errors); vitals identical to the previous reading (copied?); many Guests' vitals entered within 10 minutes by one person; medicines given over an hour early or recorded as Given twice; the same payment entered twice within 24 hours.

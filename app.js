@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.14';
+  const APP_VERSION = '2.19.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -38998,12 +38998,19 @@ function RoomsBeds({profile,onNavigate}){
       setBusy(false);setNotice(`${done} session fee(s) posted at the agreed fee.${skipped?` ${skipped} left for “Post session fee” (fee for that Guest not agreed yet).`:''}`);if(failed.length)setError('Not posted: '+failed.join(' · '));await load();
     }
     const ledgerRows=()=>{let balance=Number(data.opening||0);return data.entries.map(row=>{balance=Math.round((balance+Number(row.amount))*100)/100;return {...row,balance}})};
-    // Session fees per physiotherapist in the period (reversed fees excluded).
+    // Per physiotherapist in the period: sessions, total fees, paid, balance (reversed entries excluded).
+    // 2.19.15: Paid = payments made − refunds received for that physiotherapist; Balance = Total − Paid (for the period).
     function physioSummary(rows){
-      const map=new Map();rows.filter(r=>r.kind==='Session fee'&&!r.reversed_at).forEach(r=>{const k=r.snapshot?.physiotherapist||'Not recorded';const x=map.get(k)||{name:k,sessions:0,amount:0};x.sessions++;x.amount+=Number(r.amount||0);map.set(k,x)});
-      return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
+      const nameOf=r=>(r.practitioner_id&&data.practitioners.find(p=>p.id===r.practitioner_id)?.full_name)||r.snapshot?.physiotherapist||'Not recorded';
+      const map=new Map();const get=k=>{const x=map.get(k)||{name:k,sessions:0,amount:0,paid:0};map.set(k,x);return x};
+      rows.filter(r=>!r.reversed_at).forEach(r=>{
+        if(r.kind==='Session fee'){const x=get(nameOf(r));x.sessions++;x.amount+=Number(r.amount||0)}
+        else if(r.kind==='Payment'&&(r.practitioner_id||r.snapshot?.physiotherapist))get(nameOf(r)).paid+=Math.abs(Number(r.amount||0));
+        else if(r.kind==='Refund'&&(r.practitioner_id||r.snapshot?.physiotherapist))get(nameOf(r)).paid-=Math.abs(Number(r.amount||0));
+      });
+      return [...map.values()].map(x=>({...x,balance:Math.round((x.amount-x.paid)*100)/100})).sort((a,b)=>a.name.localeCompare(b.name));
     }
-    function physioSummaryNotes(rows){const list=physioSummary(rows);return list.length?['Sessions by physiotherapist: '+list.map(x=>x.name+' — '+x.sessions+' session(s), INR '+money(x.amount)).join(' · ')]:[]}
+    function physioSummaryNotes(rows){const list=physioSummary(rows);return list.length?['By physiotherapist: '+list.map(x=>x.name+' — '+x.sessions+' session(s), total INR '+money(x.amount)+', paid INR '+money(x.paid)+', balance INR '+money(x.balance)).join(' · ')]:[]}
     function statementModel(){
       if(!org)throw Error('Select an organisation for the statement.');
       if(workScope)return {organisation:org.name+(statementPhysio?' — '+statementPhysio.full_name+' (salary)':' — sessions done'),period:formatDateIN(from)+' to '+formatDateIN(to),contact:[org.contact_person,org.phone,org.email,org.address].filter(Boolean).join(' · '),columnWidths:[76,180,60,128,100,160],
@@ -39073,7 +39080,9 @@ function RoomsBeds({profile,onNavigate}){
           clickTable('Sessions done — '+(statementPhysio?statementPhysio.full_name:org.name),['Date','Guest','Room','Scheduled','Actual','Physiotherapist','Status'],workList.map(r=>[formatDateIN(r.session_date),r.guest_name,r.room||'—',clock(r.scheduled_time),clock(r.actual_time),r.physiotherapist,r.status]),i=>setDetail({title:'Session details',fields:workFields(workList[i])}))
         ):h(React.Fragment,null,
           h('p',null,'Opening payable ₹'+money(data.opening)+' · Closing payable ₹'+money(ledgerRows().at(-1)?.balance??data.opening)),
-          physioSummary(ledgerRows()).length>0&&h(LogTable,{title:'Sessions by physiotherapist',heads:['Physiotherapist','Sessions','Fees ₹'],rows:physioSummary(ledgerRows()).map(x=>[x.name,x.sessions,money(x.amount)])}),
+          physioSummary(ledgerRows()).length>0&&(()=>{const list=physioSummary(ledgerRows());const sum=k=>list.reduce((t,x)=>t+Number(x[k]||0),0);
+            return h(LogTable,{title:'Physiotherapist-wise summary',subtitle:'For the selected period · Paid = payments made − refunds received · Balance = Total − Paid',heads:['Name','Sessions','Total ₹','Paid ₹','Balance ₹'],
+              rows:[...list.map(x=>[x.name,x.sessions,money(x.amount),money(x.paid),money(x.balance)]),...(list.length>1?[[h('strong',null,'Total'),h('strong',null,sum('sessions')),h('strong',null,money(sum('amount'))),h('strong',null,money(sum('paid'))),h('strong',null,money(sum('balance')))]]:[])]})})(),
           clickTable('Statement entries',['Date','Voucher','Type','Physiotherapist / Guest','Debit ₹','Credit ₹','Balance payable ₹'],ledgerRows().map(row=>[formatDateIN(row.entry_date),voucher(row),row.kind+(row.reversed_at?' (reversed)':''),[row.snapshot?.physiotherapist,row.snapshot?.patient_name].filter(Boolean).join(' · ')||row.reference||row.notes||'—',row.amount<0?money(-row.amount):'—',row.amount>0?money(row.amount):'—',money(row.balance)]),i=>setDetail({title:'Statement entry',fields:ledgerFields(ledgerRows()[i])})),
           workList.length>0&&clickTable('Sessions done in the period',['Date','Guest','Room','Scheduled','Actual','Physiotherapist','Status','Fee'],workList.map(r=>[formatDateIN(r.session_date),r.guest_name,r.room||'—',clock(r.scheduled_time),clock(r.actual_time),r.physiotherapist,r.status,r.pay_basis==='Salary'?'Salary':r.fee_amount!=null?'₹'+money(r.fee_amount):'Not posted']),i=>setDetail({title:'Session details',fields:workFields(workList[i])})))),
       detail&&h(RowDetailModal,{title:detail.title,fields:detail.fields,onClose:()=>setDetail(null)}),
