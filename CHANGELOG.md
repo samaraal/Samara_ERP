@@ -1,3 +1,7 @@
+## 2.19.19 — 30-10-2026 — MIS & Audit: opens on Today; shows which dates the figures are for
+- The page opened on Yesterday. Tapping Today highlighted it, but yesterday's figures stayed until Apply was pressed, so it looked like Today showed yesterday's records.
+- Now opens on Today, and a line under the filters says "Showing: <date>" — or, in red, "Still showing <date> — press Apply to see <date>" when a new period is chosen but not applied.
+
 ## 2.19.18 — 30-10-2026 — Approval Requests: no duplicate open requests; "Start now?" after auto-approval
 - An item that needs no Nursing Manager approval (e.g. Nebulization) goes straight to "Ready to Start". The app now asks "Start now?" right after the request, so it is not raised again by mistake.
 - A second request for the same Guest + item is refused while one is still open (Pending Approval / Ready to Start), with the time and who raised the first (SQL 323).

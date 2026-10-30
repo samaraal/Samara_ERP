@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.18';
+  const APP_VERSION = '2.19.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -54091,7 +54091,7 @@ function AuditTrail(){
   function MisAudit({profile,onNavigate}){
     const isAdmin=profile?.role==='Admin';
     const today=todayISOIndia();
-    const [preset,setPreset]=React.useState('yesterday');
+    const [preset,setPreset]=React.useState('today'); // 2.19.19: opens on Today (was Yesterday — Today chip looked selected while yesterday's figures stayed on screen)
     const [month,setMonth]=React.useState(today.slice(0,7));
     const [custom,setCustom]=React.useState({from:addDaysISO(today,-6),to:today});
     const rangeFor=(p,m,c)=>{
@@ -54195,6 +54195,9 @@ function AuditTrail(){
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy||rangeBad,onClick:load},busy?'Checking…':'Re-check'),
           h('button',{type:'button',className:'btn btn-secondary',disabled:!data,onClick:printReport},'Print / PDF'))},
         periodControls,
+        // 2.19.19: always say which dates the figures below belong to; warn while a new period is chosen but not applied
+        h('p',{className:'mis-showing',style:{margin:'8px 0 0',fontWeight:700,color:dirty?'#b4232f':'#8f1d5a'}},
+          dirty?`Still showing ${periodName} — press Apply to see ${draftRange[0]===draftRange[1]?formatDateIN(draftRange[0]):formatDateIN(draftRange[0])+' – '+formatDateIN(draftRange[1])}`:`Showing: ${periodName}`),
         rangeBad&&h('p',{className:'message error',role:'alert'},'Choose a valid period (From on or before To, not in the future).'),
         error&&h('p',{className:'message error',role:'alert'},error),
         busy&&!data&&h('p',null,'Checking ERP entries…'),
