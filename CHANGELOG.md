@@ -1,3 +1,8 @@
+## SQL 324 — 31-10-2026 — MIS & Audit: findings follow the chosen period
+- Choosing Yesterday / Today / a period now shows only findings dated in that period. Before, "still open" lists (telephone/verbal orders, indents, incidents, charges waiting …) showed items from any date (e.g. 2-Oct, 15-Oct).
+- Current-status checks (stock levels, items with no rate, Guests' balance, consent not uploaded, equipment service due) still show for every period and say so.
+- Run supabase/sql/324_mis_checks_follow_period.sql in Supabase → SQL Editor (no app update needed).
+
 ## 2.19.20 — 30-10-2026 — Clinical alerts: "✓ Acknowledge" for the Nursing Manager / Admin
 - "Medicine Given Late", "Meal Intake" and "Nursing Note" alerts can now be closed straight from the pop-up with ✓ Acknowledge (a ready remark is filled in; change it if needed). "Noted" only hid the pop-up on that device, so alerts stayed open in MIS & Audit.
 - Clinical Escalations register: the Action buttons are now the FIRST column (no sideways scrolling); info alerts show ✓ Acknowledge, others Mark Resolved. Closed as "Acknowledged" with name and time.
