@@ -387,6 +387,28 @@
     );
   }
 
+  // 2.19.20: one-tap "Acknowledge" for Manager / Admin. Info alerts (Medicine Given Late, Meal Intake, Nursing Note)
+  // are already recorded by the nurse — the Manager only reviews and closes them. Works from the pop-up and the register.
+  const ESC_INFO_TYPES=['medicine late','meal intake','nursing note alert'];
+  const escIsInfo=t=>ESC_INFO_TYPES.includes(String(t||'').toLowerCase());
+  async function acknowledgeClinicalEscalation({id,alertKey,sourceId,alertType}){
+    let escId=id;
+    if(!escId){
+      let q=client.from('clinical_alert_escalations').select('id').is('resolved_at',null).limit(1);
+      q=alertKey?q.eq('alert_key',alertKey):q.eq('source_id',sourceId).eq('alert_type',alertType);
+      const {data,error}=await q;
+      if(error)return {error};
+      escId=data?.[0]?.id;
+      if(!escId&&alertKey&&sourceId){const r=await client.from('clinical_alert_escalations').select('id').is('resolved_at',null).eq('source_id',sourceId).eq('alert_type',alertType).limit(1);escId=r.data?.[0]?.id}
+      if(!escId)return {error:{message:'This alert is already closed.'},closed:true};
+    }
+    const info=escIsInfo(alertType);
+    const remarks=window.prompt(info?'Acknowledge — remark (you can keep this or change it):':'Enter resolution / corrective action taken (mandatory):',info?'Reviewed. Reason noted and nurse informed.':'');
+    if(remarks===null)return {cancelled:true};
+    if(String(remarks).trim().length<5){alert('Please enter a meaningful remark (at least 5 letters).');return {cancelled:true}}
+    const {error}=await client.rpc('resolve_clinical_escalation',{p_escalation_id:escId,p_resolution_remarks:String(remarks).trim(),p_resolution_action:info?'Acknowledged':'Resolved'});
+    return {error};
+  }
   function ClinicalEscalationsDashboard({profile,onNavigate}){
     const [rows,setRows]=React.useState([]),[patients,setPatients]=React.useState({}),[filter,setFilter]=React.useState(()=>{
       try{
@@ -425,13 +447,11 @@
     React.useEffect(()=>{load()},[]);
     // 2.19.13: removed a stray copy of Patient Consumables' scroll effect (it used an undefined 'initialView' and crashed this page)
     async function resolve(row){
-      const remarks=window.prompt('Enter resolution / corrective action taken (mandatory):','');
-      if(remarks===null)return;
-      if(String(remarks).trim().length<5){alert('Please enter a meaningful resolution remark.');return}
       setBusy(true);setMessage('');
-      const {error}=await client.rpc('resolve_clinical_escalation',{p_escalation_id:row.id,p_resolution_remarks:String(remarks).trim(),p_resolution_action:'Resolved'});
+      const res=await acknowledgeClinicalEscalation({id:row.id,alertType:row.alert_type});
       setBusy(false);
-      if(error){setMessage(error.message);return}
+      if(res.cancelled)return;
+      if(res.error){setMessage(res.error.message);return}
       await load();
     }
     if(!canView)return h(Section,{title:'Clinical Escalations'},h('div',{className:'message error'},'Clinical Escalations are available only to Manager and Administrator.'));
@@ -461,22 +481,22 @@
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
       ),
       h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Open source item, review corrective action, and close only after resolution',
-        heads:['Status','Type','Patient','Room / Bed','Priority','Escalated At','Elapsed','Reason','Resolution','Action'],
+        heads:['Action','Status','Type','Patient','Room / Bed','Priority','Escalated At','Elapsed','Reason','Resolution'], // 2.19.20: Action first — no sideways scrolling to find it
         rows:visible.map(r=>{
           const p=patients[r.patient_id]||{};
           const elapsed=Math.max(0,Math.floor((Date.now()-new Date(r.created_at).getTime())/60000));
           return [
+            h('div',{className:'employee-actions'},
+              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
+              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},escIsInfo(r.alert_type)?'✓ Acknowledge':'Mark Resolved'),
+              !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
+            ),
             h('span',{className:'badge',style:r.resolved_at?{background:'#eef5f2',color:'#17624b'}:{background:'#fdecec',color:'#b42318'}},r.resolved_at?'Resolved':'Open'),
             r.alert_type||'Clinical',
             p.full_name|| (r.alert_type==='Regularisation'?'All current patients':'—'),
             p.id?`Room ${p.room_no||'—'}${p.bed_no?'-'+p.bed_no:''}`:'—',
             r.priority||'—',fmt(r.created_at),r.resolved_at?'—':`${elapsed} min`,r.escalation_reason||'—',
-            r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution',
-            h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
-              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},'Mark Resolved'),
-              !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
-            )
+            r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution'
           ];
         })
       })

@@ -1,3 +1,7 @@
+## 2.19.20 — 30-10-2026 — Clinical alerts: "✓ Acknowledge" for the Nursing Manager / Admin
+- "Medicine Given Late", "Meal Intake" and "Nursing Note" alerts can now be closed straight from the pop-up with ✓ Acknowledge (a ready remark is filled in; change it if needed). "Noted" only hid the pop-up on that device, so alerts stayed open in MIS & Audit.
+- Clinical Escalations register: the Action buttons are now the FIRST column (no sideways scrolling); info alerts show ✓ Acknowledge, others Mark Resolved. Closed as "Acknowledged" with name and time.
+
 ## 2.19.19 — 30-10-2026 — MIS & Audit: opens on Today; shows which dates the figures are for
 - The page opened on Yesterday. Tapping Today highlighted it, but yesterday's figures stayed until Apply was pressed, so it looked like Today showed yesterday's records.
 - Now opens on Today, and a line under the filters says "Showing: <date>" — or, in red, "Still showing <date> — press Apply to see <date>" when a new period is chosen but not applied.
