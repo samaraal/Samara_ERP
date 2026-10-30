@@ -119,6 +119,18 @@
     if(!date||!to)return '';
     return to>from?date:addDaysISODate(date,1);
   }
+  // 2.19.21 (SQL 325): when a medicine starts counting — its Effective From; for a medicine added / changed by a
+  // doctor review, never before the moment that review was saved (a back-dated Effective From must not create
+  // "late" or "missed" doses for times that had already passed when the change was entered).
+  function medicationOrderStart(order){
+    const eff=order?.effective_from?new Date(order.effective_from):null;
+    const created=order?.created_at?new Date(order.created_at):null;
+    const fromReview=/doctor review/i.test(String(order?.change_action||''));
+    if(fromReview&&created&&!Number.isNaN(created.getTime())){
+      if(!eff||Number.isNaN(eff.getTime())||eff.getTime()<created.getTime())return created;
+    }
+    return eff&&!Number.isNaN(eff.getTime())?eff:null;
+  }
   function medicationOrderDoseEligible(order,dateISO,time){
     if(!order||!dateISO||!time)return false;
     const normalized=normalizeMedicationTime(time);
@@ -126,7 +138,7 @@
     if(Number.isNaN(due.getTime()))return false;
     if(order.start_date&&String(order.start_date).slice(0,10)>dateISO)return false;
     if(order.end_date&&String(order.end_date).slice(0,10)<dateISO)return false;
-    const effective=order.effective_from?new Date(order.effective_from):null;
+    const effective=medicationOrderStart(order); // 2.19.21: not before the moment a doctor-review change was saved
     if(effective&&!Number.isNaN(effective.getTime())&&due.getTime()<effective.getTime())return false;
     const stopped=order.stopped_at?new Date(order.stopped_at):null;
     if(stopped&&!Number.isNaN(stopped.getTime())&&due.getTime()>=stopped.getTime())return false;

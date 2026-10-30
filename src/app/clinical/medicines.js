@@ -384,13 +384,22 @@
     function doseStatus(order,time,dateISO=today){
       return state.mar.find(x=>x.order_id===order.id&&String(x.scheduled_date||'').slice(0,10)===dateISO&&String(x.scheduled_time||'').slice(0,5)===String(time||'').slice(0,5));
     }
+    // 2.19.21: only times on or after the medicine's start (admission / doctor review) are offered. If the medicine
+    // started after today's last time (e.g. added at 10 PM, times 9 AM / 9 PM), the first dose is recorded at the
+    // time it is actually given ("Now — first dose") instead of a morning time that would count as 13 hours late.
+    function nowDoseTime(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;}
+    function eligibleDoseTimes(order,dateISO=today){return parseTimes(order.scheduled_times).filter(time=>!doseWasBeforeAdmission(order,time,dateISO)&&medicationOrderDoseEligible(order,dateISO,time));}
+    function startedAfterLastTime(order,dateISO=today){
+      const start=medicationOrderStart(order);
+      return Boolean(start&&start.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})===dateISO&&parseTimes(order.scheduled_times).length&&!eligibleDoseTimes(order,dateISO).length);
+    }
     function firstPendingTime(order){
-      const times=parseTimes(order.scheduled_times).filter(time=>!doseWasBeforeAdmission(order,time));
-      if(times.length){
-        const pending=times.find(time=>!doseStatus(order,time));
-        return pending||'';
-      }
-      return normalizeMedicationTime(`${String(new Date().getHours()).padStart(2,'0')}:00`);
+      if(!parseTimes(order.scheduled_times).length)return normalizeMedicationTime(`${String(new Date().getHours()).padStart(2,'0')}:00`);
+      const times=eligibleDoseTimes(order);
+      const pending=times.find(time=>!doseStatus(order,time));
+      if(pending)return pending;
+      if(!times.length&&startedAfterLastTime(order)&&!state.mar.some(l=>l.order_id===order.id&&String(l.scheduled_date||'').slice(0,10)===today))return nowDoseTime();
+      return '';
     }
     // 2.18.61: dateISO — a night-shift dose (e.g. 10 PM) may be recorded after midnight; it is saved under its own date.
     function openMar(order,time='',dateISO=today){
@@ -1029,7 +1038,7 @@
       await load();
       if(f.instruction==='Change prescription (Doctor Review)'&&canReviseMedication&&!state.reviewSetupError){setTab('Prescription History');openMedicationReview(patientId);}
     }
-    const targetTimes=marTarget?Array.from(new Set([...parseTimes(marTarget.scheduled_times),marForm.scheduled_time].filter(Boolean))):[];
+    const targetTimes=marTarget?Array.from(new Set([...eligibleDoseTimes(marTarget,marForm.scheduled_date||today),marForm.scheduled_time].filter(Boolean))).sort():[]; // 2.19.21: no times before the medicine started
     const currentEntryDelay=marForm.administered_at?Math.max(0,Math.round((Date.now()-new Date(marForm.administered_at).getTime())/60000)):0;
     const currentIsLateEntry=currentEntryDelay>30;
     const lateEntryReasons=['Forgot to record immediately','Emergency patient care','Network or device issue','Medicine administered by another staff member','Patient-related delay','Doctor instruction','Other'];
@@ -1190,7 +1199,7 @@
             h('div',{className:'field'},h('label',null,'Medicine'),h('input',{value:medicineLabel(marTarget),readOnly:true})),
             h('div',{className:'field'},h('label',null,'Route'),h('input',{value:marTarget.route||'—',readOnly:true})),
             h('div',{className:'field'},h('label',null,'Frequency'),h('input',{value:marTarget.frequency||'—',readOnly:true})),
-            h('div',{className:'field'},h('label',null,'Scheduled Time'),h('select',{value:marForm.scheduled_time,onChange:e=>setMarForm({...marForm,scheduled_time:e.target.value})},(targetTimes.length?targetTimes:[marForm.scheduled_time]).filter(Boolean).map(time=>h('option',{key:time,value:time},medicationTimeLabel(time))))),
+            h('div',{className:'field'},h('label',null,'Scheduled Time'),h('select',{value:marForm.scheduled_time,onChange:e=>setMarForm({...marForm,scheduled_time:e.target.value})},(targetTimes.length?targetTimes:[marForm.scheduled_time]).filter(Boolean).map(time=>h('option',{key:time,value:time},medicationTimeLabel(time)+(marTarget&&!parseTimes(marTarget.scheduled_times).includes(time)&&startedAfterLastTime(marTarget,marForm.scheduled_date||today)?' — Now, first dose':''))))),
             withholdSuggestion&&h('div',{className:'message warning span-2',style:{display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),

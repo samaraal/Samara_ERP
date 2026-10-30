@@ -1,3 +1,9 @@
+## 2.19.21 — 31-10-2026 — Medicines and care count only from when they start (SQL 325)
+- Administer form: offers only times on or after the medicine's start. A medicine added after today's last time (e.g. at 10 PM) gets "Now — first dose" instead of the morning time (that is how 30-10 first doses were saved as 13 hours late).
+- A medicine added / changed by a doctor review counts from the moment the review is saved, even if Effective From was set earlier — in the MAR, screensaver, alerts and MIS. Admission stays from the admission time.
+- Care items added part-way through a shift are not escalated for that shift's deadline. The database now refuses a dose saved against a time before the medicine started.
+- Data: Mr. S. Swaminathan's 4 first doses of 30-10 moved to the time really given; their Medicine Late alerts closed as Corrected.
+
 ## SQL 324 — 31-10-2026 — MIS & Audit: findings follow the chosen period
 - Choosing Yesterday / Today / a period now shows only findings dated in that period. Before, "still open" lists (telephone/verbal orders, indents, incidents, charges waiting …) showed items from any date (e.g. 2-Oct, 15-Oct).
 - Current-status checks (stock levels, items with no rate, Guests' balance, consent not uploaded, equipment service due) still show for every period and say so.
