@@ -141,28 +141,35 @@
         const Ctx=window.AudioContext||window.webkitAudioContext;
         const ctx=audioContext.current||(audioContext.current=new Ctx());
         if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+        // 2.19.25: a short musical chime (bell melody) instead of harsh beeps — the voice follows after it.
+        // Routine plays the melody once, Urgent twice, Critical three times.
         const level=String(priority||'Routine');
-        const pulses=level==='Critical'?6:level==='Urgent'?4:3;
-        const now=ctx.currentTime+.02;
+        const rounds=level==='Critical'?3:level==='Urgent'?2:1;
+        const now=ctx.currentTime+.03;
         const master=ctx.createGain();
-        master.gain.setValueAtTime(.82,now);
+        master.gain.setValueAtTime(.9,now);
         master.connect(ctx.destination);
-        for(let i=0;i<pulses;i++){
-          const t=now+i*.38;
-          const primary=ctx.createOscillator();
-          const secondary=ctx.createOscillator();
-          const gain=ctx.createGain();
-          primary.type='square'; secondary.type='sine';
-          const base=level==='Critical'?920:level==='Urgent'?820:740;
-          primary.frequency.setValueAtTime(base+(i%2?120:0),t);
-          secondary.frequency.setValueAtTime((base+(i%2?120:0))*1.5,t);
-          primary.connect(gain);secondary.connect(gain);gain.connect(master);
-          gain.gain.setValueAtTime(.0001,t);
-          gain.gain.exponentialRampToValueAtTime(.22,t+.025);
-          gain.gain.setValueAtTime(.22,t+.15);
-          gain.gain.exponentialRampToValueAtTime(.0001,t+.26);
-          primary.start(t);secondary.start(t);primary.stop(t+.28);secondary.stop(t+.28);
+        // C6 · E6 · G6 · C7 — bright, pleasant, easy to hear over ward noise
+        const melody=[[1046.5,0,.9],[1318.5,.2,.9],[1568,.4,.9],[2093,.6,1.4]];
+        const roundGap=1.25;
+        for(let r=0;r<rounds;r++){
+          for(const [freq,offset,len] of melody){
+            const t=now+r*roundGap+offset;
+            const gain=ctx.createGain();
+            gain.gain.setValueAtTime(.0001,t);
+            gain.gain.exponentialRampToValueAtTime(.32,t+.012);
+            gain.gain.exponentialRampToValueAtTime(.0001,t+len);
+            gain.connect(master);
+            [[1,1],[2,.28],[3,.08]].forEach(([mult,amp])=>{
+              const osc=ctx.createOscillator();const og=ctx.createGain();
+              osc.type='sine';osc.frequency.setValueAtTime(freq*mult,t);
+              og.gain.setValueAtTime(amp,t);
+              osc.connect(og);og.connect(gain);
+              osc.start(t);osc.stop(t+len+.05);
+            });
+          }
         }
+        return Math.round(((rounds-1)*roundGap+.6+1.4)*1000);
       }catch(error){console.warn('Clinical alert sound unavailable',error)}
     }
     function primeSpeechSynthesisFromGesture(){
@@ -217,7 +224,7 @@
       await unlockSound();
     }
     function play(priority){
-      playClinicalTone(priority,false);
+      return playClinicalTone(priority,false)||0;
     }
     function clinicalVoiceData(a){
       const title=String(a?.title||a?.alert_type||'').toLowerCase();
@@ -1232,8 +1239,9 @@
       if(nextToAnnounce){
         lastPlayed.current[nextToAnnounce.key]=now;
         if(infoOnce(nextToAnnounce)){try{const keep=Object.fromEntries(Object.entries(infoSeen).filter(([,t])=>now-Number(t)<3*86400000));keep[nextToAnnounce.key]=now;localStorage.setItem(INFO_SEEN_KEY,JSON.stringify(keep))}catch(_e){}}
-        play(nextToAnnounce.priority);
-        speak(nextToAnnounce);
+        // 2.19.25: chime first, then the voice (so the music and the voice do not overlap)
+        const chimeMs=play(nextToAnnounce.priority);
+        if(chimeMs>0){const alertForVoice=nextToAnnounce;window.setTimeout(()=>speak(alertForVoice),chimeMs+150)}else speak(nextToAnnounce);
 
         if(!(isMobileClinicalDevice()&&pushEnabled&&['Admin','Manager'].includes(profile?.role))&&settings.browser_notifications_enabled&&Notification.permission==='granted'){
           showSystemNotification(

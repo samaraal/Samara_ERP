@@ -1,3 +1,7 @@
+## 2.19.25 — 31-10-2026 — Clinical alert: music chime before the voice
+- Every Clinical Alert / Escalation pop-up now plays a short pleasant bell melody (no words) — once for Routine, twice for Urgent, three times for Critical — then the existing Tamil/English voice follows, so they never overlap. Replaces the old harsh beeps.
+- Works on the desktop / laptop ERP after "Enable Alert Sound" (as before). Bell notifications also use the chime.
+
 ## 2.19.24 — 31-10-2026 — MAR: status option shows just "Not Given"
 - The Status dropdown shows plain "Not Given" (the reason is chosen in the separate "Reason not given" box). Removed the double * on that label.
 
