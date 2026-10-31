@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.23';
+  const APP_VERSION = '2.19.24';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -37639,8 +37639,8 @@ function RoomsBeds({profile,onNavigate}){
             withholdSuggestion&&h('div',{className:'message warning span-2',style:{display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
-            h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Not Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status==='Not Given'?'Not Given (medicine not available / not provided)':status)))),
-            marForm.status==='Not Given'&&h('div',{className:'field'},h('label',null,'Reason not given *'),h('select',{required:true,value:marForm.not_given_reason||'',onChange:e=>setMarForm({...marForm,not_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_NOT_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
+            h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Not Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            marForm.status==='Not Given'&&h('div',{className:'field'},h('label',null,'Reason not given'),h('select',{required:true,value:marForm.not_given_reason||'',onChange:e=>setMarForm({...marForm,not_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_NOT_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'message warning span-2'},'Sliding-scale insulin: check the blood sugar first, then enter the reading and the units you are giving (as per the doctor\'s scale).'),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Blood sugar reading (mg/dL)'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,required:true,value:marForm.sugar_reading,placeholder:'e.g. 186',onChange:e=>setMarForm({...marForm,sugar_reading:e.target.value})})),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Units given'),h('input',{type:'number',inputMode:'decimal',min:0,max:200,step:'0.5',required:true,value:marForm.units_given,placeholder:'e.g. 6',onChange:e=>setMarForm({...marForm,units_given:e.target.value})})),

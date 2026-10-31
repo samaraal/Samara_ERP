@@ -1,3 +1,6 @@
+## 2.19.24 — 31-10-2026 — MAR: status option shows just "Not Given"
+- The Status dropdown shows plain "Not Given" (the reason is chosen in the separate "Reason not given" box). Removed the double * on that label.
+
 ## 2.19.23 — 31-10-2026 — Medication Administration: "Not Given" status (SQL 327)
 - Status dropdown now has "Not Given (medicine not available / not provided)" with a compulsory reason: Medicine not available (stock finished), Medicine not provided by the family, Guest away (hospital visit / outing), Nil by mouth (NBM) for a test / procedure, Other (write the reason).
 - A Not Given dose can be rescheduled (e.g. when the family brings the medicine). The reason is saved with the dose and shown in the MAR, Medication History (new filter) and MIS & Audit.
