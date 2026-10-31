@@ -1,3 +1,9 @@
+## 2.19.23 — 31-10-2026 — Medication Administration: "Not Given" status (SQL 327)
+- Status dropdown now has "Not Given (medicine not available / not provided)" with a compulsory reason: Medicine not available (stock finished), Medicine not provided by the family, Guest away (hospital visit / outing), Nil by mouth (NBM) for a test / procedure, Other (write the reason).
+- A Not Given dose can be rescheduled (e.g. when the family brings the medicine). The reason is saved with the dose and shown in the MAR, Medication History (new filter) and MIS & Audit.
+- Family Daily Report / Discharge Summary count it as missed / omitted (as before for "not given"); the doctors' report counts it as missed once the daily-patient-report function is redeployed.
+- Run supabase/sql/327_medicine_not_given_status.sql in Supabase → SQL Editor.
+
 ## 2.19.22 — 31-10-2026 — MIS & Audit: Open & fix / Close with remarks; physiotherapy held-back session billed (SQL 326)
 - MIS & Audit: each finding row has "Open & fix →" — the physiotherapy findings open Physiotherapy Dashboard → Patient Rates & Billing showing only that Guest and date, with a "Session to act on" card (send the charge to Accounts / set the Guest rate / open Charge Approvals).
 - Admin / Directors can "✓ Close" a finding (or "Close all listed") with remarks; closed items stop counting (also in the morning WhatsApp summary), are listed with who / when / remarks, and can be Reopened with a reason.

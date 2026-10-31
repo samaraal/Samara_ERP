@@ -175,7 +175,7 @@ export function doseEligible(o, iso, hm) {
 const rescheduledDate = row => { const d = txt(row?.scheduled_date).slice(0, 10), f = normTime(row?.scheduled_time), t = normTime(row?.rescheduled_time); if (!d || !t) return ''; return t > f ? d : addDays(d, 1); };
 const STATUS_RANK = { given: 6, withheld: 5, refused: 4, missed: 3, unavailable: 3, delayed: 2, reschedule: 1 };
 function bestRow(rows) { return [...rows].sort((a, b) => (STATUS_RANK[lc(b.status)] || 0) - (STATUS_RANK[lc(a.status)] || 0))[0] || null; }
-const reasonOf = r => txt(r?.withhold_reason) ? `${txt(r.withhold_reason)}${txt(r.withhold_reading) ? `, ${txt(r.withhold_reading)}` : ''}` : (txt(r?.reschedule_reason) || txt(r?.late_given_reason) || txt(r?.remarks) || txt(r?.notes) || '');
+const reasonOf = r => txt(r?.withhold_reason) ? `${txt(r.withhold_reason)}${txt(r.withhold_reading) ? `, ${txt(r.withhold_reading)}` : ''}` : (txt(r?.not_given_reason) || txt(r?.reschedule_reason) || txt(r?.late_given_reason) || txt(r?.remarks) || txt(r?.notes) || '');
 export const medKey = o => `${txt(o?.medicine_name)} ${txt(o?.strength)}`.toLowerCase().replace(/[^a-z0-9]/g, '');
 const medLabel = o => [txt(o?.medicine_name), txt(o?.strength)].filter(Boolean).join(' ');
 
@@ -196,12 +196,12 @@ export function slotOutcome(order, slot, mar) {
     const later = bestRow(mar.filter(r => r.order_id === order.id && r.id !== resched.id && txt(r.scheduled_date).slice(0, 10) === d2 && normTime(r.scheduled_time) === t2));
     const first = { status: txt(resched.status), reason: reasonOf(resched) };
     if (later && lc(later.status) === 'given') { const g = given(later); return { ...g, late: true, afterDelay: true, first }; }
-    if (later && ['withheld', 'refused', 'missed', 'unavailable'].includes(lc(later.status))) return { outcome: lc(later.status) === 'unavailable' ? 'missed' : lc(later.status), row: later, first };
+    if (later && ['withheld', 'refused', 'missed', 'unavailable', 'not given'].includes(lc(later.status))) return { outcome: ['unavailable', 'not given'].includes(lc(later.status)) ? 'missed' : lc(later.status), row: later, first };
     return { outcome: 'unresolved', why: `${txt(resched.status) || 'Rescheduled'} to ${fmtHM(t2)}; no later administration entry`, row: resched };
   }
   if (s === 'withheld') return { outcome: 'withheld', row };
   if (s === 'refused') return { outcome: 'refused', row };
-  if (s === 'missed' || s === 'unavailable') return { outcome: 'missed', row };
+  if (s === 'missed' || s === 'unavailable' || s === 'not given') return { outcome: 'missed', row };
   return { outcome: 'unresolved', why: `"${txt(row.status) || 'Recorded'}" with no administration entry`, row };
 }
 export function doseSlots(o, from, to, admission) {

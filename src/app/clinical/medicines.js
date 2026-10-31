@@ -525,6 +525,10 @@
       if(variableDose&&(!String(marForm.sugar_reading||'').trim()||!String(marForm.units_given||'').trim())){
         const text='Enter the blood sugar reading and the units given for this sliding-scale insulin.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
+      if(marForm.status==='Not Given'){
+        if(!marForm.not_given_reason){const text='Select why this medicine was not given.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+        if(marForm.not_given_reason==='Other'&&!String(marForm.remarks||'').trim()){const text='Write the reason in Remarks.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      }
       if(['Refused','Missed','Delayed'].includes(marForm.status)&&!String(marForm.remarks||'').trim()){
         const text=`Please enter the reason for medicine status “${marForm.status}”.`;setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;
       }
@@ -562,7 +566,7 @@
         status:marForm.status==='Reschedule'?'Delayed':marForm.status,
         administered_at:administrationTime.toISOString(),
         administered_by:user?.id||profile?.auth_user_id||profile?.id,
-        remarks:variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):String(marForm.remarks||'').trim(),
+        remarks:marForm.status==='Not Given'?['Not given: '+marForm.not_given_reason,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):String(marForm.remarks||'').trim(),
         entry_recorded_at:entryTime.toISOString(),
         late_entry:isLateEntry,
         entry_delay_minutes:entryDelayMinutes,
@@ -570,6 +574,7 @@
         late_entry_justification:isLateEntry?String(marForm.late_entry_justification||'').trim():null,
         rescheduled_time:canReschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
         reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null,
+        ...(marForm.status==='Not Given'?{not_given_reason:marForm.not_given_reason}:{}),
         ...(lateGivenMinutes?{late_given_reason:marForm.late_given_reason,late_given_details:String(marForm.late_given_details||'').trim()||null}:{}),
         ...(marForm.status==='Withheld'?{
           withhold_reason:marForm.withhold_reason,
@@ -581,9 +586,11 @@
       };
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error&&marForm.status==='Withheld'&&/withhold_|doctor_informed|column/i.test(error.message||'')){const text='Withholding needs the database update SQL 167. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      if(error&&marForm.status==='Not Given'&&/not_given|status_check|check constraint/i.test(error.message||'')){const text='“Not Given” needs the database update SQL 327. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&lateGivenMinutes&&/late_given/i.test(error.message||'')){const text='Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
-      if(marForm.status==='Withheld')showSamaraActionToast('success','Dose withheld','Recorded. Nursing Manager and Admin are alerted. Record the doctor\'s instruction as soon as it is received.');
+      if(marForm.status==='Not Given')showSamaraActionToast('success','Recorded as Not Given',`${marForm.not_given_reason}.${marForm.reschedule?' Re-medication time saved.':''}`);
+      else if(marForm.status==='Withheld')showSamaraActionToast('success','Dose withheld','Recorded. Nursing Manager and Admin are alerted. Record the doctor\'s instruction as soon as it is received.');
       else if(lateGivenMinutes)showSamaraActionToast('success','Medication saved',`Recorded as given ${medicationDurationText(lateGivenMinutes)} late — ${marForm.late_given_reason}. The Nursing Manager has been informed.`);
       else showSamaraActionToast('success','Medication saved','Medication administration has been recorded successfully.');setMarBusy(false);setTab('Today’s MAR');await load();
       finishSuccessfulAction({
@@ -1203,7 +1210,8 @@
             withholdSuggestion&&h('div',{className:'message warning span-2',style:{display:'flex',gap:'10px',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}},
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
-            h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Not Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status==='Not Given'?'Not Given (medicine not available / not provided)':status)))),
+            marForm.status==='Not Given'&&h('div',{className:'field'},h('label',null,'Reason not given *'),h('select',{required:true,value:marForm.not_given_reason||'',onChange:e=>setMarForm({...marForm,not_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_NOT_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'message warning span-2'},'Sliding-scale insulin: check the blood sugar first, then enter the reading and the units you are giving (as per the doctor\'s scale).'),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Blood sugar reading (mg/dL)'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,required:true,value:marForm.sugar_reading,placeholder:'e.g. 186',onChange:e=>setMarForm({...marForm,sugar_reading:e.target.value})})),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Units given'),h('input',{type:'number',inputMode:'decimal',min:0,max:200,step:'0.5',required:true,value:marForm.units_given,placeholder:'e.g. 6',onChange:e=>setMarForm({...marForm,units_given:e.target.value})})),
@@ -1225,7 +1233,7 @@
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Late Entry Reason'),h('select',{value:marForm.late_entry_reason,onChange:e=>setMarForm({...marForm,late_entry_reason:e.target.value}),required:true},h('option',{value:''},'Select reason'),lateEntryReasons.map(reason=>h('option',{key:reason,value:reason},reason)))),
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field'},h('label',null,'Entry Delay'),h('input',{value:`${currentEntryDelay} minutes`,readOnly:true})),
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
-            h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||!['Given','Withheld'].includes(marForm.status)}))
+            h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(marForm.status==='Not Given'?(marForm.not_given_reason==='Other'?'Reason (required)':'Remarks (optional)'):['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||(marForm.status==='Not Given'?marForm.not_given_reason==='Other':!['Given','Withheld'].includes(marForm.status))}))
           ),
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':(rescheduleLog||marForm.status==='Reschedule')?'Save Reschedule':'Save MAR'))
         )

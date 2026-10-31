@@ -92,7 +92,9 @@
     ?`Late entry — recorded ${medicationDurationText(log.entry_delay_minutes||0)} after giving · ${log.late_entry_reason||''}${log.late_entry_justification?` — ${log.late_entry_justification}`:''}`
     :'Recorded at the time of giving (no delay in recording)';
   // Doses that were not given (refused, patient sleeping, missed, delayed) can be rescheduled.
-  const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed'];
+  const MEDICATION_RESCHEDULE_STATUSES=['Refused','Missed','Delayed','Not Given'];
+  // 2.19.23: "Not Given" — the dose could not be given for a practical reason (SQL 327). Not a clinical withholding.
+  const MEDICATION_NOT_GIVEN_REASONS=['Medicine not available (stock finished)','Medicine not provided by the family','Guest away (hospital visit / outing)','Nil by mouth (NBM) for a test / procedure','Other'];
   function addDaysISODate(dateISO,days){
     const d=new Date(`${String(dateISO).slice(0,10)}T00:00:00Z`);if(Number.isNaN(d.getTime()))return '';
     d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);

@@ -13,7 +13,7 @@
   const MH_START='2026-08-27';
   // 2.18.61: the database returns times as HH:MM:SS, prescriptions as HH:MM — always compare HH:MM
   const mhT=t=>normalizeMedicationTime(t).slice(0,5);
-  const MH_STATUSES=[['all','All statuses'],['Given','Given'],['Withheld','Withheld'],['Refused','Refused'],['Missed','Missed'],['Delayed','Delayed'],['Not recorded','Not recorded']];
+  const MH_STATUSES=[['all','All statuses'],['Given','Given'],['Withheld','Withheld'],['Refused','Refused'],['Missed','Missed'],['Not Given','Not Given'],['Delayed','Delayed'],['Not recorded','Not recorded']];
   const MH_EXCEPTION=['missed','refused','delayed','not given','withheld','unavailable'];
   const mhName=p=>formalName(p)||p?.full_name||'Guest';
   const mhRoom=p=>p?.room_no?`Room ${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'Room —';
@@ -95,7 +95,7 @@
     const shown=rows.filter(r=>(A.status==='all'||mhStatusGroup(r)===A.status)&&(!med||mhMedicine(r.order).toLowerCase().includes(med)));
     shown.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||String(a.patient.room_no||'').localeCompare(String(b.patient.room_no||''),'en',{numeric:true})||mhName(a.patient).localeCompare(mhName(b.patient))||mhMedicine(a.order).localeCompare(mhMedicine(b.order)));
     const count=s=>shown.filter(r=>mhStatusGroup(r)===s).length;
-    const summary={total:shown.length,given:count('Given'),withheld:count('Withheld'),other:count('Refused')+count('Missed')+count('Delayed'),notRecorded:count('Not recorded')};
+    const summary={total:shown.length,given:count('Given'),withheld:count('Withheld'),other:count('Refused')+count('Missed')+count('Delayed')+count('Not Given'),notRecorded:count('Not recorded')};
     return {rows:shown,summary};
   }
   // Group rows: date → time → Guest
