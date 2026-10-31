@@ -134,6 +134,20 @@
     const speechKeepAlive=React.useRef([]);
     const speechPrimed=React.useRef(false);
 
+    // 2.19.26: browsers allow sound only after a tap on the page. After every reload / update the sound was
+    // silent until someone found "Enable Alert Sound". Now the FIRST tap / key anywhere on this device turns
+    // the alert sound + voice on again automatically (unless staff switched it off on this device).
+    const SOUND_PREF_KEY='samara_alert_sound';
+    React.useEffect(()=>{
+      if(soundUnlocked||isMobileClinicalDevice())return;
+      let pref='on';try{pref=localStorage.getItem(SOUND_PREF_KEY)||'on'}catch(_){}
+      if(pref==='off')return;
+      let done=false;
+      const events=['pointerdown','keydown','touchstart'];
+      const once=()=>{if(done)return;done=true;events.forEach(ev=>window.removeEventListener(ev,once,true));unlockSound()};
+      events.forEach(ev=>window.addEventListener(ev,once,true));
+      return()=>events.forEach(ev=>window.removeEventListener(ev,once,true));
+    },[soundUnlocked]);
     function playClinicalTone(priority='Routine',force=false){
       if(isMobileClinicalDevice())return;
       if(!force&&(!settings.sound_enabled||!soundUnlocked))return;
@@ -202,8 +216,9 @@
         // the user's Enable Sound click. This is intentionally before any await.
         primeSpeechSynthesisFromGesture();
         const Ctx=window.AudioContext||window.webkitAudioContext;
-        const ctx=audioContext.current||(Ctx?new Ctx():null);
+        const ctx=audioContext.current||(audioContext.current=Ctx?new Ctx():null); // 2.19.26: keep the unlocked context
         if(ctx&&ctx.state==='suspended')await ctx.resume();
+        try{localStorage.setItem(SOUND_PREF_KEY,'on')}catch(_){}
         // One Nurse action unlocks tone + automatic clinical voice for this session.
         setSettings(s=>({...s,sound_enabled:true,voice_enabled:true}));
         setSoundUnlocked(true);
@@ -219,6 +234,7 @@
         }catch(_){}
         setSettings(s=>({...s,sound_enabled:false,voice_enabled:false}));
         setSoundUnlocked(false);
+        try{localStorage.setItem(SOUND_PREF_KEY,'off')}catch(_){}
         return;
       }
       await unlockSound();

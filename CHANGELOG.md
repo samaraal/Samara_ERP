@@ -1,3 +1,6 @@
+## 2.19.26 — 31-10-2026 — Alert sound comes back by itself after a reload
+- Cause of "no sound": browsers keep a page silent until someone taps it, and the ERP needed the "Enable Alert Sound" button after every reload / update (e.g. after 2.19.25 was installed). Now the FIRST tap or key anywhere on the computer turns the alert chime + voice on automatically (a short chime confirms it). Switching sound OFF on the Clinical Alerts page is remembered on that computer.
+
 ## 2.19.25 — 31-10-2026 — Clinical alert: music chime before the voice
 - Every Clinical Alert / Escalation pop-up now plays a short pleasant bell melody (no words) — once for Routine, twice for Urgent, three times for Critical — then the existing Tamil/English voice follows, so they never overlap. Replaces the old harsh beeps.
 - Works on the desktop / laptop ERP after "Enable Alert Sound" (as before). Bell notifications also use the chime.
