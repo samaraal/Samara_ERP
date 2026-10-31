@@ -160,9 +160,13 @@
         const level=String(priority||'Routine');
         const rounds=level==='Critical'?3:level==='Urgent'?2:1;
         const now=ctx.currentTime+.03;
+        // 2.19.28: louder (about 2×) — a compressor keeps the overlapping notes from crackling
         const master=ctx.createGain();
-        master.gain.setValueAtTime(.9,now);
-        master.connect(ctx.destination);
+        master.gain.setValueAtTime(1,now);
+        const limiter=ctx.createDynamicsCompressor();
+        limiter.threshold.setValueAtTime(-6,now);limiter.knee.setValueAtTime(6,now);limiter.ratio.setValueAtTime(12,now);
+        limiter.attack.setValueAtTime(.003,now);limiter.release.setValueAtTime(.15,now);
+        master.connect(limiter);limiter.connect(ctx.destination);
         // C6 · E6 · G6 · C7 — bright, pleasant, easy to hear over ward noise
         const melody=[[1046.5,0,.9],[1318.5,.2,.9],[1568,.4,.9],[2093,.6,1.4]];
         const roundGap=1.25;
@@ -171,7 +175,7 @@
             const t=now+r*roundGap+offset;
             const gain=ctx.createGain();
             gain.gain.setValueAtTime(.0001,t);
-            gain.gain.exponentialRampToValueAtTime(.32,t+.012);
+            gain.gain.exponentialRampToValueAtTime(.7,t+.012);
             gain.gain.exponentialRampToValueAtTime(.0001,t+len);
             gain.connect(master);
             [[1,1],[2,.28],[3,.08]].forEach(([mult,amp])=>{

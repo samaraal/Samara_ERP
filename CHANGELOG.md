@@ -1,3 +1,6 @@
+## 2.19.28 — 31-10-2026 — Clinical alert chime louder
+- Same bell melody, about twice as loud (with a limiter so it does not crackle).
+
 ## 2.19.27 — 31-10-2026 — "Not Given" stops the Medicine Due alert; Nursing Manager informed once (SQL 328)
 - A dose recorded as Not Given now counts as recorded — the Medicine Due / escalation alert stops (found: Mrs. Shanthi T, INJ. Lantus 10 PM, 31-10-2026).
 - The Nursing Manager gets a one-time FOR INFORMATION alert "Medicine Not Given: <medicine>" with the reason (pop-up once, Clinical Alerts, Clinical Escalations register with one-tap Acknowledge). Nurses and Admin screens are not repeatedly alerted; no WhatsApp.
