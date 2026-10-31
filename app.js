@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.26';
+  const APP_VERSION = '2.19.27';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5127,7 +5127,7 @@ https://samaraassistedliving.com/`;
         // Admin/Director screens ignore vitals escalations still at the Manager level.
         const viewerRole=String(profile?.role||'').trim().toLowerCase();
         const adminTierViewer=['admin','administrator','director'].includes(viewerRole);
-        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(['vital signs','medicine late'].includes(String(e.alert_type||'').toLowerCase())&&String(e.escalated_to_role||'')==='Manager'));
+        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(['vital signs','medicine late','medicine not given'].includes(String(e.alert_type||'').toLowerCase())&&String(e.escalated_to_role||'')==='Manager'));
       }catch(escError){
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
@@ -5159,7 +5159,7 @@ https://samaraassistedliving.com/`;
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -5182,7 +5182,7 @@ https://samaraassistedliving.com/`;
       // the dose / meal is already recorded; the Nursing Manager reviews and closes them in Clinical Escalations.
       // 2.18.155: Fall / Incident / Inform-Manager Nursing Note alerts are the same — the note is already recorded,
       // so they pop up once as FOR INFORMATION (no overdue timer, no repeat after OK).
-      const infoOnce=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
+      const infoOnce=a=>['medicine late','medicine not given','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
       const INFO_SEEN_KEY='samara_info_alerts_seen';
       let infoSeen={};try{infoSeen=JSON.parse(localStorage.getItem(INFO_SEEN_KEY)||'{}')||{}}catch(_e){infoSeen={}}
       const nextToAnnounce=ordered.find(a=>{
@@ -5647,7 +5647,7 @@ https://samaraassistedliving.com/`;
 
   // 2.19.20: one-tap "Acknowledge" for Manager / Admin. Info alerts (Medicine Given Late, Meal Intake, Nursing Note)
   // are already recorded by the nurse — the Manager only reviews and closes them. Works from the pop-up and the register.
-  const ESC_INFO_TYPES=['medicine late','meal intake','nursing note alert'];
+  const ESC_INFO_TYPES=['medicine late','medicine not given','meal intake','nursing note alert'];
   const escIsInfo=t=>ESC_INFO_TYPES.includes(String(t||'').toLowerCase());
   async function acknowledgeClinicalEscalation({id,alertKey,sourceId,alertType}){
     let escId=id;
@@ -14812,7 +14812,7 @@ https://samaraassistedliving.com/`;
     // 2.18.88: information-only alerts (Medicine Given Late, Poor Meal Intake — already recorded) show on this
     // card ONCE per device (same "seen" list as the alert pop-up), with a "Noted" button instead of repeating.
     const [infoSeenTick,setInfoSeenTick]=React.useState(0);
-    const isInfoAlert=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
+    const isInfoAlert=a=>['medicine late','medicine not given','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
     const infoSeenMap=(()=>{void infoSeenTick;try{return JSON.parse(localStorage.getItem('samara_info_alerts_seen')||'{}')||{}}catch(_e){return {}}})();
     const markInfoSeen=a=>{if(!a||!isInfoAlert(a))return;try{const now=Date.now(),m=Object.fromEntries(Object.entries(infoSeenMap).filter(([,t])=>now-Number(t)<3*86400000));m[a.key]=now;localStorage.setItem('samara_info_alerts_seen',JSON.stringify(m))}catch(_e){}setInfoSeenTick(t=>t+1)};
     const topClinicalAlert=alertEngine.alerts.find(a=>!(isInfoAlert(a)&&infoSeenMap[a.key]))||null;

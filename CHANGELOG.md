@@ -1,3 +1,8 @@
+## 2.19.27 — 31-10-2026 — "Not Given" stops the Medicine Due alert; Nursing Manager informed once (SQL 328)
+- A dose recorded as Not Given now counts as recorded — the Medicine Due / escalation alert stops (found: Mrs. Shanthi T, INJ. Lantus 10 PM, 31-10-2026).
+- The Nursing Manager gets a one-time FOR INFORMATION alert "Medicine Not Given: <medicine>" with the reason (pop-up once, Clinical Alerts, Clinical Escalations register with one-tap Acknowledge). Nurses and Admin screens are not repeatedly alerted; no WhatsApp.
+- Run supabase/sql/328_medicine_not_given_alerts.sql in Supabase → SQL Editor.
+
 ## 2.19.26 — 31-10-2026 — Alert sound comes back by itself after a reload
 - Cause of "no sound": browsers keep a page silent until someone taps it, and the ERP needed the "Enable Alert Sound" button after every reload / update (e.g. after 2.19.25 was installed). Now the FIRST tap or key anywhere on the computer turns the alert chime + voice on automatically (a short chime confirms it). Switching sound OFF on the Clinical Alerts page is remembered on that computer.
 

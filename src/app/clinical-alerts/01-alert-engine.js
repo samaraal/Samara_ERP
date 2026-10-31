@@ -1188,7 +1188,7 @@
         // Admin/Director screens ignore vitals escalations still at the Manager level.
         const viewerRole=String(profile?.role||'').trim().toLowerCase();
         const adminTierViewer=['admin','administrator','director'].includes(viewerRole);
-        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(['vital signs','medicine late'].includes(String(e.alert_type||'').toLowerCase())&&String(e.escalated_to_role||'')==='Manager'));
+        if(adminTierViewer)openEscalations=openEscalations.filter(e=>!(['vital signs','medicine late','medicine not given'].includes(String(e.alert_type||'').toLowerCase())&&String(e.escalated_to_role||'')==='Manager'));
       }catch(escError){
         console.warn('Clinical escalation status:',escError?.message||escError);
       }
@@ -1220,7 +1220,7 @@
       const isEscalationViewer=['Admin','Manager'].includes(profile?.role);
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
-      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
+      const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -1243,7 +1243,7 @@
       // the dose / meal is already recorded; the Nursing Manager reviews and closes them in Clinical Escalations.
       // 2.18.155: Fall / Incident / Inform-Manager Nursing Note alerts are the same — the note is already recorded,
       // so they pop up once as FOR INFORMATION (no overdue timer, no repeat after OK).
-      const infoOnce=a=>['medicine late','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
+      const infoOnce=a=>['medicine late','medicine not given','meal intake','nursing note alert'].includes(String(a?.alert_type||'').toLowerCase());
       const INFO_SEEN_KEY='samara_info_alerts_seen';
       let infoSeen={};try{infoSeen=JSON.parse(localStorage.getItem(INFO_SEEN_KEY)||'{}')||{}}catch(_e){infoSeen={}}
       const nextToAnnounce=ordered.find(a=>{

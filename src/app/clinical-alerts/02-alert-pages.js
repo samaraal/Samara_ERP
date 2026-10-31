@@ -389,7 +389,7 @@
 
   // 2.19.20: one-tap "Acknowledge" for Manager / Admin. Info alerts (Medicine Given Late, Meal Intake, Nursing Note)
   // are already recorded by the nurse — the Manager only reviews and closes them. Works from the pop-up and the register.
-  const ESC_INFO_TYPES=['medicine late','meal intake','nursing note alert'];
+  const ESC_INFO_TYPES=['medicine late','medicine not given','meal intake','nursing note alert'];
   const escIsInfo=t=>ESC_INFO_TYPES.includes(String(t||'').toLowerCase());
   async function acknowledgeClinicalEscalation({id,alertKey,sourceId,alertType}){
     let escId=id;
