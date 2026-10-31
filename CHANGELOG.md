@@ -1,3 +1,9 @@
+## 2.19.22 — 31-10-2026 — MIS & Audit: Open & fix / Close with remarks; physiotherapy held-back session billed (SQL 326)
+- MIS & Audit: each finding row has "Open & fix →" — the physiotherapy findings open Physiotherapy Dashboard → Patient Rates & Billing showing only that Guest and date, with a "Session to act on" card (send the charge to Accounts / set the Guest rate / open Charge Approvals).
+- Admin / Directors can "✓ Close" a finding (or "Close all listed") with remarks; closed items stop counting (also in the morning WhatsApp summary), are listed with who / when / remarks, and can be Reopened with a reason.
+- Fix: a completed physiotherapy session held back because a manual Physiotherapy charge was pending the same day is now sent to Accounts automatically when that manual charge is rejected / returned. Found on Mr. Joseph A A E Fernando's 31-10-2026 evening session (Dr. Satheesh S) — sent to Accounts at ₹800.
+- Run supabase/sql/326_mis_close_findings_physio_requeue.sql in Supabase → SQL Editor.
+
 ## 2.19.21 — 31-10-2026 — Medicines and care count only from when they start (SQL 325)
 - Administer form: offers only times on or after the medicine's start. A medicine added after today's last time (e.g. at 10 PM) gets "Now — first dose" instead of the morning time (that is how 30-10 first doses were saved as 13 hours late).
 - A medicine added / changed by a doctor review counts from the moment the review is saved, even if Effective From was set earlier — in the MAR, screensaver, alerts and MIS. Admission stays from the admission time.

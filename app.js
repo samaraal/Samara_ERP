@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.21';
+  const APP_VERSION = '2.19.22';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '28-Oct-2026 Charge amount reconciliation';
+  const APP_BUILD_DATE = '31-Oct-2026 MIS close findings';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -39158,7 +39158,7 @@ function RoomsBeds({profile,onNavigate}){
     if(clinicalApproval)return 'Clinical approval required';
     return 'Waiting — Admin / Director to set this Guest’s rate'+(session.overdue?' (over 24 h)':'');
   }
-  function PatientPhysioBilling({profile,onNavigate,embedded=false,filters=null}){
+  function PatientPhysioBilling({profile,onNavigate,embedded=false,filters=null,focusSessionId=''}){
     const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
     const [open,setOpen]=React.useState(embedded),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
     const [patient,setPatient]=React.useState(''),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
@@ -39193,14 +39193,39 @@ function RoomsBeds({profile,onNavigate}){
       try{const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:session.request_id,p_decision:decision,p_approved_amount:decision==='Approved'?amount:0,p_remarks:remarks.trim()});if(result.error)throw result.error;setNotice(decision==='Approved'?'Session charge posted to the patient bill.':'Session charge rejected for Accounts review.');await load()}
       catch(e){setError(e.message||'Unable to decide the session charge')}finally{setBusy(false)}
     }
+    // 2.19.22: send waiting completed sessions (Guest rate set, no manual charge pending) to Accounts now
+    async function sendToAccounts(){
+      if(busy)return;setBusy(true);setError('');setNotice('');
+      try{const result=await client.rpc('patient_physio_billing',{p_action:'queue_pending'});if(result.error)throw result.error;const n=Number(result.data?.queued||0);setNotice(n?`${n} session charge(s) sent to Accounts for approval.`:'Nothing could be sent — see the reason shown for the session.');await load()}
+      catch(e){setError(e.message||'Unable to send the session charge to Accounts')}finally{setBusy(false)}
+    }
     if(!finance)return null;
     const button=(text,fn)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:fn},text);
+    const focusSession=focusSessionId?data.sessions.find(s=>String(s.id)===String(focusSessionId)):null;
+    const focusRate=focusSession?data.rates.filter(r=>r.patient_id===focusSession.patient_id&&r.effective_from<=focusSession.session_date).sort((a,b)=>String(b.effective_from).localeCompare(String(a.effective_from)))[0]:null;
+    const focusCard=focusSessionId&&!loading&&h('div',{id:'physio-billing-focus',className:'record-focus-flash',style:{border:'2px solid #d6338a',background:'linear-gradient(145deg,#fff7fb,#fdeaf2)',borderRadius:'14px',padding:'12px 14px',margin:'12px 0'}},
+      !focusSession?h('p',{style:{margin:0}},'This session is no longer in the waiting list (the Guest may be discharged, or the session was changed). Use “Show all” above to see all sessions.'):
+      h(React.Fragment,null,
+        h('h4',{style:{margin:'0 0 6px',color:'#8a1c52'}},'Session to act on'),
+        h('p',{style:{margin:'2px 0'}},h('strong',null,data.patients.find(p=>p.id===focusSession.patient_id)?.full_name||'Guest'),' · ',formatDateIN(focusSession.session_date),' · ',focusSession.physiotherapist||'Physiotherapist'),
+        h('p',{style:{margin:'2px 0'}},'Guest rate for this date: ',h('strong',null,focusRate?money(focusRate.amount):'not set'),' · Status: ',h('strong',null,patientPhysioBillingStatus(focusSession,data.clinical_approval_required))),
+        h('div',{className:'actions',style:{marginTop:'8px'}},
+          focusSession.request_id?h(React.Fragment,null,
+              h('span',null,focusSession.approval_status==='Approved'?'✓ Charged to the Guest bill.':'Charge raised — waiting for Accounts.'),
+              onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))):
+          focusSession.manual_charge_exists?h(React.Fragment,null,
+              h('span',null,'A manual Physiotherapy charge for this date is still waiting with Accounts. Approve it if it is for this session, or reject / return it — this session is then sent to Accounts automatically.'),
+              onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))):
+          data.clinical_approval_required?h('span',null,'Physiotherapy needs clinical approval — raise it from Approval Requests.'):
+          !focusRate?(admin?button('Set Guest rate',beginRate):h('span',null,'Admin / Director must set this Guest’s physiotherapy rate.')):
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:sendToAccounts},busy?'Sending…':`Send this charge to Accounts (${money(focusRate.amount)})`))));
     return h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
       !embedded&&h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
       error&&h('p',{role:'alert'},error),
       open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director fixes each Guest’s physiotherapy rate case by case, with an effective date. Completed sessions on or after that date then go to Accounts for approval before appearing in the bill and Collection Breakup. The fee paid to physiotherapists is separate (Therapist Accounts).'),
         overdue.length>0&&h('div',{className:'message error',role:'alert'},h('strong',null,`${overdue.length} completed session(s) not billed for over 24 hours. `),'Admin / Director: select the Guest and press “Set Guest rate” — waiting sessions are sent to Accounts automatically.'),
         notice&&h('p',{role:'status'},notice),
+        focusCard,
         h('div',{className:'actions'},!filters&&h('label',null,'Physiotherapy patient ',h('select',{'aria-label':'Physiotherapy patient',value:patient,onChange:e=>{setPatient(e.target.value);setForm(null);setNotice('')}},h('option',{value:''},'Select patient'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id)))),button('Refresh physiotherapy billing',load),
           admin&&billingPatient&&button('Set Guest rate',beginRate),
           !admin&&h('small',null,'Patient rates can be set only by Admin / Director.'),
@@ -39235,6 +39260,16 @@ function RoomsBeds({profile,onNavigate}){
     const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
     const [selection,setSelection]=React.useState({patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7),from:todayISOIndia().slice(0,8)+'01',to:todayISOIndia()});
     const [patientOptions,setPatientOptions]=React.useState([]),[patientError,setPatientError]=React.useState('');
+    // 2.19.22: opened from MIS & Audit (or any openRecord) → the right tab, only that Guest and date, record highlighted
+    const [recFocus,clearRecFocus]=typeof useRecordFocus==='function'?useRecordFocus('Physiotherapy Dashboard'):[null,()=>{}];
+    React.useEffect(()=>{
+      if(!recFocus)return;
+      const today=todayISOIndia(),d=/^\d{4}-\d{2}-\d{2}$/.test(String(recFocus.date||'').slice(0,10))?String(recFocus.date).slice(0,10):today;
+      const want=recFocus.kind==='physio_session'?'Sessions':'Patient Rates & Billing';
+      if(tabs.includes(want))setTab(want);
+      setSelection(s=>({...s,patientId:recFocus.patient_id||'',search:'',mode:'Period',from:d>today?today:d,to:recFocus.kind==='physio_rate'?today:(d>today?today:d)}));
+    },[recFocus]);
+    const showAllFromFocus=()=>{clearRecFocus();setSelection(s=>({...s,patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7)}))};
     const matchingPatients=physioPatientOptions(patientOptions,selection.search);
     const computedFilters=physioMakeFilters(selection,patientOptions,todayISOIndia());
     const filters={...computedFilters,error:computedFilters.error||patientError,key:computedFilters.key+'|'+patientError};
@@ -39253,6 +39288,7 @@ function RoomsBeds({profile,onNavigate}){
     return h('div',null,
       h('div',{className:'accounts-hero'},h('div',null,h('small',null,'PHYSIOTHERAPY · CARE · BILLING'),h('h3',null,'Physiotherapy Dashboard'),h('p',null,'One workspace for physiotherapy sessions, patient billing and therapist accounts.'))),
       h('nav',{className:'actions','aria-label':'Physiotherapy workspace',style:{margin:'16px 0'}},tabs.map(name=>h('button',{type:'button',key:name,className:'btn '+(selected===name?'btn-primary':'btn-secondary'),'aria-pressed':selected===name,onClick:()=>setTab(name)},name==='Sessions'?'Sessions & Clinical Review':name))),
+      recFocus&&h(RecordFocusBanner,{focus:recFocus,onShowAll:showAllFromFocus}),
       selected!=='Therapist Accounts'&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
         h('div',{className:'form-grid'},
           h('label',null,'Search patients (3 characters)',h('input',{'aria-label':'Search physiotherapy patients',type:'search',placeholder:'Name, patient ID or room — type 3 characters',value:selection.search,onChange:e=>setSelection({...selection,search:e.target.value,patientId:''})})),
@@ -39269,7 +39305,7 @@ function RoomsBeds({profile,onNavigate}){
         access.counts&&h(PhysioSessionCounts,{profile,filters})
       ),
       selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate,filters}),
-      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,embedded:true,filters}),
+      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,onNavigate,embedded:true,filters,focusSessionId:recFocus&&recFocus.kind==='physio_billing'?recFocus.id:''}),
       selected==='Therapist Accounts'&&access.supplier&&h(PhysiotherapistAccounts,{profile})
     );
   }
@@ -54051,6 +54087,7 @@ function AuditTrail(){
     );
   }
 
+  // 2.19.22: rows open their own record ("Open & fix"); Admin can Close a finding with remarks / Reopen (SQL 326).
   // 2.19.11: MIS & AUDIT (Admin / Directors only) — one page that audits ERP entries across Clinical, Financial and
   // Operational areas for a chosen period: problems / missed entries first (with the page to fix them), then the key
   // numbers. Data: SQL 317 mis_audit_report(p_from, p_to). Each check runs on its own in the database, so one
@@ -54098,7 +54135,19 @@ function AuditTrail(){
       .mis-check-title small{display:block;color:#7a5a68;font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
       .mis-count{flex:0 0 auto;font-size:20px;font-weight:900;color:#4a1430}
       .mis-rows{border-top:1px dashed #f0d2df;padding:8px 12px 12px}
-      .mis-row{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,2fr) 100px;gap:8px;padding:6px 0;border-bottom:1px solid #f7e6ee;font-size:13.5px;color:#4a2a39}
+      .mis-row{display:grid;grid-template-columns:150px minmax(0,1.2fr) minmax(0,2fr) 100px 170px;gap:8px;padding:6px 4px;border-bottom:1px solid #f7e6ee;font-size:13.5px;color:#4a2a39;align-items:center;border-radius:8px}
+      .mis-row.mis-row-go{cursor:pointer}
+      .mis-row.mis-row-go:hover{background:#fdf1f6}
+      .mis-row-acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+      .mis-row-acts button{border:1.5px solid #e9a9c4;background:#fff;color:#8a1c52;border-radius:999px;padding:4px 10px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap}
+      .mis-row-acts button.mis-go{background:linear-gradient(135deg,#a80d4f,#d6338a);color:#fff;border-color:transparent}
+      .mis-close-form{display:grid;gap:8px;background:#fff7fb;border:1.5px solid #f0c7da;border-radius:12px;padding:10px 12px;margin:6px 0 8px}
+      .mis-close-form textarea{width:100%;min-height:64px;border:1.5px solid #e8c3d2;border-radius:10px;padding:8px;font:inherit;box-sizing:border-box}
+      .mis-close-form .mis-close-btns{display:flex;gap:8px;flex-wrap:wrap}
+      .mis-closed-list{display:grid;gap:8px}
+      .mis-closed-item{border:1.5px solid #b7e2c8;background:#f4fbf7;border-radius:12px;padding:8px 12px;font-size:13.5px;color:#2f4a3a;min-width:0}
+      .mis-closed-item b{color:#13643a}
+      .mis-closed-item p{margin:3px 0;overflow-wrap:anywhere}
       .mis-row span{min-width:0;overflow-wrap:anywhere}
       .mis-row .mis-amt{text-align:right;font-weight:800}
       .mis-row.mis-row-head{font-weight:900;color:#8a3a62;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -54108,6 +54157,7 @@ function AuditTrail(){
         .mis-row{grid-template-columns:minmax(0,1fr) auto}
         .mis-row span:nth-child(1){grid-column:1/-1;color:#8b6b79;font-size:12px}
         .mis-row span:nth-child(3){grid-column:1/-1}
+        .mis-row .mis-row-acts{grid-column:1/-1;justify-content:flex-start}
         .mis-row.mis-row-head{display:none}
         .mis-health strong{font-size:22px}
         .mis-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -54157,14 +54207,53 @@ function AuditTrail(){
     const [data,setData]=React.useState(null),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
     const [tab,setTab]=React.useState('');
     const [open,setOpen]=React.useState({});
-    const [sevFilter,setSevFilter]=React.useState(''); // 2.19.12: tap a High / Medium / Low / Passed box → that list, all areas
+    const [sevFilter,setSevFilter]=React.useState('');
+    const [showClosed,setShowClosed]=React.useState(false); // 2.19.12: tap a High / Medium / Low / Passed box → that list, all areas
     // open a page this login may open; pages kept for nurses (Vital Signs, Medicines …) fall back to the Clinical Dashboard
-    const go=page=>{
-      if(!onNavigate||!page)return;
+    const resolvePage=page=>{
+      if(!page)return null;
       let target=page;
       try{if(typeof allowedPagesForProfile==='function'){const ok=allowedPagesForProfile(profile)||[];if(ok.length&&!ok.includes(page))target=ok.includes('Clinical Dashboard')&&/Vital|Medicine|Nursing Notes/.test(page)?'Clinical Dashboard':(ok.includes(page)?page:null)}}catch(_e){}
-      if(target)onNavigate(target);
+      return target;
     };
+    const go=page=>{if(!onNavigate)return;const target=resolvePage(page);if(target)onNavigate(target)};
+    // 2.19.22: a finding row opens its own record (Guest / session / item) on the page where it is fixed
+    const openRow=(c,r)=>{
+      const page=r.ref_page||c.page;const target=resolvePage(page);if(!target||!onNavigate)return;
+      const label=[c.title,r.who,r.date].filter(Boolean).join(' · ');
+      if(target===page&&typeof openRecord==='function')openRecord(target,{id:r.ref_id||'',patient_id:r.patient_id||'',kind:r.ref_kind||'',date:r.ref_date||'',label,from:'MIS & Audit'});
+      else onNavigate(target);
+    };
+    // 2.19.22: Admin closes a finding (or all listed in one check) with remarks; closed items can be reopened
+    const [closing,setClosing]=React.useState(null); // {id,key,title,rows,text}
+    const [reopening,setReopening]=React.useState(null); // {id,text}
+    const [actBusy,setActBusy]=React.useState(false),[actMsg,setActMsg]=React.useState('');
+    const rpcError=e=>{const m=String(e?.message||e);return /mis_(close|reopen)_finding/.test(m)&&/not find|does not exist|schema cache/i.test(m)?'The MIS close option needs the database update SQL 326. Run supabase/sql/326_mis_close_findings_physio_requeue.sql in Supabase → SQL Editor.':m};
+    async function submitClose(e){
+      e.preventDefault();if(!closing||actBusy)return;
+      const text=String(closing.text||'').trim();if(text.length<5){setActMsg('Enter remarks (at least 5 letters) — what was checked or done.');return}
+      setActBusy(true);setActMsg('');let n=0;
+      try{
+        for(const r of closing.rows){
+          const res=await client.rpc('mis_close_finding',{p_check_key:closing.key,p_ref:r.ref,p_remarks:text,p_title:closing.title,p_row:{date:r.date||null,who:r.who||null,detail:r.detail||null,amount:r.amount??null}});
+          if(res.error)throw res.error;n++;
+        }
+        setClosing(null);setActMsg(`Closed ${n} finding${n===1?'':'s'} with your remarks.`);await load();
+      }catch(err){setActMsg((n?`Closed ${n}, then stopped: `:'')+rpcError(err))}finally{setActBusy(false)}
+    }
+    async function submitReopen(e){
+      e.preventDefault();if(!reopening||actBusy)return;
+      const text=String(reopening.text||'').trim();if(text.length<5){setActMsg('Enter the reason for reopening (at least 5 letters).');return}
+      setActBusy(true);setActMsg('');
+      try{const res=await client.rpc('mis_reopen_finding',{p_id:reopening.id,p_remarks:text});if(res.error)throw res.error;setReopening(null);setActMsg('Finding reopened.');await load()}
+      catch(err){setActMsg(rpcError(err))}finally{setActBusy(false)}
+    }
+    const closeForm=(onSubmit,state,setState,label,placeholder)=>h('form',{className:'mis-close-form',onSubmit,onClick:e=>e.stopPropagation()},
+      h('label',{style:{fontWeight:800,color:'#8a1c52'}},label,
+        h('textarea',{required:true,minLength:5,value:state.text||'',placeholder,autoFocus:true,onChange:e=>setState(s=>({...s,text:e.target.value}))})),
+      h('div',{className:'mis-close-btns'},
+        h('button',{type:'submit',className:'btn btn-primary',disabled:actBusy},actBusy?'Saving…':'Save'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:actBusy,onClick:()=>setState(null)},'Cancel')));
     React.useEffect(()=>{misEnsureStyle()},[]);
     async function load(){
       if(!isAdmin||rangeBad)return;
@@ -54196,7 +54285,7 @@ function AuditTrail(){
         const passed=(s.checks||[]).filter(c=>misCheckSeverity(c)==='ok');
         return `<h2>${esc(s.title)}</h2>
           <table class="k"><tr>${(s.kpis||[]).map(k=>`<td><small>${esc(k.label)}</small><b>${esc(misKpiValue(k))}</b>${k.note?`<i>${esc(k.note)}</i>`:''}</td>`).join('')}</tr></table>
-          ${issues.length?issues.map(c=>`<h3><span class="s ${misCheckSeverity(c)}">${MIS_SEVERITY[misCheckSeverity(c)].label}</span> ${esc(c.title)} — ${c.error?'could not run':esc(c.count)}</h3>
+          ${issues.length?issues.map(c=>`<h3><span class="s ${misCheckSeverity(c)}">${MIS_SEVERITY[misCheckSeverity(c)].label}</span> ${esc(c.title)} — ${c.error?'could not run':esc(c.count)}${Number(c.closed_count)>0?` (${esc(c.closed_count)} closed by Admin)`:''}</h3>
             ${c.detail?`<p>${esc(c.detail)}</p>`:''}${c.error?`<p class="e">${esc(c.error)}</p>`:''}
             ${(c.rows||[]).length?`<table><tr><th>Date</th><th>Guest / Staff</th><th>Detail</th><th>Amount</th></tr>${c.rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.who)}</td><td>${esc(r.detail)}</td><td style="text-align:right">${esc(misMoney(r.amount))}</td></tr>`).join('')}</table>`:''}`).join(''):'<p>No problems found.</p>'}
           ${passed.length?`<p class="ok">Passed: ${passed.map(c=>esc(c.title)).join(' · ')}</p>`:''}`;
@@ -54223,14 +54312,26 @@ function AuditTrail(){
         h('button',{type:'button',className:'mis-check-head','aria-expanded':isOpen,onClick:()=>setOpen(o=>({...o,[id]:!o[id]}))},
           h('span',{className:'mis-sev',style:{background:S.bg,color:S.fg,borderColor:S.bd}},S.label),
           h('span',{className:'mis-check-title'},h('b',null,sevFilter&&c.section?`${c.section} · ${c.title}`:c.title),h('small',null,c.error?'This check could not run: '+c.error:(c.detail||''))),
-          !c.error&&h('span',{className:'mis-count'},c.amount!==null&&c.amount!==undefined&&Number(c.amount)?`${c.count} · ${misMoney(c.amount)}`:String(c.count))),
+          !c.error&&h('span',{className:'mis-count'},c.amount!==null&&c.amount!==undefined&&Number(c.amount)?`${c.count} · ${misMoney(c.amount)}`:String(c.count),
+            Number(c.closed_count)>0&&h('small',{style:{display:'block',fontSize:'11.5px',color:'#13643a',fontWeight:800}},`${c.closed_count} closed`))),
         isOpen&&h('div',{className:'mis-rows'},
           rows.length?h(React.Fragment,null,
-            h('div',{className:'mis-row mis-row-head'},h('span',null,'Date'),h('span',null,'Guest / Staff'),h('span',null,'Detail'),h('span',{className:'mis-amt'},'Amount')),
-            rows.map((r,j)=>h('div',{key:j,className:'mis-row'},h('span',null,r.date||'—'),h('span',null,r.who||'—'),h('span',null,r.detail||''),h('span',{className:'mis-amt'},misMoney(r.amount)))),
-            Number(c.count)>rows.length&&h('p',{className:'small-note'},`Showing ${rows.length} of ${c.count}. Open the page for the full list.`)
+            h('div',{className:'mis-row mis-row-head'},h('span',null,'Date'),h('span',null,'Guest / Staff'),h('span',null,'Detail'),h('span',{className:'mis-amt'},'Amount'),h('span',{style:{textAlign:'right'}},'Action')),
+            rows.map((r,j)=>{const page=r.ref_page||c.page;const canGo=!!(page&&onNavigate&&resolvePage(page));const fid=`${c.key}|${r.ref||j}`;
+              return h(React.Fragment,{key:j},
+                h('div',{className:'mis-row'+(canGo?' mis-row-go':''),title:canGo?`Open this entry in ${page}`:undefined,onClick:canGo?()=>openRow(c,r):undefined},
+                  h('span',null,r.date||'—'),h('span',null,r.who||'—'),h('span',null,r.detail||''),h('span',{className:'mis-amt'},misMoney(r.amount)),
+                  h('span',{className:'mis-row-acts'},
+                    canGo&&h('button',{type:'button',className:'mis-go',onClick:e=>{e.stopPropagation();openRow(c,r)}},'Open & fix →'),
+                    r.ref&&h('button',{type:'button',title:'Close this finding with remarks',onClick:e=>{e.stopPropagation();setActMsg('');setClosing({id:fid,key:c.key,title:c.title,rows:[r],text:''})}},'✓ Close'))),
+                closing?.id===fid&&closeForm(submitClose,closing,setClosing,`Close this finding — ${r.who||r.date||c.title}`,'Remarks: what was checked / action taken (e.g. charge raised and approved; rate not applicable — free session agreed by Director)'));
+            }),
+            Number(c.count)>rows.length&&h('p',{className:'small-note'},`Showing ${rows.length} of ${c.count}. Open the page for the full list.`),
+            rows.filter(r=>r.ref).length>1&&h('div',{style:{marginTop:'8px'}},
+              closing?.id===`${c.key}|*`?closeForm(submitClose,closing,setClosing,`Close all ${rows.filter(r=>r.ref).length} findings listed above`,'Remarks for all of them'):
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setActMsg('');setClosing({id:`${c.key}|*`,key:c.key,title:c.title,rows:rows.filter(r=>r.ref),text:''})}},`✓ Close all ${rows.filter(r=>r.ref).length} listed`))
           ):h('p',{className:'small-note'},'No item list for this check.'),
-          c.page&&onNavigate&&h('button',{type:'button',className:'btn btn-primary',style:{marginTop:'8px'},onClick:()=>go(c.page)},`Open ${c.page}`))
+          c.page&&onNavigate&&h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'8px'},onClick:()=>go(c.page)},`Open ${c.page}`))
       );
     };
 
@@ -54238,6 +54339,7 @@ function AuditTrail(){
     const filtered=sevFilter?allTagged.filter(c=>misCheckSeverity(c)===sevFilter).sort((a,b)=>Number(b.count||0)-Number(a.count||0)):null;
     const issues=current?(current.checks||[]).filter(c=>misCheckSeverity(c)!=='ok').sort((a,b)=>MIS_SEVERITY[misCheckSeverity(a)].rank-MIS_SEVERITY[misCheckSeverity(b)].rank||Number(b.count||0)-Number(a.count||0)):[];
     const passed=current?(current.checks||[]).filter(c=>misCheckSeverity(c)==='ok'):[];
+    const closedRows=current?(current.checks||[]).flatMap(c=>(c.closed_rows||[]).map(r=>({...r,check:c.title}))):[];
 
     return h('div',{className:'mis-wrap'},
       h(Section,{title:'MIS & Audit',subtitle:`Admin / Directors only · audit of ERP entries — discrepancies & deviations, Clinical, Financial, Operational · ${periodName}`,
@@ -54268,11 +54370,21 @@ function AuditTrail(){
           h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap',margin:'16px 0 8px'}},
             h('h4',{style:{margin:0,color:MIS_SEVERITY[sevFilter].fg}},`${MIS_SEVERITY[sevFilter].label==='OK'?'Checks passed':MIS_SEVERITY[sevFilter].label+(sevFilter==='error'?'':' findings')} — all areas (${filtered.length})`),
             h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setSevFilter('')},'Show by area')),
+          actMsg&&h('p',{className:'message',role:'status',style:{fontWeight:700}},actMsg),
           filtered.length?h('div',{style:{display:'grid',gap:'8px'}},filtered.map(checkCard)):h('p',null,'None.')):
         h(React.Fragment,null,
-        h('h4',{id:'mis-findings',style:{margin:'16px 0 8px',color:'#8a3a62'}},issues.length?`Audit findings (${issues.length}) — tap one to see the entries`:'Audit findings'),
+        h('h4',{id:'mis-findings',style:{margin:'16px 0 8px',color:'#8a3a62'}},issues.length?`Audit findings (${issues.length}) — tap one to see the entries, then “Open & fix” or “Close”`:'Audit findings'),
+        actMsg&&h('p',{className:'message',role:'status',style:{fontWeight:700}},actMsg),
         issues.length?h('div',{style:{display:'grid',gap:'8px'}},issues.map(checkCard)):h('p',{style:{color:'#13643a',fontWeight:800}},'✓ No problems found in this area for the period.')),
-        !filtered&&passed.length>0&&h(React.Fragment,null,h('h4',{style:{margin:'16px 0 8px',color:'#13643a'}},`Checks passed (${passed.length})`),h('div',{className:'mis-passed'},passed.map((c,i)=>h('span',{key:i},'✓ '+c.title))))
+        !filtered&&passed.length>0&&h(React.Fragment,null,h('h4',{style:{margin:'16px 0 8px',color:'#13643a'}},`Checks passed (${passed.length})`),h('div',{className:'mis-passed'},passed.map((c,i)=>h('span',{key:i},'✓ '+c.title+(Number(c.closed_count)>0?` (${c.closed_count} closed)`:''))))),
+        !filtered&&closedRows.length>0&&h(React.Fragment,null,
+          h('button',{type:'button',className:'btn btn-secondary',style:{marginTop:'16px'},'aria-expanded':showClosed,onClick:()=>setShowClosed(v=>!v)},`${showClosed?'Hide':'Show'} findings closed by Admin (${closedRows.length})`),
+          showClosed&&h('div',{className:'mis-closed-list',style:{marginTop:'8px'}},closedRows.map(r=>h('div',{key:r.closure_id,className:'mis-closed-item'},
+            h('p',null,h('b',null,r.check),' · ',r.date||'—',' · ',r.who||'—',r.amount?` · ${misMoney(r.amount)}`:''),
+            r.detail&&h('p',null,r.detail),
+            h('p',null,h('b',null,'Closed: '),`${r.closed_by||'Admin'} · ${r.closed_at?formatDateTimeIN(r.closed_at):''} — ${r.remarks||''}`),
+            reopening?.id===r.closure_id?closeForm(submitReopen,reopening,setReopening,'Reason for reopening','Why this finding needs attention again'):
+            h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setActMsg('');setReopening({id:r.closure_id,text:''})}},'Reopen')))))
       ),
       data&&h('p',{className:'small-note'},`Checked ${formatDateTimeIN(data.generated_at||new Date())} · India time. Trial Guests are left out. The morning WhatsApp summary covers the previous day.`)
     );

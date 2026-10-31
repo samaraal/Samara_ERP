@@ -271,7 +271,7 @@
     if(clinicalApproval)return 'Clinical approval required';
     return 'Waiting — Admin / Director to set this Guest’s rate'+(session.overdue?' (over 24 h)':'');
   }
-  function PatientPhysioBilling({profile,onNavigate,embedded=false,filters=null}){
+  function PatientPhysioBilling({profile,onNavigate,embedded=false,filters=null,focusSessionId=''}){
     const admin=profile?.role==='Admin',finance=admin||profile?.role==='Accounts';
     const [open,setOpen]=React.useState(embedded),[data,setData]=React.useState({patients:[],rates:[],sessions:[]});
     const [patient,setPatient]=React.useState(''),[form,setForm]=React.useState(null),[busy,setBusy]=React.useState(false),[loading,setLoading]=React.useState(true),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
@@ -306,14 +306,39 @@
       try{const result=await client.rpc('decide_bill_charge_request_v5',{p_request_id:session.request_id,p_decision:decision,p_approved_amount:decision==='Approved'?amount:0,p_remarks:remarks.trim()});if(result.error)throw result.error;setNotice(decision==='Approved'?'Session charge posted to the patient bill.':'Session charge rejected for Accounts review.');await load()}
       catch(e){setError(e.message||'Unable to decide the session charge')}finally{setBusy(false)}
     }
+    // 2.19.22: send waiting completed sessions (Guest rate set, no manual charge pending) to Accounts now
+    async function sendToAccounts(){
+      if(busy)return;setBusy(true);setError('');setNotice('');
+      try{const result=await client.rpc('patient_physio_billing',{p_action:'queue_pending'});if(result.error)throw result.error;const n=Number(result.data?.queued||0);setNotice(n?`${n} session charge(s) sent to Accounts for approval.`:'Nothing could be sent — see the reason shown for the session.');await load()}
+      catch(e){setError(e.message||'Unable to send the session charge to Accounts')}finally{setBusy(false)}
+    }
     if(!finance)return null;
     const button=(text,fn)=>h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:fn},text);
+    const focusSession=focusSessionId?data.sessions.find(s=>String(s.id)===String(focusSessionId)):null;
+    const focusRate=focusSession?data.rates.filter(r=>r.patient_id===focusSession.patient_id&&r.effective_from<=focusSession.session_date).sort((a,b)=>String(b.effective_from).localeCompare(String(a.effective_from)))[0]:null;
+    const focusCard=focusSessionId&&!loading&&h('div',{id:'physio-billing-focus',className:'record-focus-flash',style:{border:'2px solid #d6338a',background:'linear-gradient(145deg,#fff7fb,#fdeaf2)',borderRadius:'14px',padding:'12px 14px',margin:'12px 0'}},
+      !focusSession?h('p',{style:{margin:0}},'This session is no longer in the waiting list (the Guest may be discharged, or the session was changed). Use “Show all” above to see all sessions.'):
+      h(React.Fragment,null,
+        h('h4',{style:{margin:'0 0 6px',color:'#8a1c52'}},'Session to act on'),
+        h('p',{style:{margin:'2px 0'}},h('strong',null,data.patients.find(p=>p.id===focusSession.patient_id)?.full_name||'Guest'),' · ',formatDateIN(focusSession.session_date),' · ',focusSession.physiotherapist||'Physiotherapist'),
+        h('p',{style:{margin:'2px 0'}},'Guest rate for this date: ',h('strong',null,focusRate?money(focusRate.amount):'not set'),' · Status: ',h('strong',null,patientPhysioBillingStatus(focusSession,data.clinical_approval_required))),
+        h('div',{className:'actions',style:{marginTop:'8px'}},
+          focusSession.request_id?h(React.Fragment,null,
+              h('span',null,focusSession.approval_status==='Approved'?'✓ Charged to the Guest bill.':'Charge raised — waiting for Accounts.'),
+              onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))):
+          focusSession.manual_charge_exists?h(React.Fragment,null,
+              h('span',null,'A manual Physiotherapy charge for this date is still waiting with Accounts. Approve it if it is for this session, or reject / return it — this session is then sent to Accounts automatically.'),
+              onNavigate&&button('Open Accounts charge approvals',()=>onNavigate('Charge Approvals'))):
+          data.clinical_approval_required?h('span',null,'Physiotherapy needs clinical approval — raise it from Approval Requests.'):
+          !focusRate?(admin?button('Set Guest rate',beginRate):h('span',null,'Admin / Director must set this Guest’s physiotherapy rate.')):
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:sendToAccounts},busy?'Sending…':`Send this charge to Accounts (${money(focusRate.amount)})`))));
     return h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
       !embedded&&h('button',{type:'button',className:'btn btn-secondary','aria-expanded':open,onClick:()=>setOpen(v=>!v)},'Patient Physiotherapy Billing'+(loading?' — loading…':error?' — needs attention':' · '+pending+' completed session(s) awaiting billing')),
       error&&h('p',{role:'alert'},error),
       open&&h(React.Fragment,null,h('h3',null,'Patient Physiotherapy Billing'),h('p',null,'Admin / Director fixes each Guest’s physiotherapy rate case by case, with an effective date. Completed sessions on or after that date then go to Accounts for approval before appearing in the bill and Collection Breakup. The fee paid to physiotherapists is separate (Therapist Accounts).'),
         overdue.length>0&&h('div',{className:'message error',role:'alert'},h('strong',null,`${overdue.length} completed session(s) not billed for over 24 hours. `),'Admin / Director: select the Guest and press “Set Guest rate” — waiting sessions are sent to Accounts automatically.'),
         notice&&h('p',{role:'status'},notice),
+        focusCard,
         h('div',{className:'actions'},!filters&&h('label',null,'Physiotherapy patient ',h('select',{'aria-label':'Physiotherapy patient',value:patient,onChange:e=>{setPatient(e.target.value);setForm(null);setNotice('')}},h('option',{value:''},'Select patient'),data.patients.map(p=>h('option',{key:p.id,value:p.id},p.full_name+' · '+p.patient_id)))),button('Refresh physiotherapy billing',load),
           admin&&billingPatient&&button('Set Guest rate',beginRate),
           !admin&&h('small',null,'Patient rates can be set only by Admin / Director.'),
@@ -348,6 +373,16 @@
     const [summary,setSummary]=React.useState(null),[error,setError]=React.useState(''),[loading,setLoading]=React.useState(false);
     const [selection,setSelection]=React.useState({patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7),from:todayISOIndia().slice(0,8)+'01',to:todayISOIndia()});
     const [patientOptions,setPatientOptions]=React.useState([]),[patientError,setPatientError]=React.useState('');
+    // 2.19.22: opened from MIS & Audit (or any openRecord) → the right tab, only that Guest and date, record highlighted
+    const [recFocus,clearRecFocus]=typeof useRecordFocus==='function'?useRecordFocus('Physiotherapy Dashboard'):[null,()=>{}];
+    React.useEffect(()=>{
+      if(!recFocus)return;
+      const today=todayISOIndia(),d=/^\d{4}-\d{2}-\d{2}$/.test(String(recFocus.date||'').slice(0,10))?String(recFocus.date).slice(0,10):today;
+      const want=recFocus.kind==='physio_session'?'Sessions':'Patient Rates & Billing';
+      if(tabs.includes(want))setTab(want);
+      setSelection(s=>({...s,patientId:recFocus.patient_id||'',search:'',mode:'Period',from:d>today?today:d,to:recFocus.kind==='physio_rate'?today:(d>today?today:d)}));
+    },[recFocus]);
+    const showAllFromFocus=()=>{clearRecFocus();setSelection(s=>({...s,patientId:'',search:'',mode:'Month',month:todayISOIndia().slice(0,7)}))};
     const matchingPatients=physioPatientOptions(patientOptions,selection.search);
     const computedFilters=physioMakeFilters(selection,patientOptions,todayISOIndia());
     const filters={...computedFilters,error:computedFilters.error||patientError,key:computedFilters.key+'|'+patientError};
@@ -366,6 +401,7 @@
     return h('div',null,
       h('div',{className:'accounts-hero'},h('div',null,h('small',null,'PHYSIOTHERAPY · CARE · BILLING'),h('h3',null,'Physiotherapy Dashboard'),h('p',null,'One workspace for physiotherapy sessions, patient billing and therapist accounts.'))),
       h('nav',{className:'actions','aria-label':'Physiotherapy workspace',style:{margin:'16px 0'}},tabs.map(name=>h('button',{type:'button',key:name,className:'btn '+(selected===name?'btn-primary':'btn-secondary'),'aria-pressed':selected===name,onClick:()=>setTab(name)},name==='Sessions'?'Sessions & Clinical Review':name))),
+      recFocus&&h(RecordFocusBanner,{focus:recFocus,onShowAll:showAllFromFocus}),
       selected!=='Therapist Accounts'&&h('section',{className:'accounts-panel',style:{margin:'16px 0'}},
         h('div',{className:'form-grid'},
           h('label',null,'Search patients (3 characters)',h('input',{'aria-label':'Search physiotherapy patients',type:'search',placeholder:'Name, patient ID or room — type 3 characters',value:selection.search,onChange:e=>setSelection({...selection,search:e.target.value,patientId:''})})),
@@ -382,7 +418,7 @@
         access.counts&&h(PhysioSessionCounts,{profile,filters})
       ),
       selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate,filters}),
-      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,embedded:true,filters}),
+      selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,onNavigate,embedded:true,filters,focusSessionId:recFocus&&recFocus.kind==='physio_billing'?recFocus.id:''}),
       selected==='Therapist Accounts'&&access.supplier&&h(PhysiotherapistAccounts,{profile})
     );
   }
