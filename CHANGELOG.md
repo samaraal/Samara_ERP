@@ -1,3 +1,9 @@
+## 2.19.31 — 01-11-2026 — Physiotherapy session fee posts automatically (SQL 329)
+- When the nurse marks a physiotherapy session Completed, the physiotherapist's session fee is posted to the ledger automatically at the fee Admin / Director already agreed for that physiotherapist + Guest — no more "Post session fee" every time.
+- First session of a new physiotherapist + Guest (no agreed fee yet) still waits in Sessions → "Completed sessions awaiting fee posting"; Admin enters the fee once and later sessions post themselves. Salaried physiotherapists: nothing posted (as before).
+- Auto-posted entries show "Session fee (auto-posted)" in the Ledger; Admin can Reverse them as usual. Nurses never see the fee.
+- Run supabase/sql/329_physio_auto_post_fee.sql in Supabase → SQL Editor.
+
 ## 2.19.30 — 01-11-2026 — Approve charge box moved to the middle
 - The Approve / Partial / Return box now opens from the middle of the Bill & Charge Requests card (it was at the extreme right edge), still level with the item.
 
