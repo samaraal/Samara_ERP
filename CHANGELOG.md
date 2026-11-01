@@ -1,3 +1,6 @@
+## 2.19.29 — 01-11-2026 — Approve charge box opens at the right side
+- Bills & Charges Approval: the Approve / Partial / Return box now opens at the right side of the Bill & Charge Requests card, level with the item, so the charge name, qty and requested-by details stay visible. On phones / narrow windows it still opens below the button.
+
 ## 2.19.28 — 31-10-2026 — Clinical alert chime louder
 - Same bell melody, about twice as loud (with a limiter so it does not crackle).
 

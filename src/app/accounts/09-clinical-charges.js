@@ -848,7 +848,7 @@
       if(decision!=='Rejected'){
         const master=(tariffs||[]).find(t=>t.category===OUTSIDE_CATEGORY&&((row.charge_item_code&&t.charge_code===row.charge_item_code)||t.service_name===row.service_name)&&t.is_active!==false);
         const familyPaid=row.outside_paid_by==='Family paid directly';
-        const ask=await samaraAsk({anchor,title:`${row.service_name||'Outside bill'}${row.service_provider?` · ${row.service_provider}`:''}`,
+        const ask=await samaraAsk({anchor,side:'right',title:`${row.service_name||'Outside bill'}${row.service_provider?` · ${row.service_provider}`:''}`,
           message:`Bill ${row.bill_number||'—'} · Paid by: ${row.outside_paid_by}\nOpen and check the uploaded bill, then enter the bill amount exactly as printed.`,
           fields:[{key:'amount',label:'Bill amount (₹)',type:'number',value:row.requested_amount!=null?String(row.requested_amount):'',required:true}],okLabel:'Next'});
         if(ask===null)return;
@@ -856,7 +856,7 @@
         amount=Number(entered);
         if(!Number.isFinite(amount)||amount<=0){notify('error','Enter the verified bill amount greater than zero.');return}
         const fee=familyPaid?0:outsideFeeAmount(master,amount);
-        if(!(await samaraConfirm({anchor,title:'Please confirm',okLabel:'Confirm',message:familyPaid
+        if(!(await samaraConfirm({anchor,side:'right',title:'Please confirm',okLabel:'Confirm',message:familyPaid
           ?`Family paid this bill directly (${money(amount)}).\nIt will be kept for the record only — nothing is charged to the Guest. Continue?`
           :`Guest bill will get:\n• ${row.service_name} (at actual): ${money(amount)}${fee>0?`\n• Handling charge: ${money(fee)}`:''}\nTotal: ${money(amount+fee)}${row.outside_paid_by==='NM Petty Cash'?'\n\nThe bill amount is also written into the Nursing Manager\'s Petty Cash book.':''}${row.outside_paid_by==='On credit - pay later'?'\n\nThe bill stays in Outside Bills as payable to the vendor until marked paid.':''}`})))return;
       }
@@ -872,13 +872,13 @@
     }
     // 2.18.191: Samara dialog beside the pressed button (not the browser box at the top of the screen)
     async function askRemarks(decision,anchor){
-      const ask=await samaraAsk({anchor,title:decision==='Partially Approved'?'Partial approval':'Approve charge',
+      const ask=await samaraAsk({anchor,side:'right',title:decision==='Partially Approved'?'Partial approval':'Approve charge',
         fields:[{key:'remarks',label:'Decision remarks',value:decision}],okLabel:decision==='Partially Approved'?'Approve partly':'Approve'});
       return ask===null?null:(ask.remarks||decision);
     }
     // 2.18.147: a Return always needs the reason — the nurse sees it and corrects the request
     async function returnReason(row,anchor){
-      const ask=await samaraAsk({anchor,title:'Return to Nursing for correction',
+      const ask=await samaraAsk({anchor,side:'right',title:'Return to Nursing for correction',
         message:`${row.service_name||row.description||'Charge'} · Qty ${row.quantity||1}${row.unit?` ${row.unit}`:''}`,
         fields:[{key:'reason',label:'What should the nurse correct? (the nurse sees this)',type:'textarea',value:'',required:true}],okLabel:'Return'});
       if(ask===null)return null;
@@ -902,7 +902,7 @@
           return;
         }
         const defaultAmount=amount>0?String(amount):'';
-        const ask=await samaraAsk({anchor,title:decision==='Partially Approved'?'Partial approval':'Approve charge',
+        const ask=await samaraAsk({anchor,side:'right',title:decision==='Partially Approved'?'Partial approval':'Approve charge',
           message:row.bill_available
             ?'Verify the uploaded bill and enter the actual bill amount:'
             :isOther

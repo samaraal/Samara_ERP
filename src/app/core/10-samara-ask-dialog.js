@@ -27,6 +27,7 @@
       .samara-ask-cancel{border:1.5px solid #e9a9c4;background:#fff;color:#8a1c52}
       @keyframes samaraAskFade{from{opacity:0}to{opacity:1}}
       @keyframes samaraAskPop{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+      .samara-ask-box.samara-ask-side{width:min(360px,calc(100vw - 20px))}
       @media(max-width:600px){.samara-ask-box{left:10px!important;right:10px!important;width:auto}}
     `;document.head.appendChild(style);
   }
@@ -41,7 +42,27 @@
     }
     return document.scrollingElement||document.documentElement;
   }
-  function samaraPlaceAskBox(box,anchor){
+  // 2.19.29: side:'right' — open at the RIGHT side of the card holding the button (e.g. Bill & Charge Requests),
+  // level with the pressed row, so the charge details on the left are never hidden. Falls back to "below the
+  // button" when the card is too narrow (phones / small windows).
+  function samaraPlaceAskSide(box,anchor){
+    const card=anchor&&anchor.closest&&anchor.closest('.card.panel,.card,.panel');
+    if(!card)return false;
+    const vw=window.innerWidth,vh=window.innerHeight,c=card.getBoundingClientRect();
+    if(vw<=900||c.width<760)return false;
+    box.classList.add('samara-ask-side');
+    const bw=box.offsetWidth,bh=box.offsetHeight,r=anchor.getBoundingClientRect();
+    const row=anchor.closest('[class*="row"],li,tr,article')||anchor;
+    const rr=row.getBoundingClientRect();
+    let left=Math.min(c.right-bw-14,vw-bw-10);
+    let top=Math.min(rr.top,r.top-40);
+    if(top+bh>vh-10)top=vh-bh-10;
+    box.style.left=Math.max(10,left)+'px';box.style.top=Math.max(10,top)+'px';
+    return true;
+  }
+  function samaraPlaceAskBox(box,anchor,side){
+    if(side==='right'&&anchor&&anchor.isConnected&&samaraPlaceAskSide(box,anchor))return null;
+    box.classList.remove('samara-ask-side');
     const vw=window.innerWidth,vh=window.innerHeight,bw=box.offsetWidth,bh=box.offsetHeight,gap=10;
     let r=anchor&&anchor.isConnected&&anchor.getBoundingClientRect?anchor.getBoundingClientRect():null;
     if(!r||(!r.width&&!r.height)){box.style.left=Math.max(10,(vw-bw)/2)+'px';box.style.top=Math.max(10,(vh-bh)/2)+'px';return null}
@@ -69,7 +90,7 @@
     box.style.left=Math.max(10,left)+'px';box.style.top=top+'px';
     return spacer;
   }
-  function samaraAsk({anchor=null,title='',message='',fields=[],okLabel='OK',cancelLabel='Cancel'}={}){
+  function samaraAsk({anchor=null,title='',message='',fields=[],okLabel='OK',cancelLabel='Cancel',side=''}={}){
     return new Promise(resolve=>{
       samaraEnsureAskStyle();
       const pressed=anchor||(document.activeElement&&document.activeElement!==document.body?document.activeElement:null);
@@ -91,7 +112,7 @@
       const ok=document.createElement('button');ok.type='button';ok.className='samara-ask-ok';ok.textContent=okLabel;
       actions.append(cancel,ok);box.appendChild(actions);
       document.body.append(backdrop,box);
-      const spacer=samaraPlaceAskBox(box,pressed);
+      const spacer=samaraPlaceAskBox(box,pressed,side);
       const done=value=>{document.removeEventListener('keydown',onKey,true);backdrop.remove();box.remove();if(spacer)spacer.remove();try{pressed&&pressed.focus&&pressed.focus({preventScroll:true})}catch(_){}resolve(value)};
       const submit=()=>{
         const values={};
