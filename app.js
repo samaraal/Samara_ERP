@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.46';
+  const APP_VERSION = '2.19.47';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Nov-2026 Mobile date picker + attachments';
+  const APP_BUILD_DATE = '01-Nov-2026 Auto payslip WhatsApp';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -52869,7 +52869,15 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
         if(r.error)throw r.error;
         showSamaraActionToast('success','Salary saved',`${emp.name} · Net ${npMoney(r.data?.net_pay)} — counted in Net Profit.`);
-        await load();onChanged&&onChanged();setMsg('✓ Saved. You can now open the payslip or send it on WhatsApp.');
+        // 2.19.47: the payslip goes out on WhatsApp automatically as soon as the salary is saved (Admin, 01-11-2026).
+        // If WhatsApp fails, the salary stays saved; the error is shown and "Send payslip on WhatsApp" stays available to retry.
+        let sentNote='';
+        if(r.data?.id){
+          setMsg('✓ Saved. Sending the payslip on WhatsApp…');
+          try{const j=await payslipCall('send',r.data.id);sentNote=`✓ Saved and payslip sent on WhatsApp to ${j.to}.`;showSamaraActionToast('success','Payslip sent on WhatsApp',`Sent to ${j.to}.`)}
+          catch(e){sentNote=`✓ Saved, but the payslip could not be sent on WhatsApp: ${e.message||e}. Use "Send payslip on WhatsApp" to try again.`;showSamaraActionToast('error','Payslip not sent',e.message||String(e))}
+        }
+        await load();onChanged&&onChanged();setMsg(sentNote||'✓ Saved. You can now open the payslip or send it on WhatsApp.');
       }catch(e){setMsg(e.message||'Unable to save.')}finally{setBusy(false)}
     }
     async function pdf(id){try{setBusy(true);const b=await payslipCall('pdf',id);const u=URL.createObjectURL(b);window.open(u,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(u),60000)}catch(e){setMsg(e.message)}finally{setBusy(false)}}
@@ -52928,7 +52936,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
               h('div',{className:'field',style:{margin:0}},h('label',null,'Paid on'),h(StrictDateInput,{value:d.paid_on,min:month,max:today,onChange:e=>setD({...d,paid_on:e.target.value})})),
               h('div',{className:'field',style:{margin:0}},h('label',null,'Paid by'),h('select',{value:d.paid_mode,onChange:e=>setD({...d,paid_mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x))))),
             !sv&&end>=today?h('div',{className:'notice',style:{marginTop:'12px'}},`${npMonthLabel(month)} is not over yet — the roster still has days to come. Salary for ${npMonthLabel(month)} can be saved from ${formatDateIN(npAddDay(end))}.`)
-            :!sv?h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save,style:{width:'100%',marginTop:'12px',padding:'13px',fontSize:'16px'}},busy?'Saving…':`Save salary · ${npMoney(c.net)}`)
+            :!sv?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save,style:{width:'100%',marginTop:'12px',padding:'13px',fontSize:'16px'}},busy?'Saving & sending payslip…':`Save salary & send payslip · ${npMoney(c.net)}`),h('small',{style:{display:'block',marginTop:'6px',color:'#8a5a70'}},`The payslip PDF goes on WhatsApp to ${emp.mobile||'the mobile number in HR'} as soon as you save.`))
               :h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
                 h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>pdf(sv.id)},'📄 Payslip PDF'),
                 confirmSend?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-whatsapp',disabled:busy,onClick:()=>send(sv.id)},`✓ Yes, send to ${emp.mobile||'mobile in HR'}`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setConfirmSend(false)},'Cancel'))

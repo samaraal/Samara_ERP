@@ -1,3 +1,6 @@
+## 2.19.47 — 01-11-2026 — Payslip WhatsApp sent automatically on save
+- Payroll: saving a salary now sends the payslip PDF on WhatsApp straight away (button reads "Save salary & send payslip"). If WhatsApp fails, the salary stays saved, the reason is shown, and "Send payslip on WhatsApp" remains for a retry.
+
 ## 2.19.46 — 01-11-2026 — Mobile: date picker + attachments open
 - Date boxes (DD-MM-YYYY) now open the phone's own calendar on tap — fixes HR Interview / Reschedule date and every other date box using the shared ERP date control on iPhone / Android.
 - Attachments (HR applicant documents, employee documents, Guest documents, incident documents, kitchen / petty-cash / expense / outside bills) now open on phones: the tab opens at the tap; in the installed app an "Open Document" box appears instead.
