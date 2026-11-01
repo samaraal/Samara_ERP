@@ -996,6 +996,29 @@ Please access the Samara Family Portal for detailed account information.`;
         return;
       }
 
+      // 2.19.39: duplicate-money check — found 01-11-2026: a ₹35,931 Razorpay payment (auto-credited) was entered
+      // again by hand as "Advance received". Before saving money received, look for a payment / advance of the same
+      // amount for this Guest in the last 24 hours (or the same reference) and ask before saving a second one.
+      if(['Payment','Advance'].includes(form.transaction_type)){
+        try{
+          const since=new Date(Date.now()-24*3600*1000).toISOString();
+          const ref=String(form.payment_reference||'').trim();
+          const {data:recent}=await client.from('billing_transactions')
+            .select('id,transaction_type,amount,payment_mode,payment_reference,description,transaction_date')
+            .eq('patient_id',form.patient_id).in('transaction_type',['Payment','Advance']).gte('transaction_date',since)
+            .order('transaction_date',{ascending:false}).limit(20);
+          const same=(recent||[]).filter(r=>Math.round(Number(r.amount)*100)===Math.round(amount*100)||(ref&&String(r.payment_reference||'').trim()===ref));
+          if(same.length){
+            const r=same[0];
+            const when=new Date(r.transaction_date).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(/\//g,'-');
+            const how=[r.payment_mode,/razorpay/i.test(`${r.payment_mode} ${r.description}`)&&!/razorpay/i.test(r.payment_mode||'')?'Razorpay':''].filter(Boolean).join(' · ')||'—';
+            const ok=await samaraConfirm({anchor:e?.nativeEvent?.submitter||null,title:'Possible duplicate payment',okLabel:'Yes, this is a new payment',
+              message:`A ${r.transaction_type} of ₹${Number(r.amount).toLocaleString('en-IN')} for this Guest is already recorded:\n${when} · ${how}${r.payment_reference?` · Ref ${r.payment_reference}`:''}\n\nRazorpay / Family Portal payments are credited automatically. Save only if the family really paid AGAIN.`});
+            if(!ok){setMessage('Not saved — the same amount was already recorded for this Guest.');return}
+          }
+        }catch(_){/* the check never blocks a genuine entry */}
+      }
+
       setSaving(true);
       setMessage('');
 
