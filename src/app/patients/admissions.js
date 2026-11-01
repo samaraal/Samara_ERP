@@ -2329,7 +2329,7 @@ Please keep these login details confidential.`;
             patient_id:patient.id,transaction_type:'Charge',category:'Assisted Living Package',
             amount:selectedPackageFee(),payment_mode:'Not applicable',
             description:[selectedPackage.package_name,`${selectedPackage.duration_value} ${selectedPackage.duration_unit}`,
-              `${packageRoomClass()} accommodation`,`Coverage: ${form.admission_date} to ${packageEndDate()}`,
+              `${samaraRoomClassLabel(packageRoomClass())} accommodation`,`Coverage: ${form.admission_date} to ${packageEndDate()}`,
               selectedPackage.included_services||''].filter(Boolean).join(' | '),
             transaction_date:new Date().toISOString(),entered_by:user.id
           });
@@ -2973,7 +2973,7 @@ Please keep these login details confidential.`;
             h('div',{className:'accounts-status-list'},String(selectedPackage.included_services||'').split('\n').filter(Boolean).map((item,index)=>
               h('div',{className:'accounts-status-item',key:index},h('span',null,item),h('strong',null,'Included'))))),
           h('div',{className:'accounts-panel'},h('h3',null,'Package Fee'),
-            h('p',null,form.room_no?`${packageRoomClass()} accommodation selected`:'Select room/bed to calculate applicable fee'),
+            h('p',null,form.room_no?`${samaraRoomClassLabel(packageRoomClass())} accommodation selected`:'Select room/bed to calculate applicable fee'),
             h('div',{className:'payment-summary-card summary-green'},h('span',null,'Fixed Package Fee'),
               h('strong',null,`₹${selectedPackageFee().toLocaleString('en-IN')}`),
               h('small',null,packageEndDate()?`Valid up to ${formatDateIN(packageEndDate())}`:''))))),
@@ -3061,3 +3061,8 @@ Please keep these login details confidential.`;
   }
 
 
+
+
+  // 2.19.43: Samara's room types — Single (Private), Double Sharing, Triple Sharing. Package fee columns:
+  // private_fee = Single, twin_fee = Double Sharing, general_fee = Triple Sharing (stored class codes Private / Twin / General).
+  function samaraRoomClassLabel(c){const k=String(c||'').toLowerCase();if(!k)return '';return k.includes('private')||k.includes('single')?'Single (Private)':k.includes('twin')||k.includes('double')?'Double Sharing':'Triple Sharing'}

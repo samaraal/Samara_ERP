@@ -1,3 +1,9 @@
+## 2.19.43 — 01-11-2026 — Package fees follow Single / Double / Triple Sharing (SQL 333)
+- Samara has Single (Private), Double Sharing and Triple Sharing rooms (no General ward). Care Packages labels now read Single (Private) / Double Sharing / Triple Sharing (same three fee boxes).
+- Found before use: "Change to Package" / package renewal charged a Triple Sharing Guest the Double Sharing fee (e.g. Mrs. Shanthi T: ₹90,000 instead of ₹60,000). The server now uses the same rule as Admission. "Change to Package" stays paused until SQL 333 is run.
+- Room class shown as Single (Private) / Double Sharing / Triple Sharing in the patient card, admission, package expiry and the family WhatsApp (Tamil: தனி அறை / இருவர் பகிர்வு அறை / மூவர் பகிர்வு அறை).
+- Run supabase/sql/333_package_room_class_triple.sql in Supabase → SQL Editor.
+
 ## 2.19.42 — 01-11-2026 — Package: WhatsApp to the family about the tariff change
 - Patient card → Billing tab (Admin / Accounts), for Guests on a care package: new "Package · Inform Family" box with Preview message and "📲 Send on WhatsApp". The English + Tamil message gives the package name, period, fee (room type), that daily charges up to the day before stay as billed, and that items outside the package are billed separately. WhatsApp opens to the family number with the message ready; staff check and press Send.
 

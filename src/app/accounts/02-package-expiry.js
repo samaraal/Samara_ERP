@@ -184,7 +184,7 @@
               const opts=renewalOptions(row);
               return h('tr',{key:row.id},
                 h('td',null,h('strong',null,formalName(row)||row.full_name),h('small',{style:{display:'block'}},row.patient_id||'—')),
-                h('td',null,`${row.room_no||'—'}${row.bed_no?`-${row.bed_no}`:''}`,h('small',{style:{display:'block'}},row.package_room_class||'')),
+                h('td',null,`${row.room_no||'—'}${row.bed_no?`-${row.bed_no}`:''}`,h('small',{style:{display:'block'}},samaraRoomClassLabel(row.package_room_class))),
                 h('td',null,row.billing_package||'Package',h('small',{style:{display:'block'}},row.package_fee?money(row.package_fee):'')),
                 h('td',null,formatDateIN(row.package_end_date)),
                 h('td',null,h('span',{className:`badge ${status.tone}`},status.label)),
