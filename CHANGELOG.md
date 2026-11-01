@@ -1,3 +1,7 @@
+## 2.19.34 — 01-11-2026 — Duty Roster: fill missed past days
+- New "✎ Fill missed past days" button on the Duty Roster grid (Admin and Nursing Manager). While it is on, EMPTY past cells (from 27-08-2026) can be tapped Day / Night / Off; past entries already saved stay locked.
+- Saving asks why the days were missed; the reason, who filled it and when are kept on each entry and in the audit log. Payroll then picks up these days (if a salary for that month is already saved, void it and save again).
+
 ## 2.19.33 — 01-11-2026 — Payroll days strictly from the Duty Roster + approved leave (SQL 331)
 - Days worked = rostered duty days; Weekly offs = rostered weekly offs (paid up to 4); Casual leave = approved casual leave (1 a month, carried forward) — paid; Other leave = approved other leave — unpaid; every other day from the joining date = Loss of pay.
 - A day on approved full-day leave is no longer also counted as a duty / weekly-off day; cancelled roster entries are ignored; days before joining are shown as "Before joining", not loss of pay.

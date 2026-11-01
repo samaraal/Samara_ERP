@@ -87,6 +87,8 @@
     const [draft,setDraft]=React.useState({}); // key `${staffId}|${date}` -> 'D'|'N'|'O'|''
     const [busy,setBusy]=React.useState(false);
     const [search,setSearch]=React.useState('');
+    // 2.19.34: Admin / Nursing Manager may fill MISSED past days (empty cells only, from 27-08-2026), with a reason
+    const [pastMode,setPastMode]=React.useState(false);
     const MIN_KEY=`samara_roster_min_v1_${profile?.id||''}`;
     const [minCover,setMinCover]=React.useState(()=>{try{return JSON.parse(localStorage.getItem(MIN_KEY)||'{}')||{}}catch(_){return {}}});
     React.useEffect(()=>{try{localStorage.setItem(MIN_KEY,JSON.stringify(minCover))}catch(_){}},[minCover]);
@@ -152,7 +154,8 @@
       const onLeave=lv&&lv.status==='approved'&&lv.request_type!=='Permission';
       const saved=existing.length===1?codeOf(existing[0]):existing.length>1?'MULTI':'';
       const value=Object.prototype.hasOwnProperty.call(draft,k)?draft[k]:saved;
-      const locked=date<today||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
+      const pastOpen=pastMode&&date<today&&date>='2026-08-27'&&!existing.length;
+      const locked=(date<today&&!pastOpen)||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
       return {k,existing,lv,onLeave,saved,value,locked,changed:Object.prototype.hasOwnProperty.call(draft,k)};
     }
     const NEXT={'':'D',D:'N',N:'O',O:'',X:'D'};
@@ -178,6 +181,15 @@
 
     async function save(){
       if(busy||!dirtyCount)return;
+      const pastKeys=Object.keys(draft).filter(k=>k.split('|')[1]<today&&draft[k]);
+      let pastReason='';
+      if(pastKeys.length){
+        const ask=await samaraAsk({title:'Filling missed past days',message:`${pastKeys.length} past day(s) are being added to the roster. These count for Payroll (days worked / weekly offs). If a salary for that month is already saved, void it and save it again.`,
+          fields:[{key:'reason',label:'Why were these days missed? (kept with each entry)',type:'textarea',value:'',required:true}],okLabel:'Save roster'});
+        if(ask===null)return;
+        pastReason=String(ask.reason||'').trim();
+        if(pastReason.length<5){showSamaraActionToast('error','Reason needed','Write why these past days were missed (a few words).');return}
+      }
       setBusy(true);
       try{
         // Re-read so nobody else's change is overwritten.
@@ -197,7 +209,7 @@
           const off=code==='O';
           const fields=code?{shift:off?'Weekly Off':code==='D'?ROSTER_DAY:ROSTER_NIGHT,duty_type:off?'Weekly Off':'General Duty',status:off?'Weekly Off':'Assigned',is_weekly_off:off,week_start:monday(date),weekly_off_day:off?(parse(date).getUTCDay()+6)%7:null}:null;
           const existing=nowRows[0];
-          if(!existing&&fields)inserts.push({employee_id:s.id,duty_date:date,...fields,assigned_by:actor,assigned_by_name:actorName,assigned_by_role:profile?.role,assigned_at:now,updated_at:now,remarks:'Duty Roster grid'});
+          if(!existing&&fields)inserts.push({employee_id:s.id,duty_date:date,...fields,assigned_by:actor,assigned_by_name:actorName,assigned_by_role:profile?.role,assigned_at:now,updated_at:now,remarks:date<today?`Past day filled later by ${actorName} on ${formatDateIN(todayISOIndia())}: ${pastReason}`:'Duty Roster grid'});
           else if(existing&&!fields)updates.push({id:existing.id,patch:{status:'Cancelled',updated_at:now,status_updated_at:now,status_updated_by:actor,status_updated_by_name:actorName}});
           else if(existing&&fields)updates.push({id:existing.id,patch:{...fields,updated_at:now,status_updated_at:now,status_updated_by:actor,status_updated_by_name:actorName}});
         }
@@ -207,7 +219,7 @@
           const res=await Promise.all(updates.slice(i,i+10).map(u=>client.from('duty_assignments').update(u.patch).eq('id',u.id)));
           const bad=res.find(r=>r.error);if(bad)throw bad.error;
         }
-        writeAuditEvent('Duty Roster Saved','Duty Assignment',null,{from:start,to:end,added:inserts.length,changed:updates.length,skipped:problems.length},'Success');
+        writeAuditEvent('Duty Roster Saved','Duty Assignment',null,{from:start,to:end,added:inserts.length,changed:updates.length,skipped:problems.length,past_days_filled:pastKeys.length,past_reason:pastReason||undefined},'Success');
         setDraft({});
         showSamaraActionToast(problems.length?'warning':'success',problems.length?'Roster saved with skips':'Roster saved',
           `${inserts.length} added, ${updates.length} changed.${problems.length?` Skipped: ${problems.slice(0,3).join('; ')}${problems.length>3?' …':''}.`:''} Staff see the changes in My Duty and acknowledge as usual.`);
@@ -234,12 +246,15 @@
         startDraft&&startDraft!==start?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(startDraft)}},'Apply'):null,
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Next period',onClick:()=>move(1)},'›'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(monday(today))}},'This week'),
+        h('button',{type:'button',className:`btn ${pastMode?'btn-primary':'btn-secondary'}`,'aria-pressed':pastMode,title:'Fill empty past days that were missed (Payroll uses the roster)',
+          onClick:()=>{if(pastMode&&Object.keys(draft).some(k=>k.split('|')[1]<today)){if(!window.confirm('Discard the unsaved past-day changes?'))return;setDraft(d=>{const n={};Object.entries(d).forEach(([k,v])=>{if(k.split('|')[1]>=today)n[k]=v});return n})}setPastMode(!pastMode)}},pastMode?'✓ Filling missed past days':'✎ Fill missed past days'),
         h('span',{className:'rg-spacer'}),
         // 2.16.6: Save is always visible (greyed until something changes)
         h('button',{type:'button',className:'btn btn-primary',disabled:busy||!dirtyCount,title:dirtyCount?'Save all changes':'Tap cells first — nothing to save yet',onClick:save},busy?'Saving…':dirtyCount?`Save roster (${dirtyCount})`:'Save roster'),
         h('input',{value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search staff…',style:{maxWidth:'180px'}}),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy||loading,title:`Fill empty cells from the previous ${days} days`,onClick:copyPrevious},'Copy previous period'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(dirtyCount&&!window.confirm('Reload and discard unsaved changes?'))return;setDraft({});load()}},'Reload')),
+      pastMode&&h('div',{className:'notice',style:{margin:'8px 0'}},'Filling missed past days: only EMPTY past cells can be tapped (Day / Night / Off). Saved past entries cannot be changed here. Use ‹ or the From date to go back to last month. You will be asked for the reason when you save.'),
       h('div',{className:'rg-legend'},
         h('span',null,h('b',{className:'rg-D',style:{padding:'2px 6px',borderRadius:'6px'}},'Day'),'7 AM–7 PM'),
         h('span',null,h('b',{className:'rg-N',style:{padding:'2px 6px',borderRadius:'6px'}},'Night'),'7 PM–7 AM'),
