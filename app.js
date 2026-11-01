@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.31';
+  const APP_VERSION = '2.19.32';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Nov-2026 Physio fee auto-post';
+  const APP_BUILD_DATE = '01-Nov-2026 Payroll from joining date';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -52550,9 +52550,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   }
   // 2.18.179: Payroll — salary by days on a 30-day month (weekly offs max 4 paid, 1 casual leave a month carried forward,
   // other leave unpaid). Days come from the Duty Roster + approved leave, editable; overtime / incentives typed by Admin.
-  function payCalc(d,opening){
+  function payCalc(d,opening,avail=30){
     const sal=Number(d.monthly_salary)||0,dw=Math.max(0,Number(d.days_worked)||0),wo=Math.max(0,Number(d.weekly_offs)||0),clu=Math.max(0,Number(d.cl_used)||0);
-    const clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(30,dw+Math.min(wo,4)+clp);
+    const clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(Math.max(1,Number(avail)||30),dw+Math.min(wo,4)+clp);
     const earned=Math.round(sal*paid/30);
     const add=['overtime','incentives','other_earnings'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
     const less=['advance_deduction','other_deduction'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
@@ -52578,16 +52578,18 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     function openEmp(x){
       setSel(x.id);setMsg('');setConfirmSend(false);
       const onRoster=Number(x.roster_entries)>0;
+      // 2.19.32: a mid-month joiner gets only the days from joining (30-day month); weekly offs pro-rated
+      const av=Math.max(1,Number(x.avail_days)||30),wo0=Math.round(4*av/30);
       setD({monthly_salary:x.salary!=null?String(x.salary):'',
-        days_worked:String(onRoster?Number(x.roster_days):Math.max(0,30-4-Math.min(Number(x.leave_cl)||0,(Number(x.cl_opening)||0)+1)-(Number(x.leave_other)||0))),
-        weekly_offs:String(onRoster?Number(x.roster_offs):4),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
+        days_worked:String(onRoster?Number(x.roster_days):Math.max(0,av-wo0-Math.min(Number(x.leave_cl)||0,(Number(x.cl_opening)||0)+1)-(Number(x.leave_other)||0))),
+        weekly_offs:String(onRoster?Number(x.roster_offs):wo0),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
         overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:'',deduction_note:'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
       window.scrollTo({top:0,behavior:'smooth'});
     }
     async function save(){
       if(busy)return;setBusy(true);setMsg('');
       try{
-        const c=payCalc(d,emp.cl_opening);
+        const c=payCalc(d,emp.cl_opening,emp.avail_days);
         if(!(Number(d.monthly_salary)>0))throw new Error('Enter the monthly salary (or set it in HR).');
         if(c.net<0)throw new Error('Deductions are more than the salary earned.');
         if(!d.paid_on||d.paid_on<month)throw new Error(`Choose the paid-on date (on or after 01-${month.slice(5,7)}-${month.slice(0,4)}).`);
@@ -52611,13 +52613,14 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const line=(k,v,strong)=>h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px dashed #f3d6e4',fontWeight:strong?800:500}},h('span',null,k),h('span',null,v));
     if(rows===null)return h(Section,{title:'Payroll'},h('p',null,'Loading employees…'));
     if(sel&&emp&&d){
-      const sv=emp.saved;const src=sv||d;const c=sv?{perDay:sv.per_day,clav:Number(sv.cl_opening)+Number(sv.cl_credit),clp:sv.cl_paid,clClose:sv.cl_closing,paid:sv.paid_days,lop:sv.lop_days,earned:sv.earned,add:Number(sv.overtime)+Number(sv.incentives)+Number(sv.other_earnings),less:Number(sv.advance_deduction)+Number(sv.other_deduction),net:sv.net_pay,extraCl:Math.max(0,Number(sv.cl_used)-Number(sv.cl_opening)-1),offsOver:Math.max(0,Number(sv.weekly_offs)-4)}:payCalc(d,emp.cl_opening);
+      const sv=emp.saved;const src=sv||d;const c=sv?{perDay:sv.per_day,clav:Number(sv.cl_opening)+Number(sv.cl_credit),clp:sv.cl_paid,clClose:sv.cl_closing,paid:sv.paid_days,lop:sv.lop_days,earned:sv.earned,add:Number(sv.overtime)+Number(sv.incentives)+Number(sv.other_earnings),less:Number(sv.advance_deduction)+Number(sv.other_deduction),net:sv.net_pay,extraCl:Math.max(0,Number(sv.cl_used)-Number(sv.cl_opening)-1),offsOver:Math.max(0,Number(sv.weekly_offs)-4)}:payCalc(d,emp.cl_opening,emp.avail_days);
       const onRoster=Number(emp.roster_entries)>0;
       return h(Section,{title:`${emp.name} · ${npMonthLabel(month)}`,subtitle:`${emp.designation||''}${emp.department?' · '+emp.department:''} · HR salary ${emp.salary!=null?npMoney(emp.salary):'not set'}`,
           actions:h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSel('');setMsg('')}},'← Back to employees')},
         msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
-          :h('div',{className:'notice'},onRoster?`From the Duty Roster: ${emp.roster_days} duty days, ${emp.roster_offs} weekly offs · approved leave: ${emp.leave_cl} casual, ${emp.leave_other} other. Correct any number before saving.`:'⚠ Not on the Duty Roster this month — days are filled as full attendance. Please check and correct.'),
+          :h('div',{className:'notice'},onRoster?`From the Duty Roster: ${emp.roster_days} duty days, ${emp.roster_offs} weekly offs · approved leave: ${emp.leave_cl} casual, ${emp.leave_other} other. Correct any number before saving.`:(Number(emp.avail_days)<30?`⚠ Not on the Duty Roster this month — days are filled from the joining date (${formatDateIN(emp.joined)}), ${emp.avail_days} of 30 days. Please check and correct.`:'⚠ Not on the Duty Roster this month — days are filled as full attendance. Please check and correct.')),
+        Number(emp.avail_days)<30&&h('div',{className:'notice',style:{marginTop:6}},`Joined on ${formatDateIN(emp.joined)}${emp.joining_known?'':' (date of joining not entered in HR — taken as the day added to the ERP)'} · salary only for ${emp.avail_days} of 30 days this month.`),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
           h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'1. Days (30-day month)'),
             h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
@@ -52635,7 +52638,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
             h('div',{className:'field',style:{margin:'10px 0 0'}},h('label',null,'Note on deductions'),h('input',{value:src.deduction_note||'',disabled:!!sv,onChange:e=>setD({...d,deduction_note:e.target.value}),placeholder:'e.g. advance given on 10-10-2026'}))),
           h('div',{style:{...box,background:'linear-gradient(135deg,#fff,#fde7f1)'}},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'3. Salary'),
             line('Per-day rate (salary ÷ 30)',npMoney(c.perDay)),
-            line('Paid days',`${c.paid} / 30`),
+            line('Paid days',`${c.paid} / 30${Number(emp.avail_days)<30?` (joined ${formatDateIN(emp.joined)})`:''}`),
             line('Loss of pay days',String(c.lop)),
             line(`Casual leave paid / balance carried`,`${c.clp} / ${c.clClose}`),
             c.extraCl>0?h('small',{style:{color:'#b42318'}},`${c.extraCl} casual leave day(s) beyond the balance are unpaid.`):null,

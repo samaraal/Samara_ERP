@@ -1,3 +1,9 @@
+## 2.19.32 — 01-11-2026 — Payroll starts from the date of joining (SQL 330)
+- Payroll no longer lists an employee for months before she joined (found: Miss Thanga Sowmiya, joined 01-11-2026, was offered a full October 2026 salary). Saving such a salary is refused.
+- A mid-month joiner is paid only from the joining date (30-day month): days and weekly offs are pre-filled for those days and paid days cannot go above them. The screen shows "Joined on …".
+- Date of joining comes from HR; if it is blank, the day the employee was added to the ERP is used (shown on screen) — please fill the date of joining in HR for every employee.
+- Run supabase/sql/330_payroll_from_joining_date.sql in Supabase → SQL Editor.
+
 ## 2.19.31 — 01-11-2026 — Physiotherapy session fee posts automatically (SQL 329)
 - When the nurse marks a physiotherapy session Completed, the physiotherapist's session fee is posted to the ledger automatically at the fee Admin / Director already agreed for that physiotherapist + Guest — no more "Post session fee" every time.
 - First session of a new physiotherapist + Guest (no agreed fee yet) still waits in Sessions → "Completed sessions awaiting fee posting"; Admin enters the fee once and later sessions post themselves. Salaried physiotherapists: nothing posted (as before).
