@@ -122,6 +122,8 @@
     },[start,days]);
     const draftRef=React.useRef(draft);draftRef.current=draft;
 
+    // 2.19.35/36: date of joining (HR; if blank, the day the employee was added to the ERP)
+    const joinOf=s=>s?.date_of_joining?String(s.date_of_joining).slice(0,10):(s?.created_at?new Date(new Date(s.created_at).getTime()+19800000).toISOString().slice(0,10):'');
     const isNursingTeam=s=>{
       const role=String(s?.role||'').toLowerCase(),dept=String(employeeDepartment(s)||'').toLowerCase(),des=String(s?.designation||'').toLowerCase();
       if(des==='nurse manager'||des==='nursing manager')return false;
@@ -135,8 +137,6 @@
         .sort((a,b)=>String(employeeDepartment(a)||'').localeCompare(String(employeeDepartment(b)||''))||String(a.full_name||'').localeCompare(String(b.full_name||'')));
     },[staff,search,nursingManager,profile?.role,rows,start,end]);
     const idsOf=s=>[s.id,s.auth_user_id].filter(Boolean).map(String);
-    // 2.19.35: date of joining (HR; if blank, the day the employee was added to the ERP)
-    const joinOf=s=>s?.date_of_joining?String(s.date_of_joining).slice(0,10):(s?.created_at?new Date(new Date(s.created_at).getTime()+19800000).toISOString().slice(0,10):'');
     const byKey=React.useMemo(()=>{
       const map=new Map();const people=new Map();staff.forEach(s=>idsOf(s).forEach(id=>people.set(id,s.id)));
       rows.forEach(r=>{if(r.status==='Cancelled')return;const sid=people.get(String(r.employee_id))||r.employee_id;const k=`${sid}|${r.duty_date}`;map.set(k,[...(map.get(k)||[]),r])});

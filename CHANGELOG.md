@@ -1,3 +1,6 @@
+## 2.19.36 — 01-11-2026 — Fix: Duty Assignment page crashed in 2.19.35
+- The joining-date helper was used before it was defined, so the Duty Roster page showed "This page had a problem". Fixed; no data was affected.
+
 ## 2.19.35 — 01-11-2026 — Duty Roster respects the date of joining
 - An employee is not listed in Duty Roster periods that end before she joined (found: Miss Thanga Sowmiya, joined 01-11-2026, was shown in the October roster). Days before joining are greyed and locked ("Not yet joined").
 - The joining day shows a green "Joined" tag in her row, and "Joined dd-mm-yyyy" under her name for that period.
