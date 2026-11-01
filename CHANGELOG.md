@@ -1,3 +1,6 @@
+## 2.19.45 — 01-11-2026 — Package · Inform Family for the Nursing Manager
+- The Nursing Manager can now send the package / tariff WhatsApp to the family from the Guest's Billing tab (as Admin and Accounts can). Changing the package itself stays Admin only.
+
 ## 2.19.44 — 01-11-2026 — Change to Package: "Effective From" date
 - The Change to Package box has an "Effective From" date (default today; from the admission date up to 30 days ahead). Coverage, the confirmation and the server step use it. Back-dated: daily Room + Nursing charges already posted from that date are removed automatically; earlier daily charges stay.
 - The family WhatsApp and the "Package · Inform Family" box show "Effective from" (Tamil: அமலுக்கு வரும் தேதி).

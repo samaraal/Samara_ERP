@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.44';
+  const APP_VERSION = '2.19.45';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Nov-2026 Package effective from';
+  const APP_BUILD_DATE = '01-Nov-2026 NM package WhatsApp';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -32006,7 +32006,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
             ):null,
             // 2.19.40: Admin can move a Daily Fare Guest to a care package from today (SQL renew_patient_package)
             // 2.19.42: inform the family on WhatsApp about the package / tariff
-            ['Admin','Accounts'].includes(profile?.role)&&!dailyBasis&&selected.package_start_date?h(PackageFamilyWhatsAppCard,{patient:selected}):null,
+            (['Admin','Accounts'].includes(profile?.role)||nursingManagerView)&&!dailyBasis&&selected.package_start_date?h(PackageFamilyWhatsAppCard,{patient:selected}):null, // 2.19.45: Nursing Manager too
             profile?.role==='Admin'&&dailyBasis&&!packageEnd?h(ChangeToPackageCard,{patient:selected,onDone:async()=>{const {data}=await client.from('patients').select('*').eq('id',selected.id).maybeSingle();await openPatient(data||selected,'Billing')}}):null,
             h('div',{className:'patient-billing-summary'},[['Charges',b.charges,'teal'],['Advance',b.advances,'blue'],['Payments',b.payments,'green'],['Discounts',b.discounts,'purple'],due<0?['Advance Balance (Cr)',-due,'green']:['Outstanding',due,due>0?'red':'green']].map(([k,v,tone])=>h('div',{className:`patient-billing-stat ${tone}`,key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
             h('div',{className:'section-card patient-billing-ledger'},
