@@ -1,3 +1,9 @@
+## 2.19.33 — 01-11-2026 — Payroll days strictly from the Duty Roster + approved leave (SQL 331)
+- Days worked = rostered duty days; Weekly offs = rostered weekly offs (paid up to 4); Casual leave = approved casual leave (1 a month, carried forward) — paid; Other leave = approved other leave — unpaid; every other day from the joining date = Loss of pay.
+- A day on approved full-day leave is no longer also counted as a duty / weekly-off day; cancelled roster entries are ignored; days before joining are shown as "Before joining", not loss of pay.
+- No Duty Roster entries for the month → 0 days (whole month loss of pay) with a warning, instead of assuming full attendance.
+- Run supabase/sql/331_payroll_days_from_roster.sql in Supabase → SQL Editor (it includes SQL 330).
+
 ## 2.19.32 — 01-11-2026 — Payroll starts from the date of joining (SQL 330)
 - Payroll no longer lists an employee for months before she joined (found: Miss Thanga Sowmiya, joined 01-11-2026, was offered a full October 2026 salary). Saving such a salary is refused.
 - A mid-month joiner is paid only from the joining date (30-day month): days and weekly offs are pre-filled for those days and paid days cannot go above them. The screen shows "Joined on …".

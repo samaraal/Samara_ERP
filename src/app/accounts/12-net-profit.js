@@ -195,11 +195,11 @@
   // other leave unpaid). Days come from the Duty Roster + approved leave, editable; overtime / incentives typed by Admin.
   function payCalc(d,opening,avail=30){
     const sal=Number(d.monthly_salary)||0,dw=Math.max(0,Number(d.days_worked)||0),wo=Math.max(0,Number(d.weekly_offs)||0),clu=Math.max(0,Number(d.cl_used)||0);
-    const clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(Math.max(1,Number(avail)||30),dw+Math.min(wo,4)+clp);
+    const av=Math.max(1,Number(avail)||30),clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(av,dw+Math.min(wo,4)+clp);
     const earned=Math.round(sal*paid/30);
     const add=['overtime','incentives','other_earnings'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
     const less=['advance_deduction','other_deduction'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
-    return {perDay:Math.round(sal/30*100)/100,clav,clp,clClose:clav-clp,paid,lop:30-paid,earned,add,less,net:earned+add-less,extraCl:Math.max(0,clu-clav),offsOver:Math.max(0,wo-4)};
+    return {perDay:Math.round(sal/30*100)/100,clav,clp,clClose:clav-clp,paid,lop:Math.max(0,av-paid),before:30-av,earned,add,less,net:earned+add-less,extraCl:Math.max(0,clu-clav),offsOver:Math.max(0,wo-4)};
   }
   async function payslipCall(action,payrollId){
     const {data:{session}}=await client.auth.getSession();if(!session)throw new Error('Please sign in again.');
@@ -222,10 +222,10 @@
       setSel(x.id);setMsg('');setConfirmSend(false);
       const onRoster=Number(x.roster_entries)>0;
       // 2.19.32: a mid-month joiner gets only the days from joining (30-day month); weekly offs pro-rated
-      const av=Math.max(1,Number(x.avail_days)||30),wo0=Math.round(4*av/30);
+      
       setD({monthly_salary:x.salary!=null?String(x.salary):'',
-        days_worked:String(onRoster?Number(x.roster_days):Math.max(0,av-wo0-Math.min(Number(x.leave_cl)||0,(Number(x.cl_opening)||0)+1)-(Number(x.leave_other)||0))),
-        weekly_offs:String(onRoster?Number(x.roster_offs):wo0),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
+        days_worked:String(onRoster?Number(x.roster_days):0),
+        weekly_offs:String(onRoster?Number(x.roster_offs):0),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
         overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:'',deduction_note:'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
       window.scrollTo({top:0,behavior:'smooth'});
     }
@@ -262,7 +262,9 @@
           actions:h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSel('');setMsg('')}},'← Back to employees')},
         msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
-          :h('div',{className:'notice'},onRoster?`From the Duty Roster: ${emp.roster_days} duty days, ${emp.roster_offs} weekly offs · approved leave: ${emp.leave_cl} casual, ${emp.leave_other} other. Correct any number before saving.`:(Number(emp.avail_days)<30?`⚠ Not on the Duty Roster this month — days are filled from the joining date (${formatDateIN(emp.joined)}), ${emp.avail_days} of 30 days. Please check and correct.`:'⚠ Not on the Duty Roster this month — days are filled as full attendance. Please check and correct.')),
+          :h('div',{className:'notice'},onRoster
+            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} · approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid) · every other day = loss of pay. Correct any number before saving.`
+            :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
         Number(emp.avail_days)<30&&h('div',{className:'notice',style:{marginTop:6}},`Joined on ${formatDateIN(emp.joined)}${emp.joining_known?'':' (date of joining not entered in HR — taken as the day added to the ERP)'} · salary only for ${emp.avail_days} of 30 days this month.`),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
           h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'1. Days (30-day month)'),
@@ -282,6 +284,7 @@
           h('div',{style:{...box,background:'linear-gradient(135deg,#fff,#fde7f1)'}},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'3. Salary'),
             line('Per-day rate (salary ÷ 30)',npMoney(c.perDay)),
             line('Paid days',`${c.paid} / 30${Number(emp.avail_days)<30?` (joined ${formatDateIN(emp.joined)})`:''}`),
+            Number(emp.avail_days)<30&&line('Before joining (not paid)',String(30-Number(emp.avail_days))),
             line('Loss of pay days',String(c.lop)),
             line(`Casual leave paid / balance carried`,`${c.clp} / ${c.clClose}`),
             c.extraCl>0?h('small',{style:{color:'#b42318'}},`${c.extraCl} casual leave day(s) beyond the balance are unpaid.`):null,
