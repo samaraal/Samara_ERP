@@ -32,6 +32,8 @@
       .rg-X{background:#e7f1ff;color:#1d4f91}
       .rg-M{background:#ffe7c2;color:#8a4b00}
       .rg-past{opacity:.55}
+      .rg-prejoin{background:repeating-linear-gradient(135deg,#f6eef2 0 6px,#fbf7f9 6px 12px)!important;color:#b9a3af!important;cursor:not-allowed}
+      .rg-join{position:absolute;left:3px;top:2px;font-size:9px;font-weight:900;color:#0b7a4b;background:#e3f6ec;border-radius:5px;padding:0 4px}
       .rg-changed{outline:3px dashed #a91360;outline-offset:-3px}
       .rg-ack{position:absolute;top:2px;right:4px;font-size:10px;color:#11643a}
       .rg-N .rg-ack{color:#9ff0c0}
@@ -102,7 +104,7 @@
         const from=addDays(start,-days);
         const [a,e,l,rosterOff]=await Promise.all([
           pages(()=>client.from('duty_assignments').select('*').gte('duty_date',from).lte('duty_date',end).order('id')),
-          pages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,is_active').order('id')),
+          pages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,is_active,date_of_joining,created_at').order('id')),
           pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date').in('status',['approved','pending_superior','pending_management']).order('id')),
           loadDutyRosterExclusions()
         ]);
@@ -128,10 +130,13 @@
     const scope=React.useMemo(()=>{
       const list=(nursingManager&&profile?.role!=='Admin'?staff.filter(isNursingTeam):staff).filter(s=>s.id!==undefined);
       const q=search.trim().toLowerCase();
-      return list.filter(s=>!q||[formalName(s),s.full_name,s.employee_id,s.designation,employeeDepartment(s)].some(v=>String(v||'').toLowerCase().includes(q)))
+      return list.filter(s=>{const j=joinOf(s);return !j||j<=end||rows.some(r=>r.status!=='Cancelled'&&r.duty_date>=start&&[s.id,s.auth_user_id].filter(Boolean).map(String).includes(String(r.employee_id))&&r.duty_date<=end)})
+        .filter(s=>!q||[formalName(s),s.full_name,s.employee_id,s.designation,employeeDepartment(s)].some(v=>String(v||'').toLowerCase().includes(q)))
         .sort((a,b)=>String(employeeDepartment(a)||'').localeCompare(String(employeeDepartment(b)||''))||String(a.full_name||'').localeCompare(String(b.full_name||'')));
-    },[staff,search,nursingManager,profile?.role]);
+    },[staff,search,nursingManager,profile?.role,rows,start,end]);
     const idsOf=s=>[s.id,s.auth_user_id].filter(Boolean).map(String);
+    // 2.19.35: date of joining (HR; if blank, the day the employee was added to the ERP)
+    const joinOf=s=>s?.date_of_joining?String(s.date_of_joining).slice(0,10):(s?.created_at?new Date(new Date(s.created_at).getTime()+19800000).toISOString().slice(0,10):'');
     const byKey=React.useMemo(()=>{
       const map=new Map();const people=new Map();staff.forEach(s=>idsOf(s).forEach(id=>people.set(id,s.id)));
       rows.forEach(r=>{if(r.status==='Cancelled')return;const sid=people.get(String(r.employee_id))||r.employee_id;const k=`${sid}|${r.duty_date}`;map.set(k,[...(map.get(k)||[]),r])});
@@ -155,8 +160,9 @@
       const saved=existing.length===1?codeOf(existing[0]):existing.length>1?'MULTI':'';
       const value=Object.prototype.hasOwnProperty.call(draft,k)?draft[k]:saved;
       const pastOpen=pastMode&&date<today&&date>='2026-08-27'&&!existing.length;
-      const locked=(date<today&&!pastOpen)||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
-      return {k,existing,lv,onLeave,saved,value,locked,changed:Object.prototype.hasOwnProperty.call(draft,k)};
+      const jd=joinOf(s),preJoin=!!jd&&date<jd&&!existing.length;
+      const locked=preJoin||(date<today&&!pastOpen)||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
+      return {k,existing,lv,onLeave,saved,value,locked,preJoin,joinDay:!!jd&&date===jd,changed:Object.prototype.hasOwnProperty.call(draft,k)};
     }
     const NEXT={'':'D',D:'N',N:'O',O:'',X:'D'};
     function tap(s,date){
@@ -283,8 +289,9 @@
                 if(c.value==='D')D++;else if(c.value==='N')N++;else if(c.value==='O')O++;
                 const ack=c.existing.length===1&&c.existing[0].status==='Acknowledged'&&!c.changed;
                 const code=c.onLeave?'L':c.saved==='MULTI'?'M':c.value;
-                const title=c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':date<today?'Past date (view only)':c.lv?(c.lv.status==='approved'?'Approved permission':'Leave / permission pending approval'):'Tap: Day → Night → Off → empty';
-                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
+                const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':date<today?'Past date (view only)':c.lv?(c.lv.status==='approved'?'Approved permission':'Leave / permission pending approval'):'Tap: Day → Night → Off → empty';
+                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
+                  c.joinDay?h('span',{className:'rg-join',title:`Joined on ${formatDateIN(date)}`},'Joined'):null,
                   !c.onLeave&&c.lv?h('span',{className:'rg-flag'},c.lv.status==='approved'?'P':'⚠'):null,
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',X:'•'})[c.value]||'')),
@@ -292,6 +299,7 @@
               });
               return h('tr',{key:s.id},
                 h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),
+                  joinOf(s)>=start&&joinOf(s)<=end?h('small',{style:{display:'block',color:'#0b7a4b',fontWeight:800}},`Joined ${formatDateIN(joinOf(s))}${s.date_of_joining?'':' (added to ERP — enter Date of Joining in HR)'}`):null,
                   h('span',{style:{display:'flex',gap:'3px',marginTop:'3px'}},
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Day',onClick:()=>fillRow(s,'D')},'All Day'),
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Night',onClick:()=>fillRow(s,'N')},'All Night'))),
