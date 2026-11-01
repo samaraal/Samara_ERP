@@ -236,7 +236,9 @@
         if(!(Number(d.monthly_salary)>0))throw new Error('Enter the monthly salary (or set it in HR).');
         if(c.net<0)throw new Error('Deductions are more than the salary earned.');
         if(!d.paid_on||d.paid_on<month)throw new Error(`Choose the paid-on date (on or after 01-${month.slice(5,7)}-${month.slice(0,4)}).`);
-        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
+        // 2.19.37: empty number boxes are sent as 0 (blank text made the database refuse the save)
+        const nums={};['monthly_salary','days_worked','weekly_offs','cl_used','other_leave','overtime','incentives','other_earnings','advance_deduction','other_deduction'].forEach(k=>{const v=String(d[k]??'').trim();nums[k]=v===''?'0':v});
+        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
         if(r.error)throw r.error;
         showSamaraActionToast('success','Salary saved',`${emp.name} · Net ${npMoney(r.data?.net_pay)} — counted in Net Profit.`);
         await load();onChanged&&onChanged();setMsg('✓ Saved. You can now open the payslip or send it on WhatsApp.');

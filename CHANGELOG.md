@@ -1,3 +1,6 @@
+## 2.19.37 — 01-11-2026 — Fix: Payroll "Save salary" refused with "wrong format"
+- Empty Overtime / Incentives / Other earnings / Advance / Other deduction boxes were sent as blank text, which the database could not read as a number. Blank boxes now count as ₹0.
+
 ## 2.19.36 — 01-11-2026 — Fix: Duty Assignment page crashed in 2.19.35
 - The joining-date helper was used before it was defined, so the Duty Roster page showed "This page had a problem". Fixed; no data was affected.
 
