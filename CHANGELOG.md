@@ -1,3 +1,7 @@
+## 2.19.44 — 01-11-2026 — Change to Package: "Effective From" date
+- The Change to Package box has an "Effective From" date (default today; from the admission date up to 30 days ahead). Coverage, the confirmation and the server step use it. Back-dated: daily Room + Nursing charges already posted from that date are removed automatically; earlier daily charges stay.
+- The family WhatsApp and the "Package · Inform Family" box show "Effective from" (Tamil: அமலுக்கு வரும் தேதி).
+
 ## 2.19.43 — 01-11-2026 — Package fees follow Single / Double / Triple Sharing (SQL 333)
 - Samara has Single (Private), Double Sharing and Triple Sharing rooms (no General ward). Care Packages labels now read Single (Private) / Double Sharing / Triple Sharing (same three fee boxes).
 - Found before use: "Change to Package" / package renewal charged a Triple Sharing Guest the Double Sharing fee (e.g. Mrs. Shanthi T: ₹90,000 instead of ₹60,000). The server now uses the same rule as Admission. "Change to Package" stays paused until SQL 333 is run.

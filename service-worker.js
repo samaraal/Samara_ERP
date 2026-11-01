@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.43';
-const CACHE = 'samara-erp-2.19.43-entry-drafts';
+const APP_VERSION = '2.19.44';
+const CACHE = 'samara-erp-2.19.44-entry-drafts';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.43';
+  const APP_VERSION = '2.19.44';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Nov-2026 Package Triple Sharing fee';
+  const APP_BUILD_DATE = '01-Nov-2026 Package effective from';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -32329,7 +32329,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
   // Room + Nursing charges inside the package period are not charged (any already posted are removed).
   function ChangeToPackageCard({patient,onDone}){
     const [pkgs,setPkgs]=React.useState(null),[pick,setPick]=React.useState(''),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
-    const [roomType,setRoomType]=React.useState(''),[ruleOk,setRuleOk]=React.useState(null);
+    const [roomType,setRoomType]=React.useState(''),[ruleOk,setRuleOk]=React.useState(null),[eff,setEff]=React.useState(todayISOIndia());
     React.useEffect(()=>{
       client.from('care_packages').select('*').eq('is_active',true).order('package_name').then(({data})=>setPkgs(data||[]));
       // 2.19.43: Change to Package waits for SQL 333 (Triple Sharing fee rule)
@@ -32341,11 +32341,16 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
       });
     },[patient.id]);
     const today=todayISOIndia(),pkg=(pkgs||[]).find(x=>String(x.id)===String(pick));
+    // 2.19.44: "Effective From" — the package starts on this date (default today)
+    const minEff=[String(patient.admission_date||'').slice(0,10),'2026-08-27'].filter(Boolean).sort().pop();
+    const maxEff=(()=>{const d=new Date(`${today}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+30);return d.toISOString().slice(0,10)})();
+    const effOk=!!eff&&eff>=minEff&&eff<=maxEff;
+    const dayBefore=d=>{const x=new Date(`${d}T00:00:00Z`);x.setUTCDate(x.getUTCDate()-1);return x.toISOString().slice(0,10)};
     const rt=String(roomType||'').toLowerCase();
     const roomClass=/(private|single|separate|deluxe|isolation)/.test(rt)?'Private':/(twin|double)/.test(rt)?'Twin':'General';
     const CLASS_LABEL={Private:'Single (Private)',Twin:'Double Sharing',General:'Triple Sharing'};
     const classFee=p=>p?Number(roomClass==='Private'?p.private_fee:roomClass==='General'?p.general_fee:p.twin_fee)||0:0;
-    const coverEnd=p=>{if(!p)return '';const n=Math.max(1,parseInt(p.duration_value,10)||1);const d=new Date(`${today}T00:00:00Z`);
+    const coverEnd=p=>{if(!p)return '';const n=Math.max(1,parseInt(p.duration_value,10)||1);const d=new Date(`${eff||today}T00:00:00Z`);
       if(p.duration_unit==='Weeks')d.setUTCDate(d.getUTCDate()+n*7-1);
       else if(p.duration_unit==='Months'){d.setUTCMonth(d.getUTCMonth()+n);d.setUTCDate(d.getUTCDate()-1)}
       else d.setUTCDate(d.getUTCDate()+n-1);
@@ -32353,28 +32358,31 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
     const fee=v=>v?`₹${Number(v).toLocaleString('en-IN')}`:'—';
     async function apply(e){
       if(!pkg||busy)return;
+      if(!effOk){showSamaraActionToast('error','Check Effective From',`Choose a date from ${formatDateIN(minEff)} to ${formatDateIN(maxEff)}.`);return}
       const ok=await samaraConfirm({anchor:e?.currentTarget,title:'Change to package',okLabel:'Change to package',
-        message:`${formalName(patient)} will move from Daily Fare to:\n${pkg.package_name} · ${pkg.duration_value} ${pkg.duration_unit}\nCoverage ${formatDateIN(today)} to ${formatDateIN(coverEnd(pkg))}.\nPackage fee for her room (${CLASS_LABEL[roomClass]}): ${fee(classFee(pkg))}.\nDaily Room + Nursing charges stop from today (any already posted for today are removed). Charges up to yesterday stay as they are.`});
+        message:`${formalName(patient)} will move from Daily Fare to:\n${pkg.package_name} · ${pkg.duration_value} ${pkg.duration_unit}\nEffective from ${formatDateIN(eff)} · coverage ${formatDateIN(eff)} to ${formatDateIN(coverEnd(pkg))}.\nPackage fee for her room (${CLASS_LABEL[roomClass]}): ${fee(classFee(pkg))}.\nDaily Room + Nursing charges stop from ${formatDateIN(eff)} (any already posted from that date are removed automatically). Daily charges up to ${formatDateIN(dayBefore(eff))} stay as they are.`});
       if(!ok)return;
       setBusy(true);setMsg('');
-      const {data,error}=await client.rpc('renew_patient_package',{p_patient_id:patient.id,p_package_id:pkg.id,p_start_date:today});
+      const {data,error}=await client.rpc('renew_patient_package',{p_patient_id:patient.id,p_package_id:pkg.id,p_start_date:eff});
       setBusy(false);
       if(error){setMsg(error.message);showSamaraActionToast('error','Package not changed',error.message);return}
       showSamaraActionToast('success','Changed to package',`${data?.package_name||pkg.package_name} · ${formatDateIN(data?.coverage_start)} to ${formatDateIN(data?.coverage_end)} · ₹${Number(data?.package_fee||0).toLocaleString('en-IN')} (${data?.room_label||CLASS_LABEL[data?.room_class]||''})`);
       onDone&&onDone();
     }
     return h('div',{className:'section-card',style:{border:'1px solid #f3c2d8',background:'#fff8fb',marginBottom:'12px'}},
-      h('div',{className:'panel-head'},h('div',null,h('h4',null,'Change to Package'),h('small',null,`Now on Daily Fare. Move this Guest to a care package from today (${formatDateIN(today)}). Admin only.`))),
+      h('div',{className:'panel-head'},h('div',null,h('h4',null,'Change to Package'),h('small',null,'Now on Daily Fare. Move this Guest to a care package from the Effective From date. Admin only.'))),
       msg?h('div',{className:'message error'},msg):null,
       pkgs===null?h('p',null,'Loading packages…'):!pkgs.length?h('p',null,'No active care packages. Add one in Care Packages first.'):
-      h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center'}},
+      h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'flex-end'}},
+        h('label',{style:{display:'flex',flexDirection:'column',gap:'3px',fontSize:'12px',fontWeight:800,color:'#8a3a62',minWidth:'170px'}},'Effective From',
+          h(StrictDateInput,{value:eff,min:minEff,max:maxEff,onChange:e=>setEff(e.target.value)})),
         h('select',{value:pick,onChange:e=>setPick(e.target.value),style:{maxWidth:'360px'}},h('option',{value:''},'Select package…'),
           pkgs.map(x=>h('option',{key:x.id,value:x.id},`${x.package_name} · ${x.duration_value} ${x.duration_unit}`))),
-        h('button',{type:'button',className:'btn btn-primary',disabled:!pkg||busy||!(classFee(pkg)>0)||ruleOk!==true,onClick:apply},busy?'Changing…':'Change to package')),
+        h('button',{type:'button',className:'btn btn-primary',disabled:!pkg||busy||!(classFee(pkg)>0)||ruleOk!==true||!effOk,onClick:apply},busy?'Changing…':'Change to package')),
       pkg?h('div',{style:{marginTop:'12px',border:'1px solid #f3c2d8',borderRadius:'14px',background:'#fff',padding:'12px 14px'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:'8px',alignItems:'baseline'}},
           h('strong',{style:{color:'#a80d4f',fontSize:'16px'}},`${pkg.package_name} · ${pkg.duration_value} ${pkg.duration_unit}`),
-          h('span',{style:{fontWeight:800}},`Coverage: ${formatDateIN(today)} to ${formatDateIN(coverEnd(pkg))}`)),
+          h('span',{style:{fontWeight:800}},`Effective From ${formatDateIN(eff)} · Coverage: ${formatDateIN(eff)} to ${formatDateIN(coverEnd(pkg))}`)),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'8px',marginTop:'10px'}},
           [['Private','Single (Private)',pkg.private_fee],['Twin','Double Sharing',pkg.twin_fee],['General','Triple Sharing',pkg.general_fee]].map(([k,label,v])=>
             h('div',{key:k,style:{borderRadius:'12px',padding:'8px 10px',border:k===roomClass?'2px solid #a80d4f':'1px solid #f0dbe5',background:k===roomClass?'linear-gradient(135deg,#fcdde9,#fff8fb)':'#fff'}},
@@ -32383,6 +32391,7 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
         h('p',{style:{margin:'10px 0 0',fontWeight:800,color:classFee(pkg)>0?'#2e7d4f':'#c0123c'}},classFee(pkg)>0
           ?`She will be charged ${fee(classFee(pkg))} for this package (room: ${roomType||'not found — Triple Sharing fee used'}).`
           :`No ${CLASS_LABEL[roomClass]} fee is set for this package — add it in Care Packages first.`),
+        !effOk?h('p',{style:{margin:'8px 0 0',fontWeight:800,color:'#c0123c'}},`Effective From must be between ${formatDateIN(minEff)} and ${formatDateIN(maxEff)}.`):eff<today?h('p',{style:{margin:'8px 0 0',fontWeight:700,color:'#8a5a00'}},`Back-dated: daily Room + Nursing charges already posted from ${formatDateIN(eff)} will be removed and replaced by the package.`):null,
         ruleOk===false?h('p',{style:{margin:'8px 0 0',fontWeight:800,color:'#c0123c'}},'Waiting for the database update (SQL 333) — Change to package is paused until it is run.'):null,
         pkg.included_services?h('div',{style:{marginTop:'8px',fontSize:'13px',color:'#5d4b55',whiteSpace:'pre-line'}},h('b',null,'Included: '),String(pkg.included_services).split(/\n+/).filter(Boolean).join(' · ')):null):null);
   }
@@ -32403,6 +32412,7 @@ Greetings from Samara Assisted Living.
 
 This is to inform you that the billing for ${name} has been changed from the Daily Tariff to the *${pk}* package.
 
+• Effective from: *${formatDateIN(st)}*
 • Package period: *${formatDateIN(st)} to ${formatDateIN(en)}*
 • Package fee: *${feeTxt}* (${roomEn})
 • Daily room and nursing charges up to ${formatDateIN(prev)} remain as already billed.
@@ -32414,6 +32424,7 @@ You can see the bill anytime in the Samara Family Portal. For any clarification,
 
 ${name} அவர்களின் கட்டண முறை தினசரி கட்டணத்திலிருந்து *${pk}* பேக்கேஜுக்கு மாற்றப்பட்டுள்ளது.
 
+• அமலுக்கு வரும் தேதி: *${formatDateIN(st)}*
 • பேக்கேஜ் காலம்: *${formatDateIN(st)} முதல் ${formatDateIN(en)} வரை*
 • பேக்கேஜ் கட்டணம்: *${feeTxt}* (${roomTa})
 • ${formatDateIN(prev)} வரையிலான தினசரி அறை மற்றும் நர்சிங் கட்டணங்கள் ஏற்கனவே உள்ளபடியே இருக்கும்.
@@ -32432,7 +32443,7 @@ Samara Assisted Living`;
       try{writeAuditEvent('Package WhatsApp opened','Patient',patient.id,{package:patient.billing_package,start:patient.package_start_date},'Success')}catch(_){}};
     return h('div',{className:'section-card',style:{border:'1px solid #f3c2d8',background:'#fff8fb',marginBottom:'12px'}},
       h('div',{className:'panel-head'},
-        h('div',null,h('h4',null,'Package · Inform Family'),h('small',null,`${patient.billing_package||'Care Package'} · ${formatDateIN(patient.package_start_date)} to ${formatDateIN(patient.package_end_date)} · ₹${Number(patient.package_fee||0).toLocaleString('en-IN')}`)),
+        h('div',null,h('h4',null,'Package · Inform Family'),h('small',null,`${patient.billing_package||'Care Package'} · Effective From ${formatDateIN(patient.package_start_date)} · to ${formatDateIN(patient.package_end_date)} · ₹${Number(patient.package_fee||0).toLocaleString('en-IN')}`)),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShow(!show)},show?'Hide message':'Preview message'),
           h('button',{type:'button',className:'btn btn-primary',onClick:send,title:number?`Opens WhatsApp to ${patient.attendant_name||'family'} (+${number})`:'No family number on file — choose the contact in WhatsApp'},'📲 Send on WhatsApp'))),
