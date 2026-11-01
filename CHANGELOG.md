@@ -1,3 +1,6 @@
+## 2.19.42 — 01-11-2026 — Package: WhatsApp to the family about the tariff change
+- Patient card → Billing tab (Admin / Accounts), for Guests on a care package: new "Package · Inform Family" box with Preview message and "📲 Send on WhatsApp". The English + Tamil message gives the package name, period, fee (room type), that daily charges up to the day before stay as billed, and that items outside the package are billed separately. WhatsApp opens to the family number with the message ready; staff check and press Send.
+
 ## 2.19.41 — 01-11-2026 — Change to Package: tariff shown before changing
 - After choosing a package, the box shows the package, coverage dates (from today), the Private / Twin-sharing / General fees with the Guest's own room highlighted, the exact amount she will be charged, and what is included. The button stays disabled if her room type has no fee set.
 

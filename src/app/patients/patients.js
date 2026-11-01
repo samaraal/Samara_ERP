@@ -2744,6 +2744,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               )
             ):null,
             // 2.19.40: Admin can move a Daily Fare Guest to a care package from today (SQL renew_patient_package)
+            // 2.19.42: inform the family on WhatsApp about the package / tariff
+            ['Admin','Accounts'].includes(profile?.role)&&!dailyBasis&&selected.package_start_date?h(PackageFamilyWhatsAppCard,{patient:selected}):null,
             profile?.role==='Admin'&&dailyBasis&&!packageEnd?h(ChangeToPackageCard,{patient:selected,onDone:async()=>{const {data}=await client.from('patients').select('*').eq('id',selected.id).maybeSingle();await openPatient(data||selected,'Billing')}}):null,
             h('div',{className:'patient-billing-summary'},[['Charges',b.charges,'teal'],['Advance',b.advances,'blue'],['Payments',b.payments,'green'],['Discounts',b.discounts,'purple'],due<0?['Advance Balance (Cr)',-due,'green']:['Outstanding',due,due>0?'red':'green']].map(([k,v,tone])=>h('div',{className:`patient-billing-stat ${tone}`,key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
             h('div',{className:'section-card patient-billing-ledger'},
@@ -3118,4 +3120,57 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
           ?`She will be charged ${fee(classFee(pkg))} for this package (room: ${roomType||'not found — sharing fee used'}).`
           :`No ${roomClass==='Twin'?'Twin / sharing':roomClass} fee is set for this package — add it in Care Packages first.`),
         pkg.included_services?h('div',{style:{marginTop:'8px',fontSize:'13px',color:'#5d4b55',whiteSpace:'pre-line'}},h('b',null,'Included: '),String(pkg.included_services).split(/\n+/).filter(Boolean).join(' · ')):null):null);
+  }
+
+
+  // 2.19.42: WhatsApp to the family about the change of tariff to a care package (English + Tamil).
+  // Opens WhatsApp with the message ready; staff check it and press Send (no automatic sending).
+  function packageFamilyMessage(p){
+    const name=formalName(p),pk=p.billing_package||'Care Package',st=p.package_start_date,en=p.package_end_date;
+    const feeTxt=`₹${Number(p.package_fee||0).toLocaleString('en-IN')}`;
+    const cls=String(p.package_room_class||'');
+    const roomEn=cls==='Private'?'private room':cls==='General'?'general ward':'sharing room';
+    const roomTa=cls==='Private'?'தனி அறை':cls==='General'?'பொது வார்டு':'பகிர்வு அறை';
+    const prev=st?(()=>{const d=new Date(`${String(st).slice(0,10)}T00:00:00Z`);d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10)})():'';
+    return `Dear Family,
+
+Greetings from Samara Assisted Living.
+
+This is to inform you that the billing for ${name} has been changed from the Daily Tariff to the *${pk}* package.
+
+• Package period: *${formatDateIN(st)} to ${formatDateIN(en)}*
+• Package fee: *${feeTxt}* (${roomEn})
+• Daily room and nursing charges up to ${formatDateIN(prev)} remain as already billed.
+• Services not included in the package will be billed separately, as used.
+
+You can see the bill anytime in the Samara Family Portal. For any clarification, please feel free to contact us.
+
+அன்புள்ள குடும்பத்தினருக்கு,
+
+${name} அவர்களின் கட்டண முறை தினசரி கட்டணத்திலிருந்து *${pk}* பேக்கேஜுக்கு மாற்றப்பட்டுள்ளது.
+
+• பேக்கேஜ் காலம்: *${formatDateIN(st)} முதல் ${formatDateIN(en)} வரை*
+• பேக்கேஜ் கட்டணம்: *${feeTxt}* (${roomTa})
+• ${formatDateIN(prev)} வரையிலான தினசரி அறை மற்றும் நர்சிங் கட்டணங்கள் ஏற்கனவே உள்ளபடியே இருக்கும்.
+• பேக்கேஜில் சேராத சேவைகள், பயன்படுத்தியபடி தனியாக கணக்கிடப்படும்.
+
+பில் விவரங்களை Samara Family Portal-ல் எப்போது வேண்டுமானாலும் பார்க்கலாம். சந்தேகங்களுக்கு எங்களைத் தொடர்பு கொள்ளவும்.
+
+Thank you / நன்றி
+Samara Assisted Living`;
+  }
+  function PackageFamilyWhatsAppCard({patient}){
+    const [show,setShow]=React.useState(false);
+    const text=packageFamilyMessage(patient);
+    const number=normalizeWhatsAppRecipient(patient.attendant_phone||'');
+    const send=()=>{window.open(`https://wa.me/${number}?text=${encodeURIComponent(brandWhatsAppText(text))}`,'_blank','noopener');
+      try{writeAuditEvent('Package WhatsApp opened','Patient',patient.id,{package:patient.billing_package,start:patient.package_start_date},'Success')}catch(_){}};
+    return h('div',{className:'section-card',style:{border:'1px solid #f3c2d8',background:'#fff8fb',marginBottom:'12px'}},
+      h('div',{className:'panel-head'},
+        h('div',null,h('h4',null,'Package · Inform Family'),h('small',null,`${patient.billing_package||'Care Package'} · ${formatDateIN(patient.package_start_date)} to ${formatDateIN(patient.package_end_date)} · ₹${Number(patient.package_fee||0).toLocaleString('en-IN')}`)),
+        h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
+          h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShow(!show)},show?'Hide message':'Preview message'),
+          h('button',{type:'button',className:'btn btn-primary',onClick:send,title:number?`Opens WhatsApp to ${patient.attendant_name||'family'} (+${number})`:'No family number on file — choose the contact in WhatsApp'},'📲 Send on WhatsApp'))),
+      !number?h('small',{style:{color:'#c0123c',fontWeight:700}},'No family mobile on file — WhatsApp will ask you to choose the contact.'):h('small',{style:{color:'#6b5562'}},`To: ${patient.attendant_name||'Family'} · +${number} — WhatsApp opens with the message ready; check it and press Send.`),
+      show?h('pre',{style:{whiteSpace:'pre-wrap',fontFamily:'inherit',fontSize:'13px',background:'#fff',border:'1px solid #f0dbe5',borderRadius:'12px',padding:'10px',marginTop:'8px'}},brandWhatsAppText(text)):null);
   }
