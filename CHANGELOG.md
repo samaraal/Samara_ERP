@@ -1,3 +1,6 @@
+## 2.19.38 — 01-11-2026 — Payroll: a month's salary only after the month is over
+- Found: November 2026 payroll could be saved on 01-11-2026, counting duties still planned for the rest of the month as worked. Now a month that is not over shows a warning, and Save salary is replaced by "can be saved from 01-12-2026".
+
 ## 2.19.37 — 01-11-2026 — Fix: Payroll "Save salary" refused with "wrong format"
 - Empty Overtime / Incentives / Other earnings / Advance / Other deduction boxes were sent as blank text, which the database could not read as a number. Blank boxes now count as ₹0.
 

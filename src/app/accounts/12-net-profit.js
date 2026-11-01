@@ -207,6 +207,8 @@
     if(action==='pdf'){const ct=r.headers.get('content-type')||'';if(ct.includes('pdf'))return await r.blob();const j=await r.json().catch(()=>({}));throw new Error(j.error||'Payslip could not be made.')}
     const j=await r.json().catch(()=>({}));if(!j.success)throw new Error(j.error||'Payslip could not be sent.');return j;
   }
+  // 2.19.38: next calendar day (YYYY-MM-DD)
+  function npAddDay(d){const x=new Date(`${d}T00:00:00Z`);x.setUTCDate(x.getUTCDate()+1);return x.toISOString().slice(0,10)}
   function PayrollPanel({month,onChanged}){
     const today=todayISOIndia(),end=npMonthEnd(month);
     const [rows,setRows]=React.useState(null),[sel,setSel]=React.useState(''),[d,setD]=React.useState(null),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[confirmSend,setConfirmSend]=React.useState(false);
@@ -230,7 +232,9 @@
       window.scrollTo({top:0,behavior:'smooth'});
     }
     async function save(){
-      if(busy)return;setBusy(true);setMsg('');
+      if(busy)return;
+      if(end>=today){setMsg(`${npMonthLabel(month)} is not over yet. Salary can be saved from ${formatDateIN(npAddDay(end))}.`);return}
+      setBusy(true);setMsg('');
       try{
         const c=payCalc(d,emp.cl_opening,emp.avail_days);
         if(!(Number(d.monthly_salary)>0))throw new Error('Enter the monthly salary (or set it in HR).');
@@ -264,6 +268,7 @@
           actions:h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSel('');setMsg('')}},'← Back to employees')},
         msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
+          :end>=today?h('div',{className:'message error'},`⚠ ${npMonthLabel(month)} is not over yet. Days below include duties planned for the rest of the month, so they are not final. Salary can be saved from ${formatDateIN(npAddDay(end))}.`)
           :h('div',{className:'notice'},onRoster
             ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} · approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid) · every other day = loss of pay. Correct any number before saving.`
             :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
@@ -298,7 +303,8 @@
             !sv&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginTop:'12px'}},
               h('div',{className:'field',style:{margin:0}},h('label',null,'Paid on'),h(StrictDateInput,{value:d.paid_on,min:month,max:today,onChange:e=>setD({...d,paid_on:e.target.value})})),
               h('div',{className:'field',style:{margin:0}},h('label',null,'Paid by'),h('select',{value:d.paid_mode,onChange:e=>setD({...d,paid_mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x))))),
-            !sv?h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save,style:{width:'100%',marginTop:'12px',padding:'13px',fontSize:'16px'}},busy?'Saving…':`Save salary · ${npMoney(c.net)}`)
+            !sv&&end>=today?h('div',{className:'notice',style:{marginTop:'12px'}},`${npMonthLabel(month)} is not over yet — the roster still has days to come. Salary for ${npMonthLabel(month)} can be saved from ${formatDateIN(npAddDay(end))}.`)
+            :!sv?h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save,style:{width:'100%',marginTop:'12px',padding:'13px',fontSize:'16px'}},busy?'Saving…':`Save salary · ${npMoney(c.net)}`)
               :h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
                 h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>pdf(sv.id)},'📄 Payslip PDF'),
                 confirmSend?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-whatsapp',disabled:busy,onClick:()=>send(sv.id)},`✓ Yes, send to ${emp.mobile||'mobile in HR'}`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setConfirmSend(false)},'Cancel'))
