@@ -726,8 +726,8 @@
       setDetailsBusy(false);
     }
     async function openDocument(doc){
-      const {data,error}=await client.storage.from('employee-documents').createSignedUrl(doc.storage_path||doc.file_path,120);
-      if(error){alert(error.message);return}window.open(data.signedUrl,'_blank','noopener');
+      const err=await openSamaraStorageFile('employee-documents',doc.storage_path||doc.file_path,300,doc.document_name||'Employee document');
+      if(err)alert(err);
     }
 
     async function printIdCard(row){

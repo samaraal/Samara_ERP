@@ -24,12 +24,15 @@
     }catch(e){console.warn('Outside bill link check skipped',e)}
   }
   async function outsideViewBill(requestId){
+    const win=samaraPrepareDocWindow(); // 2.19.46: open the tab at the tap (phones block it after waiting)
     const {data,error}=await client.from('patient_documents').select('storage_path,document_name').eq('remarks',`Clinical charge ${requestId}`);
-    if(error||!data?.length){showSamaraActionToast('error','Bill not found',error?.message||'No bill photo / PDF is attached to this entry.');return}
+    if(error||!data?.length){if(win)try{win.close()}catch(_){}showSamaraActionToast('error','Bill not found',error?.message||'No bill photo / PDF is attached to this entry.');return}
+    let first=true;
     for(const d of data){
-      const r=await client.storage.from('patient-documents').createSignedUrl(d.storage_path,180);
-      if(r.error){showSamaraActionToast('error','Bill could not be opened',r.error.message);return}
-      window.open(r.data.signedUrl,'_blank','noopener,noreferrer');
+      const r=await client.storage.from('patient-documents').createSignedUrl(d.storage_path,300);
+      if(r.error){if(first&&win)try{win.close()}catch(_){}showSamaraActionToast('error','Bill could not be opened',r.error.message);return}
+      if(first){samaraSendDocWindow(win,r.data.signedUrl,d.document_name||'Outside bill');first=false}
+      else samaraShowDocLink(r.data.signedUrl,d.document_name||'Outside bill');
     }
   }
   function OutsideBillsRegister({profile,patients,refreshKey}){

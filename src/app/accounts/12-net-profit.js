@@ -409,7 +409,7 @@
       const x=await client.rpc('samara_expense_rpc',{p_action:'void',p:{id:r.id,reason}});
       if(x.error)setMsg(x.error.message);else{setMsg('✓ Expense removed (kept in the audit with the reason).');setDetail(null);load()}
     }
-    async function viewBill(path){const r=await client.storage.from('expense-bills').createSignedUrl(path,300);if(r.error){setMsg(r.error.message);return}window.open(r.data.signedUrl,'_blank','noopener,noreferrer')}
+    async function viewBill(path){const err=await openSamaraStorageFile('expense-bills',path,300,'Expense bill');if(err)setMsg(err)}
     const sum=list=>list.reduce((t,r)=>t+Number(r.amount||0),0);
     const todayRows=rows.filter(r=>r.expense_date===today);
     const monthRows=rows.filter(r=>r.expense_date>=month&&r.expense_date<=end);

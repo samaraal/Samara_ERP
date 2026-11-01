@@ -215,7 +215,7 @@
       const payload={status:edit.status,hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);if(error){setMsg(error.message);return}setMsg('Career application updated successfully.');await load();
     }
-    async function openDoc(path){if(!path)return;const {data,error}=await client.storage.from('career-applications').createSignedUrl(path,180);if(error){setMsg(error.message);return}window.open(data.signedUrl,'_blank','noopener')}
+    async function openDoc(path){if(!path)return;const err=await openSamaraStorageFile('career-applications',path,300,'Applicant document');if(err)setMsg(err)}
     function candidateDisplayName(row){
       return [row.title,row.applicant_name].filter(Boolean).join(' ').trim()||'Candidate';
     }
@@ -453,9 +453,9 @@
         h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',disabled:isClosed,onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
         !isRectification?h('div',{className:'field span-2'},
           h('label',null,'Interview Date & Time'),
-          h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h(StrictDateInput,{disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,disabled:isClosed,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+          h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'flex-end'}},
+            h('div',{style:{flex:'1 1 160px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h(StrictDateInput,{disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
+            h('div',{style:{flex:'1 1 140px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,disabled:isClosed,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
             h('button',{type:'button',className:'btn btn-primary',disabled:isClosed,onClick:setInterviewSchedule},'Set'),
             h('button',{type:'button',className:'btn btn-secondary',disabled:isClosed,onClick:clearInterviewSchedule},'Clear')
           ),
@@ -464,9 +464,9 @@
         !isRectification&&(selected.interview_at||edit.status==='Interview Scheduled')?h('div',{className:'field span-2',style:{padding:'12px',border:'1px solid #ead0de',borderRadius:'12px',background:'#fffafd'}},
           h('label',{style:{fontWeight:800,color:'#7d1748'}},'Reschedule Interview'),
           selected.interview_at?h('small',{style:{display:'block',marginBottom:'8px',color:'#806575'}},`Current schedule: ${fmt(selected.interview_at)}`):null,
-          h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h(StrictDateInput,{value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+          h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'flex-end'}},
+            h('div',{style:{flex:'1 1 160px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h(StrictDateInput,{value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+            h('div',{style:{flex:'1 1 140px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
             h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule')
           ),
           h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')

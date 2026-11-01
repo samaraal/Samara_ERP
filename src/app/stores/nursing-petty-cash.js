@@ -40,7 +40,7 @@
         setExpense({date:todayISOIndia(),amount:'',note:'',paid_to:'',bill:''});setBill(null);uploadRef.current=null;setTab('book');toast(true,'Expense recorded.');
       }catch(err){setError(err.message);toast(false,err.message)}finally{lock.current=false;setBusy(false)}
     }
-    async function viewBill(path){const r=await client.storage.from('nm-petty-receipts').createSignedUrl(path,120);if(r.error){setError(r.error.message);return}window.open(r.data.signedUrl,'_blank','noopener,noreferrer')}
+    async function viewBill(path){const err=await openSamaraStorageFile('nm-petty-receipts',path,300,'Bill');if(err)setError(err)}
     if(!data)return h(Section,{title:'Petty Cash'},h('p',{role:'status'},error||'Loading petty cash…'),error&&h('p',null,'If this is new, apply SQL 215 before using this page.'));
     const {admin,nm,actor}=data.access;const balance=Number(data.balance||0);
     const btn=(text,action,defaults,primary=false,help='')=>h('button',{type:'button',className:'btn '+(primary?'btn-primary':'btn-secondary'),disabled:busy,onClick:e=>{e.stopPropagation();open(action,text,defaults,help)}},text);

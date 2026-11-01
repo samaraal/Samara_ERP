@@ -625,7 +625,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         showPatientToast('success','Daily Moment deleted.');
       }catch(error){showPatientToast('error',error.message||'Unable to delete Daily Moment.')}finally{setMomentBusy(false)}
     }
-    async function openDoc(doc){if(doc.storage_path){const {data,error}=await client.storage.from('patient-documents').createSignedUrl(doc.storage_path,180);if(error)return alert(error.message);window.open(data.signedUrl,'_blank','noopener')}else if(doc.document_url)window.open(doc.document_url,'_blank','noopener')}
+    async function openDoc(doc){if(doc.storage_path){const err=await openSamaraStorageFile('patient-documents',doc.storage_path,300,doc.document_name||'Guest document');if(err)alert(err)}else if(doc.document_url)openSamaraUrl(doc.document_url,doc.document_name||'Guest document')}
     async function loadEditMedia(row){
       const [{data:docs},url]=await Promise.all([
         client.from('patient_documents').select('*').eq('patient_id',row.id).order('created_at',{ascending:false}),
@@ -1374,7 +1374,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               frame.contentWindow.focus();
               frame.contentWindow.print();
             }catch(_error){
-              window.open(data.signedUrl,'_blank','noopener');
+              samaraShowDocLink(data.signedUrl,'Signed Admission Consent');
             }
             setTimeout(()=>frame.remove(),5000);
           };

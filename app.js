@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.45';
+  const APP_VERSION = '2.19.46';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Nov-2026 NM package WhatsApp';
+  const APP_BUILD_DATE = '01-Nov-2026 Mobile date picker + attachments';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -2061,6 +2061,18 @@ function initSamaraInaugurationInvitation(){
   // Strict ERP date controls: the visible value is always DD-MM-YYYY.
   // A transparent native picker is retained only for calendar selection; its locale-specific
   // MM/DD/YYYY rendering is never shown to the user. Database values remain YYYY-MM-DD.
+  // 2.19.46 mobile date fix: shared style + click for the transparent native date input laid over the DD-MM-YYYY box.
+  function samaraNativeDateOverlay(disabled){
+    return {position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,margin:0,padding:0,border:0,zIndex:1,
+      fontSize:'16px',cursor:disabled?'default':'pointer',pointerEvents:disabled?'none':'auto',WebkitAppearance:'none',appearance:'none'};
+  }
+  function samaraNativeDateClick(event){
+    const input=event.currentTarget;
+    if(!input||input.disabled||input.readOnly)return;
+    // Phones open their own calendar on the tap itself; desktop browsers need showPicker().
+    const coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;
+    if(!coarse){try{input.showPicker&&input.showPicker()}catch(_){}}
+  }
   const StrictDateInput = props => {
     const {value,onChange,style,...nativeProps}=props||{};
     const picker=React.useRef(null);
@@ -2068,7 +2080,9 @@ function initSamaraInaugurationInvitation(){
     return h('div',{className:'samara-date-entry',style:{position:'relative',width:'100%',...style}},
       h('button',{type:'button',className:'samara-date-display',disabled:nativeProps.disabled,onClick:showCalendar,'aria-label':nativeProps['aria-label']||'Choose date'},
         h('span',null,value?formatDateIN(value):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
-      h('input',{...nativeProps,ref:picker,'data-samara-native':'1',type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
+      // 2.19.46: the invisible native date input now covers the whole box, so a real finger tap lands on it
+      // (iPhone / Android do not open a calendar from showPicker() on a hidden 1px input).
+      h('input',{...nativeProps,ref:picker,'data-samara-native':'1',type:'date',value:value||'',onChange,onClick:e=>{if(nativeProps.onClick)nativeProps.onClick(e);samaraNativeDateClick(e)},tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:samaraNativeDateOverlay(nativeProps.disabled)})
     );
   };
   const time24Parts=value=>{
@@ -2203,7 +2217,7 @@ function initSamaraInaugurationInvitation(){
     return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'center',...(style||{})}},
       h('div',{className:'samara-date-entry',style:{position:'relative',minWidth:'130px',flex:'1 1 130px'}},
         h('button',{type:'button',className:'samara-date-display',disabled,onClick:showCalendar,'aria-label':inputProps['aria-label']||'Choose date'},h('span',null,date?formatDateIN(date):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
-        h('input',{...inputProps,ref:picker,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:-1,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
+        h('input',{...inputProps,ref:picker,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,onClick:samaraNativeDateClick,tabIndex:-1,'aria-label':inputProps['aria-label']||'Choose date',style:samaraNativeDateOverlay(disabled)})
       ),
       h(ManualTimeInput,{style:{width:'auto',flex:'0 0 auto'},value:time,disabled,required:Boolean(required),validateTime,onChange:e=>chooseTime(e.target.value),'aria-label':`${inputProps['aria-label']||'Effective date and time'} time`}),
       name?h('input',{type:'hidden',name,value:valueToSubmit}):null
@@ -2267,6 +2281,73 @@ function initSamaraInaugurationInvitation(){
     try{sessionStorage.removeItem(TASK_NAVIGATION_KEY)}catch(_error){}
   };
 
+
+  // 2.19.46 mobile attachment fix. Phones block a new tab that is opened only AFTER waiting for the
+  // secure Supabase link (it no longer counts as the user's tap). So the tab is opened at the moment of
+  // the tap and the link is filled in afterwards. In the installed app (home-screen icon), or if the
+  // tab is still blocked, a small "Open Document" box appears — tapping its button always works.
+  function samaraIsStandaloneApp(){
+    try{return !!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches))}catch(_){return false}
+  }
+  function samaraPrepareDocWindow(){
+    if(samaraIsStandaloneApp())return null;
+    let win=null;
+    try{win=window.open('','_blank')}catch(_){win=null}
+    if(win){try{win.document.write('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opening document…</title><p style="font-family:system-ui,sans-serif;padding:24px;color:#7d1748;font-weight:700">Opening document…</p>');win.document.close()}catch(_){}}
+    return win;
+  }
+  function samaraShowDocLink(url,label){
+    document.getElementById('samara-doc-link-box')?.remove();
+    const box=document.createElement('div');
+    box.id='samara-doc-link-box';
+    box.setAttribute('role','dialog');
+    box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(60,20,40,.35);display:flex;align-items:center;justify-content:center;padding:16px';
+    const card=document.createElement('div');
+    card.style.cssText='background:linear-gradient(180deg,#fff6fa,#fde7f0);border:1px solid #ead0de;border-radius:16px;padding:18px;max-width:340px;width:100%;box-shadow:0 12px 30px rgba(75,24,52,.25);text-align:center;font-family:inherit';
+    const title=document.createElement('div');
+    title.textContent=label||'Document ready';
+    title.style.cssText='font-weight:800;color:#7d1748;margin-bottom:12px';
+    const link=document.createElement('a');
+    link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+    link.textContent='Open Document';
+    link.className='btn btn-primary';
+    link.style.cssText='display:block;padding:12px;border-radius:10px;text-decoration:none;font-weight:800;margin-bottom:8px';
+    const close=document.createElement('button');
+    close.type='button';close.textContent='Close';close.className='btn btn-secondary';
+    close.style.cssText='display:block;width:100%;padding:10px;border-radius:10px';
+    const remove=()=>box.remove();
+    link.addEventListener('click',()=>setTimeout(remove,300));
+    close.addEventListener('click',remove);
+    box.addEventListener('click',e=>{if(e.target===box)remove()});
+    card.append(title,link,close);box.appendChild(card);document.body.appendChild(box);
+  }
+  function samaraSendDocWindow(win,url,label){
+    if(win&&!win.closed){
+      try{win.opener=null}catch(_){}
+      try{win.location.replace(url);return true}catch(_){try{win.close()}catch(__){}}
+    }
+    samaraShowDocLink(url,label);
+    return true;
+  }
+  // Use from any button: openSamaraStorageFile('bucket', path, seconds) — call it directly inside the tap handler.
+  // Returns '' on success or the error text (the caller shows it in its own message area).
+  async function openSamaraStorageFile(bucket,path,seconds=300,label){
+    if(!path)return 'Document not available.';
+    const win=samaraPrepareDocWindow();
+    try{
+      const {data,error}=await client.storage.from(bucket).createSignedUrl(path,seconds);
+      if(error||!data?.signedUrl)throw error||new Error('Unable to open the document.');
+      samaraSendDocWindow(win,data.signedUrl,label);
+      return '';
+    }catch(error){
+      if(win)try{win.close()}catch(_){}
+      return error?.message||'Unable to open the document.';
+    }
+  }
+  function openSamaraUrl(url,label){
+    if(!url)return;
+    samaraSendDocWindow(samaraPrepareDocWindow(),url,label);
+  }
   const finishSuccessfulAction = ({
     close,
     returnPage,
@@ -13947,7 +14028,7 @@ https://samaraassistedliving.com/`;
         return {item_id:x.item_id==='__other'?'':x.item_id,name:x.name,unit:x.unit,quantity:c.qty,price:c.unitPrice,stock:x.item_id==='__other'?false:x.stock,pack:c.packLabel||null,packets:c.packed?Number(x.count):null}});
       await post('purchase',{...purchase,items,receipt:path});setPurchase({date:todayISOIndia(),vendor:'',bill:'',no_receipt:'',items:[emptyLine()]});setReceipt(null);uploadRef.current=null;setTab('purchases');
     }catch(e){setError(e.message)}finally{lock.current=false;setBusy(false)}}
-    async function viewReceipt(path){const r=await client.storage.from('kitchen-receipts').createSignedUrl(path,120);if(r.error){setError(r.error.message);return}window.open(r.data.signedUrl,'_blank','noopener,noreferrer')}
+    async function viewReceipt(path){const err=await openSamaraStorageFile('kitchen-receipts',path,300,'Receipt');if(err)setError(err)}
     function exportCash(){const rows=[['Date','Type','Details','Cash in','Cash out','Balance','Recorded by','Reference'],...data.cash.slice().reverse().map(x=>[formatDateTimeIN(x.created_at),x.kind,x.details,x.amount>0?x.amount:'',x.amount<0?-x.amount:'',x.balance_after,x.actor_name,x.reference_id||x.id])];const csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Kitchen-Cash-Book-'+todayISOIndia()+'.csv';a.click();URL.revokeObjectURL(url)}
     if(!data)return h(Section,{title:'Kitchen & Pantry'},h('p',{role:'status'},error||'Loading kitchen cash book…'),h('p',null,'If this workspace is not installed, apply SQL 186 before using this release.'));
     const admin=data.access.admin,spend=data.access.spend,actor=data.access.actor,w=data.wallet;
@@ -14156,7 +14237,7 @@ https://samaraassistedliving.com/`;
         setExpense({date:todayISOIndia(),amount:'',note:'',paid_to:'',bill:''});setBill(null);uploadRef.current=null;setTab('book');toast(true,'Expense recorded.');
       }catch(err){setError(err.message);toast(false,err.message)}finally{lock.current=false;setBusy(false)}
     }
-    async function viewBill(path){const r=await client.storage.from('nm-petty-receipts').createSignedUrl(path,120);if(r.error){setError(r.error.message);return}window.open(r.data.signedUrl,'_blank','noopener,noreferrer')}
+    async function viewBill(path){const err=await openSamaraStorageFile('nm-petty-receipts',path,300,'Bill');if(err)setError(err)}
     if(!data)return h(Section,{title:'Petty Cash'},h('p',{role:'status'},error||'Loading petty cash…'),error&&h('p',null,'If this is new, apply SQL 215 before using this page.'));
     const {admin,nm,actor}=data.access;const balance=Number(data.balance||0);
     const btn=(text,action,defaults,primary=false,help='')=>h('button',{type:'button',className:'btn '+(primary?'btn-primary':'btn-secondary'),disabled:busy,onClick:e=>{e.stopPropagation();open(action,text,defaults,help)}},text);
@@ -19151,7 +19232,7 @@ Thank you.`;
       const payload={status:edit.status,hr_remarks:edit.hr_remarks||null,interview_at:edit.interview_at||null,interview_mode:edit.interview_mode||null,interview_venue:edit.interview_venue||null,interview_result:edit.interview_result||null,handled_by:profile.id,updated_at:new Date().toISOString()};
       const {error}=await client.from('career_applications').update(payload).eq('id',edit.id);if(error){setMsg(error.message);return}setMsg('Career application updated successfully.');await load();
     }
-    async function openDoc(path){if(!path)return;const {data,error}=await client.storage.from('career-applications').createSignedUrl(path,180);if(error){setMsg(error.message);return}window.open(data.signedUrl,'_blank','noopener')}
+    async function openDoc(path){if(!path)return;const err=await openSamaraStorageFile('career-applications',path,300,'Applicant document');if(err)setMsg(err)}
     function candidateDisplayName(row){
       return [row.title,row.applicant_name].filter(Boolean).join(' ').trim()||'Candidate';
     }
@@ -19389,9 +19470,9 @@ Thank you.`;
         h('div',{className:'field'},h('label',null,'Application Status'),h('select',{value:edit.status||'New',disabled:isClosed,onChange:e=>setEdit({...edit,status:e.target.value})},HR_APPLICATION_STATUSES.map(x=>h('option',{key:x},x)))),
         !isRectification?h('div',{className:'field span-2'},
           h('label',null,'Interview Date & Time'),
-          h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h(StrictDateInput,{disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,disabled:isClosed,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+          h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'flex-end'}},
+            h('div',{style:{flex:'1 1 160px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Date'),h(StrictDateInput,{disabled:isClosed,value:interviewDate,onChange:e=>setInterviewDate(e.target.value)})),
+            h('div',{style:{flex:'1 1 140px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'Time'),h('select',{value:interviewTime,disabled:isClosed,onChange:e=>setInterviewTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
             h('button',{type:'button',className:'btn btn-primary',disabled:isClosed,onClick:setInterviewSchedule},'Set'),
             h('button',{type:'button',className:'btn btn-secondary',disabled:isClosed,onClick:clearInterviewSchedule},'Clear')
           ),
@@ -19400,9 +19481,9 @@ Thank you.`;
         !isRectification&&(selected.interview_at||edit.status==='Interview Scheduled')?h('div',{className:'field span-2',style:{padding:'12px',border:'1px solid #ead0de',borderRadius:'12px',background:'#fffafd'}},
           h('label',{style:{fontWeight:800,color:'#7d1748'}},'Reschedule Interview'),
           selected.interview_at?h('small',{style:{display:'block',marginBottom:'8px',color:'#806575'}},`Current schedule: ${fmt(selected.interview_at)}`):null,
-          h('div',{style:{display:'grid',gridTemplateColumns:'minmax(170px,1fr) minmax(150px,0.7fr) auto',gap:'8px',alignItems:'end'}},
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h(StrictDateInput,{value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
-            h('div',null,h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
+          h('div',{style:{display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'flex-end'}},
+            h('div',{style:{flex:'1 1 160px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Date'),h(StrictDateInput,{value:rescheduleDate,onChange:e=>setRescheduleDate(e.target.value)})),
+            h('div',{style:{flex:'1 1 140px',minWidth:0}},h('small',{style:{display:'block',marginBottom:'5px',fontWeight:700}},'New Time'),h('select',{value:rescheduleTime,onChange:e=>setRescheduleTime(e.target.value)},interviewTimeOptions.map(x=>h('option',{key:x.value,value:x.value},x.label)))),
             h('button',{type:'button',className:'btn btn-secondary',onClick:setRescheduledInterview},'Reschedule')
           ),
           h('small',{style:{display:'block',marginTop:'7px',color:'#806575'}},'Use this when Samara needs to change an already scheduled interview. The application will remain marked as Interview Scheduled.')
@@ -22458,8 +22539,8 @@ Thank you.`;
       setDetailsBusy(false);
     }
     async function openDocument(doc){
-      const {data,error}=await client.storage.from('employee-documents').createSignedUrl(doc.storage_path||doc.file_path,120);
-      if(error){alert(error.message);return}window.open(data.signedUrl,'_blank','noopener');
+      const err=await openSamaraStorageFile('employee-documents',doc.storage_path||doc.file_path,300,doc.document_name||'Employee document');
+      if(err)alert(err);
     }
 
     async function printIdCard(row){
@@ -29886,7 +29967,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
         showPatientToast('success','Daily Moment deleted.');
       }catch(error){showPatientToast('error',error.message||'Unable to delete Daily Moment.')}finally{setMomentBusy(false)}
     }
-    async function openDoc(doc){if(doc.storage_path){const {data,error}=await client.storage.from('patient-documents').createSignedUrl(doc.storage_path,180);if(error)return alert(error.message);window.open(data.signedUrl,'_blank','noopener')}else if(doc.document_url)window.open(doc.document_url,'_blank','noopener')}
+    async function openDoc(doc){if(doc.storage_path){const err=await openSamaraStorageFile('patient-documents',doc.storage_path,300,doc.document_name||'Guest document');if(err)alert(err)}else if(doc.document_url)openSamaraUrl(doc.document_url,doc.document_name||'Guest document')}
     async function loadEditMedia(row){
       const [{data:docs},url]=await Promise.all([
         client.from('patient_documents').select('*').eq('patient_id',row.id).order('created_at',{ascending:false}),
@@ -30635,7 +30716,7 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
               frame.contentWindow.focus();
               frame.contentWindow.print();
             }catch(_error){
-              window.open(data.signedUrl,'_blank','noopener');
+              samaraShowDocLink(data.signedUrl,'Signed Admission Consent');
             }
             setTimeout(()=>frame.remove(),5000);
           };
@@ -43125,7 +43206,7 @@ function ShiftHandover({profile,onNavigate}){
     const [patients]=usePatients(),[rows,setRows]=React.useState([]),[form,setForm]=React.useState({patient_id:'',document_type:'Lab Report',report_date:'',hospital_laboratory:'',doctor_name:'',remarks:''}),[files,setFiles]=React.useState([]);
     async function load(){const {data}=await client.from('patient_documents').select('*,patients(full_name)').order('created_at',{ascending:false});setRows(data||[])}React.useEffect(()=>{load()},[]);
     async function save(e){e.preventDefault();if(!files.length)return alert('Select or capture at least one file.');for(const file of files){const safe=String(file.name||'document').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${form.patient_id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}-${safe}`;const {error:up}=await client.storage.from('patient-documents').upload(path,file,{contentType:file.type||undefined});if(up)return alert(up.message);const {error}=await client.from('patient_documents').insert({...form,document_name:file.name,storage_path:path,mime_type:file.type||null,file_size:file.size||null,uploaded_by:profile.id,is_verified:true});if(error)return alert(error.message)}setFiles([]);setForm({...form,remarks:''});load()}
-    async function openDoc(r){const {data,error}=await client.storage.from('patient-documents').createSignedUrl(r.storage_path,180);if(error)return alert(error.message);window.open(data.signedUrl,'_blank','noopener')}
+    async function openDoc(r){const err=await openSamaraStorageFile('patient-documents',r.storage_path,300,r.document_name||'Document');if(err)alert(err)}
     return h(React.Fragment,null,h(Section,{title:'Patient Documents',subtitle:'Identity proof, discharge, prescription, lab, scan and test reports'},h('form',{className:'modal-grid',onSubmit:save},patientSelect(patients,form.patient_id,v=>setForm({...form,patient_id:v})),miniSelect('Document type',form.document_type,['Identity Proof','Discharge Summary','Current Prescription','Previous Prescription','Lab Report','X-ray','CT Scan','MRI','Ultrasound','ECG','Echo','Operative Note','Physiotherapy Advice','Wound Photograph','Insurance','Consent','Other'],v=>setForm({...form,document_type:v})),miniInput('Report date',form.report_date,v=>setForm({...form,report_date:v}),false,'date'),miniInput('Hospital / Laboratory',form.hospital_laboratory,v=>setForm({...form,hospital_laboratory:v})),miniInput('Doctor',form.doctor_name,v=>setForm({...form,doctor_name:v})),miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),fileInput('Upload / Camera Capture',files,setFiles,'image/*,.pdf',true),h('button',{className:'btn btn-primary'},'Upload Document'))),h(LogTable,{title:'Medical Document Register',heads:['Patient','Type','Date','Hospital/Lab','Name','Action'],rows:rows.map(r=>[r.patients?.full_name,r.document_type,formatDateIN(r.report_date),r.hospital_laboratory||'—',r.document_name,h('button',{className:'btn btn-secondary',onClick:()=>openDoc(r)},'Open')])}))
   }
 
@@ -51902,12 +51983,15 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     }catch(e){console.warn('Outside bill link check skipped',e)}
   }
   async function outsideViewBill(requestId){
+    const win=samaraPrepareDocWindow(); // 2.19.46: open the tab at the tap (phones block it after waiting)
     const {data,error}=await client.from('patient_documents').select('storage_path,document_name').eq('remarks',`Clinical charge ${requestId}`);
-    if(error||!data?.length){showSamaraActionToast('error','Bill not found',error?.message||'No bill photo / PDF is attached to this entry.');return}
+    if(error||!data?.length){if(win)try{win.close()}catch(_){}showSamaraActionToast('error','Bill not found',error?.message||'No bill photo / PDF is attached to this entry.');return}
+    let first=true;
     for(const d of data){
-      const r=await client.storage.from('patient-documents').createSignedUrl(d.storage_path,180);
-      if(r.error){showSamaraActionToast('error','Bill could not be opened',r.error.message);return}
-      window.open(r.data.signedUrl,'_blank','noopener,noreferrer');
+      const r=await client.storage.from('patient-documents').createSignedUrl(d.storage_path,300);
+      if(r.error){if(first&&win)try{win.close()}catch(_){}showSamaraActionToast('error','Bill could not be opened',r.error.message);return}
+      if(first){samaraSendDocWindow(win,r.data.signedUrl,d.document_name||'Outside bill');first=false}
+      else samaraShowDocLink(r.data.signedUrl,d.document_name||'Outside bill');
     }
   }
   function OutsideBillsRegister({profile,patients,refreshKey}){
@@ -52949,7 +53033,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       const x=await client.rpc('samara_expense_rpc',{p_action:'void',p:{id:r.id,reason}});
       if(x.error)setMsg(x.error.message);else{setMsg('✓ Expense removed (kept in the audit with the reason).');setDetail(null);load()}
     }
-    async function viewBill(path){const r=await client.storage.from('expense-bills').createSignedUrl(path,300);if(r.error){setMsg(r.error.message);return}window.open(r.data.signedUrl,'_blank','noopener,noreferrer')}
+    async function viewBill(path){const err=await openSamaraStorageFile('expense-bills',path,300,'Expense bill');if(err)setMsg(err)}
     const sum=list=>list.reduce((t,r)=>t+Number(r.amount||0),0);
     const todayRows=rows.filter(r=>r.expense_date===today);
     const monthRows=rows.filter(r=>r.expense_date>=month&&r.expense_date<=end);

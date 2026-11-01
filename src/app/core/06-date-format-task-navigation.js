@@ -21,6 +21,18 @@
   // Strict ERP date controls: the visible value is always DD-MM-YYYY.
   // A transparent native picker is retained only for calendar selection; its locale-specific
   // MM/DD/YYYY rendering is never shown to the user. Database values remain YYYY-MM-DD.
+  // 2.19.46 mobile date fix: shared style + click for the transparent native date input laid over the DD-MM-YYYY box.
+  function samaraNativeDateOverlay(disabled){
+    return {position:'absolute',inset:0,width:'100%',height:'100%',opacity:0,margin:0,padding:0,border:0,zIndex:1,
+      fontSize:'16px',cursor:disabled?'default':'pointer',pointerEvents:disabled?'none':'auto',WebkitAppearance:'none',appearance:'none'};
+  }
+  function samaraNativeDateClick(event){
+    const input=event.currentTarget;
+    if(!input||input.disabled||input.readOnly)return;
+    // Phones open their own calendar on the tap itself; desktop browsers need showPicker().
+    const coarse=window.matchMedia&&window.matchMedia('(pointer: coarse)').matches;
+    if(!coarse){try{input.showPicker&&input.showPicker()}catch(_){}}
+  }
   const StrictDateInput = props => {
     const {value,onChange,style,...nativeProps}=props||{};
     const picker=React.useRef(null);
@@ -28,7 +40,9 @@
     return h('div',{className:'samara-date-entry',style:{position:'relative',width:'100%',...style}},
       h('button',{type:'button',className:'samara-date-display',disabled:nativeProps.disabled,onClick:showCalendar,'aria-label':nativeProps['aria-label']||'Choose date'},
         h('span',null,value?formatDateIN(value):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
-      h('input',{...nativeProps,ref:picker,'data-samara-native':'1',type:'date',value:value||'',onChange,tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
+      // 2.19.46: the invisible native date input now covers the whole box, so a real finger tap lands on it
+      // (iPhone / Android do not open a calendar from showPicker() on a hidden 1px input).
+      h('input',{...nativeProps,ref:picker,'data-samara-native':'1',type:'date',value:value||'',onChange,onClick:e=>{if(nativeProps.onClick)nativeProps.onClick(e);samaraNativeDateClick(e)},tabIndex:-1,'aria-label':nativeProps['aria-label']||'Choose date',style:samaraNativeDateOverlay(nativeProps.disabled)})
     );
   };
   const time24Parts=value=>{
@@ -163,7 +177,7 @@
     return h('div',{className:`samara-datetime-entry ${className||''}`.trim(),style:{width:'100%',display:'flex',flexWrap:'wrap',gap:'8px',alignItems:'center',...(style||{})}},
       h('div',{className:'samara-date-entry',style:{position:'relative',minWidth:'130px',flex:'1 1 130px'}},
         h('button',{type:'button',className:'samara-date-display',disabled,onClick:showCalendar,'aria-label':inputProps['aria-label']||'Choose date'},h('span',null,date?formatDateIN(date):'DD-MM-YYYY'),h('span',{'aria-hidden':'true'},'▾')),
-        h('input',{...inputProps,ref:picker,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,tabIndex:-1,'aria-label':inputProps['aria-label']||'Choose date',style:{position:'absolute',width:'1px',height:'1px',opacity:0,pointerEvents:'none',left:0,bottom:0}})
+        h('input',{...inputProps,ref:picker,'data-samara-native':'1',id,name:undefined,type:'date',value:date,required:Boolean(required),disabled,min:dateMin,max:dateMax,onChange:dateChanged,onClick:samaraNativeDateClick,tabIndex:-1,'aria-label':inputProps['aria-label']||'Choose date',style:samaraNativeDateOverlay(disabled)})
       ),
       h(ManualTimeInput,{style:{width:'auto',flex:'0 0 auto'},value:time,disabled,required:Boolean(required),validateTime,onChange:e=>chooseTime(e.target.value),'aria-label':`${inputProps['aria-label']||'Effective date and time'} time`}),
       name?h('input',{type:'hidden',name,value:valueToSubmit}):null
@@ -227,3 +241,70 @@
     try{sessionStorage.removeItem(TASK_NAVIGATION_KEY)}catch(_error){}
   };
 
+
+  // 2.19.46 mobile attachment fix. Phones block a new tab that is opened only AFTER waiting for the
+  // secure Supabase link (it no longer counts as the user's tap). So the tab is opened at the moment of
+  // the tap and the link is filled in afterwards. In the installed app (home-screen icon), or if the
+  // tab is still blocked, a small "Open Document" box appears — tapping its button always works.
+  function samaraIsStandaloneApp(){
+    try{return !!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches))}catch(_){return false}
+  }
+  function samaraPrepareDocWindow(){
+    if(samaraIsStandaloneApp())return null;
+    let win=null;
+    try{win=window.open('','_blank')}catch(_){win=null}
+    if(win){try{win.document.write('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opening document…</title><p style="font-family:system-ui,sans-serif;padding:24px;color:#7d1748;font-weight:700">Opening document…</p>');win.document.close()}catch(_){}}
+    return win;
+  }
+  function samaraShowDocLink(url,label){
+    document.getElementById('samara-doc-link-box')?.remove();
+    const box=document.createElement('div');
+    box.id='samara-doc-link-box';
+    box.setAttribute('role','dialog');
+    box.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(60,20,40,.35);display:flex;align-items:center;justify-content:center;padding:16px';
+    const card=document.createElement('div');
+    card.style.cssText='background:linear-gradient(180deg,#fff6fa,#fde7f0);border:1px solid #ead0de;border-radius:16px;padding:18px;max-width:340px;width:100%;box-shadow:0 12px 30px rgba(75,24,52,.25);text-align:center;font-family:inherit';
+    const title=document.createElement('div');
+    title.textContent=label||'Document ready';
+    title.style.cssText='font-weight:800;color:#7d1748;margin-bottom:12px';
+    const link=document.createElement('a');
+    link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+    link.textContent='Open Document';
+    link.className='btn btn-primary';
+    link.style.cssText='display:block;padding:12px;border-radius:10px;text-decoration:none;font-weight:800;margin-bottom:8px';
+    const close=document.createElement('button');
+    close.type='button';close.textContent='Close';close.className='btn btn-secondary';
+    close.style.cssText='display:block;width:100%;padding:10px;border-radius:10px';
+    const remove=()=>box.remove();
+    link.addEventListener('click',()=>setTimeout(remove,300));
+    close.addEventListener('click',remove);
+    box.addEventListener('click',e=>{if(e.target===box)remove()});
+    card.append(title,link,close);box.appendChild(card);document.body.appendChild(box);
+  }
+  function samaraSendDocWindow(win,url,label){
+    if(win&&!win.closed){
+      try{win.opener=null}catch(_){}
+      try{win.location.replace(url);return true}catch(_){try{win.close()}catch(__){}}
+    }
+    samaraShowDocLink(url,label);
+    return true;
+  }
+  // Use from any button: openSamaraStorageFile('bucket', path, seconds) — call it directly inside the tap handler.
+  // Returns '' on success or the error text (the caller shows it in its own message area).
+  async function openSamaraStorageFile(bucket,path,seconds=300,label){
+    if(!path)return 'Document not available.';
+    const win=samaraPrepareDocWindow();
+    try{
+      const {data,error}=await client.storage.from(bucket).createSignedUrl(path,seconds);
+      if(error||!data?.signedUrl)throw error||new Error('Unable to open the document.');
+      samaraSendDocWindow(win,data.signedUrl,label);
+      return '';
+    }catch(error){
+      if(win)try{win.close()}catch(_){}
+      return error?.message||'Unable to open the document.';
+    }
+  }
+  function openSamaraUrl(url,label){
+    if(!url)return;
+    samaraSendDocWindow(samaraPrepareDocWindow(),url,label);
+  }

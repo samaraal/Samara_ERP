@@ -1,3 +1,8 @@
+## 2.19.46 — 01-11-2026 — Mobile: date picker + attachments open
+- Date boxes (DD-MM-YYYY) now open the phone's own calendar on tap — fixes HR Interview / Reschedule date and every other date box using the shared ERP date control on iPhone / Android.
+- Attachments (HR applicant documents, employee documents, Guest documents, incident documents, kitchen / petty-cash / expense / outside bills) now open on phones: the tab opens at the tap; in the installed app an "Open Document" box appears instead.
+- HR Interview Date & Time and Reschedule rows wrap on phones instead of running off the screen.
+
 ## 2.19.45 — 01-11-2026 — Package · Inform Family for the Nursing Manager
 - The Nursing Manager can now send the package / tariff WhatsApp to the family from the Guest's Billing tab (as Admin and Accounts can). Changing the package itself stays Admin only.
 
