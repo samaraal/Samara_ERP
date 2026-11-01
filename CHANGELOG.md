@@ -1,3 +1,6 @@
+## 2.19.40 — 01-11-2026 — Change a Daily Fare Guest to a care package
+- Patient card → Billing tab (Admin): new "Change to Package" box for Guests on Daily Fare. Pick an active care package (e.g. Monthly); it starts today. The package fee is posted once by room class (Private / Twin-sharing / General), package dates are set, and daily Room + Nursing charges stop from today (any already posted inside the package period are removed automatically). Charges up to yesterday stay. Package Expiry Dashboard then tracks the renewal.
+
 ## 2.19.39 — 01-11-2026 — Duplicate payment warning + one-time removal of a duplicate ₹35,931 advance
 - Guest Payments: before saving a Payment / Advance, the ERP checks for a payment of the same amount (or the same reference) for that Guest in the last 24 hours — e.g. a Razorpay / Family Portal payment already credited automatically — and asks "Possible duplicate payment" before saving.
 - Found 01-11-2026: ₹35,931 paid once by Razorpay (auto-credited 08:26 PM) was entered again by hand as "Advance received · UPI · Ref 630595478825" (08:49 PM). Run supabase/sql/onetime_332_remove_duplicate_advance_35931.sql to remove only that hand-entered duplicate (preview first; the Razorpay entry stays).

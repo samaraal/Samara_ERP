@@ -2743,6 +2743,8 @@ Samara Assisted Living • Compassion • Comfort • Dignity`;
                 patientDetailField('Nursing Tariff',bed?.nursing_daily_rate!=null?`₹${Number(bed.nursing_daily_rate).toLocaleString('en-IN')} per day`:'Not available')
               )
             ):null,
+            // 2.19.40: Admin can move a Daily Fare Guest to a care package from today (SQL renew_patient_package)
+            profile?.role==='Admin'&&dailyBasis&&!packageEnd?h(ChangeToPackageCard,{patient:selected,onDone:async()=>{const {data}=await client.from('patients').select('*').eq('id',selected.id).maybeSingle();await openPatient(data||selected,'Billing')}}):null,
             h('div',{className:'patient-billing-summary'},[['Charges',b.charges,'teal'],['Advance',b.advances,'blue'],['Payments',b.payments,'green'],['Discounts',b.discounts,'purple'],due<0?['Advance Balance (Cr)',-due,'green']:['Outstanding',due,due>0?'red':'green']].map(([k,v,tone])=>h('div',{className:`patient-billing-stat ${tone}`,key:k},h('span',null,k),h('strong',null,`₹${v.toLocaleString('en-IN')}`)))),
             h('div',{className:'section-card patient-billing-ledger'},
               h('h4',null,nursingManagerView?'Recent Account Entries — View Only':'Patient Ledger'),
@@ -3056,4 +3058,35 @@ Portal: ${familyPortalLoginLink(selected?.patient_id)}
               h('img',{src:'./icons/whatsapp-96.png?v=1',alt:'',width:30,height:30,className:'guest-wa-logo',loading:'lazy'}),h('span',null,'WhatsApp')))))
         :h('p',{className:'small-note'},family===null?'Loading contact numbers…':'No contact numbers recorded. Add them in Family Details or Edit Patient.'),
       family===null&&calls.length>0&&h('small',{className:'small-note'},'Loading family contacts…'));
+  }
+
+
+  // 2.19.40: Change a Daily Fare Guest to a care package (e.g. Monthly) starting TODAY. Uses the same server step
+  // as Package Expiry renewals: the package charge is posted once, package dates are set, and the automatic daily
+  // Room + Nursing charges inside the package period are not charged (any already posted are removed).
+  function ChangeToPackageCard({patient,onDone}){
+    const [pkgs,setPkgs]=React.useState(null),[pick,setPick]=React.useState(''),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
+    React.useEffect(()=>{client.from('care_packages').select('*').eq('is_active',true).order('package_name').then(({data})=>setPkgs(data||[]))},[]);
+    const today=todayISOIndia(),pkg=(pkgs||[]).find(x=>String(x.id)===String(pick));
+    const fee=v=>v?`₹${Number(v).toLocaleString('en-IN')}`:'—';
+    async function apply(e){
+      if(!pkg||busy)return;
+      const ok=await samaraConfirm({anchor:e?.currentTarget,title:'Change to package',okLabel:'Change to package',
+        message:`${formalName(patient)} will move from Daily Fare to:\n${pkg.package_name} · ${pkg.duration_value} ${pkg.duration_unit}\nStarting today ${formatDateIN(today)}.\n\nPackage fee (by her room): Private ${fee(pkg.private_fee)} · Twin / sharing ${fee(pkg.twin_fee)} · General ${fee(pkg.general_fee)}.\nDaily Room + Nursing charges stop from today (any already posted for today are removed). Charges up to yesterday stay as they are.`});
+      if(!ok)return;
+      setBusy(true);setMsg('');
+      const {data,error}=await client.rpc('renew_patient_package',{p_patient_id:patient.id,p_package_id:pkg.id,p_start_date:today});
+      setBusy(false);
+      if(error){setMsg(error.message);showSamaraActionToast('error','Package not changed',error.message);return}
+      showSamaraActionToast('success','Changed to package',`${data?.package_name||pkg.package_name} · ${formatDateIN(data?.coverage_start)} to ${formatDateIN(data?.coverage_end)} · ₹${Number(data?.package_fee||0).toLocaleString('en-IN')} (${data?.room_class||''})`);
+      onDone&&onDone();
+    }
+    return h('div',{className:'section-card',style:{border:'1px solid #f3c2d8',background:'#fff8fb',marginBottom:'12px'}},
+      h('div',{className:'panel-head'},h('div',null,h('h4',null,'Change to Package'),h('small',null,`Now on Daily Fare. Move this Guest to a care package from today (${formatDateIN(today)}). Admin only.`))),
+      msg?h('div',{className:'message error'},msg):null,
+      pkgs===null?h('p',null,'Loading packages…'):!pkgs.length?h('p',null,'No active care packages. Add one in Care Packages first.'):
+      h('div',{style:{display:'flex',gap:'10px',flexWrap:'wrap',alignItems:'center'}},
+        h('select',{value:pick,onChange:e=>setPick(e.target.value),style:{maxWidth:'360px'}},h('option',{value:''},'Select package…'),
+          pkgs.map(x=>h('option',{key:x.id,value:x.id},`${x.package_name} · ${x.duration_value} ${x.duration_unit}`))),
+        h('button',{type:'button',className:'btn btn-primary',disabled:!pkg||busy,onClick:apply},busy?'Changing…':'Change to package')));
   }
