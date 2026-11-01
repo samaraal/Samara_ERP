@@ -1,3 +1,6 @@
+## 2.19.41 — 01-11-2026 — Change to Package: tariff shown before changing
+- After choosing a package, the box shows the package, coverage dates (from today), the Private / Twin-sharing / General fees with the Guest's own room highlighted, the exact amount she will be charged, and what is included. The button stays disabled if her room type has no fee set.
+
 ## 2.19.40 — 01-11-2026 — Change a Daily Fare Guest to a care package
 - Patient card → Billing tab (Admin): new "Change to Package" box for Guests on Daily Fare. Pick an active care package (e.g. Monthly); it starts today. The package fee is posted once by room class (Private / Twin-sharing / General), package dates are set, and daily Room + Nursing charges stop from today (any already posted inside the package period are removed automatically). Charges up to yesterday stay. Package Expiry Dashboard then tracks the renewal.
 
