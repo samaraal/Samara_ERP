@@ -1,3 +1,6 @@
+## 2.19.30 — 01-11-2026 — Approve charge box moved to the middle
+- The Approve / Partial / Return box now opens from the middle of the Bill & Charge Requests card (it was at the extreme right edge), still level with the item.
+
 ## 2.19.29 — 01-11-2026 — Approve charge box opens at the right side
 - Bills & Charges Approval: the Approve / Partial / Return box now opens at the right side of the Bill & Charge Requests card, level with the item, so the charge name, qty and requested-by details stay visible. On phones / narrow windows it still opens below the button.
 

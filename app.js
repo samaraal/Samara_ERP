@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.29';
+  const APP_VERSION = '2.19.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '01-Nov-2026 Approve charge box at right';
+  const APP_BUILD_DATE = '01-Nov-2026 Approve charge box in middle';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -3191,7 +3191,7 @@ https://samaraassistedliving.com/`;
     }
     return document.scrollingElement||document.documentElement;
   }
-  // 2.19.29: side:'right' — open at the RIGHT side of the card holding the button (e.g. Bill & Charge Requests),
+  // 2.19.29 / 2.19.30: side:'right' — open from the MIDDLE towards the right side of the card holding the button (e.g. Bill & Charge Requests),
   // level with the pressed row, so the charge details on the left are never hidden. Falls back to "below the
   // button" when the card is too narrow (phones / small windows).
   function samaraPlaceAskSide(box,anchor){
@@ -3203,7 +3203,8 @@ https://samaraassistedliving.com/`;
     const bw=box.offsetWidth,bh=box.offsetHeight,r=anchor.getBoundingClientRect();
     const row=anchor.closest('[class*="row"],li,tr,article')||anchor;
     const rr=row.getBoundingClientRect();
-    let left=Math.min(c.right-bw-14,vw-bw-10);
+    // 2.19.30: start from the middle of the card (not the extreme right edge)
+    let left=Math.min(c.left+c.width/2,c.right-bw-14,vw-bw-10);
     let top=Math.min(rr.top,r.top-40);
     if(top+bh>vh-10)top=vh-bh-10;
     box.style.left=Math.max(10,left)+'px';box.style.top=Math.max(10,top)+'px';
