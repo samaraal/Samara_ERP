@@ -116,6 +116,11 @@
   }
 
 
+  // 2.19.48: Admin / Director (role Admin / Administrator / Director, or a designation containing "Director").
+  function isAdminDirectorViewer(p){
+    const r=String(p?.role||'').trim().toLowerCase();
+    return r==='admin'||r==='administrator'||r.includes('director')||/director/i.test(String(p?.designation||''));
+  }
   function useClinicalAlertEngine(profile,setPage){
     const [alerts,setAlerts]=React.useState([]);
     const [settings,setSettings]=React.useState({
@@ -139,7 +144,7 @@
     // the alert sound + voice on again automatically (unless staff switched it off on this device).
     const SOUND_PREF_KEY='samara_alert_sound';
     React.useEffect(()=>{
-      if(soundUnlocked||isMobileClinicalDevice())return;
+      if(soundUnlocked||isMobileClinicalDevice()||isAdminDirectorViewer(profile))return;
       let pref='on';try{pref=localStorage.getItem(SOUND_PREF_KEY)||'on'}catch(_){}
       if(pref==='off')return;
       let done=false;
@@ -1226,6 +1231,10 @@
       // (the nurse has just recorded it); everyone else keeps the normal list.
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
       setAlerts(visibleList);
+
+      // 2.19.48: Admin / Director logins get NO voice, chime, pop-up or browser notification for clinical alerts.
+      // They still see the alerts in Clinical Alerts / Clinical Escalations when they open those pages.
+      if(isAdminDirectorViewer(profile)){try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}return;}
 
       // v2.9.45: rotating automatic alert queue.
       // Previously only the first Critical/Urgent row ("top") was ever spoken,

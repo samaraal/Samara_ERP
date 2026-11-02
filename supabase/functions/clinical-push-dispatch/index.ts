@@ -90,14 +90,15 @@ Deno.serve(async (req) => {
       const r = String(role||"").trim().toLowerCase();
       return r === "manager" || r.endsWith(" manager") || r.startsWith("manager ");
     };
-    const isEscalationRecipientRole = (role:string) => isAdminTierRole(role) || isManagerTierRole(role);
+    // ERP 2.19.48: Admin / Directors no longer receive clinical phone notifications — Managers only.
+    const isEscalationRecipientRole = (role:string) => isManagerTierRole(role) && !isAdminTierRole(role);
     // v2.14.32 escalation levels: Vital Signs go to Managers at 60 min ("Manager"),
     // then to Admin/Directors at 90 min ("Admin"). Everything else goes to both ("Manager+Admin").
     const audienceAllows = (e:any, role:string) => {
       const level = String(e?.escalated_to_role || "").trim();
       const vital = String(e?.alert_type || "").trim().toLowerCase() === "vital signs";
       if (vital && level === "Manager") return isManagerTierRole(role);
-      if (vital && level === "Admin") return isAdminTierRole(role) || isManagerTierRole(role);
+      if (vital && level === "Admin") return isEscalationRecipientRole(role);
       return isEscalationRecipientRole(role);
     };
 
@@ -112,7 +113,7 @@ Deno.serve(async (req) => {
       return json({
         ok:true, escalations:escalations.length, active_subscriptions:activeSubs.length,
         subscriptions:0, pushes:0,
-        warning:"Active devices found, but none are linked to an Admin/Administrator/Director/Manager profile",
+        warning:"Active devices found, but none are linked to a Manager profile (Admin / Directors do not receive clinical push since ERP 2.19.48)",
         linked_roles:[...new Set((linkedProfiles||[]).map((p:any)=>String(p.role||"").trim()).filter(Boolean))]
       });
     }
