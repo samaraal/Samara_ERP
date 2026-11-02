@@ -902,14 +902,20 @@
           return;
         }
         const defaultAmount=amount>0?String(amount):'';
+        const gp=pFor(row.patient_id)||{};
+        const head=[
+          `Guest: ${gp.id?formalName(gp):'—'} · ${gp.patient_id||'—'}${gp.id&&gp.is_active!==false?` · Room ${gp.room_no||'—'}-${gp.bed_no||'—'}`:''}`,
+          `Item: ${row.charge_item_code?`${row.charge_item_code} · `:''}${row.service_name||row.description||'Charge'} (${row.category||'—'})`,
+          `Qty ${Number(row.quantity||1)}${row.unit?` ${row.unit}`:''} · ${row.service_datetime?formatDateTimeIN(row.service_datetime):formatDateIN(row.charge_date)} · by ${row.raised_by_name||'Nursing staff'}`
+        ].join('\n')+'\n\n';
         const ask=await samaraAsk({anchor,side:'right',title:decision==='Partially Approved'?'Partial approval':'Approve charge',
-          message:row.bill_available
+          message:head+(row.bill_available
             ?'Verify the uploaded bill and enter the actual bill amount:'
             :isOther
               ?'Enter the verified amount for this custom / Other charge:'
               :storeAmount.fromMaster
                 ?`Store rate ${money(storeAmount.rate)} × ${Number(row.quantity||1)} = ${money(amount)}. Verify the approved amount:`
-                :`Fixed rate is ${money(amount)}. Verify the approved amount:`,
+                :`Fixed rate is ${money(amount)}. Verify the approved amount:`),
           fields:[{key:'amount',label:'Approved amount (₹)',type:'number',value:defaultAmount,required:true},
                   {key:'remarks',label:'Decision remarks',value:decision}],
           okLabel:decision==='Partially Approved'?'Approve partly':'Approve'});
@@ -1078,6 +1084,7 @@
           h('span',{'data-charge-decision':true,tabIndex:-1},chip(entryStatus(r),entryStatus(r)))
         ),
         remarks&&remarks.toLowerCase()!==String(status).toLowerCase()?h('div',{style:{fontSize:'12.5px',color:'#7a5a68',fontStyle:'italic',marginTop:'2px',overflowWrap:'anywhere'}},`Remarks: ${remarks}`):null,
+        canApprove&&status==='Pending'&&pendingDetails(r),
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',marginTop:'6px'}},
           canApprove&&status==='Pending'&&h('button',{'data-charge-approve':true,className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Approved',e.currentTarget)}},'Approve'),
           canApprove&&status==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
@@ -1141,8 +1148,9 @@
 
     // 2.18.147: the details pop-up shows only meaningful, labelled information — no internal IDs / codes,
     // no duplicate timestamps. Staff names are shown instead of system IDs; returned requests show the reason.
-    const chargeDetailFields=(()=>{
-      const r=selectedChargeDetail;if(!r)return [];
+    // 2.19.59: the same field list also feeds the inline details shown beside Approve / Partial / Return.
+    const chargeFieldsFor=r=>{
+      if(!r)return [];
       const nurse=profile?.role==='Nurse';
       const yes=v=>v?'Yes':'No';
       const dt=v=>v?formatDateTimeIN(v):'';
@@ -1184,7 +1192,31 @@
           ['Outside bill amount',r.outside_bill_amount!=null?money(r.outside_bill_amount):''],['Handling charge',Number(r.outside_handling_fee)>0?money(r.outside_handling_fee):'']);
       }
       return list.filter(([,v])=>v!==null&&v!==undefined&&String(v).trim()!=='').map(([label,value])=>[label,label,String(value)]);
-    })();
+    };
+    const chargeDetailFields=chargeFieldsFor(selectedChargeDetail);
+    // 2.19.59: a Pending request shows its full details (Guest name · ID · room-bed, item, qty, rate, nurse remarks …)
+    // right above Approve / Partial / Return, so Accounts can verify without opening "Full details".
+    const pendingDetailSkip=new Set(['Status','Billable to Guest','Bill available']);
+    const pendingDetails=r=>{
+      const p=pFor(r.patient_id)||{};
+      const fields=chargeFieldsFor(r).filter(([k])=>!pendingDetailSkip.has(k)&&k!=='Guest');
+      const guest=[
+        ['Guest name',p.id?formalName(p):'—'],
+        ['Guest ID',p.patient_id||'—'],
+        ['Room / Bed',p.id?(p.is_active===false?'Discharged':`Room ${p.room_no||'—'}-${p.bed_no||'—'}`):'—']
+      ];
+      if(p.is_trial)guest.push(['Guest type','🧪 Trial Guest']);
+      if(r.bill_available)fields.push(['Bill','Bill','Bill uploaded — verify the amount']);
+      const cell=(key,label,value,strong)=>h('div',{key,style:{minWidth:0}},
+        h('small',{style:{display:'block',color:'#8a3a62',fontWeight:800,fontSize:'11.5px'}},label),
+        h('div',{style:{fontSize:strong?'14px':'13px',fontWeight:strong?900:600,color:'#3b0f25',overflowWrap:'anywhere',whiteSpace:'pre-wrap'}},value));
+      return h('div',{'data-pending-details':true,style:{marginTop:'8px',padding:'10px 12px',borderRadius:'12px',border:'1.5px solid #e9a9c4',background:'linear-gradient(135deg,#fcdde9 0%,#feecf3 55%,#fff8fb 100%)'}},
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'8px 14px',paddingBottom:'8px',marginBottom:'8px',borderBottom:'1px dashed #e9a9c4'}},
+          guest.map(([l,v])=>cell('g-'+l,l,v,true))),
+        h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'8px 14px'}},
+          fields.map(([key,label,value])=>cell(key,label,value,false)))
+      );
+    };
     const chargeDetailModal=selectedChargeDetail&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSelectedChargeDetail(null)}},
       h('section',{className:'card modal',role:'dialog','aria-modal':'true','aria-labelledby':'charge-request-detail-title',style:{width:'min(900px,96vw)',maxHeight:'90vh',overflowY:'auto'}},
         h('div',{className:'panel-head'},

@@ -1,3 +1,8 @@
+## 2.19.59 — 02-11-2026 — Bills & Charges Approval: full Guest details beside Approve
+- Every **Pending** charge in Bills & Charges Approval now shows its full details right above Approve / Partial / Return, in a baby-pink box: Guest name, Guest ID, Room-Bed (Trial Guest marked), item code & name, category, quantity, service date & time, description, provider/doctor, nurse remarks, raised by / at, rate and the request amount — no need to open "Full details" first.
+- The **Approve / Partial** pop-up also repeats the Guest (name · ID · Room-Bed), the item and quantity at the top, so Accounts sees whose charge is being approved.
+- Nurses' view is unchanged (no prices). Frontend only — no database changes.
+
 ## 2.19.58 — 02-11-2026 — New ERP role: Housekeeping (SQL 339 + admin-users + talk-to-guest)
 - HR → ERP Access Role has a new choice **Housekeeping**. A Housekeeping candidate converted to an employee now gets this role.
 - A Housekeeping login sees only: **Housekeeping & General** (request supplies, confirm receipt, record use — like STD; Nursing Manager approval and Stores handover unchanged), **Talk to Guest**, My Duty, My Leave & Permission, My Profile, duty swap / leave cover. Opens on Housekeeping & General.
