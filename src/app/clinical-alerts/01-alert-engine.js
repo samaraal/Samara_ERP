@@ -1232,6 +1232,8 @@
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
+      // 2.19.55: a Physiotherapist login sees only physiotherapy alerts (no medicine / vitals / care alerts).
+      if(profile?.role==='Physiotherapist'){const only=visibleList.filter(a=>/physio/i.test(`${a.alert_type||''} ${a.title||''}`));visibleList.length=0;visibleList.push(...only)}
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.

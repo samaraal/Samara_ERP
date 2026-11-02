@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.54';
+  const APP_VERSION = '2.19.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1614,7 +1614,7 @@ function initSamaraInaugurationInvitation(){
     }catch(error){console.warn('Audit event could not be recorded:',error)}
   }
 
-  const ROLES = ['Admin','Manager','Nurse','Caregiver','Accounts','Kitchen','STD'];
+  const ROLES = ['Admin','Manager','Nurse','Caregiver','Physiotherapist','Accounts','Kitchen','STD']; // 2.19.55: Physiotherapist (SQL 337)
 
   const HR_DEPARTMENTS = ["Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
   const HR_DESIGNATIONS = {"Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
@@ -1754,7 +1754,9 @@ function initSamaraInaugurationInvitation(){
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Nursing Notes','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
     Accounts:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Accounts Dashboard','Accounts Statement','Outside Bills Paid by Samara','Duty Assignment','Package Expiry Dashboard','Charge Approvals','Payments','Patient Ledger','Final Billing','Discharge Clearance','Refunds','Accounts Reports','WhatsApp Logs','Patients','My Leave & Permission','Notifications'],
     Kitchen:['Notifications','Duty Assignment','Patients','Discharge','Physiotherapy','Special Nurse','Food & Diet','My Leave & Permission'],
-    STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission']
+    STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission'],
+    // 2.19.55: Physiotherapist — physiotherapy sessions only (no medicines, billing, accounts, HR); salaried, no fee screens.
+    Physiotherapist:['Physiotherapy','Duty Assignment','My Leave & Permission','My Profile'],
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(role!=='Kitchen'&&(ROLE_NAV[role].includes('Physiotherapy')||role==='Accounts')&&!ROLE_NAV[role].includes('Physiotherapy Dashboard'))ROLE_NAV[role].push('Physiotherapy Dashboard');
@@ -1764,7 +1766,7 @@ function initSamaraInaugurationInvitation(){
     if(!ROLE_NAV[role].includes('Additional Duty Assignment'))ROLE_NAV[role].push('Additional Duty Assignment');
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
   });
-  const ROLE_HOME={Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
+  const ROLE_HOME={Physiotherapist:'Physiotherapy Dashboard',Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const isNursingManagerProfile=profile=>{
     const clean=value=>String(value||'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ');
     const designation=clean(profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position);
@@ -1839,7 +1841,7 @@ function initSamaraInaugurationInvitation(){
     if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
-    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'))return 'My Duty';
+    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'||role==='Physiotherapist'))return 'My Duty';
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):(ACCOUNTS_NAV_LABELS[item]||item);
   };
   const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => {
@@ -5274,6 +5276,8 @@ https://samaraassistedliving.com/`;
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
+      // 2.19.55: a Physiotherapist login sees only physiotherapy alerts (no medicine / vitals / care alerts).
+      if(profile?.role==='Physiotherapist'){const only=visibleList.filter(a=>/physio/i.test(`${a.alert_type||''} ${a.title||''}`));visibleList.length=0;visibleList.push(...only)}
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -19410,7 +19414,8 @@ Thank you.`;
         role:row.department==='Nursing'?'Nurse':
              row.department==='Caregiving'?'Caregiver':
              row.department==='Accounts & Finance'?'Accounts':
-             row.department==='Food & Kitchen'?'Kitchen':'Caregiver'
+             row.department==='Food & Kitchen'?'Kitchen':
+             row.department==='Physiotherapy & Rehabilitation'?'Physiotherapist':'Caregiver' // 2.19.55
       };
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
@@ -22444,7 +22449,7 @@ Thank you.`;
           h('label',null,'New Department',h('input',{value:employmentAction.new_department,onChange:e=>setEmploymentAction(v=>({...v,new_department:e.target.value}))})),
           h('label',null,'New Designation',h('input',{value:employmentAction.new_designation,onChange:e=>setEmploymentAction(v=>({...v,new_designation:e.target.value}))})),
           h('label',null,'Reporting Superior',h('input',{value:employmentAction.new_reporting_superior,onChange:e=>setEmploymentAction(v=>({...v,new_reporting_superior:e.target.value}))})),
-          h('label',null,'ERP Access Role',h('select',{value:employmentAction.new_erp_role,onChange:e=>setEmploymentAction(v=>({...v,new_erp_role:e.target.value}))},['','Admin','Manager','Nurse','Caregiver','Accounts','Kitchen','HR','STD'].map(v=>h('option',{key:v,value:v},v||'No change')))),
+          h('label',null,'ERP Access Role',h('select',{value:employmentAction.new_erp_role,onChange:e=>setEmploymentAction(v=>({...v,new_erp_role:e.target.value}))},['','Admin','Manager','Nurse','Caregiver','Physiotherapist','Accounts','Kitchen','HR','STD'].map(v=>h('option',{key:v,value:v},v||'No change')))),
           h('label',null,'New Salary',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.new_salary,onChange:e=>setEmploymentAction(v=>({...v,new_salary:e.target.value}))})),
           h('label',null,'Salary Frequency',h('select',{value:employmentAction.salary_frequency,onChange:e=>setEmploymentAction(v=>({...v,salary_frequency:e.target.value}))},['Monthly','Daily','Hourly'].map(v=>h('option',{key:v},v)))),
           h('label',null,'Increment Amount',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.increment_amount,onChange:e=>setEmploymentAction(v=>({...v,increment_amount:e.target.value}))})),
@@ -38988,7 +38993,8 @@ function RoomsBeds({profile,onNavigate}){
     );
   }
   function Physiotherapy({profile,onNavigate,filters=null}){
-    const canEnter=['Admin','Manager','Nurse','Caregiver'].includes(profile?.role);
+    const canEnter=['Admin','Manager','Nurse','Caregiver','Physiotherapist'].includes(profile?.role);
+    const isPhysioLogin=profile?.role==='Physiotherapist'; // 2.19.55: she records her own sessions
     const [plans,setPlans]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [sessions,setSessions]=React.useState([]);
@@ -39163,8 +39169,8 @@ function RoomsBeds({profile,onNavigate}){
           return physioTodayStatus(plan).nextTime||'';})(),
         actual_time:'',
         status:'Completed',
-        organisation_id:organisationFor(pending,plan)?.id||'',
-        physiotherapist_name:attendingName(pending,plan),
+        organisation_id:organisationFor(pending,plan)?.id||(isPhysioLogin?(organisations.find(o=>o.org_type==='Samara')?.id||''):''),
+        physiotherapist_name:attendingName(pending,plan)||(isPhysioLogin?String(profile?.full_name||'').trim():''),
         reason:'',
         notes:''
       });
@@ -39839,7 +39845,7 @@ function RoomsBeds({profile,onNavigate}){
   }
   function physiotherapyDashboardAccess(profile){
     const pages=allowedPagesForProfile(profile),admin=profile?.role==='Admin';
-    return {allowed:pages.includes('Physiotherapy Dashboard'),clinical:pages.includes('Physiotherapy')&&profile?.role!=='Kitchen',finance:admin||profile?.role==='Accounts',supplier:admin,counts:['Admin','Manager','Nurse','Caregiver'].includes(profile?.role)};
+    return {allowed:pages.includes('Physiotherapy Dashboard'),clinical:pages.includes('Physiotherapy')&&profile?.role!=='Kitchen',finance:admin||profile?.role==='Accounts',supplier:admin,counts:['Admin','Manager','Nurse','Caregiver','Physiotherapist'].includes(profile?.role)};
   }
   function PhysiotherapyDashboard({profile,onNavigate,initialTab='Overview'}){
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);

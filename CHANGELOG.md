@@ -1,3 +1,10 @@
+## 2.19.55 — 02-11-2026 — New ERP role: Physiotherapist (SQL 337 + admin-users)
+- HR → ERP Access Role has a new choice **Physiotherapist**. A Physiotherapy & Rehabilitation candidate converted to an employee now gets this role (it used to default to Caregiver).
+- A Physiotherapist login sees only: Physiotherapy Dashboard (Overview + Sessions — record / review sessions, corrections), My Duty, My Leave & Permission, My Profile, duty swap / leave cover. No Medicines, Vitals, Daily Care, Billing, Charges, Accounts or HR. No fee / rate / payment screens.
+- Her own login: the session form fills in the Samara organisation and her name. Clinical alerts on her login show physiotherapy alerts only.
+- Samara's own physiotherapists are paid by salary only — keep "Paid by: Salary" for them in Physiotherapy Dashboard → Therapist Accounts → Physiotherapists (Admin), so no session fee is posted to them. Guest physiotherapy charges continue as before.
+- Run supabase/sql/337_physiotherapist_role.sql in Supabase → SQL Editor, and redeploy Edge Function admin-users (one line: 'Physiotherapist' added to the allowed roles).
+
 ## 2.19.54 — 02-11-2026 — Interviews: tap a row to open the application
 - HR → Interviews: every row is now clickable — it opens that candidate's full Applicant File in Career Applications (details, documents, interview schedule, WhatsApp history, convert to employee).
 

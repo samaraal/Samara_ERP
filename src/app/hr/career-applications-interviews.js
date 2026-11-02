@@ -380,7 +380,8 @@
         role:row.department==='Nursing'?'Nurse':
              row.department==='Caregiving'?'Caregiver':
              row.department==='Accounts & Finance'?'Accounts':
-             row.department==='Food & Kitchen'?'Kitchen':'Caregiver'
+             row.department==='Food & Kitchen'?'Kitchen':
+             row.department==='Physiotherapy & Rehabilitation'?'Physiotherapist':'Caregiver' // 2.19.55
       };
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');

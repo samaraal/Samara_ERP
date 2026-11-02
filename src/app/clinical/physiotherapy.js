@@ -1,5 +1,6 @@
   function Physiotherapy({profile,onNavigate,filters=null}){
-    const canEnter=['Admin','Manager','Nurse','Caregiver'].includes(profile?.role);
+    const canEnter=['Admin','Manager','Nurse','Caregiver','Physiotherapist'].includes(profile?.role);
+    const isPhysioLogin=profile?.role==='Physiotherapist'; // 2.19.55: she records her own sessions
     const [plans,setPlans]=React.useState([]);
     const [patients,setPatients]=React.useState([]);
     const [sessions,setSessions]=React.useState([]);
@@ -174,8 +175,8 @@
           return physioTodayStatus(plan).nextTime||'';})(),
         actual_time:'',
         status:'Completed',
-        organisation_id:organisationFor(pending,plan)?.id||'',
-        physiotherapist_name:attendingName(pending,plan),
+        organisation_id:organisationFor(pending,plan)?.id||(isPhysioLogin?(organisations.find(o=>o.org_type==='Samara')?.id||''):''),
+        physiotherapist_name:attendingName(pending,plan)||(isPhysioLogin?String(profile?.full_name||'').trim():''),
         reason:'',
         notes:''
       });
