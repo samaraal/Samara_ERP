@@ -10,6 +10,8 @@
     const interviewTimeOptions=Array.from({length:15},(_,i)=>{const total=10*60+i*30;const hh=Math.floor(total/60),mm=total%60;const value=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;const hour12=hh>12?hh-12:hh;const ampm=hh>=12?'PM':'AM';return {value,label:`${hour12}.${String(mm).padStart(2,'0')} ${ampm}`}});
     function splitInterviewDateTime(value){if(!value)return {date:'',time:'10:00'};const d=new Date(value);if(Number.isNaN(d.getTime()))return {date:'',time:'10:00'};return {date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}}
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
+    // 2.19.54: a row tapped on the Interviews page opens that application here directly.
+    React.useEffect(()=>{let id='';try{id=sessionStorage.getItem('samara_open_career_application')||''}catch(_){}if(!id||!rows.length)return;const row=rows.find(x=>String(x.id)===id);try{sessionStorage.removeItem('samara_open_career_application')}catch(_){}if(row){open(row);window.setTimeout(()=>{try{window.scrollTo({top:0,behavior:'smooth'})}catch(_){}},50)}},[rows]);
     React.useEffect(()=>{load();const ch=client.channel('career-applications-live').on('postgres_changes',{event:'*',schema:'public',table:'career_applications'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     React.useEffect(()=>{if(!selected?.id)return;const ch=client.channel(`career-wa-chat-${selected.id}`).on('postgres_changes',{event:'*',schema:'public',table:'hr_whatsapp_communications',filter:`career_application_id=eq.${selected.id}`},()=>loadWhatsAppHistory(selected.id)).subscribe();return()=>client.removeChannel(ch)},[selected?.id]);
     async function loadWhatsAppHistory(applicationId){
@@ -570,7 +572,10 @@
     return h(Section,{title:'Interviews',subtitle:'Scheduled recruitment interviews and candidate status'},
       h(InterviewWhatsAppTest,{profile}),
       h('div',{className:'panel-head'},h('div',null),h('button',{className:'btn btn-primary',onClick:()=>onNavigate('Career Applications')},'Manage Applications')),
-      h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department / Designation','Interview','Mode','Venue / Link','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id},h('td',null,r.applicant_name),h('td',null,`${r.department} · ${r.designation}`),h('td',null,fmt(r.interview_at)),h('td',null,r.interview_mode||'—'),h('td',null,r.interview_venue||'—'),h('td',null,h('span',{className:'badge'},r.status)))),rows.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No interviews scheduled.')):null)))
+      h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Applicant','Department / Designation','Interview','Mode','Venue / Link','Status'].map(x=>h('th',{key:x},x)))),h('tbody',null,rows.map(r=>h('tr',{key:r.id,className:'clickable-row',style:{cursor:'pointer'},title:'Open the full application',tabIndex:0,
+        onClick:()=>{try{sessionStorage.setItem('samara_open_career_application',String(r.id))}catch(_){}onNavigate('Career Applications')},
+        onKeyDown:e=>{if(e.key==='Enter'){try{sessionStorage.setItem('samara_open_career_application',String(r.id))}catch(_){}onNavigate('Career Applications')}}},
+        h('td',null,h('strong',null,r.applicant_name),h('small',{style:{display:'block',color:'#b01867',fontWeight:700}},'Open application →')),h('td',null,`${r.department} · ${r.designation}`),h('td',null,fmt(r.interview_at)),h('td',null,r.interview_mode||'—'),h('td',null,r.interview_venue||'—'),h('td',null,h('span',{className:'badge'},r.status)))),rows.length===0?h('tr',null,h('td',{colSpan:6,className:'empty'},'No interviews scheduled.')):null)))
     );
   }
 

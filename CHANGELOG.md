@@ -1,3 +1,6 @@
+## 2.19.54 — 02-11-2026 — Interviews: tap a row to open the application
+- HR → Interviews: every row is now clickable — it opens that candidate's full Applicant File in Career Applications (details, documents, interview schedule, WhatsApp history, convert to employee).
+
 ## 2.19.53 — 02-11-2026 — "On duty" follows the roster
 - On Duty Today: a Cancelled roster row is no longer counted as a duty. (Dharshini's Day shift had been changed to Night — the cancelled Day row showed her "On duty now" in the morning.)
 - Nurse-station screensaver: "On duty:" now lists the nursing staff rostered for the current shift (Day 7 AM–7 PM / Night 7 PM–7 AM), not just the signed-in login. Falls back to the signed-in name if the roster cannot be read.
