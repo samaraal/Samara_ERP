@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.59';
+  const APP_VERSION = '2.19.60';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -52254,7 +52254,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     // 2.18.147: the details pop-up shows only meaningful, labelled information — no internal IDs / codes,
     // no duplicate timestamps. Staff names are shown instead of system IDs; returned requests show the reason.
     // 2.19.59: the same field list also feeds the inline details shown beside Approve / Partial / Return.
-    const chargeFieldsFor=r=>{
+    function chargeFieldsFor(r){
       if(!r)return [];
       const nurse=profile?.role==='Nurse';
       const yes=v=>v?'Yes':'No';
@@ -52297,12 +52297,13 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           ['Outside bill amount',r.outside_bill_amount!=null?money(r.outside_bill_amount):''],['Handling charge',Number(r.outside_handling_fee)>0?money(r.outside_handling_fee):'']);
       }
       return list.filter(([,v])=>v!==null&&v!==undefined&&String(v).trim()!=='').map(([label,value])=>[label,label,String(value)]);
-    };
+    }
     const chargeDetailFields=chargeFieldsFor(selectedChargeDetail);
     // 2.19.59: a Pending request shows its full details (Guest name · ID · room-bed, item, qty, rate, nurse remarks …)
     // right above Approve / Partial / Return, so Accounts can verify without opening "Full details".
-    const pendingDetailSkip=new Set(['Status','Billable to Guest','Bill available']);
-    const pendingDetails=r=>{
+    // 2.19.60: function declarations (hoisted) — the register rows are drawn above this point.
+    function pendingDetails(r){
+      const pendingDetailSkip=new Set(['Status','Billable to Guest','Bill available']);
       const p=pFor(r.patient_id)||{};
       const fields=chargeFieldsFor(r).filter(([k])=>!pendingDetailSkip.has(k)&&k!=='Guest');
       const guest=[
@@ -52321,7 +52322,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'8px 14px'}},
           fields.map(([key,label,value])=>cell(key,label,value,false)))
       );
-    };
+    }
     const chargeDetailModal=selectedChargeDetail&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setSelectedChargeDetail(null)}},
       h('section',{className:'card modal',role:'dialog','aria-modal':'true','aria-labelledby':'charge-request-detail-title',style:{width:'min(900px,96vw)',maxHeight:'90vh',overflowY:'auto'}},
         h('div',{className:'panel-head'},

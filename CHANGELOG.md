@@ -1,3 +1,6 @@
+## 2.19.60 — 02-11-2026 — Fix: Bills & Charges Approval page crash in 2.19.59
+- 2.19.59 showed "This page had a problem" on Bills & Charges Approval (the new Guest-details box was used before it was defined). Fixed — the page opens again with the full Guest details shown beside Approve / Partial / Return. Frontend only.
+
 ## 2.19.59 — 02-11-2026 — Bills & Charges Approval: full Guest details beside Approve
 - Every **Pending** charge in Bills & Charges Approval now shows its full details right above Approve / Partial / Return, in a baby-pink box: Guest name, Guest ID, Room-Bed (Trial Guest marked), item code & name, category, quantity, service date & time, description, provider/doctor, nurse remarks, raised by / at, rate and the request amount — no need to open "Full details" first.
 - The **Approve / Partial** pop-up also repeats the Guest (name · ID · Room-Bed), the item and quantity at the top, so Accounts sees whose charge is being approved.
