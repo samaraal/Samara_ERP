@@ -1,8 +1,6 @@
-## 2.19.48 — 02-11-2026 — No clinical voice alerts / notifications for Admin & Directors (SQL 334)
-- Admin / Director logins: clinical alerts no longer speak, chime, pop up or show browser notifications. The alerts are still listed in Clinical Alerts / Clinical Escalations when opened.
-- Phone push (clinical-push-dispatch) and WhatsApp escalations (clinical-escalation-dispatch) now go to Managers only. The Vitals 90-min "Critical pending" stage goes to Managers.
-- Withheld-dose phone notification: Nurses + Managers only (run supabase/sql/334_no_clinical_alerts_admin_directors.sql).
-- Redeploy Edge Functions clinical-push-dispatch and clinical-escalation-dispatch.
+## 2.19.49 — 02-11-2026 — No spoken voice alerts for Admin & Directors
+- Admin / Director logins: clinical alerts are no longer spoken aloud. The chime, pop-up box, browser / phone push notifications, WhatsApp escalations and withheld-dose phone alerts continue exactly as before.
+- Replaces 2.19.48, which had also stopped push / WhatsApp / withheld-dose alerts for Admin & Directors (now restored). SQL 334 is withdrawn — do not run it; no Edge Function redeploy needed.
 
 ## 2.19.47 — 01-11-2026 — Payslip WhatsApp sent automatically on save
 - Payroll: saving a salary now sends the payslip PDF on WhatsApp straight away (button reads "Save salary & send payslip"). If WhatsApp fails, the salary stays saved, the reason is shown, and "Send payslip on WhatsApp" remains for a retry.

@@ -116,10 +116,9 @@ Deno.serve(async (req) => {
     if (recipientError) throw recipientError;
     const targetRecipients = (recipients || [])
       .map((r: any) => ({ ...r, role: String(r.role || ""), phone: normalizePhone(r.mobile) }))
-      // ERP 2.19.48: Admin / Directors no longer receive clinical WhatsApp escalations — Managers only.
-      .filter((r: any) => r.phone && isManagerTier(r.role) && !isAdminTier(r.role));
+      .filter((r: any) => r.phone && (isAdminTier(r.role) || isManagerTier(r.role)));
     const audienceOf = (stage: Stage) => targetRecipients.filter((r: any) =>
-      true); // 2.19.48: every stage (incl. Vitals 90-min "Critical pending") goes to Managers only
+      stage.audience === "manager" ? isManagerTier(r.role) : stage.audience === "admin" ? isAdminTier(r.role) : true);
 
     let sent = 0, failed = 0, skipped = 0, processed = 0;
     for (const alert of dueAlerts as any[]) {
