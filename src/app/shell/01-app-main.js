@@ -63,6 +63,7 @@
     const [recoveryMode,setRecoveryMode]=React.useState(false);
     const [clinicalPopupSnooze,setClinicalPopupSnooze]=React.useState({key:'',until:0});
     const alertEngine=useClinicalAlertEngine(engineProfile,next=>anyRoleNavRef.current(next));
+    React.useEffect(()=>{setGuestScopeProfile(profile)},[profile?.id,profile?.role,profile?.designation]); // 2.19.51 My Guests
     const physioNotifications=usePhysiotherapyApprovalNotifications(engineProfile);
     // 2.18.88: information-only alerts (Medicine Given Late, Poor Meal Intake — already recorded) show on this
     // card ONCE per device (same "seen" list as the alert pop-up), with a "Noted" button instead of repeating.

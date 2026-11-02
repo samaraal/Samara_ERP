@@ -39,7 +39,13 @@
     };
     return {pFor,pLabel};
   }
-  function patientSelect(rows,value,onChange,label='Patient'){return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:e=>onChange(e.target.value),required:true},h('option',{value:''},'Select patient'),rows.map(p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}${p.is_trial?' · 🧪 TRIAL':''}`))))}
+  function patientSelect(rows,value,onChange,label='Patient'){
+    const opt=p=>h('option',{key:p.id,value:p.id},`${p.patient_id||'NO-ID'} · ${formalName(p)} · ${p.room_no&&p.bed_no?`Room ${p.room_no}-${p.bed_no}`:'Room unassigned'}${p.is_trial?' · 🧪 TRIAL':''}`);
+    // 2.19.51: a staff nurse sees her assigned Guests first; choosing another nurse's Guest asks the reason.
+    const groups=typeof guestScopeGroups==='function'?guestScopeGroups(rows):null;
+    const change=e=>{const v=e.target.value;if(!v||typeof guestNeedsCover!=='function'||!guestNeedsCover(v)){onChange(v);return}ensureGuestCover(v,label).then(ok=>{if(ok)onChange(v)})};
+    return h('div',{className:'field'},h('label',null,label),h('select',{value,onChange:change,required:true},h('option',{value:''},'Select patient'),
+      groups?groups.map(g=>h('optgroup',{key:g.label,label:g.label},g.rows.map(opt))):rows.map(opt)))}
   function roomBedSelect(rows,roomNo,bedNo,onChange,required=false,currentPatientId=''){
     const value=roomNo&&bedNo?`${roomNo}|||${bedNo}`:'';
     const sorted=[...(rows||[])].filter(isPatientBed).sort((a,b)=>

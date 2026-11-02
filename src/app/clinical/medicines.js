@@ -35,6 +35,10 @@
     const useFrontlinePriority=isFrontlineClinical&&compactMedicationView;
     const [tab,setTab]=React.useState(()=>isFrontlineClinical?'Today’s MAR':'Active Prescriptions');
     const [patientFilter,setPatientFilter]=React.useState('');
+    // 2.19.51: a staff nurse's Today's MAR shows her assigned Guests (+ Guests with no nurse on duty) first.
+    const guestScope=useGuestScopeTick();const scopedNurse=guestScopedNurse(profile);
+    const [mineOnly,setMineOnly]=React.useState(true);const mineActive=scopedNurse&&mineOnly&&guestScope.ready;
+    const mineMatch=item=>!mineActive||guestAccess((item.order||item).patient_id).kind!=='other';
     const [periodFilter,setPeriodFilter]=React.useState('All');
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
@@ -829,7 +833,7 @@
     }
     const marShift=marShiftWindow();
     const marAllShiftRows=marShift.segs.flatMap(marRowsFor);
-    const marShiftRows=filtered(marAllShiftRows);
+    const marShiftRows=filtered(marAllShiftRows).filter(mineMatch);
     tabs[0][1]=marShiftRows.length; // 2.18.61: the MAR tab counts this shift's doses
     const marMinutes=item=>{const d=scheduledDoseDate(item.time,item.date);return d?Math.floor((Date.now()-d.getTime())/60000):0};
     const marLate=item=>!item.log&&marMinutes(item)>=30;
@@ -853,7 +857,7 @@
     const marSelected=marSlots.find(s=>s.key===selectedSlot)||marDefaultSlot||null;
     const marTotals={total:marShiftRows.length,given:marShiftRows.filter(x=>x.log&&!marIsException(x.log)).length,
       late:marShiftRows.filter(marLate).length,waiting:marShiftRows.filter(marWaitingDoctor).length};
-    const marRooms=(()=>{const m=new Map();marAllShiftRows.forEach(x=>{const p=patientFor(x.order);if(p.id&&!m.has(p.id))m.set(p.id,p)});return [...m.values()].sort((a,b)=>String(a.room_no||'').localeCompare(String(b.room_no||''),'en',{numeric:true})||String(a.bed_no||'').localeCompare(String(b.bed_no||'')))})();
+    const marRooms=(()=>{const m=new Map();marAllShiftRows.filter(mineMatch).forEach(x=>{const p=patientFor(x.order);if(p.id&&!m.has(p.id))m.set(p.id,p)});return [...m.values()].sort((a,b)=>String(a.room_no||'').localeCompare(String(b.room_no||''),'en',{numeric:true})||String(a.bed_no||'').localeCompare(String(b.bed_no||'')))})();
     const roomText=p=>p?.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—';
     const marDateNote=date=>date!==today?` (${formatDateIN(date)})`:'';
     function openWithhold(item){openMar(item.order,item.time,item.date);setMarForm(cur=>({...cur,status:'Withheld'}));}
@@ -946,8 +950,9 @@
         useFrontlinePriority&&canReviseMedication&&h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(state.reviewSetupError),onClick:()=>openMedicationReview(patientFilter)},'Doctor Review / Modify'),
         useFrontlinePriority&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setShowHistoryMobile(true)},'Medication History'),
         useFrontlinePriority&&h('button',{type:'button',className:'btn btn-secondary',onClick:load},state.loading?'…':'Refresh')),
-      marRooms.length>1&&h('div',{className:'mar-rooms'},
-        h('button',{type:'button',className:`mar-pill ${!patientFilter?'on':''}`,onClick:()=>setPatientFilter('')},'All rooms'),
+      (marRooms.length>1||scopedNurse)&&h('div',{className:'mar-rooms'},
+        scopedNurse&&h('button',{type:'button',className:`mar-pill ${!patientFilter&&mineActive?'on':''}`,onClick:()=>{setMineOnly(true);setPatientFilter('')}},'My Guests'),
+        h('button',{type:'button',className:`mar-pill ${!patientFilter&&!mineActive?'on':''}`,onClick:()=>{setMineOnly(false);setPatientFilter('')}},scopedNurse?'All Guests':'All rooms'),
         marRooms.map(p=>h('button',{type:'button',key:p.id,className:`mar-pill ${patientFilter===p.id?'on':''}`,onClick:()=>setPatientFilter(patientFilter===p.id?'':p.id)},roomText(p)))),
       !marShiftRows.length&&h('div',{className:'message'},'No medicines are scheduled in this shift.'),
       marSlots.length>0&&h('div',{className:'mar-times',role:'group','aria-label':'Medicine times in this shift'},

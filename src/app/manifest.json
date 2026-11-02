@@ -327,6 +327,11 @@
    "lines": 97
   },
   {
+   "file": "nursing/guest-assignment.js",
+   "about": "2.19.51 Guests ↔ Nurses: assignment screen, My Guests scope, cover reason guard",
+   "lines": 264
+  },
+  {
    "file": "patients/discharge.js",
    "about": "Discharge management",
    "lines": 1517

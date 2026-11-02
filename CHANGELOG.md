@@ -1,3 +1,10 @@
+## 2.19.51 — 02-11-2026 — Assign Guests to nurses, shift-wise (SQL 336)
+- Staff Duty Assignment → new "Guests ↔ Nurses" tab (Admin / Director and Nursing Manager): a standing Day nurse and Night nurse for every Guest, with tick-and-apply for many Guests at once. Shows today's duty status of each assigned nurse and how many Guests have no assigned nurse on duty. Changes keep history.
+- Staff nurses: Guest dropdowns list "My Guests" first, then "No nurse on duty for them", then "Other nurses' Guests". Today's MAR opens on "My Guests" (tap "All Guests" to see everyone).
+- Recording for a Guest assigned to another nurse who IS on duty (Medicines, Vital Signs, Daily Care, Intake / Output, Food, Nursing Notes) asks a short reason once per Guest per shift. Kept under "Cover records" and in MIS (Operational). If the assigned nurse is off / absent / on leave / not rostered, any nurse attends without a reason.
+- Not changed: clinical alerts, notifications and the nurse-station screensaver still show all Guests to every nurse login. Nursing Manager, Managers and Admin see everything as before.
+- Run supabase/sql/336_guest_nurse_assignment.sql in Supabase → SQL Editor. Until then nothing changes for nurses.
+
 ## 2.19.50 — 02-11-2026 — Duty Roster: Absent (red) = loss of pay (SQL 335)
 - Duty Roster grid: new **Absent** choice in red — tap a cell Day → Night → Off → Absent → empty. Totals column now D/N/O/A.
 - Marking a missed day: today's cell can be set to Absent directly. For an earlier day, press "✎ Fill missed past days" — a saved past Day / Night can now be changed to Absent (reason asked on save, kept with the entry).
