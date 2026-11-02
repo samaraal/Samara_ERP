@@ -1,3 +1,7 @@
+## 2.19.56 — 02-11-2026 — Clinical alerts only for clinical staff
+- Clinical alerts (pop-up, chime, voice, bell, alert list) now show only for Nurses, Caregivers, the Nursing Manager / Managers and Admin / Directors. Turned off for Accounts, HR (role HR, or an Admin login with an HR designation such as HR Manager), Physiotherapist, Kitchen and STD.
+- WhatsApp clinical escalations (Edge Function clinical-escalation-dispatch) also leave out an Admin login with an HR designation. Redeploy that function.
+
 ## 2.19.55 — 02-11-2026 — New ERP role: Physiotherapist (SQL 337 + admin-users)
 - HR → ERP Access Role has a new choice **Physiotherapist**. A Physiotherapy & Rehabilitation candidate converted to an employee now gets this role (it used to default to Caregiver).
 - A Physiotherapist login sees only: Physiotherapy Dashboard (Overview + Sessions — record / review sessions, corrections), My Duty, My Leave & Permission, My Profile, duty swap / leave cover. No Medicines, Vitals, Daily Care, Billing, Charges, Accounts or HR. No fee / rate / payment screens.

@@ -114,9 +114,12 @@ Deno.serve(async (req) => {
       .select("id,full_name,login_id,role,mobile,is_active")
       .eq("is_active", true);
     if (recipientError) throw recipientError;
+    // ERP 2.19.56: clinical escalations go to clinical staff only — an Admin login whose designation is HR (e.g. HR Manager) is left out.
+    const { data: hrRows } = await admin.from("profiles").select("id,designation");
+    const hrIds = new Set((hrRows || []).filter((p: any) => /\bhr\b|human resource/i.test(String(p.designation || ""))).map((p: any) => String(p.id)));
     const targetRecipients = (recipients || [])
       .map((r: any) => ({ ...r, role: String(r.role || ""), phone: normalizePhone(r.mobile) }))
-      .filter((r: any) => r.phone && (isAdminTier(r.role) || isManagerTier(r.role)));
+      .filter((r: any) => r.phone && !hrIds.has(String(r.id)) && (isAdminTier(r.role) || isManagerTier(r.role)));
     const audienceOf = (stage: Stage) => targetRecipients.filter((r: any) =>
       stage.audience === "manager" ? isManagerTier(r.role) : stage.audience === "admin" ? isAdminTier(r.role) : true);
 

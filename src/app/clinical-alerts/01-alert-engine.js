@@ -121,6 +121,17 @@
     const r=String(p?.role||'').trim().toLowerCase();
     return r==='admin'||r==='administrator'||r.includes('director')||/director/i.test(String(p?.designation||''));
   }
+  // 2.19.56: clinical alerts (pop-up, chime, voice, bell, list) only for clinical staff — Nurses, Caregivers,
+  // Nursing Manager / Managers and Admin / Directors. Not for Accounts, HR (role HR or an Admin login whose
+  // designation is HR), Physiotherapist, Kitchen or STD.
+  function clinicalAlertsAllowedFor(p){
+    if(!p)return false;
+    const role=String(p.role||'').trim();
+    if(['Nurse','Caregiver','Manager'].includes(role))return true;
+    if(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(p))return true;
+    if(role==='Admin')return !/\bhr\b|human resource/i.test(String(p.designation||''));
+    return false;
+  }
   function useClinicalAlertEngine(profile,setPage){
     const [alerts,setAlerts]=React.useState([]);
     const [settings,setSettings]=React.useState({
@@ -1116,7 +1127,7 @@
     }
     async function refresh(){
       if(!profile)return;
-      if(profile?.role==='STD'){
+      if(!clinicalAlertsAllowedFor(profile)){
         setAlerts([]);
         try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
         try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
@@ -1232,8 +1243,6 @@
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
-      // 2.19.55: a Physiotherapist login sees only physiotherapy alerts (no medicine / vitals / care alerts).
-      if(profile?.role==='Physiotherapist'){const only=visibleList.filter(a=>/physio/i.test(`${a.alert_type||''} ${a.title||''}`));visibleList.length=0;visibleList.push(...only)}
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -1309,7 +1318,7 @@
     React.useEffect(()=>{loadSettings()},[]);
     React.useEffect(()=>{
       if(!profile)return;
-      if(profile?.role==='STD'){
+      if(!clinicalAlertsAllowedFor(profile)){
         setAlerts([]);
         try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
         try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}

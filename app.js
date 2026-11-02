@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.55';
+  const APP_VERSION = '2.19.56';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4165,6 +4165,17 @@ https://samaraassistedliving.com/`;
     const r=String(p?.role||'').trim().toLowerCase();
     return r==='admin'||r==='administrator'||r.includes('director')||/director/i.test(String(p?.designation||''));
   }
+  // 2.19.56: clinical alerts (pop-up, chime, voice, bell, list) only for clinical staff — Nurses, Caregivers,
+  // Nursing Manager / Managers and Admin / Directors. Not for Accounts, HR (role HR or an Admin login whose
+  // designation is HR), Physiotherapist, Kitchen or STD.
+  function clinicalAlertsAllowedFor(p){
+    if(!p)return false;
+    const role=String(p.role||'').trim();
+    if(['Nurse','Caregiver','Manager'].includes(role))return true;
+    if(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(p))return true;
+    if(role==='Admin')return !/\bhr\b|human resource/i.test(String(p.designation||''));
+    return false;
+  }
   function useClinicalAlertEngine(profile,setPage){
     const [alerts,setAlerts]=React.useState([]);
     const [settings,setSettings]=React.useState({
@@ -5160,7 +5171,7 @@ https://samaraassistedliving.com/`;
     }
     async function refresh(){
       if(!profile)return;
-      if(profile?.role==='STD'){
+      if(!clinicalAlertsAllowedFor(profile)){
         setAlerts([]);
         try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
         try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
@@ -5276,8 +5287,6 @@ https://samaraassistedliving.com/`;
       // 2.17.10: Poor Meal Intake goes only to Nursing Manager / Managers and Admin / Director
       // (the nurse has just recorded it); everyone else keeps the normal list.
       const visibleList=isEscalationViewer?list.filter(a=>a.is_escalated):list.filter(a=>!['meal intake','medicine late','medicine not given','nursing note alert'].includes(String(a.alert_type||'').toLowerCase())); // 2.18.85: Medicine Given Late goes to the Nursing Manager only
-      // 2.19.55: a Physiotherapist login sees only physiotherapy alerts (no medicine / vitals / care alerts).
-      if(profile?.role==='Physiotherapist'){const only=visibleList.filter(a=>/physio/i.test(`${a.alert_type||''} ${a.title||''}`));visibleList.length=0;visibleList.push(...only)}
       setAlerts(visibleList);
 
       // v2.9.45: rotating automatic alert queue.
@@ -5353,7 +5362,7 @@ https://samaraassistedliving.com/`;
     React.useEffect(()=>{loadSettings()},[]);
     React.useEffect(()=>{
       if(!profile)return;
-      if(profile?.role==='STD'){
+      if(!clinicalAlertsAllowedFor(profile)){
         setAlerts([]);
         try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
         try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
@@ -14941,7 +14950,7 @@ https://samaraassistedliving.com/`;
     const markInfoSeen=a=>{if(!a||!isInfoAlert(a))return;try{const now=Date.now(),m=Object.fromEntries(Object.entries(infoSeenMap).filter(([,t])=>now-Number(t)<3*86400000));m[a.key]=now;localStorage.setItem('samara_info_alerts_seen',JSON.stringify(m))}catch(_e){}setInfoSeenTick(t=>t+1)};
     const topClinicalAlert=alertEngine.alerts.find(a=>!(isInfoAlert(a)&&infoSeenMap[a.key]))||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
-    const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
+    const clinicalPopupVisible=clinicalAlertsAllowedFor(profile)&&Boolean(topClinicalAlert)&&!(
       clinicalPopupSnooze.key===topClinicalAlertKey&&clinicalPopupSnooze.until>Date.now()
     );
     React.useEffect(()=>{
@@ -15636,7 +15645,7 @@ https://samaraassistedliving.com/`;
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
-          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
+          clinicalAlertsAllowedFor(profile)&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
           // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
           // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones

@@ -73,7 +73,7 @@
     const markInfoSeen=a=>{if(!a||!isInfoAlert(a))return;try{const now=Date.now(),m=Object.fromEntries(Object.entries(infoSeenMap).filter(([,t])=>now-Number(t)<3*86400000));m[a.key]=now;localStorage.setItem('samara_info_alerts_seen',JSON.stringify(m))}catch(_e){}setInfoSeenTick(t=>t+1)};
     const topClinicalAlert=alertEngine.alerts.find(a=>!(isInfoAlert(a)&&infoSeenMap[a.key]))||null;
     const topClinicalAlertKey=topClinicalAlert?.key||topClinicalAlert?.id||topClinicalAlert?.source_id||'';
-    const clinicalPopupVisible=profile?.role!=='STD'&&Boolean(topClinicalAlert)&&!(
+    const clinicalPopupVisible=clinicalAlertsAllowedFor(profile)&&Boolean(topClinicalAlert)&&!(
       clinicalPopupSnooze.key===topClinicalAlertKey&&clinicalPopupSnooze.until>Date.now()
     );
     React.useEffect(()=>{
@@ -768,7 +768,7 @@
           h(GlobalSearch,{onNavigate:setPage,profile}),
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
-          profile?.role!=='STD'&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
+          clinicalAlertsAllowedFor(profile)&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
           // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
           // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
