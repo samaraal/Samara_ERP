@@ -206,7 +206,7 @@
       'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
-    if(!pages.includes('Spot Assessment'))pages.push('Spot Assessment');
+    if(!pages.includes('Spot Assessment')&&profile?.role!=='Physiotherapist')pages.push('Spot Assessment'); // 2.19.57: Physiotherapist — physiotherapy work only
     if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }

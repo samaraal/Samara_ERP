@@ -9,6 +9,7 @@
     const [loading,setLoading]=React.useState(true);
     const [message,setMessage]=React.useState('');
     const [entryPlan,setEntryPlan]=React.useState(null);
+    const [notePlan,setNotePlan]=React.useState(null); // 2.19.57: 📝 Physio Note / Observation
     const [editingSession,setEditingSession]=React.useState(null);
     const canReview=profile?.role==='Admin'||isNursingManagerProfile(profile);
     // 2.18.126: a notification opens only that correction request (with Approve / Reject).
@@ -69,7 +70,7 @@
       setLoading(true);setMessage('');
       const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult,practitionersResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
-        client.from('patients').select('id,title,full_name,patient_id,room_no,bed_no,is_active,admission_status').order('full_name'),
+        loadPhysioGuests(profile), // 2.19.57: Physiotherapist reads Guests only through the narrow list
         filters?loadPhysioFilteredSessions(filters):client.from('physiotherapy_sessions').select('*').order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(300),
         client.from('physiotherapy_corrections').select('*').order('requested_at',{ascending:false}).limit(300),
         client.rpc('physio_organisation_options'),
@@ -333,13 +334,14 @@
         st.missingTimes&&h('small',{style:{display:'block',color:'#b42318'}},`⚠ ${plan.frequency}: ${st.perDay-st.times.length===1?'second time':'session times'} missing — Admin please add in Patient Edit`));})(),
       plan.end_date?formatDateIN(plan.end_date):'Until Dr. Review',
       plan.precautions||plan.special_instructions||'—',
-      canEnter?(()=>{const st=physioTodayStatus(plan);
+      canEnter?h('div',{className:'actions',style:{flexWrap:'wrap',gap:'6px'}},(()=>{const st=physioTodayStatus(plan);
         if(st.allDone)return h('button',{type:'button',className:'btn btn-secondary',disabled:true,title:'All of today’s sessions are recorded. Use Session options in Recent Sessions to correct one.'},'✓ All done today');
         const label=st.nextTime?`Record ${clockLabel(st.nextTime)} session`:st.perDay>1?`Record ${ordinal(st.done)} session`:'Record Session';
         // 2.18.108: before the next session's time, show it calmly (not as an overdue task).
         const nowHHMM=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
         const later=st.nextTime&&physioWindowStart(st.nextTime,plan)>nowHHMM;
-        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session window: '+physioWindowLabel(st.nextTime,plan):undefined},later?`Next: ${physioWindowLabel(st.nextTime,plan)}`:st.nextTime?`Record ${physioWindowLabel(st.nextTime,plan)} session`:label);})():h('span',{className:'small-note'},'View only')
+        return h('button',{type:'button',className:'btn '+(later?'btn-secondary':'btn-primary'),onClick:()=>openEntry(plan),title:later?'Next session window: '+physioWindowLabel(st.nextTime,plan):undefined},later?`Next: ${physioWindowLabel(st.nextTime,plan)}`:st.nextTime?`Record ${physioWindowLabel(st.nextTime,plan)} session`:label);})(),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setNotePlan(plan),title:'Record a note / observation for this Guest (type, Tamil / English voice or dictate)'},'📝 Note')):h('span',{className:'small-note'},'View only')
     ]);
 
     const recentRows=sessions.map(session=>{
@@ -480,6 +482,7 @@
           )
         )
       ),
+      notePlan&&h(PhysioNoteModal,{profile,guests:patients,patientId:notePlan.patient_id,planId:notePlan.id,onClose:()=>setNotePlan(null)}),
       toast&&h('div',{className:`samara-toast ${toast.type}`,role:'status','aria-live':'polite'},
         h('span',{className:'samara-toast-icon','aria-hidden':'true'},toast.type==='success'?'✓':'!'),
         h('div',null,h('strong',null,toast.type==='success'?'Session saved':'Save failed'),h('span',null,toast.text)),

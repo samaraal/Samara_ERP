@@ -366,7 +366,7 @@
   function PhysiotherapyDashboard({profile,onNavigate,initialTab='Overview'}){
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const access=physiotherapyDashboardAccess(profile);
-    const tabs=['Overview',...(access.clinical?['Sessions']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
+    const tabs=['Overview',...(access.clinical?['Sessions','Notes & Observations']:[]),...(access.finance?['Patient Rates & Billing']:[]),...(access.supplier?['Therapist Accounts']:[])];
     const [tab,setTab]=React.useState(()=>{const intent=typeof readDashboardIntent==='function'?readDashboardIntent('Physiotherapy Dashboard'):null;const want=intent?.extra?.tab||initialTab;return tabs.includes(want)?want:'Overview'});
     const selected=tabs.includes(tab)?tab:'Overview';
     React.useEffect(()=>{const on=e=>{if(e.detail?.page==='Physiotherapy'&&tabs.includes('Sessions'))setTab('Sessions')};window.addEventListener('samara-record-focus',on);return()=>window.removeEventListener('samara-record-focus',on)},[tabs.join('|')]); // 2.18.126
@@ -386,7 +386,7 @@
     const matchingPatients=physioPatientOptions(patientOptions,selection.search);
     const computedFilters=physioMakeFilters(selection,patientOptions,todayISOIndia());
     const filters={...computedFilters,error:computedFilters.error||patientError,key:computedFilters.key+'|'+patientError};
-    React.useEffect(()=>{if(!access.allowed)return;let stopped=false;client.from('patients').select('id,full_name,patient_id,room_no,bed_no,is_active').eq('is_active',true).order('full_name').then(result=>{if(stopped)return;if(result.error)setPatientError(result.error.message);else{setPatientOptions(result.data||[]);setPatientError('')}}).catch(e=>{if(!stopped)setPatientError(e.message)});return()=>{stopped=true}},[access.allowed,profile?.id]);
+    React.useEffect(()=>{if(!access.allowed)return;let stopped=false;loadPhysioGuests(profile,{activeOnly:true}).then(result=>{ /* 2.19.57 */if(stopped)return;if(result.error)setPatientError(result.error.message);else{setPatientOptions(result.data||[]);setPatientError('')}}).catch(e=>{if(!stopped)setPatientError(e.message)});return()=>{stopped=true}},[access.allowed,profile?.id]);
     React.useEffect(()=>{
       if(!access.allowed||!access.finance||selected!=='Overview')return;
       let stopped=false;
@@ -397,7 +397,7 @@
     if(!access.allowed)return h('p',null,'Physiotherapy access is not assigned to this role.');
     const money=v=>'₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:2});
     const sessions=(summary?.sessions||[]).filter(s=>physioMatchesFilter(s,filters)),unbilled=sessions.filter(s=>!s.request_id),pending=sessions.filter(s=>s.request_id&&s.approval_status==='Pending'),posted=sessions.filter(s=>s.approval_status==='Approved');
-    const cards=[...(access.clinical?[['Sessions','Sessions & Clinical Review','Record completed sessions, review treatment history and handle corrections.']]:[]),...(access.finance?[['Patient Rates & Billing',access.supplier?'Guest Rates, Guest Fees & Billing':'Review Guest Charges','Guest rates and Guest fees, completed sessions and Accounts approval in one place.']]:[]),...(access.supplier?[['Therapist Accounts','Therapist Accounts','Samara own team & outsourced organisations: fees, Guest fees, payments and Print Statement (PDF).']]:[])];
+    const cards=[...(access.clinical?[['Sessions','Sessions & Clinical Review','Record completed sessions, review treatment history and handle corrections.'],['Notes & Observations','📝 Notes & Observations','Physio notes per Guest — type, speak in Tamil / English, or dictate.']]:[]),...(access.finance?[['Patient Rates & Billing',access.supplier?'Guest Rates, Guest Fees & Billing':'Review Guest Charges','Guest rates and Guest fees, completed sessions and Accounts approval in one place.']]:[]),...(access.supplier?[['Therapist Accounts','Therapist Accounts','Samara own team & outsourced organisations: fees, Guest fees, payments and Print Statement (PDF).']]:[])];
     return h('div',null,
       h('div',{className:'accounts-hero'},h('div',null,h('small',null,'PHYSIOTHERAPY · CARE · BILLING'),h('h3',null,'Physiotherapy Dashboard'),h('p',null,'One workspace for physiotherapy sessions, patient billing and therapist accounts.'))),
       h('nav',{className:'actions','aria-label':'Physiotherapy workspace',style:{margin:'16px 0'}},tabs.map(name=>h('button',{type:'button',key:name,className:'btn '+(selected===name?'btn-primary':'btn-secondary'),'aria-pressed':selected===name,onClick:()=>setTab(name)},name==='Sessions'?'Sessions & Clinical Review':name))),
@@ -418,6 +418,7 @@
         access.counts&&h(PhysioSessionCounts,{profile,filters})
       ),
       selected==='Sessions'&&access.clinical&&h(Physiotherapy,{profile,onNavigate,filters}),
+      selected==='Notes & Observations'&&access.clinical&&h(PhysioNotesRegister,{profile,filters}), // 2.19.57
       selected==='Patient Rates & Billing'&&access.finance&&h(PatientPhysioBilling,{profile,onNavigate,embedded:true,filters,focusSessionId:recFocus&&recFocus.kind==='physio_billing'?recFocus.id:''}),
       selected==='Therapist Accounts'&&access.supplier&&h(PhysiotherapistAccounts,{profile})
     );

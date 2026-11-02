@@ -7,7 +7,7 @@
 //   data / action / response – the same note arranged as DAR
 // STRICT: faithful to what was said — nothing invented, no diagnosis, no advice. The nurse checks
 // and edits every field before saving; nothing is saved by this function. Recordings are not stored.
-// Requires a logged-in Admin / Manager / Nurse / Caregiver.
+// Requires a logged-in Admin / Manager / Nurse / Caregiver (or Physiotherapist, Physio mode only — ERP 2.19.57).
 // Secrets used (already set): GEMINI_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Optional: NURSING_NOTE_MODEL.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -54,6 +54,29 @@ RULES — faithful nursing documentation:
 6. Use English only (Latin script) in every field except heard_text. Keep names and medicine names as spoken (transliterated).
 Return JSON only: {"heard_text":"...","english_note":"...","focus":"...","data":"...","action":"...","response":"..."}`;
 
+// 2.19.57: Physio Notes & Observations (mode "Physio") — physiotherapist / staff speaks a physiotherapy note.
+const PHYSIO_SYSTEM = `You are the voice assistant for PHYSIOTHERAPY NOTES at Samara Assisted Living (a nursing care home in Chennai; residents are called "Guests").
+A physiotherapist (or nurse) has spoken (or typed) one note or observation about one Guest's physiotherapy. The speech may be Tamil, Chennai / colloquial Tamil, Tamil mixed with English words, or English.
+
+COMMON LOCAL USAGE (use context; do not copy blindly):
+- எக்ஸர்சைஸ் பண்ணாங்க / பயிற்சி செஞ்சாங்க = did the exercises; பண்ணல = did not do
+- நடக்க வச்சோம் / வாக் பண்ணாங்க = made the Guest walk; வாக்கர் வச்சு = with a walker; ஸ்டிக் = walking stick; வீல்சேர் = wheelchair
+- தனியா நடந்தாங்க = walked independently; சப்போர்ட் வேணும் / பிடிச்சுக்கிட்டு = needed support / holding on; ஒருத்தர் / ரெண்டு பேர் சப்போர்ட் = one-person / two-person support
+- கால் தூக்க முடியுது / முடியல = able / unable to lift the leg; கை தூக்க = lift the arm; மடக்க / நீட்ட = bend / straighten
+- உக்கார வச்சோம் = made the Guest sit up; நிக்க வச்சோம் = made the Guest stand; பெட்ல திரும்ப = turning in bed
+- வலி இருக்கு / வலிக்குதுன்னு சொன்னாங்க = has pain / complained of pain; வலி குறைஞ்சிருக்கு = pain has reduced; வீக்கம் = swelling; இறுக்கம் / ஸ்டிஃப் = stiffness
+- பேலன்ஸ் இல்ல = poor balance; தள்ளாடுறாங்க = unsteady; களைப்பா இருக்காங்க = tired / fatigued; மூச்சு வாங்குது = breathless
+- நல்லா கோஆப்பரேட் பண்ணாங்க = cooperated well; ஒத்துழைக்கல = did not cooperate; மறுத்துட்டாங்க = refused
+- முன்னேற்றம் இருக்கு / இம்ப்ரூவ் ஆயிருக்கு = there is improvement; அப்படியே இருக்கு = no change
+- ரெப்ஸ் / செட் = repetitions / sets; ஸ்ட்ரெச்சிங், ஸ்ட்ரெந்தனிங், ROM, IFT, TENS, அல்ட்ராசவுண்ட், ஹாட் பேக், ஐஸ் பேக் = keep the standard physiotherapy term
+
+RULES — faithful physiotherapy documentation:
+1. heard_text: a faithful transcript of the whole recording in the language and script spoken. If the input is already text, repeat it.
+2. english_note: the complete note in simple, clear English clinical sentences, in the same order as spoken. Keep every exercise, repetition, distance, time, assistance level, pain score, body part, side (left / right), aid, response and instruction. Do not drop anything.
+3. Never invent, diagnose, interpret causes, exaggerate, or add advice or a plan that was not said. Keep negations exactly (did not walk, refused, not done). Correct obvious speech-recognition errors only when the meaning is clear; otherwise keep a readable transliteration.
+4. Use English only (Latin script) in english_note. Keep names as spoken (transliterated).
+Return JSON only: {"heard_text":"...","english_note":"..."}`;
+
 function b64(bytes: Uint8Array) {
   let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
@@ -70,23 +93,23 @@ function models() {
   const want = [Deno.env.get("NURSING_NOTE_MODEL"), goodModel, "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
   return [...new Set(want.filter((m): m is string => !!m && !!m.trim()).map((m) => m.trim()))];
 }
-async function callGemini(key: string, model: string, parts: unknown[], thinking: boolean) {
+async function callGemini(key: string, model: string, parts: unknown[], thinking: boolean, system = SYSTEM) {
   const cfg: Record<string, unknown> = { responseMimeType: "application/json", temperature: 0, maxOutputTokens: 4096 };
   if (/^gemini-2\./i.test(model)) cfg.thinkingConfig = { thinkingBudget: 0 };
   else if (thinking) cfg.thinkingConfig = { thinkingLevel: "low" };
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST", signal: AbortSignal.timeout(45000),
     headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: "user", parts }], generationConfig: cfg }),
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts }], generationConfig: cfg }),
   });
   return { r, j: await r.json().catch(() => null) };
 }
-async function gemini(parts: unknown[]) {
+async function gemini(parts: unknown[], system = SYSTEM) {
   const key = Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("The voice service is not set up (Gemini key missing).");
   let last = "no model";
   for (const model of models()) {
-    let { r, j } = await callGemini(key, model, parts, true);
-    if (r.status === 400 && /thinking/i.test(String(j?.error?.message || ""))) ({ r, j } = await callGemini(key, model, parts, false));
+    let { r, j } = await callGemini(key, model, parts, true, system);
+    if (r.status === 400 && /thinking/i.test(String(j?.error?.message || ""))) ({ r, j } = await callGemini(key, model, parts, false, system));
     if (r.status === 404) { last = `${model} not available`; continue; }
     if (!r.ok) { last = `${model} HTTP ${r.status}`; console.error("nursing-note-voice gemini", model, r.status, String(j?.error?.message || "").slice(0, 160)); continue; }
     const txt = (j?.candidates?.[0]?.content?.parts || []).filter((p: any) => !p.thought).map((p: any) => p.text || "").join("");
@@ -113,15 +136,17 @@ Deno.serve(async (req) => {
     const user = auth?.user; if (!user) return out({ error: "Please sign in to the ERP again.", code: "AUTH" }, 401);
     const { data: prof } = await admin.from("profiles").select("*")
       .or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).limit(1).maybeSingle();
-    if (!prof || prof.is_active === false || prof.active === false || !["Admin", "Manager", "Nurse", "Caregiver"].includes(String(prof.role)))
+    if (!prof || prof.is_active === false || prof.active === false || !["Admin", "Manager", "Nurse", "Caregiver", "Physiotherapist"].includes(String(prof.role)))
       return out({ error: "Nursing Notes voice is for nursing staff only." }, 403);
 
     const parts: unknown[] = [];
     let spoken = "ta-IN";
+    let mode = "DAR";
     const type = req.headers.get("content-type") || "";
     if (type.includes("multipart/form-data")) {
       const fd = await req.formData();
       spoken = String(fd.get("spoken_language") || spoken);
+      mode = String(fd.get("mode") || mode);
       const audio = fd.get("audio");
       if (!(audio instanceof File) || audio.size < 800) return out({ error: "No speech was captured. Please record again." }, 400);
       if (audio.size > 15_000_000) return out({ error: "The recording is too long. Please keep one note under about 5 minutes." }, 400);
@@ -131,9 +156,20 @@ Deno.serve(async (req) => {
     } else {
       const body = await req.json().catch(() => ({}));
       spoken = String(body?.spoken_language || spoken);
+      mode = String(body?.mode || mode);
       const text = clean(body?.text);
       if (text.length < 3) return out({ error: "No note text was received." }, 400);
       parts.push({ text: `The nurse's note (${spoken.startsWith("en") ? "English" : "Tamil / mixed"}), from speech recognition or typing:\n${text}\n\nReturn the JSON.` });
+    }
+
+    const physio = mode === "Physio";
+    if (String(prof.role) === "Physiotherapist" && !physio)
+      return out({ error: "This login can use voice for Physio Notes only." }, 403);
+    if (physio) {
+      const { x, model } = await gemini(parts, PHYSIO_SYSTEM);
+      const english = clean(x.english_note);
+      if (!english) return out({ error: "No usable note was heard. Please record again." }, 422);
+      return out({ ok: true, model, heard_text: clean(x.heard_text), english_note: english });
     }
 
     const { x, model } = await gemini(parts);

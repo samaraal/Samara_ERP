@@ -1,3 +1,10 @@
+## 2.19.57 — 02-11-2026 — Physiotherapist: physiotherapy only + Physio Notes with voice (SQL 338 + nursing-note-voice)
+- A Physiotherapist login is now limited to physiotherapy work. In the database (SQL 338) she can no longer read or change Guest records, medicines, vitals, nursing notes, I/O, billing, charges, accounts, stores, kitchen, HR or enquiries. Every other role is unchanged. Automatic steps (e.g. the Guest physio charge raised when a session is saved) still work.
+- Physiotherapy screens get the Guest's name, ID, room and bed only, through a new narrow list (physio_guest_list), for every role's use.
+- Spot Assessment removed from the Physiotherapist menu.
+- New **Physio Notes & Observations**: Physiotherapy Dashboard → "Notes & Observations" tab, and a "📝 Note" button on every plan row. Types: Observation, Progress, Treatment given, Advice / Precaution, Other. Write it by typing, **🎤 Speak Tamil / 🎤 Speak English** (AI writes it in simple English, nothing added), or **🎙 Dictate** (words appear as spoken, Tamil or English). Notes are never edited or deleted, internal only (not in the Family Portal). Nurses, Nursing Manager and Admin can read and add them too.
+- Run supabase/sql/338_physiotherapist_limited_access_notes.sql in Supabase → SQL Editor, and redeploy Edge Function nursing-note-voice (adds the Physiotherapist and a Physio mode; Nursing Notes voice unchanged).
+
 ## 2.19.56 — 02-11-2026 — Clinical alerts only for clinical staff
 - Clinical alerts (pop-up, chime, voice, bell, alert list) now show only for Nurses, Caregivers, the Nursing Manager / Managers and Admin / Directors. Turned off for Accounts, HR (role HR, or an Admin login with an HR designation such as HR Manager), Physiotherapist, Kitchen and STD.
 - WhatsApp clinical escalations (Edge Function clinical-escalation-dispatch) also leave out an Admin login with an HR designation. Redeploy that function.
