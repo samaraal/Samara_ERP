@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.51';
+  const APP_VERSION = '2.19.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -42496,9 +42496,9 @@ function ShiftManagement({profile}){
       h('div',{role:'tablist','aria-label':'Duty views',style:{display:'flex',gap:'6px',margin:'0 0 10px'}},
         h('button',{type:'button',role:'tab','aria-selected':view==='grid',className:`btn ${view==='grid'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('grid')},'＋ Assign Duty (Roster grid)'),
         h('button',{type:'button',role:'tab','aria-selected':view==='list',className:`btn ${view==='list'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('list')},'Duty list'),
-        viewMode==='team'&&h('button',{type:'button',role:'tab','aria-selected':view==='guests',className:`btn ${view==='guests'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('guests')},'Guests ↔ Nurses')),
+        h('button',{type:'button',role:'tab','aria-selected':view==='guests',className:`btn ${view==='guests'?'btn-primary':'btn-secondary'}`,onClick:()=>setView('guests')},'Guests ↔ Nurses')),
       // 2.16.3: in the Duty list, "Assign Duty" opens the Roster grid (the long weekly form is no longer used here)
-      view==='guests'&&viewMode==='team'?h(GuestNurseAssignment,{profile}):view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode,onOpenGrid:()=>setView('grid')}));
+      view==='guests'?h(GuestNurseAssignment,{profile}):view==='grid'?h(DutyRosterGrid,{profile}):h(DutyAssignment,{profile,viewMode,onOpenGrid:()=>setView('grid')}));
   }
 function ShiftHandover({profile,onNavigate}){
     const [patients]=usePatients();

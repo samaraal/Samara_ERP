@@ -1,3 +1,6 @@
+## 2.19.52 — 02-11-2026 — "Guests ↔ Nurses" tab also for Admin
+- Admin / Director: the "Guests ↔ Nurses" tab now shows on HR → Duty Assignment (next to "Assign Duty (Roster grid)" and "Duty list"). Nursing Manager: Nursing Staff → Staff Duty Assignment, as before.
+
 ## 2.19.51 — 02-11-2026 — Assign Guests to nurses, shift-wise (SQL 336)
 - Staff Duty Assignment → new "Guests ↔ Nurses" tab (Admin / Director and Nursing Manager): a standing Day nurse and Night nurse for every Guest, with tick-and-apply for many Guests at once. Shows today's duty status of each assigned nurse and how many Guests have no assigned nurse on duty. Changes keep history.
 - Staff nurses: Guest dropdowns list "My Guests" first, then "No nurse on duty for them", then "Other nurses' Guests". Today's MAR opens on "My Guests" (tap "All Guests" to see everyone).
