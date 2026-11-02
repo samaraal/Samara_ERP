@@ -3,6 +3,8 @@
   // Nursing Manager (nursing staff). Uses the same duty_assignments rows as the list and weekly
   // form (one row per staff per date), so On Duty Today, acknowledgement and leave checks keep working.
   const ROSTER_DAY='Day Shift (7 AM–7 PM)',ROSTER_NIGHT='Night Shift (7 PM–7 AM)';
+  // 2.19.50: Absent (A, red) — staff did not come and had no approved leave. Payroll counts it as loss of pay.
+  const ROSTER_ABSENT='Absent';
   function rosterGridAllowed(profile){return profile?.role==='Admin'||isNursingManagerProfile(profile)}
   function ensureDutyRosterStyles(){
     if(document.getElementById('samara-roster-grid-css-v2'))return;
@@ -29,6 +31,8 @@
       .rg-N{background:#1f2a5a;color:#fff}
       .rg-O{background:#eee9ff;color:#5940aa}
       .rg-L{background:#fde2e2;color:#b42318}
+      .rg-A{background:#d92d20;color:#fff}
+      .rg-A .rg-ack{color:#fff}
       .rg-X{background:#e7f1ff;color:#1d4f91}
       .rg-M{background:#ffe7c2;color:#8a4b00}
       .rg-past{opacity:.55}
@@ -149,6 +153,7 @@
     };
     const codeOf=r=>{
       if(!r)return '';
+      if(r.status===ROSTER_ABSENT||r.shift===ROSTER_ABSENT)return 'A';
       if(r.is_weekly_off||r.status==='Weekly Off'||r.shift==='Weekly Off')return 'O';
       if(r.shift===ROSTER_DAY)return 'D';
       if(r.shift===ROSTER_NIGHT)return 'N';
@@ -161,13 +166,16 @@
       const value=Object.prototype.hasOwnProperty.call(draft,k)?draft[k]:saved;
       const pastOpen=pastMode&&date<today&&date>='2026-08-27'&&!existing.length;
       const jd=joinOf(s),preJoin=!!jd&&date<jd&&!existing.length;
-      const locked=preJoin||(date<today&&!pastOpen)||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
-      return {k,existing,lv,onLeave,saved,value,locked,preJoin,joinDay:!!jd&&date===jd,changed:Object.prototype.hasOwnProperty.call(draft,k)};
+      // 2.19.50: in 'Fill missed past days' a saved past Day / Night can be changed to Absent (and back).
+      const pastAbsent=pastMode&&date<today&&date>='2026-08-27'&&existing.length===1&&['D','N','A'].includes(saved);
+      const locked=preJoin||(date<today&&!pastOpen&&!pastAbsent)||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
+      return {k,existing,lv,onLeave,saved,value,locked,preJoin,pastAbsent,joinDay:!!jd&&date===jd,changed:Object.prototype.hasOwnProperty.call(draft,k)};
     }
-    const NEXT={'':'D',D:'N',N:'O',O:'',X:'D'};
+    const NEXT={'':'D',D:'N',N:'O',O:'A',A:'',X:'D'};
+    const NEXT_PAST_SAVED={D:'N',N:'A',A:'D'}; // a saved past day is never emptied here
     function tap(s,date){
       const c=cellInfo(s,date);if(c.locked||busy)return;
-      const next=NEXT[c.value]??'D';
+      const next=c.pastAbsent?(NEXT_PAST_SAVED[c.value]??'A'):(NEXT[c.value]??'D');
       setDraft(d=>{const n={...d};if(next===c.saved)delete n[c.k];else n[c.k]=next;return n});
     }
     function copyPrevious(){
@@ -182,7 +190,7 @@
       showSamaraActionToast(filled?'success':'warning',filled?'Previous period copied':'Nothing to copy',filled?`${filled} empty cells filled from the previous ${days} days. Review, then press Save roster.`:'No empty, unlocked cells had a Day / Night / Off in the previous period.');
     }
     function fillRow(s,code){
-      const n={...draft};dates.forEach(date=>{const c=cellInfo(s,date);if(c.locked)return;if(code===c.saved)delete n[c.k];else n[c.k]=code});setDraft(n);
+      const n={...draft};dates.forEach(date=>{const c=cellInfo(s,date);if(c.locked||c.pastAbsent)return;if(code===c.saved)delete n[c.k];else n[c.k]=code});setDraft(n);
     }
 
     async function save(){
@@ -190,7 +198,7 @@
       const pastKeys=Object.keys(draft).filter(k=>k.split('|')[1]<today&&draft[k]);
       let pastReason='';
       if(pastKeys.length){
-        const ask=await samaraAsk({title:'Filling missed past days',message:`${pastKeys.length} past day(s) are being added to the roster. These count for Payroll (days worked / weekly offs). If a salary for that month is already saved, void it and save it again.`,
+        const ask=await samaraAsk({title:'Filling missed past days',message:`${pastKeys.length} past day(s) are being added or changed (e.g. marked Absent) in the roster. These count for Payroll (days worked / weekly offs). If a salary for that month is already saved, void it and save it again.`,
           fields:[{key:'reason',label:'Why were these days missed? (kept with each entry)',type:'textarea',value:'',required:true}],okLabel:'Save roster'});
         if(ask===null)return;
         pastReason=String(ask.reason||'').trim();
@@ -213,11 +221,11 @@
           if(nowRows.map(r=>`${r.id}:${r.updated_at||''}`).join(',')!==before){problems.push(`${formalName(s)} ${formatDateIN(date)} was changed by someone else`);continue}
           if(code&&code!=='O'&&freshLeave.some(l=>idsOf(s).includes(String(l.employee_id))&&l.request_type!=='Permission'&&l.from_date<=date&&l.to_date>=date)){problems.push(`${formalName(s)} is on approved leave on ${formatDateIN(date)}`);continue}
           const off=code==='O';
-          const fields=code?{shift:off?'Weekly Off':code==='D'?ROSTER_DAY:ROSTER_NIGHT,duty_type:off?'Weekly Off':'General Duty',status:off?'Weekly Off':'Assigned',is_weekly_off:off,week_start:monday(date),weekly_off_day:off?(parse(date).getUTCDay()+6)%7:null}:null;
+          const fields=code==='A'?{shift:ROSTER_ABSENT,duty_type:ROSTER_ABSENT,status:ROSTER_ABSENT,is_weekly_off:false,week_start:monday(date),weekly_off_day:null}:code?{shift:off?'Weekly Off':code==='D'?ROSTER_DAY:ROSTER_NIGHT,duty_type:off?'Weekly Off':'General Duty',status:off?'Weekly Off':'Assigned',is_weekly_off:off,week_start:monday(date),weekly_off_day:off?(parse(date).getUTCDay()+6)%7:null}:null;
           const existing=nowRows[0];
           if(!existing&&fields)inserts.push({employee_id:s.id,duty_date:date,...fields,assigned_by:actor,assigned_by_name:actorName,assigned_by_role:profile?.role,assigned_at:now,updated_at:now,remarks:date<today?`Past day filled later by ${actorName} on ${formatDateIN(todayISOIndia())}: ${pastReason}`:'Duty Roster grid'});
           else if(existing&&!fields)updates.push({id:existing.id,patch:{status:'Cancelled',updated_at:now,status_updated_at:now,status_updated_by:actor,status_updated_by_name:actorName}});
-          else if(existing&&fields)updates.push({id:existing.id,patch:{...fields,updated_at:now,status_updated_at:now,status_updated_by:actor,status_updated_by_name:actorName}});
+          else if(existing&&fields)updates.push({id:existing.id,patch:{...fields,...(date<today?{remarks:`${existing.remarks?`${existing.remarks} | `:''}Changed to ${code==='A'?'Absent':code==='D'?'Day':code==='N'?'Night':'Off'} later by ${actorName} on ${formatDateIN(todayISOIndia())}: ${pastReason}`}:{}),updated_at:now,status_updated_at:now,status_updated_by:actor,status_updated_by_name:actorName}});
         }
         if(problems.length&&!inserts.length&&!updates.length)throw new Error(`Nothing saved. ${problems.slice(0,4).join('; ')}${problems.length>4?` + ${problems.length-4} more`:''}. Press Reload and try again.`);
         if(inserts.length){const {error}=await client.from('duty_assignments').insert(inserts);if(error)throw error}
@@ -235,7 +243,7 @@
     }
 
     // ---- render ----
-    const label=code=>({D:'Day',N:'Night',O:'OFF',X:'Other',M:'2×'}[code]||'');
+    const label=code=>({D:'Day',N:'Night',O:'OFF',A:'ABSENT',X:'Other',M:'2×'}[code]||'');
     const groups=[];let lastDept=null;
     scope.forEach(s=>{const d=profile?.role==='Admin'?(employeeDepartment(s)||'Other'):'';if(d!==lastDept){groups.push({dept:d,staff:[]});lastDept=d}groups[groups.length-1].staff.push(s)});
     const coverage=date=>{let D=0,N=0;scope.forEach(s=>{const c=cellInfo(s,date);if(c.onLeave)return;if(c.value==='D')D++;else if(c.value==='N')N++});return {D,N}};
@@ -243,7 +251,7 @@
     const move=dir=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(addDays(start,dir*days))};
     const setPeriod=n=>{if(n===days)return;if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setDays(n)};
 
-    return h(Section,{title:'Duty Roster',subtitle:nursingManager&&profile?.role!=='Admin'?'Nursing staff · tap a cell: Day → Night → Off → empty. Press Save roster when done.':'All staff · tap a cell: Day → Night → Off → empty. Press Save roster when done.'},
+    return h(Section,{title:'Duty Roster',subtitle:nursingManager&&profile?.role!=='Admin'?'Nursing staff · tap a cell: Day → Night → Off → Absent → empty. Press Save roster when done.':'All staff · tap a cell: Day → Night → Off → Absent → empty. Press Save roster when done.'},
       h('div',{className:'rg-bar'},
         h('div',{role:'group','aria-label':'Period length',style:{display:'flex',gap:'4px'}},
           [7,30].map(n=>h('button',{key:n,type:'button',className:`btn ${days===n?'btn-primary':'btn-secondary'}`,'aria-pressed':days===n,disabled:n===30&&narrow,title:n===30&&narrow?'30 days needs a wider screen (computer or tablet)':undefined,onClick:()=>setPeriod(n)},`${n} days`))),
@@ -260,13 +268,14 @@
         h('input',{value:search,onChange:e=>setSearch(e.target.value),placeholder:'Search staff…',style:{maxWidth:'180px'}}),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy||loading,title:`Fill empty cells from the previous ${days} days`,onClick:copyPrevious},'Copy previous period'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(dirtyCount&&!window.confirm('Reload and discard unsaved changes?'))return;setDraft({});load()}},'Reload')),
-      pastMode&&h('div',{className:'notice',style:{margin:'8px 0'}},'Filling missed past days: only EMPTY past cells can be tapped (Day / Night / Off). Saved past entries cannot be changed here. Use ‹ or the From date to go back to last month. You will be asked for the reason when you save.'),
+      pastMode&&h('div',{className:'notice',style:{margin:'8px 0'}},'Filling missed past days: EMPTY past cells can be tapped (Day / Night / Off / Absent). A saved past Day / Night can be changed to Absent (red) if the staff did not come — loss of pay in Payroll. Other saved past entries cannot be changed here. Use ‹ or the From date to go back to last month. You will be asked for the reason when you save.'),
       h('div',{className:'rg-legend'},
         h('span',null,h('b',{className:'rg-D',style:{padding:'2px 6px',borderRadius:'6px'}},'Day'),'7 AM–7 PM'),
         h('span',null,h('b',{className:'rg-N',style:{padding:'2px 6px',borderRadius:'6px'}},'Night'),'7 PM–7 AM'),
         h('span',null,h('b',{className:'rg-O',style:{padding:'2px 6px',borderRadius:'6px'}},'OFF'),'Weekly off (any day)'),
+        h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
-        h('span',null,'30 days / phone: D = Day · N = Night · O = Off · L = Leave'),
+        h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
         h('span',null,'⚠ Leave pending · P Permission · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day',
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
@@ -278,23 +287,23 @@
         h('thead',null,h('tr',null,
           h('th',{className:'rg-name'},`Staff (${scope.length})`),
           dates.map(date=>h('th',{key:date,className:date===today?'rg-today':'',title:formatDateIN(date)},h('span',{className:'rg-l'},DAY_NAMES[parse(date).getUTCDay()]),h('span',{className:'rg-s'},DAY_NAMES[parse(date).getUTCDay()].slice(0,2)),h('small',null,h('span',{className:'rg-l'},formatDateIN(date).slice(0,5)),h('span',{className:'rg-s'},formatDateIN(date).slice(0,2))))),
-          h('th',{title:'Days / Nights / Offs in this period'},'D/N/O'))),
+          h('th',{title:'Days / Nights / Offs / Absent in this period'},'D/N/O/A'))),
         h('tbody',null,
           groups.map(g=>[
             g.dept?h('tr',{key:`g-${g.dept}`,className:'rg-group'},h('td',{colSpan:dates.length+2},g.dept)):null,
             ...g.staff.map(s=>{
-              let D=0,N=0,O=0;
+              let D=0,N=0,O=0,A=0;
               const cells=dates.map(date=>{
                 const c=cellInfo(s,date);
-                if(c.value==='D')D++;else if(c.value==='N')N++;else if(c.value==='O')O++;
+                if(c.value==='D')D++;else if(c.value==='N')N++;else if(c.value==='O')O++;else if(c.value==='A')A++;
                 const ack=c.existing.length===1&&c.existing[0].status==='Acknowledged'&&!c.changed;
                 const code=c.onLeave?'L':c.saved==='MULTI'?'M':c.value;
-                const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':date<today?'Past date (view only)':c.lv?(c.lv.status==='approved'?'Approved permission':'Leave / permission pending approval'):'Tap: Day → Night → Off → empty';
+                const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':c.pastAbsent?'Past day: tap to change Day / Night / Absent (reason asked on save)':date<today?'Past date (view only)':c.lv?(c.lv.status==='approved'?'Approved permission':'Leave / permission pending approval'):'Tap: Day → Night → Off → Absent → empty';
                 return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
                   c.joinDay?h('span',{className:'rg-join',title:`Joined on ${formatDateIN(date)}`},'Joined'):null,
                   !c.onLeave&&c.lv?h('span',{className:'rg-flag'},c.lv.status==='approved'?'P':'⚠'):null,
                   ack?h('span',{className:'rg-ack'},'✓'):null,
-                  c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',X:'•'})[c.value]||'')),
+                  c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
                   c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null));
               });
               return h('tr',{key:s.id},
@@ -304,7 +313,7 @@
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Day',onClick:()=>fillRow(s,'D')},'All Day'),
                     h('button',{type:'button',className:'btn btn-secondary',style:{padding:'1px 6px',fontSize:'10px'},title:'Set every open day in this period to Night',onClick:()=>fillRow(s,'N')},'All Night'))),
                 cells,
-                h('td',{className:'rg-total'},`${D}/${N}/${O}`));
+                h('td',{className:'rg-total'},`${D}/${N}/${O}/${A}`));
             })
           ]),
           h('tr',{className:'rg-cov'},
@@ -315,7 +324,7 @@
         h('strong',{style:{color:dirtyCount?'#790c44':'#7b6871'}},dirtyCount?`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`:'No changes yet — tap cells to plan, then Save roster'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!dirtyCount,onClick:()=>setDraft({})},'Discard'),
         h('button',{type:'button',className:'btn btn-primary',disabled:busy||!dirtyCount,onClick:save},busy?'Saving…':'Save roster')),
-      h('p',{className:'small-note',style:{marginTop:'8px'}},'Past dates are view only. Staff on approved leave are locked (mark Back on Duty in Staff Leave Calendar to roster them). Changing a shift a staff member already acknowledged asks them to acknowledge again. Patient, ward and task details can still be added from the List tab.'),
+      h('p',{className:'small-note',style:{marginTop:'8px'}},'Past dates are view only (use ✎ Fill missed past days to add a missed day or mark Absent). Staff on approved leave are locked (mark Back on Duty in Staff Leave Calendar to roster them). Changing a shift a staff member already acknowledged asks them to acknowledge again. Patient, ward and task details can still be added from the List tab.'),
       h('div',{className:'rg-roster-end','aria-hidden':'true'}));
   }
 

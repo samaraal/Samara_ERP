@@ -25,7 +25,7 @@ function ShiftManagement({profile}){
     const canModify=fullDutyControl;
     const SHIFT_OPTIONS=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
     const DUTY_TYPE_OPTIONS=['Medication Rounds','Vitals Check','Wound Dressing','Mobility Assistance','Feeding Assistance','Bathing / Hygiene Care','Patient Escort','Documentation / Charting','Ward Round','General Duty','Other'];
-    const STATUS_ALL=['Assigned','Acknowledged','Cancelled','Leave granted'];
+    const STATUS_ALL=['Absent','Acknowledged','Assigned','Cancelled','Leave granted']; // 2.19.50: Absent = loss of pay in Payroll
     const STATUS_STAFF=['Assigned','Acknowledged'];
     const [assignments,setAssignments]=React.useState([]);
     const [staff,setStaff]=React.useState([]);
@@ -428,7 +428,7 @@ function ShiftManagement({profile}){
 
     function coveragePanel(rows,start,end){
       const active=rows.filter(row=>row.status!=='Cancelled'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(row.employee_id))));
-      const working=active.filter(row=>!row.is_weekly_off&&row.status!=='Weekly Off');
+      const working=active.filter(row=>!row.is_weekly_off&&row.status!=='Weekly Off'&&row.status!=='Absent'&&row.shift!=='Absent');
       const unique=items=>new Set(items.map(row=>staffFor(row.employee_id).id||row.employee_id)).size;
       const unassigned=staffScope.filter(p=>!active.some(row=>employeeIdentityIds(p.id).includes(String(row.employee_id))));
       const approved=absenceRows.filter(l=>l.status==='approved'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(l.employee_id)))&&(l.request_type==='Permission'?l.permission_date>=start&&l.permission_date<=end:l.from_date<=end&&l.to_date>=start));
@@ -459,7 +459,7 @@ function ShiftManagement({profile}){
         const end=addDaysISO(target,6);if(end<todayISOIndia())throw new Error('Select the current or a future week.');
         const sourceStart=addDaysISO(target,-7);
         const [source,existing,leave]=await Promise.all([readDutyRange(sourceStart,addDaysISO(sourceStart,6)),readDutyRange(target,end),allDutyPages(()=>client.from('absence_requests').select('*').eq('status','approved').order('id'))]);
-        const proposed=source.filter(r=>r.status!=='Cancelled'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(r.employee_id)))).map(row=>{
+        const proposed=source.filter(r=>r.status!=='Cancelled'&&r.status!=='Absent'&&r.shift!=='Absent'&&staffScope.some(p=>employeeIdentityIds(p.id).includes(String(r.employee_id)))).map(row=>{
           const date=addDaysISO(row.duty_date,7);const employee=staffFor(row.employee_id);const ids=employeeIdentityIds(employee.id);
           const reasons=[];
           if(date<todayISOIndia())reasons.push('Past date');
@@ -654,7 +654,7 @@ function ShiftManagement({profile}){
           row.review_remarks&&h('small',null,`Remarks: ${row.review_remarks}`)
         );
       const displayStatus=effectiveDutyStatus(row);
-      const statusStyle=displayStatus==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:isOff?{background:'#eee9ff',color:'#5940aa'}:displayStatus==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:displayStatus==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:displayStatus==='Cancelled'?{background:'#f2f2f2',color:'#6d6d6d'}:{};
+      const statusStyle=displayStatus==='Absent'?{background:'#d92d20',color:'#fff'}:displayStatus==='Leave granted'?{background:'#fde2e2',color:'#b42318'}:isOff?{background:'#eee9ff',color:'#5940aa'}:displayStatus==='Acknowledged'?{background:'#d9f5e4',color:'#11643a'}:displayStatus==='Assigned'?{background:'#fff1c9',color:'#8b5a00'}:displayStatus==='Cancelled'?{background:'#f2f2f2',color:'#6d6d6d'}:{};
       return [
         canManage?`${formalName(emp)||'Staff'}${emp.role?` · ${emp.role}`:''}`:formalName(emp)||'You',
         formatDateWithDayIN(row.duty_date),
@@ -701,7 +701,7 @@ function ShiftManagement({profile}){
       return h('div',{className:'duty-roster-cell-stack'},...dutyRows.map(row=>{
         const off=Boolean(row.is_weekly_off)||row.status==='Weekly Off';
         const displayStatus=effectiveDutyStatus(row);
-        const statusClass=displayStatus==='Leave granted'?'leave':off?'off':displayStatus==='Acknowledged'?'ack':displayStatus==='Assigned'?'assigned':'';
+        const statusClass=displayStatus==='Absent'?'absent':displayStatus==='Leave granted'?'leave':off?'off':displayStatus==='Acknowledged'?'ack':displayStatus==='Assigned'?'assigned':'';
         return h('button',{type:'button',className:`duty-roster-cell ${statusClass}`,key:row.id,onClick:()=>setSelectedDuty(row),title:'Open duty details'},h('strong',null,off?'Weekly Off':row.shift||'Duty'),h('small',null,off?'':displayStatus),leave?.status!=='approved'&&leave&&h('em',null,'Leave conflict'))
       }));
     };
@@ -726,7 +726,7 @@ function ShiftManagement({profile}){
       );
     });
     const dutyShiftOptions=['Day Shift (7 AM–7 PM)','Night Shift (7 PM–7 AM)','Morning Shift (7 AM–2 PM)','Evening Shift (1 PM–7 PM)','General Shift (9 AM–6 PM)'];
-    const dutyStatusOptions=['Assigned','Acknowledged','Cancelled','Leave granted'];
+    const dutyStatusOptions=['Absent','Acknowledged','Assigned','Cancelled','Leave granted'];
     const leaveCalendarRows=teamMode
       ?absenceRows.filter(item=>item.status==='approved'&&leaveRowMatchesDate(item,calendarDate)).map(item=>{
         const person=staffScope.find(person=>employeeIdentityIds(person.id).includes(String(item.employee_id)));

@@ -242,7 +242,7 @@
         if(!d.paid_on||d.paid_on<month)throw new Error(`Choose the paid-on date (on or after 01-${month.slice(5,7)}-${month.slice(0,4)}).`);
         // 2.19.37: empty number boxes are sent as 0 (blank text made the database refuse the save)
         const nums={};['monthly_salary','days_worked','weekly_offs','cl_used','other_leave','overtime','incentives','other_earnings','advance_deduction','other_deduction'].forEach(k=>{const v=String(d[k]??'').trim();nums[k]=v===''?'0':v});
-        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
+        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,absent:emp.roster_absent,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
         if(r.error)throw r.error;
         showSamaraActionToast('success','Salary saved',`${emp.name} · Net ${npMoney(r.data?.net_pay)} — counted in Net Profit.`);
         // 2.19.47: the payslip goes out on WhatsApp automatically as soon as the salary is saved (Admin, 01-11-2026).
@@ -278,7 +278,7 @@
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
           :end>=today?h('div',{className:'message error'},`⚠ ${npMonthLabel(month)} is not over yet. Days below include duties planned for the rest of the month, so they are not final. Salary can be saved from ${formatDateIN(npAddDay(end))}.`)
           :h('div',{className:'notice'},onRoster
-            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} · approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid) · every other day = loss of pay. Correct any number before saving.`
+            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid) · every other day = loss of pay. Correct any number before saving.`
             :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
         Number(emp.avail_days)<30&&h('div',{className:'notice',style:{marginTop:6}},`Joined on ${formatDateIN(emp.joined)}${emp.joining_known?'':' (date of joining not entered in HR — taken as the day added to the ERP)'} · salary only for ${emp.avail_days} of 30 days this month.`),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
@@ -328,7 +328,7 @@
         h('tbody',null,(rows||[]).length?(rows||[]).map((x,i)=>h('tr',{key:x.id,style:{cursor:'pointer'},onClick:()=>openEmp(x)},
           h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`)),
           h('td',null,x.salary!=null?npMoney(x.salary):h('span',{style:{color:'#b42318'}},'Not set')),
-          h('td',null,Number(x.roster_entries)>0?`${x.roster_days} duty · ${x.roster_offs} off`:h('span',{style:{color:'#9a6700'}},'Not on roster')),
+          h('td',null,Number(x.roster_entries)>0?`${x.roster_days} duty · ${x.roster_offs} off${Number(x.roster_absent)>0?` · ${x.roster_absent} absent`:''}`:h('span',{style:{color:'#9a6700'}},'Not on roster')),
           h('td',null,x.saved?h('span',{className:'badge success'},`Saved · ${npMoney(x.saved.net_pay)}${x.saved.payslip_sent_at?' · 📩':''}`):h('span',{className:'badge'},'Not saved')),
           h('td',{style:{color:'#b01867',fontWeight:700,whiteSpace:'nowrap'}},x.saved?'View →':'Open →'))):h('tr',null,h('td',{colSpan:6,className:'empty'},'No employees found.'))))));
   }

@@ -1,3 +1,9 @@
+## 2.19.50 — 02-11-2026 — Duty Roster: Absent (red) = loss of pay (SQL 335)
+- Duty Roster grid: new **Absent** choice in red — tap a cell Day → Night → Off → Absent → empty. Totals column now D/N/O/A.
+- Marking a missed day: today's cell can be set to Absent directly. For an earlier day, press "✎ Fill missed past days" — a saved past Day / Night can now be changed to Absent (reason asked on save, kept with the entry).
+- Payroll: Absent days are not counted as days worked, so they become loss of pay automatically; the Absent count is shown on the Payroll list and the employee's salary screen. Run supabase/sql/335_roster_absent_loss_of_pay.sql in Supabase → SQL Editor.
+- Duty list: status "Absent" (red) can also be chosen there; absences are not copied to the next week. On Duty Today lists absent staff separately (not counted as on duty).
+
 ## 2.19.49 — 02-11-2026 — No spoken voice alerts for Admin & Directors
 - Admin / Director logins: clinical alerts are no longer spoken aloud. The chime, pop-up box, browser / phone push notifications, WhatsApp escalations and withheld-dose phone alerts continue exactly as before.
 - Replaces 2.19.48, which had also stopped push / WhatsApp / withheld-dose alerts for Admin & Directors (now restored). SQL 334 is withdrawn — do not run it; no Edge Function redeploy needed.

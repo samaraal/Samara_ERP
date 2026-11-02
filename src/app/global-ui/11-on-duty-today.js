@@ -91,9 +91,11 @@
       data.leave.filter(l=>!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
       const todays=data.duty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);
       // Last night's Night Shift is still on duty until 7 AM today.
-      const carry=data.today?data.duty.filter(d=>String(d.duty_date).slice(0,10)!==data.date&&byId[d.employee_id]&&/^night/i.test(d.shift||'')&&!d.is_weekly_off&&d.status!=='Weekly Off'):[];
+      const carry=data.today?data.duty.filter(d=>String(d.duty_date).slice(0,10)!==data.date&&byId[d.employee_id]&&/^night/i.test(d.shift||'')&&!d.is_weekly_off&&d.status!=='Weekly Off'&&d.status!=='Absent'):[];
       const isOff=d=>d.is_weekly_off||d.status==='Weekly Off';
-      const working=todays.filter(d=>!isOff(d)&&!onLeave.has(d.employee_id));
+      const isAbsent=d=>d.status==='Absent'||d.shift==='Absent'; // 2.19.50
+      const working=todays.filter(d=>!isOff(d)&&!isAbsent(d)&&!onLeave.has(d.employee_id));
+      const absentToday=todays.filter(isAbsent);
       const weeklyOff=todays.filter(isOff);
       const leaveToday=[...onLeave.values()].filter(l=>byId[l.employee_id]);
       const nowOn=d=>{
@@ -130,6 +132,7 @@
         keys.length?keys.map(g=>h('section',{key:g,className:'odt-section'},h('h4',null,`${g} (${groups[g].length})`),groups[g].map(d=>person(d)))):(onNowUnique.length?null:h('p',{className:'small-note'},'No duty assigned for this day.')),
         data.today&&h(OdtPhysioToday,null),
         h(OdtPhysioDirectory,null),
+        absentToday.filter(d=>deptOk(d.employee_id)).length?h('section',{className:'odt-section odt-muted'},h('h4',{style:{color:'#b42318'}},`Absent (${absentToday.filter(d=>deptOk(d.employee_id)).length})`),absentToday.filter(d=>deptOk(d.employee_id)).map(d=>person(d))):null,
         offShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`Weekly off (${offShown.length})`),offShown.map(d=>person(d))):null,
         leaveShown.length?h('section',{className:'odt-section odt-muted'},h('h4',null,`On leave / permission (${leaveShown.length})`),leaveShown.map(l=>person(l.employee_id,`${l.request_type||'Leave'}${l.leave_type?` · ${l.leave_type}`:''} · ${formatDateIN(l.from_date)}${l.to_date&&l.to_date!==l.from_date?` – ${formatDateIN(l.to_date)}`:''}`))):null,
         h('small',{className:'small-note'},'From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.')
