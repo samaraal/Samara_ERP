@@ -15,7 +15,7 @@ const guestList=GUEST.map(c=>names[c]).join(', ');
 // Current Gemini models, same order as erp-help-ai (gemini-2.5-flash is retired for new users → 404). First one that answers is remembered.
 const GEMINI_MODELS=['gemini-3.8-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-2.5-flash'];
 let workingGemini='';
-const STAFF_ROLES=['Admin','Manager','Nurse','Caregiver','STD'];
+const STAFF_ROLES=['Admin','Manager','Nurse','Caregiver','STD','Housekeeping']; // 2.19.58: Housekeeping
 // Voice only picks the synthetic voice for this reply; it is never stored.
 const VOICE_FIELD=' Also report "voice": "male" or "female" for how the speaker\'s voice sounds (or "unknown") — used only to choose a matching synthetic voice.';
 const pickVoice=(...c)=>c.map(v=>String(v||'').toLowerCase()).find(v=>v==='male'||v==='female')||'female';
@@ -75,7 +75,7 @@ export function createHandler({env,fetch:send=fetch,authorize,verify,profile,con
       }else staff=await authorize(token);
     }catch(_){return out({error:'Staff access could not be checked. Please try again.'},503);}
     if(!staff?.id)return out({error:'Please sign in to the ERP again.'},401);
-    if(staff.is_active===false||staff.active===false||!STAFF_ROLES.includes(staff.role))return out({error:'This feature is available to nursing staff, STD and managers.'},403);
+    if(staff.is_active===false||staff.active===false||!STAFF_ROLES.includes(staff.role))return out({error:'This feature is available to nursing staff, STD, Housekeeping and managers.'},403);
     if(ping)return out({ok:true}); // warm-up when Start is tapped: wakes the function, no AI call, no budget used
     try{
       // Shared database budget, not per-isolate memory; avoids bypass across edge instances.

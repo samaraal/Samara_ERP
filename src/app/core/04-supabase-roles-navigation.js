@@ -22,13 +22,13 @@
     }catch(error){console.warn('Audit event could not be recorded:',error)}
   }
 
-  const ROLES = ['Admin','Manager','Nurse','Caregiver','Physiotherapist','Accounts','Kitchen','STD']; // 2.19.55: Physiotherapist (SQL 337)
+  const ROLES = ['Admin','Manager','Nurse','Caregiver','Physiotherapist','Housekeeping','Accounts','Kitchen','STD']; // 2.19.55: Physiotherapist (SQL 337) · 2.19.58: Housekeeping (SQL 339)
 
   const HR_DEPARTMENTS = ["Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
   const HR_DESIGNATIONS = {"Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
   const HR_APPLICATION_STATUSES=['New','Under Review','Returned for Rectification','Shortlisted','Interview Scheduled','Selected','Rejected','On Hold','Converted to Employee','Closed'];
   const employeeDepartment=row=>String(row?.department||'').trim()||(
-    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
+    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Housekeeping'?'Housekeeping':row?.role==='Physiotherapist'?'Physiotherapy & Rehabilitation':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
   );
   // Office and store are operational spaces recorded in room_beds for room-master
   // convenience. They must never enter patient bed capacity or availability figures.
@@ -165,6 +165,8 @@
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission'],
     // 2.19.55: Physiotherapist — physiotherapy sessions only (no medicines, billing, accounts, HR); salaried, no fee screens.
     Physiotherapist:['Physiotherapy','Duty Assignment','My Leave & Permission','My Profile'],
+    // 2.19.58: Housekeeping — Housekeeping & General supplies (request, receive, record use) and Talk to Guest only. No Guest records, clinical, billing or alerts.
+    Housekeeping:['Housekeeping & General','Talk to Guest','Duty Assignment','My Leave & Permission','My Profile'],
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(role!=='Kitchen'&&(ROLE_NAV[role].includes('Physiotherapy')||role==='Accounts')&&!ROLE_NAV[role].includes('Physiotherapy Dashboard'))ROLE_NAV[role].push('Physiotherapy Dashboard');
@@ -174,7 +176,7 @@
     if(!ROLE_NAV[role].includes('Additional Duty Assignment'))ROLE_NAV[role].push('Additional Duty Assignment');
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
   });
-  const ROLE_HOME={Physiotherapist:'Physiotherapy Dashboard',Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
+  const ROLE_HOME={Housekeeping:'Housekeeping & General',Physiotherapist:'Physiotherapy Dashboard',Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const isNursingManagerProfile=profile=>{
     const clean=value=>String(value||'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ');
     const designation=clean(profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position);
@@ -206,7 +208,7 @@
       'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
-    if(!pages.includes('Spot Assessment')&&profile?.role!=='Physiotherapist')pages.push('Spot Assessment'); // 2.19.57: Physiotherapist — physiotherapy work only
+    if(!pages.includes('Spot Assessment')&&!['Physiotherapist','Housekeeping'].includes(profile?.role))pages.push('Spot Assessment'); // 2.19.57: Physiotherapist — physiotherapy work only
     if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
@@ -249,7 +251,7 @@
     if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
-    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'||role==='Physiotherapist'))return 'My Duty';
+    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||['Manager','Physiotherapist','Housekeeping'].includes(role)))return 'My Duty';
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):(ACCOUNTS_NAV_LABELS[item]||item);
   };
   const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => {

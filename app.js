@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.57';
+  const APP_VERSION = '2.19.58';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -1614,13 +1614,13 @@ function initSamaraInaugurationInvitation(){
     }catch(error){console.warn('Audit event could not be recorded:',error)}
   }
 
-  const ROLES = ['Admin','Manager','Nurse','Caregiver','Physiotherapist','Accounts','Kitchen','STD']; // 2.19.55: Physiotherapist (SQL 337)
+  const ROLES = ['Admin','Manager','Nurse','Caregiver','Physiotherapist','Housekeeping','Accounts','Kitchen','STD']; // 2.19.55: Physiotherapist (SQL 337) · 2.19.58: Housekeeping (SQL 339)
 
   const HR_DEPARTMENTS = ["Nursing", "Caregiving", "Medical", "Physiotherapy & Rehabilitation", "Housekeeping", "Food & Kitchen", "Administration", "HR", "Operations", "Accounts & Finance", "Maintenance", "Security", "Transport", "Marketing & Outreach", "Other"];
   const HR_DESIGNATIONS = {"Nursing": ["Nurse Manager", "Nursing Supervisor", "Staff Nurse", "ANM"], "Caregiving": ["Senior Caregiver", "Caregiver", "Nursing Assistant"], "Medical": ["Duty Medical Officer – Part Time", "Visiting Doctor", "Medical Officer"], "Physiotherapy & Rehabilitation": ["Physiotherapist", "Rehabilitation Assistant"], "Housekeeping": ["Housekeeping Supervisor", "Housekeeping Staff", "Laundry Staff"], "Food & Kitchen": ["Dietician", "Cook", "Kitchen Assistant", "Food Service Assistant"], "Administration": ["Facility Administrator", "Manager", "Receptionist", "Administrative Assistant"], "HR": ["HR Manager", "HR Executive", "HR Assistant"], "Operations": ["Operations Manager", "Operations Executive", "Facility Coordinator"], "Accounts & Finance": ["Accountant", "Accounts Executive", "Accounts Assistant"], "Maintenance": ["Maintenance Supervisor", "Technician", "Electrician / Plumber"], "Security": ["Security Supervisor", "Security Guard"], "Transport": ["Driver", "Transport Coordinator"], "Marketing & Outreach": ["Marketing Executive", "Community Outreach Executive"], "Other": ["General Application", "Volunteer", "Other"]};
   const HR_APPLICATION_STATUSES=['New','Under Review','Returned for Rectification','Shortlisted','Interview Scheduled','Selected','Rejected','On Hold','Converted to Employee','Closed'];
   const employeeDepartment=row=>String(row?.department||'').trim()||(
-    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
+    row?.role==='Nurse'?'Nursing':row?.role==='Caregiver'?'Caregiving':row?.role==='Housekeeping'?'Housekeeping':row?.role==='Physiotherapist'?'Physiotherapy & Rehabilitation':row?.role==='Accounts'?'Accounts & Finance':row?.role==='Kitchen'?'Food & Kitchen':['Admin','Manager'].includes(row?.role)?'Administration':'Other'
   );
   // Office and store are operational spaces recorded in room_beds for room-master
   // convenience. They must never enter patient bed capacity or availability figures.
@@ -1757,6 +1757,8 @@ function initSamaraInaugurationInvitation(){
     STD:["Director's Office",'Enquiry Register','Enquiries & Feedback','Notifications','Food & Diet','Duty Assignment','Patient Consumables','Stores','Housekeeping & General','Kitchen / Food Stores','Talk to Guest','WhatsApp Inbox','Feedback','My Leave & Permission'],
     // 2.19.55: Physiotherapist — physiotherapy sessions only (no medicines, billing, accounts, HR); salaried, no fee screens.
     Physiotherapist:['Physiotherapy','Duty Assignment','My Leave & Permission','My Profile'],
+    // 2.19.58: Housekeeping — Housekeeping & General supplies (request, receive, record use) and Talk to Guest only. No Guest records, clinical, billing or alerts.
+    Housekeeping:['Housekeeping & General','Talk to Guest','Duty Assignment','My Leave & Permission','My Profile'],
   };
   Object.keys(ROLE_NAV).forEach(role=>{
     if(role!=='Kitchen'&&(ROLE_NAV[role].includes('Physiotherapy')||role==='Accounts')&&!ROLE_NAV[role].includes('Physiotherapy Dashboard'))ROLE_NAV[role].push('Physiotherapy Dashboard');
@@ -1766,7 +1768,7 @@ function initSamaraInaugurationInvitation(){
     if(!ROLE_NAV[role].includes('Additional Duty Assignment'))ROLE_NAV[role].push('Additional Duty Assignment');
     if(!ROLE_NAV[role].includes('My Profile'))ROLE_NAV[role].push('My Profile');
   });
-  const ROLE_HOME={Physiotherapist:'Physiotherapy Dashboard',Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
+  const ROLE_HOME={Housekeeping:'Housekeeping & General',Physiotherapist:'Physiotherapy Dashboard',Admin:'Dashboard',Manager:'Dashboard',Nurse:'Clinical Dashboard',Caregiver:'Clinical Dashboard',Accounts:'Accounts Dashboard',Kitchen:'Food & Diet',STD:"Director's Office"};
   const isNursingManagerProfile=profile=>{
     const clean=value=>String(value||'').trim().toLowerCase().replace(/[._-]+/g,' ').replace(/\s+/g,' ');
     const designation=clean(profile?.designation||profile?.employee_designation||profile?.job_title||profile?.position);
@@ -1798,7 +1800,7 @@ function initSamaraInaugurationInvitation(){
       'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
-    if(!pages.includes('Spot Assessment')&&profile?.role!=='Physiotherapist')pages.push('Spot Assessment'); // 2.19.57: Physiotherapist — physiotherapy work only
+    if(!pages.includes('Spot Assessment')&&!['Physiotherapist','Housekeeping'].includes(profile?.role))pages.push('Spot Assessment'); // 2.19.57: Physiotherapist — physiotherapy work only
     if(isAdmissionDelegateProfile(profile)&&!pages.includes('Admissions'))pages.push('Admissions');
     if(profile?.role==='Manager'&&employeeDepartment(profile)&&!pages.includes('Employees'))pages.push('Employees');
     if(isNursingManagerProfile(profile)){ if(!pages.includes('My To-Do List'))pages.push('My To-Do List'); if(!pages.includes('Patient Consumables'))pages.push('Patient Consumables'); if(!pages.includes('Stores'))pages.push('Stores'); if(!pages.includes('Consumables'))pages.push('Consumables'); if(!pages.includes('Pharmacy'))pages.push('Pharmacy'); STORE_SECTIONS.forEach(x=>{if(!pages.includes(x.page))pages.push(x.page)}); ['Biomedical Equipment','Oxygen Cylinders'].forEach(x=>{if(!pages.includes(x))pages.push(x)}); if(!pages.includes('Stores In-charge Assignment'))pages.push('Stores In-charge Assignment'); if(!pages.includes('Employees'))pages.push('Employees'); }
@@ -1841,7 +1843,7 @@ function initSamaraInaugurationInvitation(){
     if(String(item).startsWith(CM_PAGE_PREFIX))return String(item).slice(CM_PAGE_PREFIX.length);
     // v2.14.66: the Nursing Manager (store keeper) sees every patient indent here.
     if(item==='Patient Consumables'&&role==='Manager')return 'Indent Register';
-    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||role==='Manager'||role==='Physiotherapist'))return 'My Duty';
+    if(item==='Duty Assignment'&&(CLINICAL_ROLES.includes(role)||['Manager','Physiotherapist','Housekeeping'].includes(role)))return 'My Duty';
     return CLINICAL_ROLES.includes(role)?(ROLE_LABELS[item]||item):(ACCOUNTS_NAV_LABELS[item]||item);
   };
   const sectionsFor = (allowed,role,canManageDuties=role==='Admin') => {
@@ -15826,7 +15828,7 @@ https://samaraassistedliving.com/`;
             }},'Open to Resolve')
           )
         ),
-        profile&&profile.role!=='STD'&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
+        profile&&clinicalAlertsAllowedFor(profile)&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
         (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('div',{className:'samara-float-nav','aria-label':'Back and Home'},
           h('button',{type:'button',className:'samara-float-back',onClick:goBackPage,'aria-label':'Go back',title:'Back'},'‹ Back'),
           h('button',{type:'button',className:'samara-float-home',onClick:()=>{if(pageEditedRef.current&&!window.confirm('Go to Home? Any entries you have not saved on this page will be lost.'))return;pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},'aria-label':'Go to Home',title:'Home'},'⌂')),
@@ -19424,7 +19426,8 @@ Thank you.`;
              row.department==='Caregiving'?'Caregiver':
              row.department==='Accounts & Finance'?'Accounts':
              row.department==='Food & Kitchen'?'Kitchen':
-             row.department==='Physiotherapy & Rehabilitation'?'Physiotherapist':'Caregiver' // 2.19.55
+             row.department==='Physiotherapy & Rehabilitation'?'Physiotherapist':
+             row.department==='Housekeeping'?'Housekeeping':'Caregiver' // 2.19.55 · 2.19.58
       };
       localStorage.setItem('samara_hr_employee_seed',JSON.stringify(seed));
       onNavigate('Employees');
@@ -22458,7 +22461,7 @@ Thank you.`;
           h('label',null,'New Department',h('input',{value:employmentAction.new_department,onChange:e=>setEmploymentAction(v=>({...v,new_department:e.target.value}))})),
           h('label',null,'New Designation',h('input',{value:employmentAction.new_designation,onChange:e=>setEmploymentAction(v=>({...v,new_designation:e.target.value}))})),
           h('label',null,'Reporting Superior',h('input',{value:employmentAction.new_reporting_superior,onChange:e=>setEmploymentAction(v=>({...v,new_reporting_superior:e.target.value}))})),
-          h('label',null,'ERP Access Role',h('select',{value:employmentAction.new_erp_role,onChange:e=>setEmploymentAction(v=>({...v,new_erp_role:e.target.value}))},['','Admin','Manager','Nurse','Caregiver','Physiotherapist','Accounts','Kitchen','HR','STD'].map(v=>h('option',{key:v,value:v},v||'No change')))),
+          h('label',null,'ERP Access Role',h('select',{value:employmentAction.new_erp_role,onChange:e=>setEmploymentAction(v=>({...v,new_erp_role:e.target.value}))},['','Admin','Manager','Nurse','Caregiver','Physiotherapist','Housekeeping','Accounts','Kitchen','HR','STD'].map(v=>h('option',{key:v,value:v},v||'No change')))),
           h('label',null,'New Salary',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.new_salary,onChange:e=>setEmploymentAction(v=>({...v,new_salary:e.target.value}))})),
           h('label',null,'Salary Frequency',h('select',{value:employmentAction.salary_frequency,onChange:e=>setEmploymentAction(v=>({...v,salary_frequency:e.target.value}))},['Monthly','Daily','Hourly'].map(v=>h('option',{key:v},v)))),
           h('label',null,'Increment Amount',h('input',{type:'number',min:'0',step:'0.01',value:employmentAction.increment_amount,onChange:e=>setEmploymentAction(v=>({...v,increment_amount:e.target.value}))})),
@@ -50206,13 +50209,13 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     const actions=i=>h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},button('Full details',()=>setDetail(i)),rights.approve&&i.status==='Initiated'&&button('Approve',()=>begin('approve',i)),rights.approve&&i.status==='Initiated'&&button('Reject',()=>begin('reject',i)),rights.handover&&i.status==='Approved'&&button('Hand Over',()=>begin('handover',i)),rights.receive&&i.status==='Handed Over'&&button('Confirm Receipt',()=>begin('receive',i)),rights.use&&i.status==='Received'&&housekeepingBalance(i,usage).remaining>0&&button('Record Use',()=>begin('use',i)));
     const canManage=rights.handover||['Admin','Manager'].includes(profile?.role);
     if(tab==='manage')return h('div',null,button('← Back to Housekeeping Indents',()=>setTab('workflow')),h(ConsumablesStores,{profile,categoryFilter:'Housekeeping & General'}));
-    return h('div',null,h(Section,{title:'Housekeeping & General',subtitle:'STD requests → Nursing Manager approves → assigned Stores In-charge hands over → STD receives and records use.'},
+    return h('div',null,h(Section,{title:'Housekeeping & General',subtitle:'STD / Housekeeping staff request → Nursing Manager approves → assigned Stores In-charge hands over → STD / Housekeeping staff receive and record use.'},
       h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},['workflow','balances','stock'].map(v=>h('button',{key:v,type:'button',className:'btn '+(tab===v?'btn-primary':'btn-secondary'),onClick:()=>setTab(v)},v==='workflow'?'Indent Requests':v==='balances'?'Received / Usage / Balance':'Current Housekeeping Stock')),button('Refresh',load)),
       canManage&&button('Manage Housekeeping Stock',()=>setTab('manage')),
       profile?.role==='Admin'&&button('Add / Edit Items in Stores Master',()=>window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Stores Master'}}))),
       loading&&h('p',{role:'status'},'Loading Housekeeping stock and history…'),error&&h('p',{role:'alert',className:'message error'},error),
       data&&!loading&&h(React.Fragment,null,
-        h('p',null,`${indents.filter(i=>i.status==='Initiated').length} awaiting Nursing Manager approval · ${indents.filter(i=>i.status==='Approved').length} awaiting Stores handover · ${indents.filter(i=>i.status==='Handed Over').length} awaiting STD receipt`),
+        h('p',null,`${indents.filter(i=>i.status==='Initiated').length} awaiting Nursing Manager approval · ${indents.filter(i=>i.status==='Approved').length} awaiting Stores handover · ${indents.filter(i=>i.status==='Handed Over').length} awaiting STD / Housekeeping receipt`),
         !items.some(i=>i.active)&&h('p',{role:'status',className:'message'},'No active Housekeeping items are configured yet. Admin can add names and units under Housekeeping & General in Stores Master. The assigned Stores In-charge can enter actual stock receipts through Manage Housekeeping Stock, including new items received. STD can then request those items here.'),
         tab==='workflow'&&rights.request&&h('form',{onSubmit:submitRequest,className:'card',style:{padding:'14px',marginTop:'12px'}},h('h4',null,'New Housekeeping Indent'),h('div',{className:'grid two'},select('Request Housekeeping item',request.item_id,v=>setRequest({...request,item_id:v}),[['','Select item'],...items.filter(i=>i.active).map(i=>[i.id,`${i.item_code} · ${i.item_name} · Store ${i.balance_qty} ${i.unit}`])]),field('Requested quantity',h('input',{'aria-label':'Housekeeping requested quantity',type:'number',required:true,min:'1',step:'1',value:request.quantity,onChange:e=>setRequest({...request,quantity:e.target.value})})),field('Purpose / area',h('textarea',{'aria-label':'Housekeeping purpose',required:true,value:request.remarks,maxLength:2000,onChange:e=>setRequest({...request,remarks:e.target.value})}))),h('button',{className:'btn btn-primary',disabled:busy||!request.item_id},busy?'Saving…':'Send to Nursing Manager')),
         h('div',{className:'payment-filter-grid'},field('Search item / code',h('input',{'aria-label':'Housekeeping item search',placeholder:'At least 3 characters',value:query,onChange:e=>{setQuery(e.target.value);setItem('');}})),select('Housekeeping item',item,setItem,[['','All matching items'],...options.map(i=>[i.id,`${i.item_code} · ${i.item_name}`])]),tab==='workflow'&&select('Indent status',status,setStatus,[['all','All stages'],...['Initiated','Approved','Rejected','Handed Over','Received'].map(x=>[x,x])]),tab!=='stock'&&select('Housekeeping period',period,setPeriod,[['today','Today'],['week','This Week'],['month','Month'],['custom','Period (From–To)']]),tab!=='stock'&&period==='month'&&field('Month',h('input',{type:'month','aria-label':'Housekeeping month',value:month,onChange:e=>setMonth(e.target.value)})),tab!=='stock'&&period==='custom'&&field('From',h(StrictDateInput,{'aria-label':'Housekeeping From',value:from,onChange:e=>setFrom(e.target.value)})),tab!=='stock'&&period==='custom'&&field('To',h(StrictDateInput,{'aria-label':'Housekeeping To',value:to,onChange:e=>setTo(e.target.value)}))),

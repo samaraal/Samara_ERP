@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.57';
-const CACHE = 'samara-erp-2.19.57-clinical-alerts-staff';
+const APP_VERSION = '2.19.58';
+const CACHE = 'samara-erp-2.19.58-clinical-alerts-staff';
 const SHELL = [
   './',
   './index.html',

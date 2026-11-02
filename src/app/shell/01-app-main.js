@@ -949,7 +949,7 @@
             }},'Open to Resolve')
           )
         ),
-        profile&&profile.role!=='STD'&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
+        profile&&clinicalAlertsAllowedFor(profile)&&page!=='HR Dashboard'&&!alertEngine.soundUnlocked&&h('button',{type:'button',className:'sound-unlock-button',onClick:alertEngine.unlockSound},'🔊 Enable Alert Sound'),
         (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('div',{className:'samara-float-nav','aria-label':'Back and Home'},
           h('button',{type:'button',className:'samara-float-back',onClick:goBackPage,'aria-label':'Go back',title:'Back'},'‹ Back'),
           h('button',{type:'button',className:'samara-float-home',onClick:()=>{if(pageEditedRef.current&&!window.confirm('Go to Home? Any entries you have not saved on this page will be lost.'))return;pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},'aria-label':'Go to Home',title:'Home'},'⌂')),

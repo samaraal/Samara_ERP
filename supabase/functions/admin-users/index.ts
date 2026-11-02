@@ -10,7 +10,7 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 }
 
-const allowedRoles = ['Admin', 'Manager', 'Nurse', 'Caregiver', 'Physiotherapist', 'Accounts', 'Kitchen'] as const // ERP 2.19.55: Physiotherapist role (NOTE: rest of this tracked copy is older than the live function — download live code before other edits)
+const allowedRoles = ['Admin', 'Manager', 'Nurse', 'Caregiver', 'Physiotherapist', 'Housekeeping', 'Accounts', 'Kitchen'] as const // ERP 2.19.55: Physiotherapist role (NOTE: rest of this tracked copy is older than the live function — download live code before other edits)
 function normalizeRole(value: unknown) {
   const raw = String(value || '').trim().toLowerCase()
   const role = allowedRoles.find((item) => item.toLowerCase() === raw)

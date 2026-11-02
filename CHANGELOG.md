@@ -1,3 +1,9 @@
+## 2.19.58 — 02-11-2026 — New ERP role: Housekeeping (SQL 339 + admin-users + talk-to-guest)
+- HR → ERP Access Role has a new choice **Housekeeping**. A Housekeeping candidate converted to an employee now gets this role.
+- A Housekeeping login sees only: **Housekeeping & General** (request supplies, confirm receipt, record use — like STD; Nursing Manager approval and Stores handover unchanged), **Talk to Guest**, My Duty, My Leave & Permission, My Profile, duty swap / leave cover. Opens on Housekeeping & General.
+- No Guest records, clinical, billing, other stores, physiotherapy, HR or kitchen data (database limit, Housekeeping role only). No clinical alerts, and no "Enable Alert Sound" button for logins that get no clinical alerts.
+- Run supabase/sql/339_housekeeping_role.sql in Supabase → SQL Editor, and redeploy Edge Functions admin-users ('Housekeeping' added to allowed roles) and talk-to-guest (handler.mjs: 'Housekeeping' added to staff roles).
+
 ## 2.19.57 — 02-11-2026 — Physiotherapist: physiotherapy only + Physio Notes with voice (SQL 338 + nursing-note-voice)
 - A Physiotherapist login is now limited to physiotherapy work. In the database (SQL 338) she can no longer read or change Guest records, medicines, vitals, nursing notes, I/O, billing, charges, accounts, stores, kitchen, HR or enquiries. Every other role is unchanged. Automatic steps (e.g. the Guest physio charge raised when a session is saved) still work.
 - Physiotherapy screens get the Guest's name, ID, room and bed only, through a new narrow list (physio_guest_list), for every role's use.
