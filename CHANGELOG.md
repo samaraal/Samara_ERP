@@ -1,3 +1,7 @@
+## 2.19.53 — 02-11-2026 — "On duty" follows the roster
+- On Duty Today: a Cancelled roster row is no longer counted as a duty. (Dharshini's Day shift had been changed to Night — the cancelled Day row showed her "On duty now" in the morning.)
+- Nurse-station screensaver: "On duty:" now lists the nursing staff rostered for the current shift (Day 7 AM–7 PM / Night 7 PM–7 AM), not just the signed-in login. Falls back to the signed-in name if the roster cannot be read.
+
 ## 2.19.52 — 02-11-2026 — "Guests ↔ Nurses" tab also for Admin
 - Admin / Director: the "Guests ↔ Nurses" tab now shows on HR → Duty Assignment (next to "Assign Duty (Roster grid)" and "Duty list"). Nursing Manager: Nursing Staff → Staff Duty Assignment, as before.
 

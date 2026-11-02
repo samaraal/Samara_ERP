@@ -89,9 +89,11 @@
       const byId={};data.staff.forEach(s=>{byId[s.id]=s});
       const onLeave=new Map();
       data.leave.filter(l=>!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
-      const todays=data.duty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);
+      // 2.19.53: a Cancelled / Rejected roster row is not a duty (e.g. Day changed to Night showed her 'On duty now').
+      const liveDuty=data.duty.filter(d=>!['Cancelled','Rejected'].includes(d.status));
+      const todays=liveDuty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);
       // Last night's Night Shift is still on duty until 7 AM today.
-      const carry=data.today?data.duty.filter(d=>String(d.duty_date).slice(0,10)!==data.date&&byId[d.employee_id]&&/^night/i.test(d.shift||'')&&!d.is_weekly_off&&d.status!=='Weekly Off'&&d.status!=='Absent'):[];
+      const carry=data.today?liveDuty.filter(d=>String(d.duty_date).slice(0,10)!==data.date&&byId[d.employee_id]&&/^night/i.test(d.shift||'')&&!d.is_weekly_off&&d.status!=='Weekly Off'&&d.status!=='Absent'):[];
       const isOff=d=>d.is_weekly_off||d.status==='Weekly Off';
       const isAbsent=d=>d.status==='Absent'||d.shift==='Absent'; // 2.19.50
       const working=todays.filter(d=>!isOff(d)&&!isAbsent(d)&&!onLeave.has(d.employee_id));

@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.52';
-const CACHE = 'samara-erp-2.19.52-guest-tab-admin';
+const APP_VERSION = '2.19.53';
+const CACHE = 'samara-erp-2.19.53-onduty-fix';
 const SHELL = [
   './',
   './index.html',

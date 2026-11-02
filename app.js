@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.52';
+  const APP_VERSION = '2.19.53';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13406,9 +13406,11 @@ https://samaraassistedliving.com/`;
       const byId={};data.staff.forEach(s=>{byId[s.id]=s});
       const onLeave=new Map();
       data.leave.filter(l=>!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
-      const todays=data.duty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);
+      // 2.19.53: a Cancelled / Rejected roster row is not a duty (e.g. Day changed to Night showed her 'On duty now').
+      const liveDuty=data.duty.filter(d=>!['Cancelled','Rejected'].includes(d.status));
+      const todays=liveDuty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);
       // Last night's Night Shift is still on duty until 7 AM today.
-      const carry=data.today?data.duty.filter(d=>String(d.duty_date).slice(0,10)!==data.date&&byId[d.employee_id]&&/^night/i.test(d.shift||'')&&!d.is_weekly_off&&d.status!=='Weekly Off'&&d.status!=='Absent'):[];
+      const carry=data.today?liveDuty.filter(d=>String(d.duty_date).slice(0,10)!==data.date&&byId[d.employee_id]&&/^night/i.test(d.shift||'')&&!d.is_weekly_off&&d.status!=='Weekly Off'&&d.status!=='Absent'):[];
       const isOff=d=>d.is_weekly_off||d.status==='Weekly Off';
       const isAbsent=d=>d.status==='Absent'||d.shift==='Absent'; // 2.19.50
       const working=todays.filter(d=>!isOff(d)&&!isAbsent(d)&&!onLeave.has(d.employee_id));
@@ -28625,6 +28627,26 @@ Please keep these login details confidential.`;
     // 2.18.12: Nurse and Nursing Manager logins.
     const isNurse=profile?.role==='Nurse'||(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(profile));
     const [visible,setVisible]=React.useState(false);
+    // 2.19.53: "On duty" = the nursing staff rostered for THIS shift (shared nurse-station desktop),
+    // not just whoever is signed in. Falls back to the signed-in name if the roster cannot be read.
+    const [onDutyNames,setOnDutyNames]=React.useState(null);
+    React.useEffect(()=>{
+      if(!visible)return;
+      let cancelled=false;
+      (async()=>{
+        try{
+          const {shift,dutyDate}=nursingShiftNow();
+          const {data:rows,error:e1}=await client.from('duty_assignments').select('employee_id,shift,status,is_weekly_off').eq('duty_date',dutyDate);
+          if(e1)throw e1;
+          const ids=[...new Set((rows||[]).filter(r=>rosterShiftKind(r)===shift).map(r=>String(r.employee_id)))];
+          if(!ids.length){if(!cancelled)setOnDutyNames([]);return}
+          const {data:people}=await client.from('profiles').select('id,auth_user_id,title,full_name,role,designation,department').or(`id.in.(${ids.join(',')}),auth_user_id.in.(${ids.join(',')})`);
+          const names=[...new Map((people||[]).filter(p=>['Nurse','Caregiver'].includes(String(p.role||''))||isNursingManagerProfile(p)||/nurs|care/i.test(String(p.department||''))).map(p=>[p.id,formalName(p)||p.full_name])).values()].filter(Boolean).sort();
+          if(!cancelled)setOnDutyNames(names);
+        }catch(err){console.warn('Screensaver on-duty roster:',err?.message||err);if(!cancelled)setOnDutyNames(null)}
+      })();
+      return()=>{cancelled=true};
+    },[visible]);
     const [data,setData]=React.useState(null);
     const [error,setError]=React.useState('');
     const [now,setNow]=React.useState(()=>new Date());
@@ -28735,7 +28757,7 @@ Please keep these login details confidential.`;
               h('div',{className:'nss-date'},`${now.toLocaleDateString('en-IN',{weekday:'long'})} · ${formatDateIN(nssLocalISO(now))}`))),
           h('div',{className:'nss-shift'},
             h('span',{className:'nss-chip'},win.name.replace(/\s*\(.*$/,''),h('span',{className:'nss-chip-hours'},` ${(win.name.match(/\((.*)\)/)||['',''])[1]}`)),
-            h('span',{className:'nss-onduty'},'On duty: ',h('strong',null,profile.full_name||profile.name||'Nurse')))),
+            h('span',{className:'nss-onduty'},'On duty: ',h('strong',null,onDutyNames?(onDutyNames.length?onDutyNames.join(', '):'No one rostered'):(profile.full_name||profile.name||'Nurse'))))),
         firstOver&&h('div',{className:'nss-overdue',role:'status'},
           h('span',{className:'nss-overdue-tag'},`OVERDUE ${fmtMins(overMins)}`),
           h('span',{className:'nss-overdue-text'},h('strong',null,NSS_KIND_LABEL[firstOver.kind]),` · ${firstOver.title} · `,h('strong',null,firstOver.who)),

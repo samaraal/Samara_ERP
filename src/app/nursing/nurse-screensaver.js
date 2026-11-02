@@ -624,6 +624,26 @@
     // 2.18.12: Nurse and Nursing Manager logins.
     const isNurse=profile?.role==='Nurse'||(typeof isNursingManagerProfile==='function'&&isNursingManagerProfile(profile));
     const [visible,setVisible]=React.useState(false);
+    // 2.19.53: "On duty" = the nursing staff rostered for THIS shift (shared nurse-station desktop),
+    // not just whoever is signed in. Falls back to the signed-in name if the roster cannot be read.
+    const [onDutyNames,setOnDutyNames]=React.useState(null);
+    React.useEffect(()=>{
+      if(!visible)return;
+      let cancelled=false;
+      (async()=>{
+        try{
+          const {shift,dutyDate}=nursingShiftNow();
+          const {data:rows,error:e1}=await client.from('duty_assignments').select('employee_id,shift,status,is_weekly_off').eq('duty_date',dutyDate);
+          if(e1)throw e1;
+          const ids=[...new Set((rows||[]).filter(r=>rosterShiftKind(r)===shift).map(r=>String(r.employee_id)))];
+          if(!ids.length){if(!cancelled)setOnDutyNames([]);return}
+          const {data:people}=await client.from('profiles').select('id,auth_user_id,title,full_name,role,designation,department').or(`id.in.(${ids.join(',')}),auth_user_id.in.(${ids.join(',')})`);
+          const names=[...new Map((people||[]).filter(p=>['Nurse','Caregiver'].includes(String(p.role||''))||isNursingManagerProfile(p)||/nurs|care/i.test(String(p.department||''))).map(p=>[p.id,formalName(p)||p.full_name])).values()].filter(Boolean).sort();
+          if(!cancelled)setOnDutyNames(names);
+        }catch(err){console.warn('Screensaver on-duty roster:',err?.message||err);if(!cancelled)setOnDutyNames(null)}
+      })();
+      return()=>{cancelled=true};
+    },[visible]);
     const [data,setData]=React.useState(null);
     const [error,setError]=React.useState('');
     const [now,setNow]=React.useState(()=>new Date());
@@ -734,7 +754,7 @@
               h('div',{className:'nss-date'},`${now.toLocaleDateString('en-IN',{weekday:'long'})} · ${formatDateIN(nssLocalISO(now))}`))),
           h('div',{className:'nss-shift'},
             h('span',{className:'nss-chip'},win.name.replace(/\s*\(.*$/,''),h('span',{className:'nss-chip-hours'},` ${(win.name.match(/\((.*)\)/)||['',''])[1]}`)),
-            h('span',{className:'nss-onduty'},'On duty: ',h('strong',null,profile.full_name||profile.name||'Nurse')))),
+            h('span',{className:'nss-onduty'},'On duty: ',h('strong',null,onDutyNames?(onDutyNames.length?onDutyNames.join(', '):'No one rostered'):(profile.full_name||profile.name||'Nurse'))))),
         firstOver&&h('div',{className:'nss-overdue',role:'status'},
           h('span',{className:'nss-overdue-tag'},`OVERDUE ${fmtMins(overMins)}`),
           h('span',{className:'nss-overdue-text'},h('strong',null,NSS_KIND_LABEL[firstOver.kind]),` · ${firstOver.title} · `,h('strong',null,firstOver.who)),
