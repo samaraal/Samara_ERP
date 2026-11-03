@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.60';
-const CACHE = 'samara-erp-2.19.60-approve-details-fix';
+const APP_VERSION = '2.19.61';
+const CACHE = 'samara-erp-2.19.61-razorpay-statement';
 const SHELL = [
   './',
   './index.html',

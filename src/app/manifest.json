@@ -573,6 +573,10 @@
    "lines": 119
   },
   {
+   "file": "accounts/14-razorpay-statement.js",
+   "about": "ACCOUNTS / BILLING → Razorpay Statement (Admin only): live Razorpay received, fees + GST, paid to bank (UTR), still with Razorpay, checks; Print/PDF, Excel (2.19.61)"
+  },
+  {
    "file": "reports/whatsapp-delivery-logs.js",
    "about": "WhatsApp delivery logs",
    "lines": 51

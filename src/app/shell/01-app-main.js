@@ -863,6 +863,7 @@
           page==='Net Profit Statement'&&h(NetProfitStatement,{profile,onNavigate:setPage}),
           page==='Profit by Service'&&h(ServiceProfit,{profile}),
           page==='Monthly Expenses'&&h(MonthlyExpenses,{profile,onNavigate:setPage}),
+          page==='Razorpay Statement'&&h(RazorpayStatement,{profile}), // 2.19.61
           page==='Outside Bills Paid by Samara'&&['Accounts','Admin'].includes(profile?.role)&&h(OutsideBillsPage,{profile,onNavigate:setPage}),
           page==='Package Expiry Dashboard'&&h(PackageExpiryDashboard,{profile,onNavigate:setPage}),
           page==='Charge Approvals'&&h(ClinicalCharges,{profile,initialPatientId:chargeApprovalPatientId,key:chargeApprovalPatientId||'all'}),
