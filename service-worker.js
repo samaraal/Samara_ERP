@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.62';
-const CACHE = 'samara-erp-2.19.62-razorpay-colours';
+const APP_VERSION = '2.19.63';
+const CACHE = 'samara-erp-2.19.63-razorpay-single-pending';
 const SHELL = [
   './',
   './index.html',

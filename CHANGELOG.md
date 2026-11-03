@@ -1,3 +1,6 @@
+## 2.19.63 — 03-11-2026 — Razorpay Statement: one "still with Razorpay" figure
+- "How it adds up" no longer shows two different "still with Razorpay" numbers. Part C now shows today's single total (all payments not yet in the bank) with each payment listed underneath — payment date, mode · Guest, received, fee + GST, coming to bank. Tap a payment for full details. Frontend only.
+
 ## 2.19.62 — 03-11-2026 — Razorpay Statement: colourful amounts + clearer summary
 - Amounts now in colour like the other Accounts pages: received green, Razorpay fees red, paid to bank blue, still with Razorpay amber, Samara's money after charges magenta (boxes, lists, totals).
 - "How it adds up" re-worded: "Net due to Samara" is now **Samara's money after Razorpay charges**, split into *already paid to the bank* and *still with Razorpay*; bank credits show how much was for earlier payments. Negative amounts show as "− ₹". Frontend only.

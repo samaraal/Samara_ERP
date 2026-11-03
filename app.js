@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.62';
+  const APP_VERSION = '2.19.63';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Nov-2026 Razorpay Statement colours';
+  const APP_BUILD_DATE = '03-Nov-2026 Razorpay one pending figure';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -53946,25 +53946,25 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
             stat('pending','Still with Razorpay',rzsMoney(T.unsettled),`As on ${formatDateIN(today)} · ${T.unsettled_count} payment${T.unsettled_count===1?'':'s'} awaiting the bank`,RZS_C.held),
             stat('checks','Checks',T.checks_high?`⚠ ${T.checks_high}`:'✓ All clear',T.checks_high?'Need attention — tap to see':'Every payment is in the ERP',T.checks_high?RZS_C.fee:RZS_C.in)),
           h(Section,{title:`How it adds up · ${periodName}`},(()=>{
-            const mine=Math.round((T.received-T.fee_total-T.refunded)*100)/100;
+            // 2.19.63: one "still with Razorpay" figure only (today's total), with its payments listed underneath.
             const rows=data.received||[];
             const inBank=Math.round(rows.filter(r=>r.settled).reduce((t,r)=>t+r.net,0)*100)/100;
-            const waiting=Math.round(rows.filter(r=>!r.settled&&r.status==='captured').reduce((t,r)=>t+r.net,0)*100)/100;
             const earlier=Math.max(0,Math.round((T.settled-inBank)*100)/100);
-            const head=t=>h('tr',{style:{background:'#fdf0f5'}},h('td',{colSpan:2,style:{fontWeight:800,color:'#7d1748'}},t));
-            const line=(l,v,k,opt={})=>h('tr',{style:opt.bold?{fontWeight:800}:null},h('td',{style:{paddingLeft:opt.sub?'30px':undefined}},l,opt.note?h('small',{style:{display:'block',color:'#8a6a78',fontWeight:500}},opt.note):null),h('td',{style:{...cn(k),fontSize:opt.bold?'16px':undefined}},rzsSigned(v)));
+            const head=t=>h('tr',{style:{background:'#fdf0f5'}},h('td',{colSpan:5,style:{fontWeight:800,color:'#7d1748'}},t));
+            const line=(l,v,k,opt={})=>h('tr',{style:opt.bold?{fontWeight:800}:null},h('td',{colSpan:4},l,opt.note?h('small',{style:{display:'block',color:'#8a6a78',fontWeight:500}},opt.note):null),h('td',{style:{...cn(k),fontSize:opt.bold?'16px':undefined}},rzsSigned(v)));
+            const pend=data.unsettled||[];
+            const sub={color:'#8a6a78',fontSize:'12px',fontWeight:700};
             return h('div',{className:'table-wrap'},h('table',{className:'table'},h('tbody',null,
               head('A. Payments received in this period'),
-              line('Money received into Razorpay',T.received,'in'),
-              line('Less: Razorpay fees + GST (card payments)',-T.fee_total,'fee'),
-              T.refunded?line('Less: refunded to payers',-T.refunded,'fee'):null,
-              line('Samara’s money after Razorpay charges',mine,'net',{bold:true,note:'What Razorpay owes Samara for these payments — it reaches the bank in parts, usually 2 working days after each payment'}),
-              line('↳ already paid to the bank',inBank,'bank',{sub:true}),
-              line('↳ still with Razorpay (on its way to the bank)',waiting,'held',{sub:true}),
-              head('B. Bank credits from Razorpay in this period'),
-              line('Paid to bank in this period',T.settled,'bank',{note:earlier?`Includes ${rzsMoney(earlier)} for payments received before this period`:null}),
-              head(`C. Today (${formatDateIN(today)})`),
-              line('Still with Razorpay — all payments not yet in the bank',T.unsettled,'held',{note:'Includes any earlier payments still waiting, not only this period'}))));
+              line(`Money received into Razorpay (${T.received_count} payment${T.received_count===1?'':'s'})`,T.received,'in'),
+              line('Razorpay fees + GST deducted (card payments only)',-T.fee_total,'fee'),
+              T.refunded?line('Refunded to payers',-T.refunded,'fee'):null,
+              head('B. Paid by Razorpay to the bank in this period'),
+              line('Paid to bank',T.settled,'bank',{note:earlier?`${rzsMoney(earlier)} of this was for payments received before this period`:null}),
+              head(`C. Still with Razorpay today (${formatDateIN(today)}) — coming to the bank`),
+              pend.length?h('tr',null,h('td',{style:sub},'Payment date'),h('td',{style:sub},'Mode · Guest'),h('td',{style:{...sub,textAlign:'right'}},'Received'),h('td',{style:{...sub,textAlign:'right'}},'Fee + GST'),h('td',{style:{...sub,textAlign:'right'}},'Coming to bank')):null,
+              ...pend.map(r=>h('tr',{key:r.id,style:{cursor:'pointer'},onClick:()=>openPayment(r)},h('td',null,formatDateIN(r.date)),h('td',null,r.method,rzsWho(r)?h('small',{style:{display:'block',color:'#8a6a78'}},rzsWho(r)):null),h('td',{style:cn('in')},rzsMoney(r.amount)),h('td',{style:cn('fee')},r.fee_total?rzsMoney(r.fee_total):'—'),h('td',{style:cn('held')},rzsMoney(r.net)))),
+              line(pend.length?'Total still with Razorpay':'Nothing pending — everything received has reached the bank',T.unsettled,'held',{bold:true}))));
           })(),
             h('p',{className:'small-note',style:{marginTop:'8px'}},`Live from Razorpay, read ${formatDateIN(data.generated_at)} ${rzsTime(data.generated_at)}. UPI reaches the bank in full; cards are paid out less Razorpay's fee + 18% GST. Failed attempts are not counted (${T.failed_attempts} in this period). Tap a box to open its list.`))):list()):null,
       detail?h(RowDetailModal,{title:detail.title,subtitle:detail.subtitle,fields:detail.fields,onClose:()=>setDetail(null)},detail.children||null):null
