@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.61';
+  const APP_VERSION = '2.19.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '03-Nov-2026 Razorpay Statement';
+  const APP_BUILD_DATE = '03-Nov-2026 Razorpay Statement colours';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -53783,6 +53783,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   function rzsMonthOptions(){const out=[];let m=rzsMonthStart(todayISOIndia());while(m>=rzsMonthStart(RZS_FIRST)){out.push(m);m=rzsShiftMonth(m,-1)}return out}
   const rzsTime=iso=>{try{return new Date(iso).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true})}catch(_){return ''}};
   const rzsWho=r=>{const m=(r.erp||[])[0];return m?[m.name,m.code].filter(Boolean).join(' · '):''};
+  // 2.19.62: colourful amounts, same scheme as the other Accounts pages
+  const RZS_C={in:'#087f5b',fee:'#b42336',bank:'#1d4ed8',held:'#b54708',net:'#a80d4f'};
+  const rzsSigned=v=>Number(v)<0?`− ${rzsMoney(-Number(v))}`:rzsMoney(v);
   const rzsBank=r=>r.status==='refunded'?'Refunded':r.settled?`Paid to bank ${formatDateIN(r.settled_on)}`:'Awaiting bank payment';
 
   function RazorpayStatement({profile}){
@@ -53872,12 +53875,13 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
     }
 
     // ---------- views ----------
-    const stat=(key,label,value,sub,warn)=>h('button',{type:'button',key,className:`card stat samara-pink-stat${view===key?' is-active':''}`,onClick:()=>setView(key),style:{padding:'14px 16px',display:'grid',gap:'4px',textAlign:'left',cursor:'pointer',border:0,font:'inherit'}},
-      h('span',{style:{fontWeight:800,color:'#7d1748'}},label),h('strong',{style:{fontSize:'24px',color:warn?'#b42336':undefined}},value),sub?h('small',{style:{color:'#8a6a78',fontWeight:600}},sub):null);
+    const stat=(key,label,value,sub,colour)=>h('button',{type:'button',key,className:`card stat samara-pink-stat${view===key?' is-active':''}`,onClick:()=>setView(key),style:{padding:'14px 16px',display:'grid',gap:'4px',textAlign:'left',cursor:'pointer',border:0,font:'inherit'}},
+      h('span',{style:{fontWeight:800,color:'#7d1748'}},label),h('strong',{style:{fontSize:'24px',color:colour||undefined}},value),sub?h('small',{style:{color:'#8a6a78',fontWeight:600}},sub):null);
     const back=h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setView('')},'← Back');
     const rowStyle={cursor:'pointer'};
     const num={textAlign:'right',whiteSpace:'nowrap'};
-    const totalRow=cells=>h('tr',{style:{background:'#fdf0f5',fontWeight:800}},cells.map((c,i)=>h('td',{key:i,style:typeof c==='number'?num:null},typeof c==='number'?rzsMoney(c):c)));
+    const cn=k=>({...num,color:RZS_C[k],fontWeight:700});
+    const totalRow=cells=>h('tr',{style:{background:'#fdf0f5',fontWeight:800}},cells.map((c,i)=>{const [v,k]=Array.isArray(c)?c:[c,''];return h('td',{key:i,style:typeof v==='number'?(k?cn(k):num):null},typeof v==='number'?rzsMoney(v):v)}));
     const whoCell=r=>{const w=rzsWho(r);return w?h('span',null,w,h('small',{style:{display:'block',color:'#8a6a78'}},(r.erp[0]||{}).source)):h('strong',{style:{color:r.amount<=10?'#8a6a78':'#b42336'}},r.amount<=10?'Test payment':'⚠ Not in ERP')};
     function list(){
       if(view==='received'||view==='fees'){
@@ -53888,23 +53892,23 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
             h('tbody',null,rows.map(r=>h('tr',{key:r.id,style:rowStyle,onClick:()=>openPayment(r)},
               h('td',null,formatDateIN(r.date),h('small',{style:{display:'block',color:'#8a6a78'}},rzsTime(r.at))),h('td',null,r.method),
               view==='fees'?null:h('td',null,whoCell(r)),
-              h('td',{style:num},rzsMoney(r.amount)),h('td',{style:num},r[view==='fees'?'fee':'fee_total']?rzsMoney(r[view==='fees'?'fee':'fee_total']):'—'),
-              view==='fees'?h('td',{style:num},rzsMoney(r.gst)):null,h('td',{style:num},rzsMoney(r.net)),
-              view==='fees'?null:h('td',null,h('small',{style:{color:r.settled?'#087f5b':'#9a6b00',fontWeight:700}},rzsBank(r))))),
+              h('td',{style:cn('in')},rzsMoney(r.amount)),h('td',{style:cn('fee')},r[view==='fees'?'fee':'fee_total']?rzsMoney(r[view==='fees'?'fee':'fee_total']):'—'),
+              view==='fees'?h('td',{style:cn('fee')},rzsMoney(r.gst)):null,h('td',{style:cn('net')},rzsMoney(r.net)),
+              view==='fees'?null:h('td',null,h('small',{style:{color:r.settled?RZS_C.bank:RZS_C.held,fontWeight:700}},rzsBank(r))))),
               !rows.length?h('tr',null,h('td',{colSpan:7},view==='fees'?'No fees in this period — UPI payments have no fee.':'No payments in this period.')):
-              view==='fees'?totalRow(['Total','',rows.reduce((t,r)=>t+r.amount,0),T.fee,T.gst,rows.reduce((t,r)=>t+r.net,0)]):totalRow(['Total','','',T.received,T.fee_total,Math.round((T.received-T.fee_total-T.refunded)*100)/100,''])))),
+              view==='fees'?totalRow(['Total','',[rows.reduce((t,r)=>t+r.amount,0),'in'],[T.fee,'fee'],[T.gst,'fee'],[rows.reduce((t,r)=>t+r.net,0),'net']]):totalRow(['Total','','',[T.received,'in'],[T.fee_total,'fee'],[Math.round((T.received-T.fee_total-T.refunded)*100)/100,'net'],''])))),
           view==='fees'?h('p',{className:'small-note',style:{marginTop:'8px'}},'Razorpay deducts its fee and 18% GST on the fee before paying the bank. UPI payments have no fee; card payments do.'):null);
       }
       if(view==='settled')return h(Section,{title:'Paid by Razorpay to Samara’s bank',subtitle:`${periodName} · match each UTR with the bank statement · tap a row for the payments covered`,actions:back},
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,h('th',null,'Date'),h('th',null,'UTR'),h('th',null,'Payments covered'),h('th',{style:num},'Amount'))),
-          h('tbody',null,(data.settlements||[]).map(s=>h('tr',{key:s.id,style:rowStyle,onClick:()=>openSettlement(s)},h('td',null,formatDateIN(s.date)),h('td',null,s.utr||'—'),h('td',null,`${s.payments.length} payment${s.payments.length===1?'':'s'}`),h('td',{style:num},rzsMoney(s.amount)))),
-            !(data.settlements||[]).length?h('tr',null,h('td',{colSpan:4},'No bank payments in this period.')):totalRow(['Total','',`${T.settled_count} credits`,T.settled])))));
+          h('tbody',null,(data.settlements||[]).map(s=>h('tr',{key:s.id,style:rowStyle,onClick:()=>openSettlement(s)},h('td',null,formatDateIN(s.date)),h('td',null,s.utr||'—'),h('td',null,`${s.payments.length} payment${s.payments.length===1?'':'s'}`),h('td',{style:cn('bank')},rzsMoney(s.amount)))),
+            !(data.settlements||[]).length?h('tr',null,h('td',{colSpan:4},'No bank payments in this period.')):totalRow(['Total','',`${T.settled_count} credits`,[T.settled,'bank']])))));
       if(view==='pending')return h(Section,{title:'Still with Razorpay',subtitle:`As on ${formatDateIN(today)} · received but not yet paid to the bank (usually 2 working days)`,actions:back},
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,h('th',null,'Date'),h('th',null,'Mode'),h('th',null,'Guest / ERP record'),h('th',{style:num},'Amount'),h('th',{style:num},'Fee + GST'),h('th',{style:num},'Expected to bank'))),
-          h('tbody',null,(data.unsettled||[]).map(r=>h('tr',{key:r.id,style:rowStyle,onClick:()=>openPayment(r)},h('td',null,formatDateIN(r.date)),h('td',null,r.method),h('td',null,whoCell(r)),h('td',{style:num},rzsMoney(r.amount)),h('td',{style:num},r.fee_total?rzsMoney(r.fee_total):'—'),h('td',{style:num},rzsMoney(r.net)))),
-            !(data.unsettled||[]).length?h('tr',null,h('td',{colSpan:6},'Nothing pending — everything received has been paid to the bank.')):totalRow(['Total','','',T.unsettled_gross,Math.round((T.unsettled_gross-T.unsettled)*100)/100,T.unsettled])))));
+          h('tbody',null,(data.unsettled||[]).map(r=>h('tr',{key:r.id,style:rowStyle,onClick:()=>openPayment(r)},h('td',null,formatDateIN(r.date)),h('td',null,r.method),h('td',null,whoCell(r)),h('td',{style:cn('in')},rzsMoney(r.amount)),h('td',{style:cn('fee')},r.fee_total?rzsMoney(r.fee_total):'—'),h('td',{style:cn('held')},rzsMoney(r.net)))),
+            !(data.unsettled||[]).length?h('tr',null,h('td',{colSpan:6},'Nothing pending — everything received has been paid to the bank.')):totalRow(['Total','','',[T.unsettled_gross,'in'],[Math.round((T.unsettled_gross-T.unsettled)*100)/100,'fee'],[T.unsettled,'held']])))));
       if(view==='checks'){
         const byId=new Map([...(data.received||[]),...(data.unsettled||[])].map(r=>[r.id,r]));
         const checks=[...(data.checks||[])].sort((a,b)=>(a.severity==='high'?0:1)-(b.severity==='high'?0:1)||String(a.date).localeCompare(String(b.date)));
@@ -53936,14 +53940,32 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
       data&&T?h(React.Fragment,null,
         !view?h(React.Fragment,null,
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:'12px',margin:'0 0 14px'}},
-            stat('received','Received in Razorpay',rzsMoney(T.received),`${T.received_count} payments · UPI ${rzsMoney(T.upi)} · Cards ${rzsMoney(T.card)}`),
-            stat('fees','Razorpay fees + GST',rzsMoney(T.fee_total),`Fee ${rzsMoney(T.fee)} + GST ${rzsMoney(T.gst)}${T.refunded?` · refunded ${rzsMoney(T.refunded)}`:''}`),
-            stat('settled','Paid to bank',rzsMoney(T.settled),`${T.settled_count} bank credits (UTR) in this period`),
-            stat('pending','Still with Razorpay',rzsMoney(T.unsettled),`As on ${formatDateIN(today)} · ${T.unsettled_count} payment${T.unsettled_count===1?'':'s'} awaiting the bank`),
-            stat('checks','Checks',T.checks_high?`⚠ ${T.checks_high}`:'✓ All clear',T.checks_high?'Need attention — tap to see':'Every payment is in the ERP',T.checks_high>0)),
-          h(Section,{title:`How it adds up · ${periodName}`},
-            h('div',{className:'table-wrap'},h('table',{className:'table'},h('tbody',null,
-              [['Money received into Razorpay',T.received],['Less: Razorpay fees + GST',-T.fee_total],T.refunded?['Less: refunded to payers',-T.refunded]:null,['Net due to Samara for this period',Math.round((T.received-T.fee_total-T.refunded)*100)/100,'b'],['Paid to bank in this period (may include earlier payments)',T.settled],[`Still with Razorpay as on ${formatDateIN(today)}`,T.unsettled]].filter(Boolean).map(([l,v,b],i)=>h('tr',{key:i,style:b?{fontWeight:800,background:'#fdf0f5'}:null},h('td',null,l),h('td',{style:num},rzsMoney(v))))))),
+            stat('received','Received in Razorpay',rzsMoney(T.received),`${T.received_count} payments · UPI ${rzsMoney(T.upi)} · Cards ${rzsMoney(T.card)}`,RZS_C.in),
+            stat('fees','Razorpay fees + GST',rzsMoney(T.fee_total),`Fee ${rzsMoney(T.fee)} + GST ${rzsMoney(T.gst)}${T.refunded?` · refunded ${rzsMoney(T.refunded)}`:''}`,RZS_C.fee),
+            stat('settled','Paid to bank',rzsMoney(T.settled),`${T.settled_count} bank credits (UTR) in this period`,RZS_C.bank),
+            stat('pending','Still with Razorpay',rzsMoney(T.unsettled),`As on ${formatDateIN(today)} · ${T.unsettled_count} payment${T.unsettled_count===1?'':'s'} awaiting the bank`,RZS_C.held),
+            stat('checks','Checks',T.checks_high?`⚠ ${T.checks_high}`:'✓ All clear',T.checks_high?'Need attention — tap to see':'Every payment is in the ERP',T.checks_high?RZS_C.fee:RZS_C.in)),
+          h(Section,{title:`How it adds up · ${periodName}`},(()=>{
+            const mine=Math.round((T.received-T.fee_total-T.refunded)*100)/100;
+            const rows=data.received||[];
+            const inBank=Math.round(rows.filter(r=>r.settled).reduce((t,r)=>t+r.net,0)*100)/100;
+            const waiting=Math.round(rows.filter(r=>!r.settled&&r.status==='captured').reduce((t,r)=>t+r.net,0)*100)/100;
+            const earlier=Math.max(0,Math.round((T.settled-inBank)*100)/100);
+            const head=t=>h('tr',{style:{background:'#fdf0f5'}},h('td',{colSpan:2,style:{fontWeight:800,color:'#7d1748'}},t));
+            const line=(l,v,k,opt={})=>h('tr',{style:opt.bold?{fontWeight:800}:null},h('td',{style:{paddingLeft:opt.sub?'30px':undefined}},l,opt.note?h('small',{style:{display:'block',color:'#8a6a78',fontWeight:500}},opt.note):null),h('td',{style:{...cn(k),fontSize:opt.bold?'16px':undefined}},rzsSigned(v)));
+            return h('div',{className:'table-wrap'},h('table',{className:'table'},h('tbody',null,
+              head('A. Payments received in this period'),
+              line('Money received into Razorpay',T.received,'in'),
+              line('Less: Razorpay fees + GST (card payments)',-T.fee_total,'fee'),
+              T.refunded?line('Less: refunded to payers',-T.refunded,'fee'):null,
+              line('Samara’s money after Razorpay charges',mine,'net',{bold:true,note:'What Razorpay owes Samara for these payments — it reaches the bank in parts, usually 2 working days after each payment'}),
+              line('↳ already paid to the bank',inBank,'bank',{sub:true}),
+              line('↳ still with Razorpay (on its way to the bank)',waiting,'held',{sub:true}),
+              head('B. Bank credits from Razorpay in this period'),
+              line('Paid to bank in this period',T.settled,'bank',{note:earlier?`Includes ${rzsMoney(earlier)} for payments received before this period`:null}),
+              head(`C. Today (${formatDateIN(today)})`),
+              line('Still with Razorpay — all payments not yet in the bank',T.unsettled,'held',{note:'Includes any earlier payments still waiting, not only this period'}))));
+          })(),
             h('p',{className:'small-note',style:{marginTop:'8px'}},`Live from Razorpay, read ${formatDateIN(data.generated_at)} ${rzsTime(data.generated_at)}. UPI reaches the bank in full; cards are paid out less Razorpay's fee + 18% GST. Failed attempts are not counted (${T.failed_attempts} in this period). Tap a box to open its list.`))):list()):null,
       detail?h(RowDetailModal,{title:detail.title,subtitle:detail.subtitle,fields:detail.fields,onClose:()=>setDetail(null)},detail.children||null):null
     );

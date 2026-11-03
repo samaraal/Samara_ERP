@@ -1,3 +1,7 @@
+## 2.19.62 — 03-11-2026 — Razorpay Statement: colourful amounts + clearer summary
+- Amounts now in colour like the other Accounts pages: received green, Razorpay fees red, paid to bank blue, still with Razorpay amber, Samara's money after charges magenta (boxes, lists, totals).
+- "How it adds up" re-worded: "Net due to Samara" is now **Samara's money after Razorpay charges**, split into *already paid to the bank* and *still with Razorpay*; bank credits show how much was for earlier payments. Negative amounts show as "− ₹". Frontend only.
+
 ## 2.19.61 — 03-11-2026 — New: Razorpay Statement (Admin / Directors only) · Edge Function razorpay-statement
 - ACCOUNTS / BILLING → Profit · Admin only → **Razorpay Statement**, read live from Razorpay: money received (with Guest / ERP record), Razorpay fees + GST, money paid to the bank (settlements with UTR and the payments each covered), and what is still with Razorpay today.
 - Opens on boxes (Received · Fees · Paid to bank · Still with Razorpay · Checks); each box opens its list with ← Back; every row opens full details. Today / This Week / Month / Period (Apply) filters. Print / PDF and Excel.
