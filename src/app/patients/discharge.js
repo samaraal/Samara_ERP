@@ -605,6 +605,7 @@
       }
 
       setBusy(true);
+      let approvedOk=false;
       try{
         const result=await client.rpc('review_patient_discharge',{
           p_discharge_id:row.id,p_decision:decision,p_remarks:effectiveManagementRemarks||decision,
@@ -612,6 +613,7 @@
           p_review_token:managementSnapshot?.token||null
         });
         if(result.error)throw result.error;
+        approvedOk=true;
 
         setManagementReviewRow(null);
         notify(
@@ -645,6 +647,30 @@
       }finally{
         setBusy(false);
       }
+      return approvedOk;
+    }
+
+    // 2.19.68: one step for Admin / Director — approve the discharge AND allow departure with dues pending (pay later).
+    async function approveAndAllowDues(){
+      const row=managementReviewRow;
+      if(!row||!canAllowDues||busy)return;
+      if(Number(managementDiscount)>0){notify('error','Not saved','Pay later keeps the full dues. Remove the discount amount first.');return}
+      const patient=patientFor(row.patient_id);
+      const name=formalName(patient)||patient.full_name||'Guest';
+      const reason=prompt(`Approve the discharge of ${name} and allow departure with dues pending (pay later)?\n\nThe outstanding amount is NOT discounted. It stays in the Patient Ledger and Family Portal as due, the family gets the Final Bill and a WhatsApp reminder every 3 days until it is paid.\n\nReason / payment promise (mandatory):`,'');
+      if(reason===null)return;
+      if(reason.trim().length<5){notify('error','Not saved','Enter a clear reason (at least 5 letters).');return}
+      const ok=await approveReviewed('Approved',String(managementRemarks||'').trim()||`Approved — pay later: ${reason.trim()}`);
+      if(!ok)return;
+      setBusy(true);
+      try{
+        const {data,error}=await client.rpc('allow_discharge_with_dues',{p_discharge_id:row.id,p_reason:reason.trim()});
+        if(error)throw error;
+        const billNote=await saveFinalBillSnapshot(row.id,patient,profile);
+        notify(billNote?'warning':'success','Approved — departure allowed with dues pending',`Dues of ₹${Number(data?.dues_amount||0).toLocaleString('en-IN')} stay on ${name}'s account. The nurse can now complete Final Discharge.`+(billNote?` (Final Bill copy not saved: ${billNote})`:''));
+      }catch(e){
+        notify('warning','Approved, but pay later not set',`The discharge was approved and sent to Accounts. Allowing departure with dues failed: ${e?.message||e}. Use "🚨 Allow Departure – Dues Pending" in the register.`);
+      }finally{setBusy(false);await load();}
     }
 
     function rejectAndReturnToNursing(){
@@ -1911,7 +1937,8 @@ Doctor / Hospital: ${doctorHospital}`;
                 disabled:busy,
                 onClick:rejectAndReturnToNursing
               },busy?'Saving…':'Reject & Return to Nursing'),
-              h('button',{type:'button',className:'btn btn-primary',disabled:busy||managementReviewLoading||!!managementReviewError||!managementSnapshot||(Number(managementDiscount)>0&&Number(managementSnapshot?.pending_count)>0),onClick:()=>approveReviewed('Approved')},busy?'Saving…':'Approve & Forward to Accounts')
+              h('button',{type:'button',className:'btn btn-primary',disabled:busy||managementReviewLoading||!!managementReviewError||!managementSnapshot||(Number(managementDiscount)>0&&Number(managementSnapshot?.pending_count)>0),onClick:()=>approveReviewed('Approved')},busy?'Saving…':'Approve & Forward to Accounts'),
+              canAllowDues&&h('button',{type:'button',className:'btn btn-secondary',style:{borderColor:'#b42336',color:'#b42336',fontWeight:800},disabled:busy||managementReviewLoading||!!managementReviewError||!managementSnapshot||Number(managementSnapshot?.pending_count)>0,title:Number(managementSnapshot?.pending_count)>0?'Accounts must resolve the pending charge requests first':'Approve and let the Guest leave with dues pending (pay later)',onClick:approveAndAllowDues},'🚨 Approve – Allow Departure (Dues Pending)')
             )
           )
         )
