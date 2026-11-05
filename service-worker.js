@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.64';
-const CACHE = 'samara-erp-2.19.64-physio-return-correction';
+const APP_VERSION = '2.19.65';
+const CACHE = 'samara-erp-2.19.65-admin-no-raise-charge';
 const SHELL = [
   './',
   './index.html',

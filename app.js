@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.64';
+  const APP_VERSION = '2.19.65';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -51366,7 +51366,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     };
     const stockDefaults=(category,name)=>{const stockItem=storeCategories.includes(category)?matchingStock(name):null;const masterItem=matchingStoreMaster(category,name,stockItem?.item_id);const rate=Number(masterItem?.charge_rate||0);return {store_item_id:stockItem?.item_id||masterItem?.id||'',charge_item_code:masterItem?.item_code||'',unit:stockItem?.unit||masterItem?.unit||'Service',unit_cost:rate||'',requested_amount:rate||''}};
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
-    const canRaise=['Admin','Manager','Nurse','Accounts'].includes(profile?.role);
+    const canRaise=['Manager','Nurse','Accounts'].includes(profile?.role); // 2.19.65: Admin / Directors do not raise charges (SQL 341)
     const canApprove=profile?.role==='Accounts';
     const canManageTariffs=profile?.role==='Admin';
     const {view,openView,backToDashboard}=useDashboardView();
@@ -52525,7 +52525,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     return h(React.Fragment,null,
       h('div',{className:'clinical-charges-hero'},
         h('div',null,h('small',null,'DOCUMENT ONCE · BILL ACCURATELY'),h('h3',null,'Bills & Charges'),h('p',null,'Nurses and Accounts raise charges from the Admin-controlled Charge Master. Nursing never sees amounts; Accounts verifies fixed tariffs or actual bills and posts approved charges to the patient ledger.')),
-        canRaise&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Raise Bill / Charge')
+        canRaise&&h('button',{className:'btn btn-primary',onClick:openNew},'+ Raise Bill / Charge'),
+        profile?.role==='Admin'&&h('small',{className:'small-note',style:{alignSelf:'center'}},'Admin / Directors do not raise charges. Nurses / Nursing Manager raise them; Accounts approve.')
       ),
       summary,
       h('p',{className:'small-note'},'Top boxes show all patients. The totals below follow the applied filters.'),

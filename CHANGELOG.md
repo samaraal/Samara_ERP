@@ -1,3 +1,9 @@
+## 2.19.65 — 05-11-2026 — Admin / Directors cannot raise charges (SQL 341)
+- Bills & Charges: the "+ Raise Bill / Charge" button (and Correct & Resubmit) is no longer shown to Admin / Director logins; a note says nurses / Nursing Manager raise charges and Accounts approve.
+- The database also refuses a charge typed in directly by an Admin login. Automatic charges (room rent, equipment rental, physiotherapy sessions, nursing procedures, outside bills) still work as before, even when an Admin's action sets them off.
+- Nurses, Nursing Manager and Accounts are unchanged.
+- Run supabase/sql/341_admin_cannot_raise_charges.sql in Supabase → SQL Editor.
+
 ## 2.19.64 — 05-11-2026 — Physiotherapy: a session charge returned by Accounts goes back to Nursing to check, correct and return (SQL 340)
 - Before, a physiotherapy **session** charge that Accounts returned was stuck: no alert to the nurse, "Correct & Resubmit" blocked, and Session options blocked ("Accounts must review the charge first").
 - Now a return frees the session. The nurse who recorded it gets the usual Return alert (pop-up, bell, phone); tapping it opens **Physiotherapy → Returned by Accounts** showing only that session. Nursing Manager and Admin see the list too. The session is not re-billed by itself while it is returned.
