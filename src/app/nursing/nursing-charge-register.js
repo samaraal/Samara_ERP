@@ -24,7 +24,7 @@
 
     const load=React.useCallback(async()=>{
       const r=await client.from('bill_charge_requests').select('*').order('charge_date',{ascending:false}).order('created_at',{ascending:false}).limit(2000);
-      if(!r.error)setRows(r.data||[]);else console.warn(r.error);
+      if(!r.error)setRows((r.data||[]).filter(x=>x.status!=='Removed'));else console.warn(r.error);
       // 2.18.164: Admin only — purchase cost per store item = weighted average of stock receipts with a unit cost.
       if(profile?.role==='Admin'){
         const [rc,it]=await Promise.all([client.from('consumable_store_receipts').select('item_id,unit_cost,quantity,voided_at').limit(10000),

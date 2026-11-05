@@ -1,3 +1,8 @@
+## 2.19.66 — 05-11-2026 — Unauthorised physiotherapy charge removed (onetime 342)
+- Removed (on Admin's instruction) the "Regular Physiotherapy Session" for JOSEPH A A E FERNANDO on 05-11-2026 that an Admin login raised by hand and Accounts returned. It was never billed; full details kept in the audit trail. The real 7:00 AM session charge (₹800, approved) is unchanged.
+- Bills & Charges and Charge Register no longer list a request marked Removed.
+- Run supabase/sql/onetime_342_remove_unauthorised_admin_physio_charge.sql in Supabase → SQL Editor.
+
 ## 2.19.65 — 05-11-2026 — Admin / Directors cannot raise charges (SQL 341)
 - Bills & Charges: the "+ Raise Bill / Charge" button (and Correct & Resubmit) is no longer shown to Admin / Director logins; a note says nurses / Nursing Manager raise charges and Accounts approve.
 - The database also refuses a charge typed in directly by an Admin login. Automatic charges (room rent, equipment rental, physiotherapy sessions, nursing procedures, outside bills) still work as before, even when an Admin's action sets them off.

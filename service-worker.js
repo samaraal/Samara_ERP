@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.65';
-const CACHE = 'samara-erp-2.19.65-admin-no-raise-charge';
+const APP_VERSION = '2.19.66';
+const CACHE = 'samara-erp-2.19.66-removed-charges-hidden';
 const SHELL = [
   './',
   './index.html',

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.65';
+  const APP_VERSION = '2.19.66';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -41247,7 +41247,7 @@ function RoomsBeds({profile,onNavigate}){
 
     const load=React.useCallback(async()=>{
       const r=await client.from('bill_charge_requests').select('*').order('charge_date',{ascending:false}).order('created_at',{ascending:false}).limit(2000);
-      if(!r.error)setRows(r.data||[]);else console.warn(r.error);
+      if(!r.error)setRows((r.data||[]).filter(x=>x.status!=='Removed'));else console.warn(r.error);
       // 2.18.164: Admin only — purchase cost per store item = weighted average of stock receipts with a unit cost.
       if(profile?.role==='Admin'){
         const [rc,it]=await Promise.all([client.from('consumable_store_receipts').select('item_id,unit_cost,quantity,voided_at').limit(10000),
@@ -51578,14 +51578,14 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         ?client.from('charge_tariff_master').select('*').order('category').order('display_order').order('service_name')
         :client.rpc('get_charge_service_catalog')); // 2.19.8: one fetch, shared by both stages
       const storeMasterRequest=(async()=>{const q=c=>client.from('consumable_store_items').select(c).eq('active',true).order('item_name');const r=await q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate,used_for_charge_code');return r.error&&/used_for/.test(r.error.message||'')?q('id,item_code,item_name,unit,active,item_category,strength,dosage_form,charge_rate'):r})(); // 2.18.149 "Used for" (SQL 302)
-      const ownRequests=list=>profile?.role==='Nurse'
+      const ownRequests=all=>{const list=(all||[]).filter(row=>row.status!=='Removed'); /* 2.19.66 */ return profile?.role==='Nurse'
         ?list.filter(row=>
             row.raised_by===authUserId||
             row.raised_by===profile.id||
             String(row.raised_by_name||'').trim().toLowerCase()===
               String(formalName(profile)||profile?.full_name||profile?.username||'').trim().toLowerCase()
           )
-        :list;
+        :list;};
       const applyMaster=c=>{
         if(c?.error)return;
         const masterRows=(c.data||[]).map(row=>({...row,is_active:row.is_active!==false}));
@@ -52146,6 +52146,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       .sort((a,b)=>samaraAlpha(a.service_name||a.description,b.service_name||b.description)||samaraAlpha(a.category,b.category));
     const filtered=rows.filter(r=>
       !registerLoading&&!registerError&&
+      r.status!=='Removed'&&/* 2.19.66: unauthorised entries removed by Admin (kept in audit) */
       !periodInvalid&&(!approvalDateView||!!approvalDay(r))&&
       (!periodFrom||registerDay(r)>=periodFrom)&&
       (!periodTo||registerDay(r)<=periodTo)&&
@@ -52200,7 +52201,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
 
     const summaryValue=value=>registerLoading?'…':registerError?'—':value;
     const historyValue=value=>historyLoading&&!registerError?'…':summaryValue(value); // 2.19.8: counts that need the full history
-    const returnedCount=rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&(canResubmit(r)||(isPhysioReturn(r)&&['Nurse','Manager','Admin'].includes(profile?.role)))).length;
+    const returnedCount=rows.filter(r=>r.status!=='Removed'&&r.approval_status==='Rejected'&&!r.resubmitted_as&&(canResubmit(r)||(isPhysioReturn(r)&&['Nurse','Manager','Admin'].includes(profile?.role)))).length;
     const summary=h('div',{className:'grid stats',style:{gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))'}},
       navCard('Charges Raised',historyValue(rows.length),'All','View all charges · filter by patient, date, category and item'),
       navCard('Today’s Entries',historyValue(rows.filter(r=>r.charge_date===todayISOIndia()).length),'Today','Click to show today’s charges'),
