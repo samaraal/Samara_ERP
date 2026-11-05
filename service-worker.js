@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.66';
-const CACHE = 'samara-erp-2.19.66-removed-charges-hidden';
+const APP_VERSION = '2.19.67';
+const CACHE = 'samara-erp-2.19.67-final-bill-google-rating';
 const SHELL = [
   './',
   './index.html',

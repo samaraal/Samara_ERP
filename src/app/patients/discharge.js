@@ -864,7 +864,9 @@
       const {error}=await client.rpc('close_patient_discharge_accounts_v2',{p_discharge_id:row.id,p_remarks:remarks});
       setBusy(false);
       if(error){notify('error','Discharge not closed',error.message);return}
-      notify('success','Accounts clearance completed','All payments are cleared. The case has returned to Nursing; room and bed will be released only after final patient departure is confirmed.');
+      // 2.19.67: keep the Final Bill exactly as cleared — it goes to the family on WhatsApp at final discharge.
+      const billNote=await saveFinalBillSnapshot(row.id,patientFor(row.patient_id),profile);
+      notify(billNote?'warning':'success','Accounts clearance completed','All payments are cleared. The case has returned to Nursing; room and bed will be released only after final patient departure is confirmed.'+(billNote?` The Final Bill copy for WhatsApp was not saved (${billNote}); send it from Final Billing after discharge.`:' The Final Bill will be sent to the family on WhatsApp at final discharge.'));
       await load();
     }
 
@@ -884,6 +886,7 @@
         const missing=/allow_discharge_with_dues|schema cache|does not exist/i.test(error.message||'');
         notify('error','Not allowed',missing?'Run supabase/sql/248_discharge_with_dues_pending.sql in Supabase first.':error.message);return;
       }
+      {const billNote=await saveFinalBillSnapshot(row.id,patient,profile);if(billNote)notify('warning','Final Bill copy not saved',`The Final Bill for WhatsApp was not saved (${billNote}). Send it from Final Billing after discharge.`);}
       notify('success','Departure allowed — dues pending',`Dues of ₹${Number(data?.dues_amount||0).toLocaleString('en-IN')} stay on the Guest's account. The nurse can now complete Final Discharge; the room will be released then.`);
       await load();
     }
@@ -1082,6 +1085,17 @@
         setRows(current=>current.map(item=>item.id===completedRow.id?{...item,discharge_summary_whatsapp_status:'Accepted'}:item));
       }catch(summaryError){
         summaryNote=` Discharge Summary PDF was not sent (${summaryError?.message||summaryError}). Send it from Discharge Summary in the register or the Patient card.`;
+      }
+      // 2.19.67: Final Bill PDF (saved at Accounts clearance) to the same family number, right after the summary.
+      try{
+        const billPatient=patients.find(p=>p.id===completedRow.patient_id)||{};
+        const to=normalizeWhatsAppRecipient(billPatient.attendant_phone||completedRow.relative_contact||billPatient.mobile||'');
+        if(to){
+          await callFinalBill({discharge_id:completedRow.id,recipient_mobile:to,recipient_name:billPatient.attendant_name||completedRow.relative_name||'Family Member',automatic:true});
+          summaryNote+=' The Final Bill PDF was also sent on WhatsApp.';
+        }
+      }catch(billError){
+        summaryNote+=` Final Bill PDF was not sent (${billError?.message||billError}). Accounts can send it from Final Billing.`;
       }
       notify(
         whatsappAccepted?'success':'warning',
@@ -1539,6 +1553,8 @@ Doctor / Hospital: ${doctorHospital}`;
       hiddenTrialOpen.length>0&&!recordFocus&&h('div',{className:'dr-trial-hidden-note',role:'status'},
         h('span',null,`🧪 ${hiddenTrialOpen.length} Trial Guest discharge${hiddenTrialOpen.length>1?'s':''} open (${hiddenTrialStages.join(', ')}) — hidden because Guest record is "Real only".`),
         h('button',{type:'button',className:'btn btn-secondary',onClick:showTrialCases},'Show Trial cases')),
+      // 2.19.67 Google rating request after discharge (Admin / Director)
+      canAllowDues&&!recordFocus&&h(GoogleRatingPanel,{patients}),
       // 2b. 2.17.9 Discharged Guests with dues pending (Admin / Director / Accounts)
       canViewDues&&(duesError||duesRows.length>0)&&h('div',{className:'card panel',style:{border:'2px solid #f3b4bf',background:'#fff7f8'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},
@@ -1927,7 +1943,7 @@ Doctor / Hospital: ${doctorHospital}`;
           h('fieldset',{disabled:busy||finalDischargeCompleted,style:{border:0,padding:0,margin:0,minWidth:0}},
           h('div',{className:'final-discharge-checklist'},
             h('div',{className:'handover-summary-auto'},
-              h('span',null,'✓ Discharge Summary is sent to the family automatically on WhatsApp after this step.'),
+              h('span',null,'✓ Discharge Summary and Final Bill are sent to the family automatically on WhatsApp after this step.'),
               h('label',null,h('input',{type:'checkbox',checked:!!finalForm.summary_printed_copy,onChange:e=>setFinalForm({...finalForm,summary_printed_copy:e.target.checked})}),'Printed copy also handed over')),
             HANDOVER_CHOICES.map(([key,label,options])=>h('div',{className:`handover-choice-card${finalForm[key]?'':' missing'}`,key},
               h('strong',null,label),

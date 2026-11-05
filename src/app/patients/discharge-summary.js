@@ -143,3 +143,44 @@
       h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
     ));
   }
+
+  // 2.19.67: Google rating request after discharge — Admin / Director settings + recent requests (SQL 343).
+  function GoogleRatingPanel({patients=[]}){
+    const [open,setOpen]=React.useState(false);
+    const [cfgRow,setCfgRow]=React.useState(null);
+    const [rows,setRows]=React.useState([]);
+    const [err,setErr]=React.useState('');
+    const [busy,setBusy]=React.useState(false);
+    async function load(){
+      const a=await client.from('google_review_settings').select('*').eq('id',1).maybeSingle();
+      if(a.error){setErr(/google_review_settings|does not exist|schema cache/i.test(a.error.message||'')?'Run supabase/sql/343_final_bill_whatsapp_google_rating.sql in Supabase first.':a.error.message);return}
+      setErr('');setCfgRow(a.data||null);
+      const b=await client.from('google_review_requests').select('*').order('updated_at',{ascending:false}).limit(30);
+      if(!b.error)setRows(b.data||[]);
+    }
+    React.useEffect(()=>{if(open)load()},[open]);
+    async function save(patch){
+      if(busy)return;setBusy(true);
+      try{
+        const {data,error}=await client.rpc('set_google_review_settings',{p_enabled:patch.enabled??null,p_template_approved:patch.template_approved??null,p_delay_days:patch.delay_days??null,p_review_link:patch.review_link??null});
+        if(error)throw error;setCfgRow(data);showSamaraActionToast('success','Saved','Google rating request settings updated.');
+      }catch(e){showSamaraActionToast('error','Not saved',e?.message||String(e))}finally{setBusy(false)}
+    }
+    const guest=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name):'Guest'};
+    const sentCount=rows.filter(r=>r.status==='Sent').length;
+    return h('details',{className:'card panel',open,onToggle:e=>setOpen(e.currentTarget.open),style:{background:'linear-gradient(135deg,#fff7fb,#fde7f0)',border:'1px solid #f2c1d6'}},
+      h('summary',{style:{cursor:'pointer',fontWeight:800,color:'#7a1247'}},'⭐ Google rating request after discharge'+(cfgRow?` — ${cfgRow.enabled&&cfgRow.template_approved?`ON · ${cfgRow.delay_days} day${cfgRow.delay_days===1?'':'s'} after departure`:!cfgRow.template_approved?'waiting for Meta template approval':'OFF'}`:'')),
+      err?h('div',{className:'message error'},err):!cfgRow?h('p',{className:'small-note'},'Loading…'):h('div',{style:{marginTop:'10px'}},
+        h('p',{className:'small-note'},'One WhatsApp to the family, between 10 AM and 7 PM, with a "Rate us on Google" button. Not sent for Trial Guests, "Death / Expiry" or "Transfer to Hospital". Every other family gets the same request (Google does not allow asking only happy families). Started from '+formatDateIN(cfgRow.start_from)+'.'),
+        h('div',{style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'center'}},
+          h('label',{style:{display:'flex',gap:'6px',alignItems:'center'}},h('input',{type:'checkbox',checked:!!cfgRow.enabled,disabled:busy,onChange:e=>save({enabled:e.target.checked})}),'Send rating requests'),
+          h('label',{style:{display:'flex',gap:'6px',alignItems:'center'}},h('input',{type:'checkbox',checked:!!cfgRow.template_approved,disabled:busy,onChange:e=>save({template_approved:e.target.checked})}),`Meta has approved template "${cfgRow.template_name}"`),
+          h('label',{style:{display:'flex',gap:'6px',alignItems:'center'}},'Days after departure',h('select',{value:cfgRow.delay_days,disabled:busy,onChange:e=>save({delay_days:Number(e.target.value)})},[1,2,3,4,5,7].map(n=>h('option',{key:n,value:n},n))))),
+        h('p',{className:'small-note',style:{marginTop:'6px'}},'Review link: ',h('a',{href:cfgRow.review_link,target:'_blank',rel:'noopener'},cfgRow.review_link)),
+        h('h4',{style:{margin:'12px 0 6px'}},`Recent requests (${sentCount} sent)`),
+        rows.length?h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Guest','Family','Number','Status','Sent'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,rows.map(r=>h('tr',{key:r.discharge_id},h('td',null,guest(r.patient_id)),h('td',null,r.recipient_name||'—'),h('td',null,r.recipient_number||'—'),
+            h('td',{title:r.error||undefined,style:{color:r.status==='Sent'?'#0a7d43':r.status==='Failed'?'#b42336':'#8a5300',fontWeight:700}},r.status+(r.error?' · '+String(r.error).slice(0,80):'')),
+            h('td',null,r.sent_at?formatDateTimeIN(r.sent_at):'—')))))):h('p',{className:'small-note'},'No rating requests yet.')));
+  }

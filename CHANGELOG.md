@@ -1,3 +1,10 @@
+## 2.19.67 — 05-11-2026 — Final Bill PDF on WhatsApp at discharge + Google rating request (SQL 343, onetime 344, Edge Functions final-bill + google-review-dispatch)
+- **Final Bill on WhatsApp:** when Accounts complete the discharge clearance (or Admin / Director allow departure with dues), the ERP keeps a copy of the Final Bill exactly as the ERP shows it. At final discharge, right after the Discharge Summary, the family gets the Final Bill as a PDF (template `samara_final_bill`). Nurses never see the amounts. Final Billing has a new **📲 Send Final Bill on WhatsApp** button for Accounts / Admin.
+- **Google rating:** 2 days after departure (10 AM–7 PM) the family gets one WhatsApp with a **Rate us on Google** button (template `samara_google_review`, Marketing). Not for Trial Guests, "Death / Expiry" or "Transfer to Hospital". Admin / Director control it in **Discharge → ⭐ Google rating request after discharge** (on/off, days, "template approved" tick, list of requests). Nothing is sent until the tick.
+- Charge Register: **Returned At** now shows the time Accounts returned the request.
+- Removed the second unauthorised Admin-raised "Additional Physiotherapy Session" (JOSEPH A A E FERNANDO, 31-10-2026); kept in the audit trail.
+- Run supabase/sql/343_final_bill_whatsapp_google_rating.sql and onetime_344_remove_unauthorised_admin_physio_charge_31oct.sql; deploy Edge Functions final-bill and google-review-dispatch; submit both Meta templates (docs/META_TEMPLATE_samara_final_bill.md, docs/META_TEMPLATE_samara_google_review.md).
+
 ## 2.19.66 — 05-11-2026 — Unauthorised physiotherapy charge removed (onetime 342)
 - Removed (on Admin's instruction) the "Regular Physiotherapy Session" for JOSEPH A A E FERNANDO on 05-11-2026 that an Admin login raised by hand and Accounts returned. It was never billed; full details kept in the audit trail. The real 7:00 AM session charge (₹800, approved) is unchanged.
 - Bills & Charges and Charge Register no longer list a request marked Removed.

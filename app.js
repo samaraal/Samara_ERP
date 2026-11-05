@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.66';
+  const APP_VERSION = '2.19.67';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -29020,6 +29020,47 @@ Please keep these login details confidential.`;
       h('div',{className:'modal-bottom-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))
     ));
   }
+
+  // 2.19.67: Google rating request after discharge — Admin / Director settings + recent requests (SQL 343).
+  function GoogleRatingPanel({patients=[]}){
+    const [open,setOpen]=React.useState(false);
+    const [cfgRow,setCfgRow]=React.useState(null);
+    const [rows,setRows]=React.useState([]);
+    const [err,setErr]=React.useState('');
+    const [busy,setBusy]=React.useState(false);
+    async function load(){
+      const a=await client.from('google_review_settings').select('*').eq('id',1).maybeSingle();
+      if(a.error){setErr(/google_review_settings|does not exist|schema cache/i.test(a.error.message||'')?'Run supabase/sql/343_final_bill_whatsapp_google_rating.sql in Supabase first.':a.error.message);return}
+      setErr('');setCfgRow(a.data||null);
+      const b=await client.from('google_review_requests').select('*').order('updated_at',{ascending:false}).limit(30);
+      if(!b.error)setRows(b.data||[]);
+    }
+    React.useEffect(()=>{if(open)load()},[open]);
+    async function save(patch){
+      if(busy)return;setBusy(true);
+      try{
+        const {data,error}=await client.rpc('set_google_review_settings',{p_enabled:patch.enabled??null,p_template_approved:patch.template_approved??null,p_delay_days:patch.delay_days??null,p_review_link:patch.review_link??null});
+        if(error)throw error;setCfgRow(data);showSamaraActionToast('success','Saved','Google rating request settings updated.');
+      }catch(e){showSamaraActionToast('error','Not saved',e?.message||String(e))}finally{setBusy(false)}
+    }
+    const guest=id=>{const p=patients.find(x=>x.id===id);return p?(formalName(p)||p.full_name):'Guest'};
+    const sentCount=rows.filter(r=>r.status==='Sent').length;
+    return h('details',{className:'card panel',open,onToggle:e=>setOpen(e.currentTarget.open),style:{background:'linear-gradient(135deg,#fff7fb,#fde7f0)',border:'1px solid #f2c1d6'}},
+      h('summary',{style:{cursor:'pointer',fontWeight:800,color:'#7a1247'}},'⭐ Google rating request after discharge'+(cfgRow?` — ${cfgRow.enabled&&cfgRow.template_approved?`ON · ${cfgRow.delay_days} day${cfgRow.delay_days===1?'':'s'} after departure`:!cfgRow.template_approved?'waiting for Meta template approval':'OFF'}`:'')),
+      err?h('div',{className:'message error'},err):!cfgRow?h('p',{className:'small-note'},'Loading…'):h('div',{style:{marginTop:'10px'}},
+        h('p',{className:'small-note'},'One WhatsApp to the family, between 10 AM and 7 PM, with a "Rate us on Google" button. Not sent for Trial Guests, "Death / Expiry" or "Transfer to Hospital". Every other family gets the same request (Google does not allow asking only happy families). Started from '+formatDateIN(cfgRow.start_from)+'.'),
+        h('div',{style:{display:'flex',gap:'14px',flexWrap:'wrap',alignItems:'center'}},
+          h('label',{style:{display:'flex',gap:'6px',alignItems:'center'}},h('input',{type:'checkbox',checked:!!cfgRow.enabled,disabled:busy,onChange:e=>save({enabled:e.target.checked})}),'Send rating requests'),
+          h('label',{style:{display:'flex',gap:'6px',alignItems:'center'}},h('input',{type:'checkbox',checked:!!cfgRow.template_approved,disabled:busy,onChange:e=>save({template_approved:e.target.checked})}),`Meta has approved template "${cfgRow.template_name}"`),
+          h('label',{style:{display:'flex',gap:'6px',alignItems:'center'}},'Days after departure',h('select',{value:cfgRow.delay_days,disabled:busy,onChange:e=>save({delay_days:Number(e.target.value)})},[1,2,3,4,5,7].map(n=>h('option',{key:n,value:n},n))))),
+        h('p',{className:'small-note',style:{marginTop:'6px'}},'Review link: ',h('a',{href:cfgRow.review_link,target:'_blank',rel:'noopener'},cfgRow.review_link)),
+        h('h4',{style:{margin:'12px 0 6px'}},`Recent requests (${sentCount} sent)`),
+        rows.length?h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Guest','Family','Number','Status','Sent'].map(x=>h('th',{key:x},x)))),
+          h('tbody',null,rows.map(r=>h('tr',{key:r.discharge_id},h('td',null,guest(r.patient_id)),h('td',null,r.recipient_name||'—'),h('td',null,r.recipient_number||'—'),
+            h('td',{title:r.error||undefined,style:{color:r.status==='Sent'?'#0a7d43':r.status==='Failed'?'#b42336':'#8a5300',fontWeight:700}},r.status+(r.error?' · '+String(r.error).slice(0,80):'')),
+            h('td',null,r.sent_at?formatDateTimeIN(r.sent_at):'—')))))):h('p',{className:'small-note'},'No rating requests yet.')));
+  }
   // ---------------------------------------------------------------------------------------------
   // 2.18.129 Patient card → "Reports": one button opening
   //   1. Daily Report (for family)  — the existing Daily Intelligent Patient Report, unchanged
@@ -33856,7 +33897,9 @@ Samara Assisted Living`;
       const {error}=await client.rpc('close_patient_discharge_accounts_v2',{p_discharge_id:row.id,p_remarks:remarks});
       setBusy(false);
       if(error){notify('error','Discharge not closed',error.message);return}
-      notify('success','Accounts clearance completed','All payments are cleared. The case has returned to Nursing; room and bed will be released only after final patient departure is confirmed.');
+      // 2.19.67: keep the Final Bill exactly as cleared — it goes to the family on WhatsApp at final discharge.
+      const billNote=await saveFinalBillSnapshot(row.id,patientFor(row.patient_id),profile);
+      notify(billNote?'warning':'success','Accounts clearance completed','All payments are cleared. The case has returned to Nursing; room and bed will be released only after final patient departure is confirmed.'+(billNote?` The Final Bill copy for WhatsApp was not saved (${billNote}); send it from Final Billing after discharge.`:' The Final Bill will be sent to the family on WhatsApp at final discharge.'));
       await load();
     }
 
@@ -33876,6 +33919,7 @@ Samara Assisted Living`;
         const missing=/allow_discharge_with_dues|schema cache|does not exist/i.test(error.message||'');
         notify('error','Not allowed',missing?'Run supabase/sql/248_discharge_with_dues_pending.sql in Supabase first.':error.message);return;
       }
+      {const billNote=await saveFinalBillSnapshot(row.id,patient,profile);if(billNote)notify('warning','Final Bill copy not saved',`The Final Bill for WhatsApp was not saved (${billNote}). Send it from Final Billing after discharge.`);}
       notify('success','Departure allowed — dues pending',`Dues of ₹${Number(data?.dues_amount||0).toLocaleString('en-IN')} stay on the Guest's account. The nurse can now complete Final Discharge; the room will be released then.`);
       await load();
     }
@@ -34074,6 +34118,17 @@ Samara Assisted Living`;
         setRows(current=>current.map(item=>item.id===completedRow.id?{...item,discharge_summary_whatsapp_status:'Accepted'}:item));
       }catch(summaryError){
         summaryNote=` Discharge Summary PDF was not sent (${summaryError?.message||summaryError}). Send it from Discharge Summary in the register or the Patient card.`;
+      }
+      // 2.19.67: Final Bill PDF (saved at Accounts clearance) to the same family number, right after the summary.
+      try{
+        const billPatient=patients.find(p=>p.id===completedRow.patient_id)||{};
+        const to=normalizeWhatsAppRecipient(billPatient.attendant_phone||completedRow.relative_contact||billPatient.mobile||'');
+        if(to){
+          await callFinalBill({discharge_id:completedRow.id,recipient_mobile:to,recipient_name:billPatient.attendant_name||completedRow.relative_name||'Family Member',automatic:true});
+          summaryNote+=' The Final Bill PDF was also sent on WhatsApp.';
+        }
+      }catch(billError){
+        summaryNote+=` Final Bill PDF was not sent (${billError?.message||billError}). Accounts can send it from Final Billing.`;
       }
       notify(
         whatsappAccepted?'success':'warning',
@@ -34531,6 +34586,8 @@ Doctor / Hospital: ${doctorHospital}`;
       hiddenTrialOpen.length>0&&!recordFocus&&h('div',{className:'dr-trial-hidden-note',role:'status'},
         h('span',null,`🧪 ${hiddenTrialOpen.length} Trial Guest discharge${hiddenTrialOpen.length>1?'s':''} open (${hiddenTrialStages.join(', ')}) — hidden because Guest record is "Real only".`),
         h('button',{type:'button',className:'btn btn-secondary',onClick:showTrialCases},'Show Trial cases')),
+      // 2.19.67 Google rating request after discharge (Admin / Director)
+      canAllowDues&&!recordFocus&&h(GoogleRatingPanel,{patients}),
       // 2b. 2.17.9 Discharged Guests with dues pending (Admin / Director / Accounts)
       canViewDues&&(duesError||duesRows.length>0)&&h('div',{className:'card panel',style:{border:'2px solid #f3b4bf',background:'#fff7f8'}},
         h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}},
@@ -34919,7 +34976,7 @@ Doctor / Hospital: ${doctorHospital}`;
           h('fieldset',{disabled:busy||finalDischargeCompleted,style:{border:0,padding:0,margin:0,minWidth:0}},
           h('div',{className:'final-discharge-checklist'},
             h('div',{className:'handover-summary-auto'},
-              h('span',null,'✓ Discharge Summary is sent to the family automatically on WhatsApp after this step.'),
+              h('span',null,'✓ Discharge Summary and Final Bill are sent to the family automatically on WhatsApp after this step.'),
               h('label',null,h('input',{type:'checkbox',checked:!!finalForm.summary_printed_copy,onChange:e=>setFinalForm({...finalForm,summary_printed_copy:e.target.checked})}),'Printed copy also handed over')),
             HANDOVER_CHOICES.map(([key,label,options])=>h('div',{className:`handover-choice-card${finalForm[key]?'':' missing'}`,key},
               h('strong',null,label),
@@ -41399,7 +41456,7 @@ function RoomsBeds({profile,onNavigate}){
       ab:{h:'Approved By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
       at:{h:'Approved At',cell:r=>r.decision_at?fmt(r.decision_at):'—',plain:r=>r.decision_at?fmt(r.decision_at):''},
       rtb:{h:'Returned By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
-      rta:{h:'Returned At',cell:r=>(r.returned_to_nurse_at||r.decision_at)?fmt(r.returned_to_nurse_at||r.decision_at):'—',plain:r=>(r.returned_to_nurse_at||r.decision_at)?fmt(r.returned_to_nurse_at||r.decision_at):''},
+      rta:{h:'Returned At',cell:r=>(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at)?fmt(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at):'—',plain:r=>(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at)?fmt(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at):''},
       rsn:{h:'Reason for Return',cell:r=>r.decision_remarks||r.approval_remarks||'—',plain:r=>r.decision_remarks||r.approval_remarks||''},
       rem:{h:'Remarks',cell:r=>r.decision_remarks||r.approval_remarks||r.remarks||'—',plain:r=>r.decision_remarks||r.approval_remarks||r.remarks||''}
     };
@@ -45020,6 +45077,61 @@ function ShiftHandover({profile,onNavigate}){
       )
     );
   }
+  // 2.19.67: the Final Bill as data — the same lines / totals as "Print Complete Bill" below, saved at Accounts
+  // clearance so the Edge Function "final-bill" can send the identical bill as a PDF on WhatsApp (SQL 343).
+  async function computeFinalBillSnapshot(patient,profile){
+    if(!patient?.id)throw new Error('Guest not found.');
+    const {data,error}=await client.from('billing_transactions').select('*').eq('patient_id',patient.id).order('transaction_date',{ascending:true});
+    if(error)throw error;
+    const rows=await attachBillUnits(billFoldTariffAdjustments((data||[]).map(row=>({...row,description:residentTariffDescription(row,patient.admission_date)}))),patient.id);
+    const groups=rows.filter(row=>row.transaction_type==='Charge').reduce((g,row)=>{const key=row.category||'Other Charges';if(!g[key])g[key]={category:key,amount:0,items:[]};g[key].amount+=Number(row.amount||0);g[key].items.push(row);return g;},{});
+    const totals=rows.reduce((sum,row)=>{const type=billIsAdvance(row)?'Advance':(row.transaction_type||'Charge');sum[type]=(sum[type]||0)+Number(row.amount||0);return sum;},{Charge:0,Payment:0,Advance:0,Discount:0,Refund:0});
+    const receipts=totals.Payment+totals.Advance;
+    const netPayable=Math.max(0,totals.Charge-receipts-totals.Discount+totals.Refund);
+    const advanceBalance=Math.max(0,receipts+totals.Discount-totals.Charge-totals.Refund);
+    const txType=row=>billIsAdvance(row)?'Advance':(row.transaction_type||'—');
+    const txMode=row=>{const m=String(row.payment_mode||'').trim();return !m||/not applicable/i.test(m)?'—':m;};
+    const txDate=row=>{
+      if(String(row.transaction_type||'')==='Discount'){
+        const m=String(row.description||'').match(/^Tariff adjustment for (\d{2}-\d{2}-\d{4})/i);if(m)return m[1];
+        const raw=String(row.source_date||row.transaction_date||'').slice(0,10);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const [y,mo,d]=raw.split('-');return `${d}-${mo}-${y}`;}
+      }
+      return formatDateTimeIN(row.transaction_date);
+    };
+    const r2=v=>Math.round(Number(v||0)*100)/100;
+    return {
+      version:1,generated_at:new Date().toISOString(),generated_label:formatDateTimeIN(new Date()),
+      prepared_by:formalName(profile)||profile?.full_name||profile?.login_id||'Accounts',
+      invoice_no:`SC-${patient.patient_id||String(patient.id).slice(0,8)}-${todayISOIndia().replaceAll('-','')}`,
+      patient:{name:formalName(patient)||patient.full_name||'Guest',resident_id:patient.patient_id||'',
+        room_bed:patient.room_no?`${patient.room_no}${patient.bed_no?` / Bed ${patient.bed_no}`:''}`:'',
+        admission_date:patient.admission_date?formatDateIN(patient.admission_date):'',discharge_date:formatDateIN(new Date())},
+      charges:Object.values(groups).map(g=>({category:g.category,amount:r2(g.amount),lines:billChargeLines(g.items).map(l=>({label:l.label,qty:l.qty,unit:l.unit||'',rate:r2(l.rate),amount:r2(l.amount)}))})),
+      transactions:rows.filter(row=>['Payment','Advance','Discount','Refund'].includes(row.transaction_type)).map(row=>({date:txDate(row),type:txType(row),mode:txMode(row),label:billLineLabel(row),amount:r2(row.amount)})),
+      totals:{Charge:r2(totals.Charge),Payment:r2(totals.Payment),Advance:r2(totals.Advance),Discount:r2(totals.Discount),Refund:r2(totals.Refund)},
+      net_payable:r2(netPayable),advance_balance:r2(advanceBalance),
+      net_in_words:billAmountInWords(netPayable),advance_in_words:advanceBalance>0?billAmountInWords(advanceBalance):'',
+      status:netPayable<=0.009?'PAID / SETTLED':receipts>0?'PARTIALLY PAID':'PAYMENT PENDING'
+    };
+  }
+  async function callFinalBill(body){
+    const {data:{session}}=await client.auth.getSession();
+    if(!session)throw new Error('Your ERP session has expired. Please sign in again.');
+    const response=await fetch(`${cfg.supabaseUrl}/functions/v1/final-bill`,{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey},body:JSON.stringify(body)});
+    const result=await response.json().catch(()=>({ok:false,error:`The Final Bill service did not answer (${response.status}). Please check that the Edge Function "final-bill" is deployed.`}));
+    if(!response.ok||result?.ok===false){const e=new Error(result?.error||`Final Bill failed (${response.status})`);e.result=result;throw e}
+    return result;
+  }
+  // Saves the bill copy for a discharge (Accounts / Admin). Never blocks the caller: returns an error text instead.
+  async function saveFinalBillSnapshot(dischargeId,patient,profile){
+    try{
+      const snap=await computeFinalBillSnapshot(patient,profile);
+      const {error}=await client.rpc('save_final_bill_snapshot',{p_discharge_id:dischargeId,p_snapshot:snap});
+      if(error)throw error;return '';
+    }catch(e){return e?.message||String(e)}
+  }
   function FinalBillingView({profile,onNavigate}){
     React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
     const [patients]=usePatients(true);
@@ -45033,6 +45145,30 @@ function ShiftHandover({profile,onNavigate}){
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [loading,setLoading]=React.useState(false);
     const [message,setMessage]=React.useState('');
+    const [billSending,setBillSending]=React.useState(false);
+    const canSendBill=['Admin','Accounts'].includes(profile?.role);
+    // 2.19.67: send this Guest's Final Bill PDF to the family on WhatsApp (Edge Function final-bill, SQL 343).
+    async function sendFinalBillWhatsApp(){
+      if(!patient||billSending)return;
+      let fam=[];
+      try{const r=await client.from('family_portal_access').select('relative_name,relationship,mobile,primary_contact,is_active').eq('patient_id',patient.id);fam=r.data||[]}catch(_e){}
+      const contacts=dischargeSummaryContacts(patient,null,fam);
+      if(!contacts.length){setMessage('No registered family WhatsApp number for this Guest. Add it in Family Details first.');return}
+      let pick=contacts[0];
+      if(contacts.length>1){
+        const answer=prompt(`Send the Final Bill to which number?\n\n${contacts.map((c,i)=>`${i+1}. ${c.name||'Family'}${c.relationship?` (${c.relationship})`:''} — ${c.mobile}`).join('\n')}\n\nType the number (1 to ${contacts.length}):`,'1');
+        if(answer===null)return;
+        const n=Number(answer);if(!Number.isInteger(n)||n<1||n>contacts.length){setMessage('Choose one of the listed numbers.');return}
+        pick=contacts[n-1];
+      }else if(!confirm(`Send the Final Bill PDF to ${pick.name||'the family'} (${pick.mobile}) on WhatsApp?`))return;
+      setBillSending(true);setMessage('');
+      try{
+        const snapshot=await computeFinalBillSnapshot(patient,profile);
+        const res=await callFinalBill({patient_id:patient.id,snapshot,recipient_mobile:pick.mobile,recipient_name:pick.name||'Family Member'});
+        showSamaraActionToast('success','Final Bill sent',`The Final Bill PDF was sent on WhatsApp to ${pick.name||'the family'} (${res.route||'template'}).`);
+      }catch(e){setMessage(`Final Bill was not sent: ${e?.message||e}`)}
+      finally{setBillSending(false)}
+    }
 
     const patient=patients.find(row=>row.id===patientId)||null;
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{
@@ -45352,6 +45488,7 @@ function ShiftHandover({profile,onNavigate}){
         ),
         h('div',{className:'accounts-actions'},
           h('button',{className:'btn btn-secondary',disabled:!patient||loading,onClick:printCompleteBill},'🖨 Print Complete Bill'),
+          canSendBill&&h('button',{type:'button',className:'btn btn-secondary',disabled:!patient||loading||billSending,onClick:sendFinalBillWhatsApp},billSending?'Sending…':'📲 Send Final Bill on WhatsApp'),
           h('button',{className:'btn btn-secondary',onClick:()=>onNavigate?.('Payments')},'💳 Open Payments')
         )
       ),

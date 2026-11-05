@@ -176,7 +176,7 @@
       ab:{h:'Approved By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
       at:{h:'Approved At',cell:r=>r.decision_at?fmt(r.decision_at):'—',plain:r=>r.decision_at?fmt(r.decision_at):''},
       rtb:{h:'Returned By',cell:r=>r.decision_by_name||'—',plain:r=>r.decision_by_name||''},
-      rta:{h:'Returned At',cell:r=>(r.returned_to_nurse_at||r.decision_at)?fmt(r.returned_to_nurse_at||r.decision_at):'—',plain:r=>(r.returned_to_nurse_at||r.decision_at)?fmt(r.returned_to_nurse_at||r.decision_at):''},
+      rta:{h:'Returned At',cell:r=>(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at)?fmt(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at):'—',plain:r=>(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at)?fmt(r.returned_to_nurse_at||r.decision_at||r.decision_date||r.approved_at):''},
       rsn:{h:'Reason for Return',cell:r=>r.decision_remarks||r.approval_remarks||'—',plain:r=>r.decision_remarks||r.approval_remarks||''},
       rem:{h:'Remarks',cell:r=>r.decision_remarks||r.approval_remarks||r.remarks||'—',plain:r=>r.decision_remarks||r.approval_remarks||r.remarks||''}
     };
