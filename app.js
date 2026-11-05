@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.63';
+  const APP_VERSION = '2.19.64';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -8251,6 +8251,8 @@ https://samaraassistedliving.com/`;
   // 2.18.126: physiotherapy reschedule / correction requests — each opens only that request (Approve / Reject).
   function physioRequestLabel(a){return [a?.patient_name,a?.action,a?.session_date?formatDateIN(a.session_date):''].filter(Boolean).join(' · ')}
   function openPhysioRequest(a){openRecord('Physiotherapy',{id:a?.request_id,kind:'physio_request',label:physioRequestLabel(a)})}
+  // 2.19.64: a returned physiotherapy session charge opens that session in Physiotherapy (SQL 340)
+  function openChargeReturn(a){if(a?.physio_session_id)openRecord('Physiotherapy',{id:a.physio_session_id,kind:'physio_return',label:`Returned physiotherapy session · ${a.guest_name||'Guest'}`})}
   function PhysioApprovalList({alerts=[],compact=false}){
     if(!alerts.length)return null;
     return h('section',{className:'physio-approval-list'+(compact?' compact':'')},
@@ -8447,7 +8449,7 @@ https://samaraassistedliving.com/`;
             indentReceiptDue.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'Every handed-over indent has been received within 20 minutes.')):null)))):null,
       indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Bills & Charges — Returned by Accounts'),h('small',null,roleKey==='nurse'?'Charge requests you raised that Accounts returned for correction. Tap one, then "Correct & Resubmit".':'Charge requests returned by Accounts and not yet corrected and resubmitted by Nursing (last 3 days).'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Guest','Room','Charge','Qty','Raised by','Returned','Reason'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,chargeReturns.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>navigate('Charge Approvals'),onKeyDown:e=>{if(e.key==='Enter')navigate('Charge Approvals')},style:{cursor:'pointer',touchAction:'manipulation'}},
+          h('tbody',null,chargeReturns.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>a.physio_session_id?openChargeReturn(a):navigate('Charge Approvals'),onKeyDown:e=>{if(e.key==='Enter')a.physio_session_id?openChargeReturn(a):navigate('Charge Approvals')},style:{cursor:'pointer',touchAction:'manipulation'}},
             h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item||'—'),h('td',null,`${a.quantity??1} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),
             h('td',null,`${a.returned_at?fmt(a.returned_at):'—'}${a.returned_by_name?` · ${a.returned_by_name}`:''}`),h('td',null,a.reason||'—'))),
             chargeReturns.length===0?h('tr',null,h('td',{colSpan:7,className:'empty'},'No returned charge requests waiting for correction.')):null)))):null,
@@ -8578,8 +8580,8 @@ https://samaraassistedliving.com/`;
         }
         returnRows.forEach(a=>candidates.push({key:`charge-return-${a.request_id}-${Math.floor(Date.now()/3600000)}`,kind:'Bills & Charges',
           title:`Charge returned by Accounts — ${a.guest_name||'Guest'}`,
-          detail:`${a.item||'Charge'} × ${a.quantity??1} ${a.unit||''}${a.room_label?` (${a.room_label})`:''} was returned${a.returned_by_name?` by ${a.returned_by_name}`:''}. Reason: ${a.reason||'not given'}. Open Bills & Charges and tap "Correct & Resubmit".`,
-          page:'Charge Approvals',urgent:true,at:a.returned_at}));
+          detail:`${a.item||'Charge'} × ${a.quantity??1} ${a.unit||''}${a.room_label?` (${a.room_label})`:''} was returned${a.returned_by_name?` by ${a.returned_by_name}`:''}. Reason: ${a.reason||'not given'}. ${a.physio_session_id?'Open the physiotherapy session, check it and correct it or send it back.':'Open Bills & Charges and tap "Correct & Resubmit".'}`,
+          ...(a.physio_session_id?{page:'Physiotherapy',record:{id:a.physio_session_id,kind:'physio_return',label:`Returned physiotherapy session · ${a.guest_name||'Guest'}`}}:{page:'Charge Approvals'}),urgent:true,at:a.returned_at}));
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
           if(['completed','closed','cancelled','canceled'].includes(status))return;
@@ -39183,6 +39185,12 @@ function RoomsBeds({profile,onNavigate}){
     // 2.18.126: a notification opens only that correction request (with Approve / Reject).
     const [requestFocus,clearRequestFocus]=useRecordFocus('Physiotherapy');
     const focusedRequestId=requestFocus?.kind==='physio_request'?requestFocus.id:'';
+    // 2.19.64: a session charge RETURNED by Accounts comes back here to check, correct and send back (SQL 340).
+    const focusedReturnSession=requestFocus?.kind==='physio_return'?requestFocus.id:'';
+    const [returned,setReturned]=React.useState([]);
+    const [resendTarget,setResendTarget]=React.useState(null);
+    const [resendNote,setResendNote]=React.useState('');
+    const returnFor=sessionId=>returned.find(r=>r.session_id===sessionId)||null;
     const myIds=[profile?.id,profile?.auth_user_id].filter(Boolean);
     const ownRequest=request=>myIds.includes(request.requested_by);
     const [requests,setRequests]=React.useState([]);
@@ -39234,8 +39242,12 @@ function RoomsBeds({profile,onNavigate}){
     }
     React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
 
+    async function loadReturned(){
+      try{const {data,error}=await client.rpc('physio_returned_charges');if(!error)setReturned(Array.isArray(data)?data:[]);}catch(_e){}
+    }
     async function load(){
       setLoading(true);setMessage('');
+      loadReturned();
       const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult,practitionersResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         loadPhysioGuests(profile), // 2.19.57: Physiotherapist reads Guests only through the narrow list
@@ -39359,6 +39371,26 @@ function RoomsBeds({profile,onNavigate}){
       setSessionLock(null);
       client.rpc('physio_session_locks',{p_sessions:[session.id]}).then(({data,error})=>{if(!error&&Array.isArray(data)&&data[0])setSessionLock(data[0])}).catch(()=>{});
       setForm({actual_time:String(session.actual_time||'').slice(0,5),organisation_id:organisationFor(session,plan)?.id||'',physiotherapist_name:attendingName(session,plan),session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
+    }
+
+    async function openReturnedSession(row){
+      let session=sessions.find(s=>s.id===row.session_id);
+      if(!session){
+        const {data,error}=await client.from('physiotherapy_sessions').select('*').eq('id',row.session_id).maybeSingle();
+        if(error||!data){showToast('error','This session could not be opened. It may have been removed.');return;}
+        session=data;
+      }
+      openCorrection(session);
+    }
+    async function sendBackReturned(e){
+      e.preventDefault();if(saving||!resendTarget)return;
+      if(resendNote.trim().length<5){showToast('error','Enter a remark for Accounts (what you checked).');return;}
+      setSaving(true);
+      try{
+        const {error}=await client.rpc('physio_resend_returned_charge',{p_session:resendTarget.session_id,p_note:resendNote.trim()});
+        if(error)throw error;
+        setResendTarget(null);setResendNote('');showToast('success','Sent back to Accounts for approval.');await load();
+      }catch(error){showToast('error',error.message||'Unable to send back to Accounts.');}finally{setSaving(false);}
     }
 
     async function saveSession(e){
@@ -39524,13 +39556,70 @@ function RoomsBeds({profile,onNavigate}){
         // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
         (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t,plan):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',
-        session.status||'—',
+        returnFor(session.id)?h('span',null,session.status||'—',h('span',{className:'badge',style:{marginLeft:'6px',background:'#fde7f0',color:'#a80d4f'}},'Returned by Accounts')):(session.status||'—'),
         session.reason||session.notes||'—',
         fmt(session.updated_at||session.created_at),
         canEnter?(session.status==='Pending'&&!session.session_at?h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openEntry({...plan,id:session.plan_id||session.order_id,patient_id:session.patient_id},session)},'Record Session'),h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options')):h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options')):h('span',{className:'small-note'},'View only')
       ];
     });
 
+    const correctionModal=editingSession&&h('div',{className:'modal-backdrop'},
+        h('form',{className:'card modal',onSubmit:submitCorrection},
+          h('div',{className:'panel-head'},h('h3',null,'Session options'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setEditingSession(null)},'×')),
+          h('p',null,patientLabel(editingSession.patient_id)+' · '+formatDateIN(editingSession.session_date)+' · '+editingSession.status),
+          returnFor(editingSession.id)&&h('div',{className:'message warning',role:'status',style:{background:'#fde7f0',borderColor:'#e9a9c4',color:'#5a1634'}},
+            h('strong',null,'Returned by Accounts'+(returnFor(editingSession.id).returned_by_name?' ('+returnFor(editingSession.id).returned_by_name+')':'')+': '),
+            returnFor(editingSession.id).reason||'no reason given',
+            h('div',{style:{marginTop:'4px'}},'Correct what is wrong (Modify), or Delete if the session never happened. After Nursing Manager / Admin approval: still Completed → goes to Accounts again automatically; Pending / Not Done / deleted → no charge.')),
+          sessionLock&&(sessionLock.guest_charge||sessionLock.fee_posted)&&h('div',{className:'message error',role:'alert'},
+            h('strong',null,'This session is already '+[sessionLock.guest_charge&&(sessionLock.guest_charge==='Approved'?'charged to the Guest’s bill':'sent to Accounts as a Guest charge ('+sessionLock.guest_charge+')'),sessionLock.fee_posted&&'posted as an outsourced physiotherapist fee'].filter(Boolean).join(' and ')+'. '),
+            'Before this correction can be approved: '+[sessionLock.guest_charge&&'Accounts must reject / reverse the Guest charge',sessionLock.fee_posted&&'Admin must reverse the physiotherapist fee (Therapist Accounts → Ledger)'].filter(Boolean).join('; ')+'. You can still submit the request.'),
+          h('div',{role:'group','aria-label':'Correction action',className:'actions'},['Delete','Modify','Reschedule'].map(action=>h('button',{type:'button',key:action,className:'btn '+(requestAction===action?'btn-primary':'btn-secondary'),'aria-pressed':requestAction===action,disabled:saving,onClick:()=>setRequestAction(action)},action))),
+          requestAction&&h('div',{className:'modal-grid'},
+            requestAction!=='Delete'&&h(React.Fragment,null,
+              h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'Scheduled time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
+              requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
+              requestAction==='Modify'&&form.status==='Completed'&&actualTimeField(),
+              requestAction==='Modify'&&organisationFields(),
+              requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
+            h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
+            h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
+          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setEditingSession(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||!requestAction},saving?'Submitting…':'Submit for approval'))));
+    const resendModal=resendTarget&&h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:sendBackReturned},
+        h('div',{className:'panel-head'},h('h3',null,'Session is correct — send back to Accounts'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setResendTarget(null)},'×')),
+        h('p',null,(resendTarget.guest_name||'Guest')+' · '+formatDateIN(resendTarget.session_date)+(resendTarget.physiotherapist?' · '+resendTarget.physiotherapist:'')),
+        h('p',{className:'small-note'},'Accounts returned it: '+(resendTarget.reason||'no reason given')),
+        h('div',{className:'field'},h('label',null,'Remark for Accounts (what you checked)'),h('textarea',{'aria-label':'Remark for Accounts',required:true,rows:3,value:resendNote,onChange:e=>setResendNote(e.target.value),placeholder:'Example: Checked with the physiotherapist — session was done at 8:15 AM as recorded'})),
+        h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setResendTarget(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||resendNote.trim().length<5},saving?'Sending…':'Send back to Accounts'))));
+    const canResendReturned=['Admin','Manager','Nurse'].includes(profile?.role)||canReview;
+    const showAmount=returned.some(r=>r.amount!=null);
+    const returnedShown=focusedReturnSession?returned.filter(r=>r.session_id===focusedReturnSession):returned;
+    const returnedPanel=returnedShown.length>0&&h(LogTable,{
+      title:`Returned by Accounts (${returnedShown.length})`,
+      subtitle:'Physiotherapy session charges Accounts returned. Check the session: correct it with "Check & Correct", or if it is right, "Session correct — Send back" with a remark.',
+      className:'samara-mobile-card-table',
+      heads:['Guest','Session date','Physiotherapist','Returned by','Reason',...(showAmount?['Amount']:[]),'Action'],
+      rows:returnedShown.map(r=>[
+        h('span',{id:'physio-return-'+r.session_id},(r.guest_name||'Guest')+(r.room_no?' · Room '+r.room_no:'')),
+        formatDateIN(r.session_date)+(r.actual_time?' · '+clockLabel(r.actual_time):'')+(r.session_status&&r.session_status!=='Completed'?' · '+r.session_status:''),
+        r.physiotherapist||'—',
+        (r.returned_by_name||'Accounts')+(r.returned_at?' · '+fmt(r.returned_at):''),
+        h('strong',{style:{color:'#a80d4f'}},r.reason||'No reason given'),
+        ...(showAmount?[r.amount!=null?'₹'+Number(r.amount).toLocaleString('en-IN'):'—']:[]),
+        r.correction_pending?h('span',{className:'badge',style:{background:'#fff4e0',color:'#8a5300'}},'Correction awaiting approval'):
+        h('div',{className:'actions'},
+          canEnter&&!isPhysioLogin&&h('button',{type:'button',className:'btn btn-primary',disabled:saving,onClick:()=>openReturnedSession(r)},'Check & Correct'),
+          canResendReturned&&r.session_status==='Completed'&&h('button',{type:'button',className:'btn btn-secondary',disabled:saving||!r.has_rate,title:r.has_rate?undefined:'No Guest rate for this date',onClick:()=>{setResendNote('');setResendTarget(r)}},'Session correct — Send back'),
+          !r.has_rate&&h('small',{className:'small-note',style:{display:'block'}},'No Guest physiotherapy rate for this date — Admin / Director: set it in Patient Rates & Billing, then Send back.'))
+      ])
+    });
+    if(focusedReturnSession)return h(React.Fragment,null, // 2.19.64: only the returned session the alert points at
+      message&&h('div',{className:'message error'},message),
+      h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
+      loading?h('p',{className:'small-note'},'Loading…'):returnedShown.length?returnedPanel:h('div',{className:'message'},'This returned charge has already been corrected or sent back. Press Show all to see everything.'),
+      correctionModal,resendModal);
     if(focusedRequestId)return h(React.Fragment,null, // 2.18.126: only the request the notification points at
       message&&h('div',{className:'message error'},message),
       h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
@@ -39538,6 +39627,7 @@ function RoomsBeds({profile,onNavigate}){
       h('div',{id:'physio-request-focus'},h(LogTable,{title:'Physiotherapy Correction Request',subtitle:'Approve or reject here. The original session stays unchanged until approval.',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows})));
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
+      returnedPanel,
       h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125
       h(LogTable,{
         title:'Physiotherapy Plan',
@@ -39556,25 +39646,7 @@ function RoomsBeds({profile,onNavigate}){
       }),
       h(PhysioSessionCounts,{profile,filters}),
       h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows}),
-      editingSession&&h('div',{className:'modal-backdrop'},
-        h('form',{className:'card modal',onSubmit:submitCorrection},
-          h('div',{className:'panel-head'},h('h3',null,'Session options'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setEditingSession(null)},'×')),
-          h('p',null,patientLabel(editingSession.patient_id)+' · '+formatDateIN(editingSession.session_date)+' · '+editingSession.status),
-          sessionLock&&(sessionLock.guest_charge||sessionLock.fee_posted)&&h('div',{className:'message error',role:'alert'},
-            h('strong',null,'This session is already '+[sessionLock.guest_charge&&(sessionLock.guest_charge==='Approved'?'charged to the Guest’s bill':'sent to Accounts as a Guest charge ('+sessionLock.guest_charge+')'),sessionLock.fee_posted&&'posted as an outsourced physiotherapist fee'].filter(Boolean).join(' and ')+'. '),
-            'Before this correction can be approved: '+[sessionLock.guest_charge&&'Accounts must reject / reverse the Guest charge',sessionLock.fee_posted&&'Admin must reverse the physiotherapist fee (Therapist Accounts → Ledger)'].filter(Boolean).join('; ')+'. You can still submit the request.'),
-          h('div',{role:'group','aria-label':'Correction action',className:'actions'},['Delete','Modify','Reschedule'].map(action=>h('button',{type:'button',key:action,className:'btn '+(requestAction===action?'btn-primary':'btn-secondary'),'aria-pressed':requestAction===action,disabled:saving,onClick:()=>setRequestAction(action)},action))),
-          requestAction&&h('div',{className:'modal-grid'},
-            requestAction!=='Delete'&&h(React.Fragment,null,
-              h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
-              h('div',{className:'field'},h('label',null,'Scheduled time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
-              requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
-              requestAction==='Modify'&&form.status==='Completed'&&actualTimeField(),
-              requestAction==='Modify'&&organisationFields(),
-              requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
-            h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
-            h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
-          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setEditingSession(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||!requestAction},saving?'Submitting…':'Submit for approval')))),
+      correctionModal,resendModal,
       entryPlan&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setEntryPlan(null)}},
         h('form',{className:'card modal',onSubmit:saveSession},
           h('div',{className:'panel-head'},
@@ -41223,7 +41295,7 @@ function RoomsBeds({profile,onNavigate}){
     const clearFilters=()=>setFilter({status:'All',category:'All',item:'All',patient_id:'',raised_by:'All',from:'',to:''});
 
     const filtered=rows.filter(r=>
-      (filter.status==='All'||(filter.status==='ReturnedOpen'?(statusOf(r)==='Rejected'&&!r.resubmitted_as):statusOf(r)===filter.status))&&
+      (filter.status==='All'||(filter.status==='ReturnedOpen'?(statusOf(r)==='Rejected'&&!r.resubmitted_as&&!r.physio_return_closed_at):statusOf(r)===filter.status))&&
       (filter.category==='All'||r.category===filter.category)&&
       (filter.item==='All'||itemOf(r)===filter.item)&&
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
@@ -41245,7 +41317,7 @@ function RoomsBeds({profile,onNavigate}){
     // 2.18.164: opens on a dashboard of boxes; a box (or "Search with filters") opens the list with all
     // filters; a row opens full details. Pending / Returned boxes count every open item (any date) so
     // nothing waiting disappears when the period changes; the other boxes follow the chosen period.
-    const isReturnedOpen=r=>statusOf(r)==='Rejected'&&!r.resubmitted_as;
+    const isReturnedOpen=r=>statusOf(r)==='Rejected'&&!r.resubmitted_as&&!r.physio_return_closed_at; // 2.19.64: closed physio returns (SQL 340)
     const periodRange=(()=>{
       if(period==='today')return [today,today];
       if(period==='week')return [mondayOfWeek(today),today];
@@ -52084,7 +52156,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       (filter.item==='All'||itemKey(r)===filter.item)&&
       (quickView!=='Today'||r.charge_date===todayISOIndia())&&
       (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))&&
-      (quickView!=='Returned'||(r.approval_status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)))&&
+      (quickView!=='Returned'||(r.approval_status==='Rejected'&&!r.resubmitted_as&&(canResubmit(r)||isPhysioReturn(r))))&&
       (quickView!=='Approved Today'||isApprovedToday(r))
     );
     const registerTotals=filtered.reduce((totals,row)=>{
@@ -52128,7 +52200,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
 
     const summaryValue=value=>registerLoading?'…':registerError?'—':value;
     const historyValue=value=>historyLoading&&!registerError?'…':summaryValue(value); // 2.19.8: counts that need the full history
-    const returnedCount=rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)).length;
+    const returnedCount=rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&(canResubmit(r)||(isPhysioReturn(r)&&['Nurse','Manager','Admin'].includes(profile?.role)))).length;
     const summary=h('div',{className:'grid stats',style:{gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))'}},
       navCard('Charges Raised',historyValue(rows.length),'All','View all charges · filter by patient, date, category and item'),
       navCard('Today’s Entries',historyValue(rows.filter(r=>r.charge_date===todayISOIndia()).length),'Today','Click to show today’s charges'),
@@ -52196,6 +52268,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           canApprove&&status==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
           canApprove&&status==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected',e.currentTarget)}},'Return'),
           status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit'),
+          // 2.19.64: a returned physiotherapy SESSION charge is checked and corrected in Physiotherapy (SQL 340)
+          status==='Rejected'&&isPhysioReturn(r)&&['Nurse','Manager','Admin'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();openRecord('Physiotherapy',{id:r.physio_session_ref,kind:'physio_return',label:'Returned physiotherapy session · '+formatDateIN(r.charge_date)})}},'Check in Physiotherapy'),
           h('button',{type:'button',className:'btn btn-secondary',style:{minHeight:'32px',padding:'4px 10px',fontSize:'12.5px'},onClick:e=>{e.stopPropagation();setSelectedChargeDetail(r)}},'Full details')
         )
       );
@@ -52229,7 +52303,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         ...G.items.map(groupRow)
       );
     };
-    function canResubmit(r){return Boolean(canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)&&!r.physiotherapy_session_id)}
+    function canResubmit(r){return Boolean(canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)&&!r.physiotherapy_session_id&&!r.physio_session_ref)}
+    function isPhysioReturn(r){return Boolean(r.physio_session_ref&&r.approval_status==='Rejected'&&!r.resubmitted_as&&!r.physio_return_closed_at)}
     const responsiveRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'One row per item with its total · tap a row to see every entry.'},
       registerLoading?h('p',{role:'status'},'Loading charges…'):
       registerError?h('div',{role:'alert'},h('p',null,registerError),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setRegisterLoading(true);load()}},'Retry loading charges')):

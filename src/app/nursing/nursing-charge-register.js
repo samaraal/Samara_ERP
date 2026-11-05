@@ -72,7 +72,7 @@
     const clearFilters=()=>setFilter({status:'All',category:'All',item:'All',patient_id:'',raised_by:'All',from:'',to:''});
 
     const filtered=rows.filter(r=>
-      (filter.status==='All'||(filter.status==='ReturnedOpen'?(statusOf(r)==='Rejected'&&!r.resubmitted_as):statusOf(r)===filter.status))&&
+      (filter.status==='All'||(filter.status==='ReturnedOpen'?(statusOf(r)==='Rejected'&&!r.resubmitted_as&&!r.physio_return_closed_at):statusOf(r)===filter.status))&&
       (filter.category==='All'||r.category===filter.category)&&
       (filter.item==='All'||itemOf(r)===filter.item)&&
       (!filter.patient_id||r.patient_id===filter.patient_id)&&
@@ -94,7 +94,7 @@
     // 2.18.164: opens on a dashboard of boxes; a box (or "Search with filters") opens the list with all
     // filters; a row opens full details. Pending / Returned boxes count every open item (any date) so
     // nothing waiting disappears when the period changes; the other boxes follow the chosen period.
-    const isReturnedOpen=r=>statusOf(r)==='Rejected'&&!r.resubmitted_as;
+    const isReturnedOpen=r=>statusOf(r)==='Rejected'&&!r.resubmitted_as&&!r.physio_return_closed_at; // 2.19.64: closed physio returns (SQL 340)
     const periodRange=(()=>{
       if(period==='today')return [today,today];
       if(period==='week')return [mondayOfWeek(today),today];

@@ -1,3 +1,13 @@
+## 2.19.64 — 05-11-2026 — Physiotherapy: a session charge returned by Accounts goes back to Nursing to check, correct and return (SQL 340)
+- Before, a physiotherapy **session** charge that Accounts returned was stuck: no alert to the nurse, "Correct & Resubmit" blocked, and Session options blocked ("Accounts must review the charge first").
+- Now a return frees the session. The nurse who recorded it gets the usual Return alert (pop-up, bell, phone); tapping it opens **Physiotherapy → Returned by Accounts** showing only that session. Nursing Manager and Admin see the list too. The session is not re-billed by itself while it is returned.
+- **Check & Correct** opens Session options with Accounts' reason on top: Modify (date, time, therapist, status, notes) or Delete. After Nursing Manager / Admin approval: still Completed → a fresh charge goes to Accounts at the Guest's agreed rate, linked to the returned one; Pending / Not Done / deleted → no charge and the return is closed.
+- **Session correct — Send back**: if the session is right, send it straight back to Accounts with a remark.
+- Wrong rate: Admin / Director fix the Guest rate in Patient Rates & Billing, then Send back. Nurses still see no prices; Accounts approve every charge as before.
+- Bills & Charges shows **Check in Physiotherapy** on such returns (Correct & Resubmit is not used for them). Recent Sessions marks them "Returned by Accounts".
+- Existing returned session charges are opened for correction when SQL 340 is run.
+- Run supabase/sql/340_physio_returned_session_correction.sql in Supabase → SQL Editor.
+
 ## 2.19.63 — 03-11-2026 — Razorpay Statement: one "still with Razorpay" figure
 - "How it adds up" no longer shows two different "still with Razorpay" numbers. Part C now shows today's single total (all payments not yet in the bank) with each payment listed underneath — payment date, mode · Guest, received, fee + GST, coming to bank. Tap a payment for full details. Frontend only.
 

@@ -107,6 +107,8 @@
   // 2.18.126: physiotherapy reschedule / correction requests — each opens only that request (Approve / Reject).
   function physioRequestLabel(a){return [a?.patient_name,a?.action,a?.session_date?formatDateIN(a.session_date):''].filter(Boolean).join(' · ')}
   function openPhysioRequest(a){openRecord('Physiotherapy',{id:a?.request_id,kind:'physio_request',label:physioRequestLabel(a)})}
+  // 2.19.64: a returned physiotherapy session charge opens that session in Physiotherapy (SQL 340)
+  function openChargeReturn(a){if(a?.physio_session_id)openRecord('Physiotherapy',{id:a.physio_session_id,kind:'physio_return',label:`Returned physiotherapy session · ${a.guest_name||'Guest'}`})}
   function PhysioApprovalList({alerts=[],compact=false}){
     if(!alerts.length)return null;
     return h('section',{className:'physio-approval-list'+(compact?' compact':'')},
@@ -303,7 +305,7 @@
             indentReceiptDue.length===0?h('tr',null,h('td',{colSpan:8,className:'empty'},'Every handed-over indent has been received within 20 minutes.')):null)))):null,
       indentReceiptAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Bills & Charges — Returned by Accounts'),h('small',null,roleKey==='nurse'?'Charge requests you raised that Accounts returned for correction. Tap one, then "Correct & Resubmit".':'Charge requests returned by Accounts and not yet corrected and resubmitted by Nursing (last 3 days).'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Guest','Room','Charge','Qty','Raised by','Returned','Reason'].map(x=>h('th',{key:x},x)))),
-          h('tbody',null,chargeReturns.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>navigate('Charge Approvals'),onKeyDown:e=>{if(e.key==='Enter')navigate('Charge Approvals')},style:{cursor:'pointer',touchAction:'manipulation'}},
+          h('tbody',null,chargeReturns.map(a=>h('tr',{key:a.request_id,role:'button',tabIndex:0,onClick:()=>a.physio_session_id?openChargeReturn(a):navigate('Charge Approvals'),onKeyDown:e=>{if(e.key==='Enter')a.physio_session_id?openChargeReturn(a):navigate('Charge Approvals')},style:{cursor:'pointer',touchAction:'manipulation'}},
             h('td',null,a.guest_name||'Guest'),h('td',null,a.room_label||'—'),h('td',null,a.item||'—'),h('td',null,`${a.quantity??1} ${a.unit||''}`),h('td',null,a.nurse_name||'—'),
             h('td',null,`${a.returned_at?fmt(a.returned_at):'—'}${a.returned_by_name?` · ${a.returned_by_name}`:''}`),h('td',null,a.reason||'—'))),
             chargeReturns.length===0?h('tr',null,h('td',{colSpan:7,className:'empty'},'No returned charge requests waiting for correction.')):null)))):null,
@@ -434,8 +436,8 @@
         }
         returnRows.forEach(a=>candidates.push({key:`charge-return-${a.request_id}-${Math.floor(Date.now()/3600000)}`,kind:'Bills & Charges',
           title:`Charge returned by Accounts — ${a.guest_name||'Guest'}`,
-          detail:`${a.item||'Charge'} × ${a.quantity??1} ${a.unit||''}${a.room_label?` (${a.room_label})`:''} was returned${a.returned_by_name?` by ${a.returned_by_name}`:''}. Reason: ${a.reason||'not given'}. Open Bills & Charges and tap "Correct & Resubmit".`,
-          page:'Charge Approvals',urgent:true,at:a.returned_at}));
+          detail:`${a.item||'Charge'} × ${a.quantity??1} ${a.unit||''}${a.room_label?` (${a.room_label})`:''} was returned${a.returned_by_name?` by ${a.returned_by_name}`:''}. Reason: ${a.reason||'not given'}. ${a.physio_session_id?'Open the physiotherapy session, check it and correct it or send it back.':'Open Bills & Charges and tap "Correct & Resubmit".'}`,
+          ...(a.physio_session_id?{page:'Physiotherapy',record:{id:a.physio_session_id,kind:'physio_return',label:`Returned physiotherapy session · ${a.guest_name||'Guest'}`}}:{page:'Charge Approvals'}),urgent:true,at:a.returned_at}));
         (dis.data||[]).forEach(row=>{
           const status=String(row.status||'').trim().toLowerCase(),management=String(row.management_status||'Pending').trim().toLowerCase(),accounts=String(row.accounts_status||'Pending').trim().toLowerCase();
           if(['completed','closed','cancelled','canceled'].includes(status))return;

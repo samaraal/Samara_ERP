@@ -978,7 +978,7 @@
       (filter.item==='All'||itemKey(r)===filter.item)&&
       (quickView!=='Today'||r.charge_date===todayISOIndia())&&
       (quickView!=='Approved'||['Approved','Partially Approved'].includes(r.approval_status))&&
-      (quickView!=='Returned'||(r.approval_status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)))&&
+      (quickView!=='Returned'||(r.approval_status==='Rejected'&&!r.resubmitted_as&&(canResubmit(r)||isPhysioReturn(r))))&&
       (quickView!=='Approved Today'||isApprovedToday(r))
     );
     const registerTotals=filtered.reduce((totals,row)=>{
@@ -1022,7 +1022,7 @@
 
     const summaryValue=value=>registerLoading?'…':registerError?'—':value;
     const historyValue=value=>historyLoading&&!registerError?'…':summaryValue(value); // 2.19.8: counts that need the full history
-    const returnedCount=rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)).length;
+    const returnedCount=rows.filter(r=>r.approval_status==='Rejected'&&!r.resubmitted_as&&(canResubmit(r)||(isPhysioReturn(r)&&['Nurse','Manager','Admin'].includes(profile?.role)))).length;
     const summary=h('div',{className:'grid stats',style:{gridTemplateColumns:'repeat(auto-fit,minmax(210px,1fr))'}},
       navCard('Charges Raised',historyValue(rows.length),'All','View all charges · filter by patient, date, category and item'),
       navCard('Today’s Entries',historyValue(rows.filter(r=>r.charge_date===todayISOIndia()).length),'Today','Click to show today’s charges'),
@@ -1090,6 +1090,8 @@
           canApprove&&status==='Pending'&&h('button',{className:'btn btn-secondary',disabled:busy,onClick:e=>{e.stopPropagation();decide(r,'Partially Approved',e.currentTarget)}},'Partial'),
           canApprove&&status==='Pending'&&h('button',{className:'btn btn-danger',disabled:busy,title:'Return to the nurse for correction',onClick:e=>{e.stopPropagation();decide(r,'Rejected',e.currentTarget)}},'Return'),
           status==='Rejected'&&!r.resubmitted_as&&canResubmit(r)&&h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:e=>{e.stopPropagation();openResubmit(r)}},'Correct & Resubmit'),
+          // 2.19.64: a returned physiotherapy SESSION charge is checked and corrected in Physiotherapy (SQL 340)
+          status==='Rejected'&&isPhysioReturn(r)&&['Nurse','Manager','Admin'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:e=>{e.stopPropagation();openRecord('Physiotherapy',{id:r.physio_session_ref,kind:'physio_return',label:'Returned physiotherapy session · '+formatDateIN(r.charge_date)})}},'Check in Physiotherapy'),
           h('button',{type:'button',className:'btn btn-secondary',style:{minHeight:'32px',padding:'4px 10px',fontSize:'12.5px'},onClick:e=>{e.stopPropagation();setSelectedChargeDetail(r)}},'Full details')
         )
       );
@@ -1123,7 +1125,8 @@
         ...G.items.map(groupRow)
       );
     };
-    function canResubmit(r){return Boolean(canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)&&!r.physiotherapy_session_id)}
+    function canResubmit(r){return Boolean(canRaise&&['Nurse','Manager','Admin'].includes(profile?.role)&&!r.physiotherapy_session_id&&!r.physio_session_ref)}
+    function isPhysioReturn(r){return Boolean(r.physio_session_ref&&r.approval_status==='Rejected'&&!r.resubmitted_as&&!r.physio_return_closed_at)}
     const responsiveRegister=h(Section,{title:`Bill & Charge Requests (${filtered.length})`,subtitle:'One row per item with its total · tap a row to see every entry.'},
       registerLoading?h('p',{role:'status'},'Loading charges…'):
       registerError?h('div',{role:'alert'},h('p',null,registerError),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setRegisterLoading(true);load()}},'Retry loading charges')):

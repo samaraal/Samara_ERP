@@ -15,6 +15,12 @@
     // 2.18.126: a notification opens only that correction request (with Approve / Reject).
     const [requestFocus,clearRequestFocus]=useRecordFocus('Physiotherapy');
     const focusedRequestId=requestFocus?.kind==='physio_request'?requestFocus.id:'';
+    // 2.19.64: a session charge RETURNED by Accounts comes back here to check, correct and send back (SQL 340).
+    const focusedReturnSession=requestFocus?.kind==='physio_return'?requestFocus.id:'';
+    const [returned,setReturned]=React.useState([]);
+    const [resendTarget,setResendTarget]=React.useState(null);
+    const [resendNote,setResendNote]=React.useState('');
+    const returnFor=sessionId=>returned.find(r=>r.session_id===sessionId)||null;
     const myIds=[profile?.id,profile?.auth_user_id].filter(Boolean);
     const ownRequest=request=>myIds.includes(request.requested_by);
     const [requests,setRequests]=React.useState([]);
@@ -66,8 +72,12 @@
     }
     React.useEffect(()=>()=>clearTimeout(toastTimer.current),[]);
 
+    async function loadReturned(){
+      try{const {data,error}=await client.rpc('physio_returned_charges');if(!error)setReturned(Array.isArray(data)?data:[]);}catch(_e){}
+    }
     async function load(){
       setLoading(true);setMessage('');
+      loadReturned();
       const [plansResult,patientsResult,sessionsResult,requestsResult,organisationsResult,practitionersResult]=await Promise.all([
         client.from('physiotherapy_plans').select('*').order('created_at',{ascending:false}),
         loadPhysioGuests(profile), // 2.19.57: Physiotherapist reads Guests only through the narrow list
@@ -191,6 +201,26 @@
       setSessionLock(null);
       client.rpc('physio_session_locks',{p_sessions:[session.id]}).then(({data,error})=>{if(!error&&Array.isArray(data)&&data[0])setSessionLock(data[0])}).catch(()=>{});
       setForm({actual_time:String(session.actual_time||'').slice(0,5),organisation_id:organisationFor(session,plan)?.id||'',physiotherapist_name:attendingName(session,plan),session_date:session.session_date,scheduled_time:String(session.scheduled_time||plan.preferred_time||'').slice(0,5),status:session.status||'Completed',reason:session.reason||'',notes:session.notes||''});
+    }
+
+    async function openReturnedSession(row){
+      let session=sessions.find(s=>s.id===row.session_id);
+      if(!session){
+        const {data,error}=await client.from('physiotherapy_sessions').select('*').eq('id',row.session_id).maybeSingle();
+        if(error||!data){showToast('error','This session could not be opened. It may have been removed.');return;}
+        session=data;
+      }
+      openCorrection(session);
+    }
+    async function sendBackReturned(e){
+      e.preventDefault();if(saving||!resendTarget)return;
+      if(resendNote.trim().length<5){showToast('error','Enter a remark for Accounts (what you checked).');return;}
+      setSaving(true);
+      try{
+        const {error}=await client.rpc('physio_resend_returned_charge',{p_session:resendTarget.session_id,p_note:resendNote.trim()});
+        if(error)throw error;
+        setResendTarget(null);setResendNote('');showToast('success','Sent back to Accounts for approval.');await load();
+      }catch(error){showToast('error',error.message||'Unable to send back to Accounts.');}finally{setSaving(false);}
     }
 
     async function saveSession(e){
@@ -356,13 +386,70 @@
         // 2.18.111: plan sessions show their window; a rescheduled session keeps its exact time.
         (()=>{const t=physioHHMM(session.scheduled_time||plan.preferred_time);return physioPlanTimes(plan).includes(t)?physioWindowLabel(t,plan):clockLabel(t)+(session.scheduled_time?' (set time)':'');})(),
         session.actual_time?clockLabel(session.actual_time):'Not recorded',
-        session.status||'—',
+        returnFor(session.id)?h('span',null,session.status||'—',h('span',{className:'badge',style:{marginLeft:'6px',background:'#fde7f0',color:'#a80d4f'}},'Returned by Accounts')):(session.status||'—'),
         session.reason||session.notes||'—',
         fmt(session.updated_at||session.created_at),
         canEnter?(session.status==='Pending'&&!session.session_at?h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-primary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openEntry({...plan,id:session.plan_id||session.order_id,patient_id:session.patient_id},session)},'Record Session'),h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options')):h('button',{type:'button',className:'btn btn-secondary',disabled:requests.some(request=>request.session_id===session.id&&request.state==='Pending'),onClick:()=>openCorrection(session)},requests.some(request=>request.session_id===session.id&&request.state==='Pending')?'Awaiting approval':'Session options')):h('span',{className:'small-note'},'View only')
       ];
     });
 
+    const correctionModal=editingSession&&h('div',{className:'modal-backdrop'},
+        h('form',{className:'card modal',onSubmit:submitCorrection},
+          h('div',{className:'panel-head'},h('h3',null,'Session options'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setEditingSession(null)},'×')),
+          h('p',null,patientLabel(editingSession.patient_id)+' · '+formatDateIN(editingSession.session_date)+' · '+editingSession.status),
+          returnFor(editingSession.id)&&h('div',{className:'message warning',role:'status',style:{background:'#fde7f0',borderColor:'#e9a9c4',color:'#5a1634'}},
+            h('strong',null,'Returned by Accounts'+(returnFor(editingSession.id).returned_by_name?' ('+returnFor(editingSession.id).returned_by_name+')':'')+': '),
+            returnFor(editingSession.id).reason||'no reason given',
+            h('div',{style:{marginTop:'4px'}},'Correct what is wrong (Modify), or Delete if the session never happened. After Nursing Manager / Admin approval: still Completed → goes to Accounts again automatically; Pending / Not Done / deleted → no charge.')),
+          sessionLock&&(sessionLock.guest_charge||sessionLock.fee_posted)&&h('div',{className:'message error',role:'alert'},
+            h('strong',null,'This session is already '+[sessionLock.guest_charge&&(sessionLock.guest_charge==='Approved'?'charged to the Guest’s bill':'sent to Accounts as a Guest charge ('+sessionLock.guest_charge+')'),sessionLock.fee_posted&&'posted as an outsourced physiotherapist fee'].filter(Boolean).join(' and ')+'. '),
+            'Before this correction can be approved: '+[sessionLock.guest_charge&&'Accounts must reject / reverse the Guest charge',sessionLock.fee_posted&&'Admin must reverse the physiotherapist fee (Therapist Accounts → Ledger)'].filter(Boolean).join('; ')+'. You can still submit the request.'),
+          h('div',{role:'group','aria-label':'Correction action',className:'actions'},['Delete','Modify','Reschedule'].map(action=>h('button',{type:'button',key:action,className:'btn '+(requestAction===action?'btn-primary':'btn-secondary'),'aria-pressed':requestAction===action,disabled:saving,onClick:()=>setRequestAction(action)},action))),
+          requestAction&&h('div',{className:'modal-grid'},
+            requestAction!=='Delete'&&h(React.Fragment,null,
+              h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
+              h('div',{className:'field'},h('label',null,'Scheduled time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
+              requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
+              requestAction==='Modify'&&form.status==='Completed'&&actualTimeField(),
+              requestAction==='Modify'&&organisationFields(),
+              requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
+            h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
+            h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
+          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setEditingSession(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||!requestAction},saving?'Submitting…':'Submit for approval'))));
+    const resendModal=resendTarget&&h('div',{className:'modal-backdrop'},
+      h('form',{className:'card modal',onSubmit:sendBackReturned},
+        h('div',{className:'panel-head'},h('h3',null,'Session is correct — send back to Accounts'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setResendTarget(null)},'×')),
+        h('p',null,(resendTarget.guest_name||'Guest')+' · '+formatDateIN(resendTarget.session_date)+(resendTarget.physiotherapist?' · '+resendTarget.physiotherapist:'')),
+        h('p',{className:'small-note'},'Accounts returned it: '+(resendTarget.reason||'no reason given')),
+        h('div',{className:'field'},h('label',null,'Remark for Accounts (what you checked)'),h('textarea',{'aria-label':'Remark for Accounts',required:true,rows:3,value:resendNote,onChange:e=>setResendNote(e.target.value),placeholder:'Example: Checked with the physiotherapist — session was done at 8:15 AM as recorded'})),
+        h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setResendTarget(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||resendNote.trim().length<5},saving?'Sending…':'Send back to Accounts'))));
+    const canResendReturned=['Admin','Manager','Nurse'].includes(profile?.role)||canReview;
+    const showAmount=returned.some(r=>r.amount!=null);
+    const returnedShown=focusedReturnSession?returned.filter(r=>r.session_id===focusedReturnSession):returned;
+    const returnedPanel=returnedShown.length>0&&h(LogTable,{
+      title:`Returned by Accounts (${returnedShown.length})`,
+      subtitle:'Physiotherapy session charges Accounts returned. Check the session: correct it with "Check & Correct", or if it is right, "Session correct — Send back" with a remark.',
+      className:'samara-mobile-card-table',
+      heads:['Guest','Session date','Physiotherapist','Returned by','Reason',...(showAmount?['Amount']:[]),'Action'],
+      rows:returnedShown.map(r=>[
+        h('span',{id:'physio-return-'+r.session_id},(r.guest_name||'Guest')+(r.room_no?' · Room '+r.room_no:'')),
+        formatDateIN(r.session_date)+(r.actual_time?' · '+clockLabel(r.actual_time):'')+(r.session_status&&r.session_status!=='Completed'?' · '+r.session_status:''),
+        r.physiotherapist||'—',
+        (r.returned_by_name||'Accounts')+(r.returned_at?' · '+fmt(r.returned_at):''),
+        h('strong',{style:{color:'#a80d4f'}},r.reason||'No reason given'),
+        ...(showAmount?[r.amount!=null?'₹'+Number(r.amount).toLocaleString('en-IN'):'—']:[]),
+        r.correction_pending?h('span',{className:'badge',style:{background:'#fff4e0',color:'#8a5300'}},'Correction awaiting approval'):
+        h('div',{className:'actions'},
+          canEnter&&!isPhysioLogin&&h('button',{type:'button',className:'btn btn-primary',disabled:saving,onClick:()=>openReturnedSession(r)},'Check & Correct'),
+          canResendReturned&&r.session_status==='Completed'&&h('button',{type:'button',className:'btn btn-secondary',disabled:saving||!r.has_rate,title:r.has_rate?undefined:'No Guest rate for this date',onClick:()=>{setResendNote('');setResendTarget(r)}},'Session correct — Send back'),
+          !r.has_rate&&h('small',{className:'small-note',style:{display:'block'}},'No Guest physiotherapy rate for this date — Admin / Director: set it in Patient Rates & Billing, then Send back.'))
+      ])
+    });
+    if(focusedReturnSession)return h(React.Fragment,null, // 2.19.64: only the returned session the alert points at
+      message&&h('div',{className:'message error'},message),
+      h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
+      loading?h('p',{className:'small-note'},'Loading…'):returnedShown.length?returnedPanel:h('div',{className:'message'},'This returned charge has already been corrected or sent back. Press Show all to see everything.'),
+      correctionModal,resendModal);
     if(focusedRequestId)return h(React.Fragment,null, // 2.18.126: only the request the notification points at
       message&&h('div',{className:'message error'},message),
       h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
@@ -370,6 +457,7 @@
       h('div',{id:'physio-request-focus'},h(LogTable,{title:'Physiotherapy Correction Request',subtitle:'Approve or reject here. The original session stays unchanged until approval.',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows})));
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
+      returnedPanel,
       h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125
       h(LogTable,{
         title:'Physiotherapy Plan',
@@ -388,25 +476,7 @@
       }),
       h(PhysioSessionCounts,{profile,filters}),
       h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows}),
-      editingSession&&h('div',{className:'modal-backdrop'},
-        h('form',{className:'card modal',onSubmit:submitCorrection},
-          h('div',{className:'panel-head'},h('h3',null,'Session options'),h('button',{type:'button',className:'close',disabled:saving,onClick:()=>setEditingSession(null)},'×')),
-          h('p',null,patientLabel(editingSession.patient_id)+' · '+formatDateIN(editingSession.session_date)+' · '+editingSession.status),
-          sessionLock&&(sessionLock.guest_charge||sessionLock.fee_posted)&&h('div',{className:'message error',role:'alert'},
-            h('strong',null,'This session is already '+[sessionLock.guest_charge&&(sessionLock.guest_charge==='Approved'?'charged to the Guest’s bill':'sent to Accounts as a Guest charge ('+sessionLock.guest_charge+')'),sessionLock.fee_posted&&'posted as an outsourced physiotherapist fee'].filter(Boolean).join(' and ')+'. '),
-            'Before this correction can be approved: '+[sessionLock.guest_charge&&'Accounts must reject / reverse the Guest charge',sessionLock.fee_posted&&'Admin must reverse the physiotherapist fee (Therapist Accounts → Ledger)'].filter(Boolean).join('; ')+'. You can still submit the request.'),
-          h('div',{role:'group','aria-label':'Correction action',className:'actions'},['Delete','Modify','Reschedule'].map(action=>h('button',{type:'button',key:action,className:'btn '+(requestAction===action?'btn-primary':'btn-secondary'),'aria-pressed':requestAction===action,disabled:saving,onClick:()=>setRequestAction(action)},action))),
-          requestAction&&h('div',{className:'modal-grid'},
-            requestAction!=='Delete'&&h(React.Fragment,null,
-              h('div',{className:'field'},h('label',null,requestAction==='Reschedule'?'New session date':'Correct date'),h('input',{'aria-label':'Revised session date',type:'date',required:true,value:form.session_date,min:requestAction==='Reschedule'?todayISOIndia():undefined,max:requestAction==='Modify'&&form.status==='Completed'?todayISOIndia():undefined,onChange:e=>setForm({...form,session_date:e.target.value})})),
-              h('div',{className:'field'},h('label',null,'Scheduled time'),h('input',{'aria-label':'Revised session time',type:'time',required:true,value:form.scheduled_time,onChange:e=>setForm({...form,scheduled_time:e.target.value})})),
-              requestAction==='Modify'&&h('div',{className:'field'},h('label',null,'Correct status'),h('select',{'aria-label':'Correct status',value:form.status,onChange:e=>setForm({...form,status:e.target.value})},['Completed','Pending','Not Done'].map(status=>h('option',{key:status,value:status},status)))),
-              requestAction==='Modify'&&form.status==='Completed'&&actualTimeField(),
-              requestAction==='Modify'&&organisationFields(),
-              requestAction==='Modify'&&h('div',{className:'field span-2'},h('label',null,'Correct notes'),h('textarea',{'aria-label':'Correct notes',rows:2,value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}))),
-            h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{'aria-label':'Correction request reason',required:true,rows:2,value:requestReason,onChange:e=>setRequestReason(e.target.value),'data-samara-voice':'off'})),
-            h('p',{className:'small-note span-2'},requestAction==='Delete'?'Approval removes this entry from active records. Its original details are kept for audit and can be restored.':'The existing session is unchanged until approval. Rescheduling moves it to the new date/time with Pending status.')),
-          h('div',{className:'actions'},h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>setEditingSession(null)},'Cancel'),h('button',{className:'btn btn-primary',disabled:saving||!requestAction},saving?'Submitting…':'Submit for approval')))),
+      correctionModal,resendModal,
       entryPlan&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setEntryPlan(null)}},
         h('form',{className:'card modal',onSubmit:saveSession},
           h('div',{className:'panel-head'},

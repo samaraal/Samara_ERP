@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.63';
-const CACHE = 'samara-erp-2.19.63-razorpay-single-pending';
+const APP_VERSION = '2.19.64';
+const CACHE = 'samara-erp-2.19.64-physio-return-correction';
 const SHELL = [
   './',
   './index.html',
