@@ -75,3 +75,29 @@ begin
            description=description||' — session 1 of '||r.quantity::int, updated_at=now() where id=r.id;
   end loop;
 end $split347$;
+
+-- Follow-up 2 (06-11-2026 21:45): the split requests shared one time, so the MIS read them as "Possible duplicate charges".
+-- Each request now carries the time of a MAR nebulisation session that day which had no other nebulisation charge.
+do $time347$
+declare d record; ids uuid[]; times time[]; i int;
+begin
+  perform set_config('samara.nursing_procedure_charge','on',true);
+  for d in select patient_id, charge_date from public.bill_charge_requests
+            where remarks like 'MIS Care-vs-Billing reconciliation (onetime 347)%' and coalesce(status,'')<>'Removed' group by 1,2 loop
+    select array_agg(id order by created_at,id) into ids from public.bill_charge_requests
+     where patient_id=d.patient_id and charge_date=d.charge_date and remarks like 'MIS Care-vs-Billing reconciliation (onetime 347)%' and coalesce(status,'')<>'Removed';
+    select array_agg(x.tm order by x.tm desc) into times from (
+      select distinct a.scheduled_time::time tm from public.medication_administrations a join public.medication_orders o on o.id=a.order_id
+       where o.patient_id=d.patient_id and a.scheduled_date=d.charge_date and a.status='Given' and (o.route ilike '%inhal%' or o.medicine_name ilike 'neb%')
+         and not exists (select 1 from public.bill_charge_requests b where b.patient_id=d.patient_id and b.charge_date=d.charge_date
+                          and coalesce(b.service_name,'')||coalesce(b.description,'') ilike '%nebul%' and coalesce(b.status,'')<>'Removed' and coalesce(b.approval_status,'')<>'Rejected'
+                          and coalesce(b.remarks,'') not like 'MIS Care-vs-Billing reconciliation (onetime 347)%'
+                          and (b.service_datetime at time zone 'Asia/Kolkata')::time = a.scheduled_time::time)) x;
+    for i in 1..array_length(ids,1) loop
+      update public.bill_charge_requests
+         set service_datetime = case when times is not null and i<=array_length(times,1) then (d.charge_date + times[i]) at time zone 'Asia/Kolkata'
+                                     else service_datetime - make_interval(mins=>i-1) end, updated_at=now()
+       where id=ids[i];
+    end loop;
+  end loop;
+end $time347$;
