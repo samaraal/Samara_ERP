@@ -334,7 +334,7 @@
     const nxt=nssTimeInShift(nextWin,hhmm);
     return nxt&&nxt.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS?{...nxt,next:true}:null;
   }
-  function nssTime12(d){const hr=d.getHours(),m=d.getMinutes();return {t:`${hr%12||12}:${String(m).padStart(2,'0')}`,ap:hr<12?'AM':'PM'}}
+  function nssTime12(d){const hr=d.getHours(),m=d.getMinutes();return {t:`${String(hr).padStart(2,'0')}:${String(m).padStart(2,'0')}`,ap:''}} // 2.19.70: 24-hour clock
   function nssGuest(p){
     if(!p)return 'Guest';
     const name=String(p.full_name||'').trim();
@@ -750,7 +750,7 @@
           h('div',{className:'nss-brand'},
             h('div',{className:'nss-logo'},h('img',{src:'./assets/samara-logo.png',alt:'Samara Assisted Living'})),
             h('div',null,
-              h('div',{className:'nss-clock'},String(hh%12||12),h('span',{className:'nss-colon'},':'),mm,h('span',{className:'nss-sec'},':'+String(now.getSeconds()).padStart(2,'0')),h('small',null,hh<12?'AM':'PM')),
+              h('div',{className:'nss-clock'},String(hh).padStart(2,'0'),h('span',{className:'nss-colon'},':'),mm,h('span',{className:'nss-sec'},':'+String(now.getSeconds()).padStart(2,'0')),h('small',null,'hrs')),
               h('div',{className:'nss-date'},`${now.toLocaleDateString('en-IN',{weekday:'long'})} · ${formatDateIN(nssLocalISO(now))}`))),
           h('div',{className:'nss-shift'},
             h('span',{className:'nss-chip'},win.name.replace(/\s*\(.*$/,''),h('span',{className:'nss-chip-hours'},` ${(win.name.match(/\((.*)\)/)||['',''])[1]}`)),

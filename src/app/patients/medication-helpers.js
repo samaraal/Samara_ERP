@@ -1,6 +1,6 @@
   const MEDICATION_TIME_OPTIONS = Array.from({length:24},(_,hour)=>({
     value:`${String(hour).padStart(2,'0')}:00`,
-    label:`${hour===0?12:hour>12?hour-12:hour}:00 ${hour<12?'AM':'PM'}`
+    label:`${String(hour).padStart(2,'0')}:00`
   }));
   const MEDICATION_FREQUENCY_TIMES = {
     'Once Daily (OD)':['08:00'],
@@ -33,7 +33,7 @@
   function medicationTimeLabel(value){
     const normalized=normalizeMedicationTime(value);const hour=Number(normalized.slice(0,2));
     if(Number.isNaN(hour))return String(value||'');
-    return `${hour===0?12:hour>12?hour-12:hour}:${normalized.slice(3,5)||'00'} ${hour<12?'AM':'PM'}`;
+    return `${String(hour).padStart(2,'0')}:${normalized.slice(3,5)||'00'}`; // 2.19.70: 24-hour clock
   }
   // Clinical tasks scheduled before a same-day admission do not belong to the new stay.
   // Compare in Samara's local timezone so the rule is consistent on every device.
@@ -277,8 +277,8 @@
   function physioWindowFor(t,plan){const key=String(t||'').slice(0,5);return (plan?physioPlanWindows(plan).find(w=>w.key===key):null)||physioParseWindow(key);}
   function physioWindowStart(t,plan){return physioWindowFor(t,plan)?.start||''}
   function physioWindowEnd(t,plan){return physioWindowFor(t,plan)?.end||''}
-  function physioClock(v){const [h,m]=String(v).split(':').map(Number);return {txt:`${h%12||12}:${String(m).padStart(2,'0')}`,ap:h<12?'AM':'PM'}}
-  function physioRangeLabel(a,b){if(!a||!b)return '—';const x=physioClock(a),y=physioClock(b);return x.ap===y.ap?`${x.txt}–${y.txt} ${y.ap}`:`${x.txt} ${x.ap}–${y.txt} ${y.ap}`;}
+  function physioClock(v){const [h,m]=String(v).split(':').map(Number);return {txt:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,ap:''}}
+  function physioRangeLabel(a,b){if(!a||!b)return '—';const x=physioClock(a),y=physioClock(b);return `${x.txt}–${y.txt}`;}
   function physioWindowLabel(t,plan){const w=physioWindowFor(t,plan);return w?physioRangeLabel(w.start,w.end):'—';}
   // Plan form: one From–To pair per session of the day. Returns ["07:00-09:00","16:00-18:00"] via onChange.
   function PhysioSessionTimesFields({frequency,times,onChange}){
@@ -486,7 +486,7 @@
 
   // v2.14.87: optional preferred time window for a care task (e.g. 10:00 AM – 12:00 PM).
   const careTimeValue = v => { const m=String(v||'').match(/^(\d{1,2}):(\d{2})/); return m?`${m[1].padStart(2,'0')}:${m[2]}`:''; };
-  const careWindowLabel = c => { const a=careTimeValue(c?.preferred_from),b=careTimeValue(c?.preferred_to); if(!a&&!b)return 'Any time in shift'; const fmt12=t=>{const [hh,mm]=t.split(':').map(Number);return `${String(hh%12||12).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}; return a&&b?`Preferred ${fmt12(a)} – ${fmt12(b)}`:`Preferred ${a?'from '+fmt12(a):'by '+fmt12(b)}`; };
+  const careWindowLabel = c => { const a=careTimeValue(c?.preferred_from),b=careTimeValue(c?.preferred_to); if(!a&&!b)return 'Any time in shift'; const fmt12=t=>{const [hh,mm]=t.split(':').map(Number);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`}; return a&&b?`Preferred ${fmt12(a)} – ${fmt12(b)}`:`Preferred ${a?'from '+fmt12(a):'by '+fmt12(b)}`; };
   function blankCare(){
     return {
       care_type:'',
@@ -504,12 +504,12 @@
   // 2.15.11: clinical withholding of a dose (nurse's assessment) + doctor's instruction follow-up
   const MEDICATION_WITHHOLD_REASONS=['Low blood pressure','Low blood sugar','Low pulse / heart rate','Drowsy / unwell','Nil by mouth (NPO)','Vomiting / cannot swallow','Other clinical reason'];
   const MEDICATION_WITHHOLD_READING_HINT={
-    'Low blood pressure':'Example: BP 90/58 mmHg at 7:50 AM',
-    'Low blood sugar':'Example: RBS 68 mg/dL (glucometer) at 7:45 AM',
-    'Low pulse / heart rate':'Example: Pulse 50/min at 8:00 AM',
+    'Low blood pressure':'Example: BP 90/58 mmHg at 07:50',
+    'Low blood sugar':'Example: RBS 68 mg/dL (glucometer) at 07:45',
+    'Low pulse / heart rate':'Example: Pulse 50/min at 08:00',
     'Drowsy / unwell':'Example: Drowsy, responds to voice; BP 110/70, SpO₂ 96%',
     'Nil by mouth (NPO)':'Example: NPO for procedure from 6 AM (doctor order)',
-    'Vomiting / cannot swallow':'Example: Vomited twice since 7 AM',
+    'Vomiting / cannot swallow':'Example: Vomited twice since 07:00',
     'Other clinical reason':'Enter the observation / reading'
   };
   const MEDICATION_DOCTOR_CONTACT_MODES=['Phone call','WhatsApp','In person','Not reachable yet — will retry'];

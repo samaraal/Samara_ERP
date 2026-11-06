@@ -498,6 +498,29 @@
       finally{setTimeFixBusy(false);}
     }
     function closeMar(){if(!marBusy){setMarTarget(null);setRescheduleLog(null);setMarMessage('');}}
+    // 2.19.70: AM/PM mix-up guard (incident 05-11-2026: an 8:00 PM dose rescheduled to 08:30 fell on the NEXT
+    // morning, and the dose given that night was recorded 12 h "early"). A reschedule onto the next day or more
+    // than 6 hours away needs an explicit tick; a dose cannot be recorded as Given for a later date, and a dose
+    // given 2 h or more before its time on the same day needs a reason.
+    function marRescheduleCheck(){
+      const time=marForm.rescheduled_time;
+      if(!time||!medicationRescheduleTimeValid(marForm.scheduled_time,time))return null;
+      const date=rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:time});
+      const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,time);
+      const nextDay=date!==String(marForm.scheduled_date||today).slice(0,10);
+      return {date,gap,nextDay,needsConfirm:nextDay||gap>360};
+    }
+    function marEarlyCheck(){
+      if(rescheduleLog||marForm.status!=='Given'||!marForm.administered_at||!marForm.scheduled_time)return null;
+      const dueDate=String(marForm.scheduled_date||today).slice(0,10),dueTime=normalizeMedicationTime(marForm.scheduled_time).slice(0,5);
+      const due=new Date(`${dueDate}T${dueTime}:00+05:30`).getTime(),given=new Date(marForm.administered_at).getTime();
+      if(!Number.isFinite(due)||!Number.isFinite(given))return null;
+      const minutes=Math.round((due-given)/60000);
+      if(minutes<120)return null;
+      const givenDate=clinicalDateTimeInIndia(new Date(given))?.date||'';
+      return {minutes,dueDate,dueTime,laterDay:Boolean(givenDate)&&dueDate>givenDate};
+    }
+    const MEDICATION_EARLY_GIVEN_REASONS=['Doctor\'s instruction','Guest going out (hospital visit / outing)','Before a test / procedure','Other'];
     async function saveMar(e){
       e.preventDefault();
       setMarMessage('');
@@ -510,6 +533,8 @@
       if(isRescheduleAction&&!rescheduleReason){const text='Enter the reason for rescheduling this dose.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       if(isRescheduleAction&&!marForm.rescheduled_time){const text='Select the new medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       if(isRescheduleAction&&!medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)){const text=MEDICATION_RESCHEDULE_TIME_MESSAGE;setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      {const rc=marRescheduleCheck();const willReschedule=isRescheduleAction||((marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&marForm.rescheduled_time);
+        if(willReschedule&&rc?.needsConfirm&&!marForm.reschedule_confirm){const text=`Please check the new time: the dose will move to ${formatDateIN(rc.date)} at ${medicationTimeLabel(marForm.rescheduled_time)} (${medicationDurationText(rc.gap)} later). Tick the confirmation box if this is correct.`;setMarMessage(text);showSamaraActionToast('error','Confirm the new dose time',text);return;}}
       if(isRescheduleAction&&rescheduleLog){
         setMarBusy(true);
         const {error}=await client.from('medication_administrations').update({rescheduled_time:normalizeMedicationTime(marForm.rescheduled_time),reschedule_reason:rescheduleReason}).eq('id',rescheduleLog.id);
@@ -555,6 +580,11 @@
       const lateGivenMinutes=marForm.status==='Given'?medicationLateGivenMinutes(marForm.scheduled_date||today,marForm.scheduled_time,administrationTime.toISOString()):0;
       if(lateGivenMinutes&&!marForm.late_given_reason){const text=`This medicine is being given ${medicationDurationText(lateGivenMinutes)} late. Select the reason for giving it late.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(lateGivenMinutes&&marForm.late_given_reason==='Other'&&!String(marForm.late_given_details||'').trim()){const text='Write the reason for giving the medicine late.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      const early=marEarlyCheck();
+      if(early?.laterDay){const text=`This dose is due on ${formatDateIN(early.dueDate)} at ${medicationTimeLabel(early.dueTime)} — ${medicationDurationText(early.minutes)} from the time you entered. It cannot be recorded as given now. Check the date and time: you may be recording the wrong dose.`;setMarMessage(text);showSamaraActionToast('error','Wrong dose?',text);return;}
+      if(early&&!marForm.early_given_reason){const text=`This medicine is being given ${medicationDurationText(early.minutes)} before its time (${medicationTimeLabel(early.dueTime)}). Select the reason for giving it early.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      if(early&&marForm.early_given_reason==='Other'&&!String(marForm.early_given_details||'').trim()){const text='Write the reason for giving the medicine early.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      const earlyNote=early?`Given early (${medicationDurationText(early.minutes)} before ${medicationTimeLabel(early.dueTime)}): ${marForm.early_given_reason}${String(marForm.early_given_details||'').trim()?' — '+String(marForm.early_given_details).trim():''}`:'';
       const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time,marForm.scheduled_date||today);
       if(alreadyRecorded&&isFrontlineClinical){
         const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
@@ -570,7 +600,7 @@
         status:marForm.status==='Reschedule'?'Delayed':marForm.status,
         administered_at:administrationTime.toISOString(),
         administered_by:user?.id||profile?.auth_user_id||profile?.id,
-        remarks:marForm.status==='Not Given'?['Not given: '+marForm.not_given_reason,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):String(marForm.remarks||'').trim(),
+        remarks:marForm.status==='Not Given'?['Not given: '+marForm.not_given_reason,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,earlyNote,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):[earlyNote,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '),
         entry_recorded_at:entryTime.toISOString(),
         late_entry:isLateEntry,
         entry_delay_minutes:entryDelayMinutes,
@@ -1227,7 +1257,17 @@
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Informed by'),h('select',{value:marForm.doctor_informed_via,onChange:e=>setMarForm({...marForm,doctor_informed_via:e.target.value})},MEDICATION_DOCTOR_CONTACT_MODES.map(m=>h('option',{key:m,value:m},m)))),
             marForm.status==='Withheld'&&marForm.doctor_informed_via!=='Not reachable yet — will retry'&&h('div',{className:'field span-2'},h('label',null,'Doctor informed at'),h(StrictDateTimeInput,{value:marForm.doctor_informed_at,onChange:e=>setMarForm({...marForm,doctor_informed_at:e.target.value})})),
             !rescheduleLog&&MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
-            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,marForm.rescheduled_time&&medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)?`New dose: ${formatDateIN(rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:marForm.rescheduled_time}))} at ${medicationTimeLabel(marForm.rescheduled_time)} (original ${medicationTimeLabel(marForm.scheduled_time)}). Any time may be chosen; a time earlier than the original falls on the next day.`:'Any time may be chosen; a time earlier than the original falls on the next day. The dose will appear again in Today’s MAR and Shift Tasks; the original entry and reason remain permanently in MAR history.')),
+            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value,reschedule_confirm:false})}),h('small',null,marForm.rescheduled_time&&medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)?`New dose: ${formatDateIN(rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:marForm.rescheduled_time}))} at ${medicationTimeLabel(marForm.rescheduled_time)} (original ${medicationTimeLabel(marForm.scheduled_time)}). Any time may be chosen; a time earlier than the original falls on the next day.`:'Any time may be chosen; a time earlier than the original falls on the next day. The dose will appear again in Today’s MAR and Shift Tasks; the original entry and reason remain permanently in MAR history.')),
+            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&(()=>{const rc=marRescheduleCheck();
+              return rc?.needsConfirm?h(React.Fragment,null,
+                h('div',{className:'message warning span-2',style:{fontSize:'15px'}},h('strong',null,`⚠ New dose: ${formatDateIN(rc.date)} at ${medicationTimeLabel(marForm.rescheduled_time)} hrs`),` — ${rc.nextDay?'the NEXT DAY, ':''}${medicationDurationText(rc.gap)} after the original ${medicationTimeLabel(marForm.scheduled_time)}. Times are in 24-hour format (20:30 = 8:30 in the evening).`),
+                h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule_confirm,onChange:e=>setMarForm({...marForm,reschedule_confirm:e.target.checked})}),` I confirm the new dose is on ${formatDateIN(rc.date)} at ${medicationTimeLabel(marForm.rescheduled_time)} hrs`)):null})(),
+            (()=>{const early=marEarlyCheck();if(!early)return null;
+              if(early.laterDay)return h('div',{className:'message error span-2',style:{fontSize:'15px'}},h('strong',null,`⛔ This dose is due on ${formatDateIN(early.dueDate)} at ${medicationTimeLabel(early.dueTime)} hrs`),` — ${medicationDurationText(early.minutes)} from the time entered. It cannot be recorded as given now; you may be recording the wrong dose.`);
+              return h(React.Fragment,null,
+                h('div',{className:'message warning span-2'},`Given ${medicationDurationText(early.minutes)} before the scheduled ${medicationTimeLabel(early.dueTime)} hrs. A reason is compulsory.`),
+                h('div',{className:'field'},h('label',null,'Reason for giving early *'),h('select',{required:true,value:marForm.early_given_reason||'',onChange:e=>setMarForm({...marForm,early_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_EARLY_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
+                h('div',{className:'field'},h('label',null,marForm.early_given_reason==='Other'?'Details *':'Details (optional)'),h('input',{type:'text',required:marForm.early_given_reason==='Other',value:marForm.early_given_details||'',onChange:e=>setMarForm({...marForm,early_given_details:e.target.value})})));})(),
             !rescheduleLog&&marForm.status!=='Reschedule'&&h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
             (()=>{const lm=!rescheduleLog&&marForm.status==='Given'&&marForm.administered_at?medicationLateGivenMinutes(marForm.scheduled_date||today,marForm.scheduled_time,new Date(marForm.administered_at).toISOString()):0;
               return lm?h(React.Fragment,null,

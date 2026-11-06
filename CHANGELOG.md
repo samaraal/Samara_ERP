@@ -1,3 +1,9 @@
+## 2.19.70 — 06-11-2026 — 24-hour clock across the ERP + dose time guards (onetime SQL 346, already run)
+- **24-hour clock everywhere (Admin):** every time box is now typed as **HH : MM (00–23)** — no AM/PM dropdown. Times shown on screen (MAR, alerts, reports, dropdowns, screensaver, date-times) are shown as 24-hour, e.g. 20:30. Saved values are unchanged (HH:MM). Doctor report settings use the same 24-hour box.
+- **Reschedule guard:** when a rescheduled dose falls on the **next day** or more than **6 hours** later, the screen shows the full date and time in large text and needs a tick "I confirm the new dose is on DD-MM-YYYY at HH:MM".
+- **Early dose guard:** a dose cannot be recorded as Given for a **later date** (stops the wrong slot being used); a dose given **2 hours or more early** on the same day needs a reason (saved in Remarks).
+- Data fix (onetime_346, run 06-11-2026): Mr. S. SWAMINATHAN, T.Labebet 100 mg — the 05-11 20:00 dose rescheduled to 08:30 (next day) by an AM/PM error is corrected to 20:30, and the dose given 05-11 20:23 moved from 06-11 08:30 to 05-11 20:30. Before-copy kept in the audit trail. The Guest's actual doses were correct.
+
 ## 2.19.69 — 06-11-2026 — Accounts figures now agree across Dashboard and Reports (no SQL)
 - **Collections by Mode:** Family Portal receipts are saved as "Razorpay Online", which the mode boxes did not count (₹1,43,873 in November was missing). Modes are now grouped (Razorpay, Cash, UPI, RTGS / Bank Transfer, Card Payment, Other) so the mode boxes always add up to total receipts — Accounts Dashboard and Accounts Reports.
 - **Patient / Outside Invoice Financial Ledger (Reports):** "Balance" used only the selected period's entries, so a Guest who paid October dues in November showed "Paid" with ₹0. It now shows **Opening Balance + period movement = Closing Balance** as on the To date (same figure as Outstanding Receivables on the Dashboard); overpayment shows as **Advance Held**.

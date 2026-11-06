@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 // Presentation only. Store and submit timestamps in their original ISO form.
-const formatter=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:true});
+const formatter=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 function parse(value){
  if(value instanceof Date)return value;
  if(typeof value==='number')return new Date(value);
@@ -19,13 +19,13 @@ function parts(value){
 function time(value){
  const p=parts(value);
  if(!p)return value==null||value===''?'\u2014':String(value);
- return `${p.hour}:${p.minute} ${p.dayPeriod.toUpperCase()} IST`;
+ return `${p.hour}:${p.minute} IST`;
 }
 function dateTime(value){
  if(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value))return value.split('-').reverse().join('-');
  const p=parts(value);
  if(!p)return value==null||value===''?'\u2014':String(value);
- return `${p.day}-${p.month}-${p.year}, ${p.hour}:${p.minute} ${p.dayPeriod.toUpperCase()} IST`;
+ return `${p.day}-${p.month}-${p.year}, ${p.hour}:${p.minute} IST`;
 }
 // 2.14.78: ERP-wide standard is DD-MM-YYYY. Besides ISO dates, convert the other shapes
 // browsers produce ("28 Sept 2026", "28/09/2026", "Sep 28, 2026", "24-Sep-2026") so any
@@ -33,7 +33,11 @@ function dateTime(value){
 const MONTHS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 const pad=n=>String(n).padStart(2,'0');
 function dmy(d,m,y){d=Number(d);m=Number(m);if(!(d>=1&&d<=31&&m>=1&&m<=12))return null;return pad(d)+'-'+pad(m)+'-'+y}
-function clock(hh,mm,ap){return hh?', '+pad(Number(hh)%12||12)+':'+mm+' '+ap.toUpperCase():''}
+function clock(hh,mm,ap){return hh?', '+to24(hh,mm,ap):''}
+// 2.19.70: ERP-wide 24-hour clock — any 'h:mm AM/PM' shown on screen becomes 'HH:MM'.
+function to24(hh,mm,ap){let h=Number(hh);const p=String(ap||'').replace(/\./g,'').toUpperCase();if(p==='PM'&&h<12)h+=12;else if(p==='AM'&&h===12)h=0;return pad(h)+':'+(mm||'00')}
+const AMPM_HM=/\b(\d{1,2}):([0-5]\d)(?::[0-5]\d)?\s*([AaPp])\.?\s?[Mm]\.?(?![A-Za-z])/g;
+const AMPM_H=/\b(1[0-2]|0?[1-9])\s?([AaPp])\.?[Mm]\.?(?![A-Za-z])/g;
 const MON='(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?';
 const TIME='(?:,?\\s*(?:at\\s+)?(\\d{1,2}):(\\d{2})(?::\\d{2})?\\s*([ap]\\.?m\\.?))?';
 const SLASH=new RegExp('\\b(\\d{1,2})/(\\d{1,2})/(\\d{4})\\b'+TIME,'gi');
@@ -47,7 +51,9 @@ function text(value){
   .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,'$3-$2-$1')
   .replace(SLASH,(all,d,m,y,hh,mm,ap)=>{const v=dmy(d,m,y);return v?v+clock(hh,mm,ampm(ap)):all})
   .replace(DAY_MON,(all,d,mon,y,hh,mm,ap)=>{const v=dmy(d,MONTHS[mon.slice(0,3).toLowerCase()],y);return v?v+clock(hh,mm,ampm(ap)):all})
-  .replace(MON_DAY,(all,mon,d,y,hh,mm,ap)=>{const v=dmy(d,MONTHS[mon.slice(0,3).toLowerCase()],y);return v?v+clock(hh,mm,ampm(ap)):all});
+  .replace(MON_DAY,(all,mon,d,y,hh,mm,ap)=>{const v=dmy(d,MONTHS[mon.slice(0,3).toLowerCase()],y);return v?v+clock(hh,mm,ampm(ap)):all})
+  .replace(AMPM_HM,(all,hh,mm,ap)=>Number(hh)>=1&&Number(hh)<=12?to24(hh,mm,ap+'M'):all)
+  .replace(AMPM_H,(all,hh,ap)=>to24(hh,'00',ap+'M'));
 }
 
 // 2.14.78: every date / date-time box in the ERP shows DD-MM-YYYY, whatever the phone or
@@ -75,7 +81,7 @@ function installDateBoxes(){
   const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
   if(!m)return raw;
   const hr=Number(m[4]);
-  return m[3]+'-'+m[2]+'-'+m[1]+', '+pad(hr%12||12)+':'+m[5]+' '+(hr>=12?'PM':'AM');
+  return m[3]+'-'+m[2]+'-'+m[1]+', '+pad(hr)+':'+m[5]+' hrs';
  }
  function SamaraDateBox(props){
   const {__kind,style,className,placeholder,disabled,readOnly,onClick,...rest}=props;
@@ -90,7 +96,7 @@ function installDateBoxes(){
   return original('span',{className:'samara-date-box'+(disabled?' is-disabled':''),style:box},
    original('input',{type:'text',readOnly:true,tabIndex:-1,'aria-hidden':'true',className,disabled,
     value:shownValue(__kind,rest.value),
-    placeholder:__kind==='date'?'DD-MM-YYYY':'DD-MM-YYYY, hh:mm AM/PM',
+    placeholder:__kind==='date'?'DD-MM-YYYY':'DD-MM-YYYY, HH:MM (24 h)',
     style:{...s,width:'100%',maxWidth:'100%',margin:0,paddingRight:'34px',boxSizing:'border-box',cursor:disabled?'default':'pointer'}}),
    original('span',{'aria-hidden':'true',style:{position:'absolute',right:'12px',top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'15px',opacity:disabled?.4:.8}},'\u25BE'),
    original('input',{...rest,type:__kind,'data-samara-native':'1',disabled,readOnly,onClick:openPicker,
@@ -109,7 +115,9 @@ function installDateBoxes(){
  R.__samaraDateBoxes=true;
 }
 if(root.document)installDateBoxes();
-const api=Object.freeze({dateTime,time,text});
+// 2.19.70: only the AM/PM → 24-hour part (used for dropdown options, which keep their own date text).
+function clock24(value){if(typeof value!=='string')return value;return value.replace(AMPM_HM,(all,hh,mm,ap)=>Number(hh)>=1&&Number(hh)<=12?to24(hh,mm,ap+'M'):all).replace(AMPM_H,(all,hh,ap)=>to24(hh,'00',ap+'M'))}
+const api=Object.freeze({dateTime,time,text,clock24});
 root.SamaraDateTime=api;
 if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(globalThis);

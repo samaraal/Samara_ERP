@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.69';
+  const APP_VERSION = '2.19.70';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '06-Nov-2026 Accounts figures reconciled';
+  const APP_BUILD_DATE = '06-Nov-2026 24-hour clock + dose time guards';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -2098,7 +2098,7 @@ function initSamaraInaugurationInvitation(){
   const formatManualTime=value=>{
     const parts=time24Parts(value);
     if(!parts)return '';
-    return `${parts.hour%12||12}:${String(parts.minute).padStart(2,'0')} ${parts.hour>=12?'PM':'AM'}`;
+    return `${String(parts.hour).padStart(2,'0')}:${String(parts.minute).padStart(2,'0')}`;
   };
   const parseManualTime=(value,period)=>{
     const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)$/);
@@ -2108,15 +2108,15 @@ function initSamaraInaugurationInvitation(){
     else if(String(period||'').toUpperCase()!=='AM')return '';
     return `${String(hour).padStart(2,'0')}:${match[2]}`;
   };
-  // 2.18.83: time is typed by staff as  hh : mm  (the colon is fixed, not typed) + AM/PM dropdown.
-  // Hour 1–12, minute 00–59; the cursor moves to the minutes by itself. The saved value stays 24-hour HH:MM.
+  // 2.19.70: ERP-wide 24-hour clock (Admin, 06-11-2026) — no AM/PM anywhere, to avoid AM/PM mix-ups
+  // (e.g. a dose rescheduled to 08:30 instead of 20:30). Staff type  HH : MM  (hour 00–23, minutes 00–59);
+  // the colon is fixed and the cursor moves to the minutes by itself. The saved value is HH:MM, as before.
   function ManualTimeInput(props){
     const {value,onChange,style,className,placeholder,min,max,step,required,name,validateTime,disabled,...inputProps}=props||{};
-    const split=v=>{const t=formatManualTime(v);const m=t.match(/^(\d{1,2}):(\d{2}) (AM|PM)$/);return m?{hh:m[1].padStart(2,'0'),mm:m[2],ap:m[3]}:null};
+    const split=v=>{const p=time24Parts(v);return p?{hh:String(p.hour).padStart(2,'0'),mm:String(p.minute).padStart(2,'0')}:null};
     const init=split(value);
     const [hh,setHh]=React.useState(init?.hh||'');
     const [mm,setMm]=React.useState(init?.mm||'');
-    const [period,setPeriod]=React.useState(init?.ap||'AM');
     const hourRef=React.useRef(null),minRef=React.useRef(null);
     const lastEmitted=React.useRef(String(value||'').slice(0,5));
     React.useEffect(()=>{
@@ -2124,25 +2124,25 @@ function initSamaraInaugurationInvitation(){
       if(v===lastEmitted.current)return; // our own change coming back — keep what the staff is typing
       lastEmitted.current=v;
       const next=split(value);
-      setHh(next?.hh||'');setMm(next?.mm||'');if(next)setPeriod(next.ap);
+      setHh(next?.hh||'');setMm(next?.mm||'');
     },[value]);
-    const parsedOf=(h1,m1,ap)=>{
+    const parsedOf=(h1,m1)=>{
       const hn=Number(h1),mn=Number(m1);
-      if(!/^\d{1,2}$/.test(h1)||!/^\d{2}$/.test(m1)||hn<1||hn>12||mn>59)return '';
-      return parseManualTime(`${hn}:${m1}`,ap);
+      if(!/^\d{1,2}$/.test(h1)||!/^\d{2}$/.test(m1)||hn>23||mn>59)return '';
+      return `${String(hn).padStart(2,'0')}:${m1}`;
     };
-    const parsed=parsedOf(hh,mm,period);
+    const parsed=parsedOf(hh,mm);
     React.useEffect(()=>{
       const input=hourRef.current;if(!input)return;
       let problem='';
-      if((hh||mm)&&!parsed)problem='Enter the time as hh : mm (hour 1–12, minutes 00–59) and choose AM or PM.';
+      if((hh||mm)&&!parsed)problem='Enter the time in 24-hour format as HH : MM (hour 00–23, minutes 00–59), e.g. 20:30 for 8:30 in the evening.';
       else if(!hh&&!mm&&required)problem='Enter the time.';
       if(!problem&&parsed&&validateTime)problem=validateTime(parsed)||'';
       if(!problem&&parsed&&step&&Number(step)>60){const p=time24Parts(parsed);if((p.hour*3600+p.minute*60)%Number(step)!==0)problem=`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;}
       input.setCustomValidity(problem);
-    },[hh,mm,period,parsed,required,step,validateTime]);
-    const emit=(h1,m1,ap)=>{
-      const out=parsedOf(h1,m1,ap);
+    },[hh,mm,parsed,required,step,validateTime]);
+    const emit=(h1,m1)=>{
+      const out=parsedOf(h1,m1);
       if(out){lastEmitted.current=out;onChange&&onChange({target:{value:out}});}
       else if(!h1&&!m1&&!required){lastEmitted.current='';onChange&&onChange({target:{value:''}});}
     };
@@ -2150,33 +2150,32 @@ function initSamaraInaugurationInvitation(){
     const digits=v=>{const d=String(v||'').replace(/\D/g,'');return d.length>2?d.slice(-1):d;};
     const onHour=e=>{
       let v=digits(e.target.value);
-      if(v.length===1&&Number(v)>1)v='0'+v;           // 2–9 → 02–09, jump to minutes
-      if(v.length===2&&(Number(v)<1||Number(v)>12))v=v.slice(0,1); // 13+ not allowed
-      setHh(v);emit(v,mm,period);
+      if(v.length===1&&Number(v)>2)v='0'+v;           // 3–9 → 03–09, jump to minutes
+      if(v.length===2&&Number(v)>23)v=v.slice(0,1);    // 24+ not allowed
+      setHh(v);emit(v,mm);
       if(v.length===2&&minRef.current){minRef.current.focus();minRef.current.select&&minRef.current.select();}
     };
     const onMin=e=>{
       let v=digits(e.target.value);
       if(v.length===1&&Number(v)>5)v='0'+v;           // 6–9 → 06–09
-      setMm(v);emit(hh,v,period);
+      setMm(v);emit(hh,v);
     };
     // read the box itself (not the state) — the state may not have caught up when the cursor jumps
-    const padHour=()=>{const cur=hourRef.current?.value||'';if(cur.length===1&&Number(cur)>=1){const v='0'+cur;setHh(v);emit(v,minRef.current?.value||mm,period);}};
-    const padMin=()=>{const cur=minRef.current?.value||'';if(cur.length===1){const v='0'+cur;setMm(v);emit(hourRef.current?.value||hh,v,period);}};
+    const padHour=()=>{const cur=hourRef.current?.value||'';if(cur.length===1){const v='0'+cur;setHh(v);emit(v,minRef.current?.value||mm);}};
+    const padMin=()=>{const cur=minRef.current?.value||'';if(cur.length===1){const v='0'+cur;setMm(v);emit(hourRef.current?.value||hh,v);}};
     const minKey=e=>{if(e.key==='Backspace'&&!mm&&hourRef.current){e.preventDefault();hourRef.current.focus();}};
     const hourKey=e=>{if((e.key===':'||e.key==='.'||e.key==='ArrowRight'&&e.currentTarget.selectionStart===hh.length)&&minRef.current){e.preventDefault();padHour();minRef.current.focus();}};
     const box={width:'2.6em',minWidth:'2.6em',textAlign:'center',padding:'8px 2px',fontVariantNumeric:'tabular-nums',letterSpacing:'.04em'};
     return React.createElement(React.Fragment,null,
       React.createElement('div',{className:`samara-time-entry ${className||''}`.trim(),style:{display:'flex',alignItems:'center',gap:'4px',width:'100%',...(style||{})},role:'group','aria-label':inputProps['aria-label']||'Time'},
-        React.createElement('input',{...inputProps,ref:hourRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'--',value:hh,disabled,required:Boolean(required),
-          'data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Time'} – hour`,title:'Hour (1–12)',style:box,
+        React.createElement('input',{...inputProps,ref:hourRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'HH',value:hh,disabled,required:Boolean(required),
+          'data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Time'} – hour (00–23)`,title:'Hour (00–23, 24-hour clock)',style:box,
           onChange:onHour,onBlur:padHour,onKeyDown:hourKey,onFocus:e=>e.target.select&&e.target.select(),onMouseUp:e=>e.preventDefault()}),
         React.createElement('span',{'aria-hidden':'true',style:{fontWeight:800,fontSize:'18px',lineHeight:1,padding:'0 1px',userSelect:'none'}},':'),
-        React.createElement('input',{ref:minRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'--',value:mm,disabled,required:Boolean(required),
+        React.createElement('input',{ref:minRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'MM',value:mm,disabled,required:Boolean(required),
           'aria-label':`${inputProps['aria-label']||'Time'} – minutes`,title:'Minutes (00–59)',style:box,
           onChange:onMin,onBlur:padMin,onKeyDown:minKey,onFocus:e=>e.target.select&&e.target.select(),onMouseUp:e=>e.preventDefault()}),
-        React.createElement('select',{value:period,disabled:Boolean(disabled),'aria-label':'AM/PM',onChange:e=>{const ap=e.target.value;setPeriod(ap);emit(hh,mm,ap)},style:{flex:'0 0 74px',width:'74px',padding:'8px 6px',marginLeft:'4px'}},
-          React.createElement('option',{value:'AM'},'AM'),React.createElement('option',{value:'PM'},'PM'))
+        React.createElement('span',{style:{fontSize:'12px',fontWeight:700,color:'#8a5a73',marginLeft:'4px',whiteSpace:'nowrap'}},'hrs (24 h)')
       ),
       name?React.createElement('input',{type:'hidden',name,value:parsed}):null
     );
@@ -2239,8 +2238,9 @@ function initSamaraInaugurationInvitation(){
     while(walker.nextNode())nodes.push(walker.currentNode);
     nodes.forEach(node=>{
       const parent=node.parentElement;
-      if(!parent||parent.closest('script,style,textarea,option,[contenteditable]'))return;
-      const updated=convert(node.nodeValue);
+      if(!parent||parent.closest('script,style,textarea,[contenteditable]'))return;
+      // 2.19.70: dropdown options get only the 24-hour clock change (their date wording is left as it is)
+      const updated=parent.closest('option')?(window.SamaraDateTime.clock24?window.SamaraDateTime.clock24(node.nodeValue):node.nodeValue):convert(node.nodeValue);
       if(updated!==node.nodeValue)node.nodeValue=updated;
     });
   };
@@ -23647,7 +23647,7 @@ Thank you.`;
   function Enquiries(props){return h(EnquiryRegister,props)}
   const MEDICATION_TIME_OPTIONS = Array.from({length:24},(_,hour)=>({
     value:`${String(hour).padStart(2,'0')}:00`,
-    label:`${hour===0?12:hour>12?hour-12:hour}:00 ${hour<12?'AM':'PM'}`
+    label:`${String(hour).padStart(2,'0')}:00`
   }));
   const MEDICATION_FREQUENCY_TIMES = {
     'Once Daily (OD)':['08:00'],
@@ -23680,7 +23680,7 @@ Thank you.`;
   function medicationTimeLabel(value){
     const normalized=normalizeMedicationTime(value);const hour=Number(normalized.slice(0,2));
     if(Number.isNaN(hour))return String(value||'');
-    return `${hour===0?12:hour>12?hour-12:hour}:${normalized.slice(3,5)||'00'} ${hour<12?'AM':'PM'}`;
+    return `${String(hour).padStart(2,'0')}:${normalized.slice(3,5)||'00'}`; // 2.19.70: 24-hour clock
   }
   // Clinical tasks scheduled before a same-day admission do not belong to the new stay.
   // Compare in Samara's local timezone so the rule is consistent on every device.
@@ -23924,8 +23924,8 @@ Thank you.`;
   function physioWindowFor(t,plan){const key=String(t||'').slice(0,5);return (plan?physioPlanWindows(plan).find(w=>w.key===key):null)||physioParseWindow(key);}
   function physioWindowStart(t,plan){return physioWindowFor(t,plan)?.start||''}
   function physioWindowEnd(t,plan){return physioWindowFor(t,plan)?.end||''}
-  function physioClock(v){const [h,m]=String(v).split(':').map(Number);return {txt:`${h%12||12}:${String(m).padStart(2,'0')}`,ap:h<12?'AM':'PM'}}
-  function physioRangeLabel(a,b){if(!a||!b)return '—';const x=physioClock(a),y=physioClock(b);return x.ap===y.ap?`${x.txt}–${y.txt} ${y.ap}`:`${x.txt} ${x.ap}–${y.txt} ${y.ap}`;}
+  function physioClock(v){const [h,m]=String(v).split(':').map(Number);return {txt:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,ap:''}}
+  function physioRangeLabel(a,b){if(!a||!b)return '—';const x=physioClock(a),y=physioClock(b);return `${x.txt}–${y.txt}`;}
   function physioWindowLabel(t,plan){const w=physioWindowFor(t,plan);return w?physioRangeLabel(w.start,w.end):'—';}
   // Plan form: one From–To pair per session of the day. Returns ["07:00-09:00","16:00-18:00"] via onChange.
   function PhysioSessionTimesFields({frequency,times,onChange}){
@@ -24133,7 +24133,7 @@ Thank you.`;
 
   // v2.14.87: optional preferred time window for a care task (e.g. 10:00 AM – 12:00 PM).
   const careTimeValue = v => { const m=String(v||'').match(/^(\d{1,2}):(\d{2})/); return m?`${m[1].padStart(2,'0')}:${m[2]}`:''; };
-  const careWindowLabel = c => { const a=careTimeValue(c?.preferred_from),b=careTimeValue(c?.preferred_to); if(!a&&!b)return 'Any time in shift'; const fmt12=t=>{const [hh,mm]=t.split(':').map(Number);return `${String(hh%12||12).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}; return a&&b?`Preferred ${fmt12(a)} – ${fmt12(b)}`:`Preferred ${a?'from '+fmt12(a):'by '+fmt12(b)}`; };
+  const careWindowLabel = c => { const a=careTimeValue(c?.preferred_from),b=careTimeValue(c?.preferred_to); if(!a&&!b)return 'Any time in shift'; const fmt12=t=>{const [hh,mm]=t.split(':').map(Number);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`}; return a&&b?`Preferred ${fmt12(a)} – ${fmt12(b)}`:`Preferred ${a?'from '+fmt12(a):'by '+fmt12(b)}`; };
   function blankCare(){
     return {
       care_type:'',
@@ -24151,12 +24151,12 @@ Thank you.`;
   // 2.15.11: clinical withholding of a dose (nurse's assessment) + doctor's instruction follow-up
   const MEDICATION_WITHHOLD_REASONS=['Low blood pressure','Low blood sugar','Low pulse / heart rate','Drowsy / unwell','Nil by mouth (NPO)','Vomiting / cannot swallow','Other clinical reason'];
   const MEDICATION_WITHHOLD_READING_HINT={
-    'Low blood pressure':'Example: BP 90/58 mmHg at 7:50 AM',
-    'Low blood sugar':'Example: RBS 68 mg/dL (glucometer) at 7:45 AM',
-    'Low pulse / heart rate':'Example: Pulse 50/min at 8:00 AM',
+    'Low blood pressure':'Example: BP 90/58 mmHg at 07:50',
+    'Low blood sugar':'Example: RBS 68 mg/dL (glucometer) at 07:45',
+    'Low pulse / heart rate':'Example: Pulse 50/min at 08:00',
     'Drowsy / unwell':'Example: Drowsy, responds to voice; BP 110/70, SpO₂ 96%',
     'Nil by mouth (NPO)':'Example: NPO for procedure from 6 AM (doctor order)',
-    'Vomiting / cannot swallow':'Example: Vomited twice since 7 AM',
+    'Vomiting / cannot swallow':'Example: Vomited twice since 07:00',
     'Other clinical reason':'Enter the observation / reading'
   };
   const MEDICATION_DOCTOR_CONTACT_MODES=['Phone call','WhatsApp','In person','Not reachable yet — will retry'];
@@ -28362,7 +28362,7 @@ Please keep these login details confidential.`;
     const nxt=nssTimeInShift(nextWin,hhmm);
     return nxt&&nxt.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS?{...nxt,next:true}:null;
   }
-  function nssTime12(d){const hr=d.getHours(),m=d.getMinutes();return {t:`${hr%12||12}:${String(m).padStart(2,'0')}`,ap:hr<12?'AM':'PM'}}
+  function nssTime12(d){const hr=d.getHours(),m=d.getMinutes();return {t:`${String(hr).padStart(2,'0')}:${String(m).padStart(2,'0')}`,ap:''}} // 2.19.70: 24-hour clock
   function nssGuest(p){
     if(!p)return 'Guest';
     const name=String(p.full_name||'').trim();
@@ -28778,7 +28778,7 @@ Please keep these login details confidential.`;
           h('div',{className:'nss-brand'},
             h('div',{className:'nss-logo'},h('img',{src:'./assets/samara-logo.png',alt:'Samara Assisted Living'})),
             h('div',null,
-              h('div',{className:'nss-clock'},String(hh%12||12),h('span',{className:'nss-colon'},':'),mm,h('span',{className:'nss-sec'},':'+String(now.getSeconds()).padStart(2,'0')),h('small',null,hh<12?'AM':'PM')),
+              h('div',{className:'nss-clock'},String(hh).padStart(2,'0'),h('span',{className:'nss-colon'},':'),mm,h('span',{className:'nss-sec'},':'+String(now.getSeconds()).padStart(2,'0')),h('small',null,'hrs')),
               h('div',{className:'nss-date'},`${now.toLocaleDateString('en-IN',{weekday:'long'})} · ${formatDateIN(nssLocalISO(now))}`))),
           h('div',{className:'nss-shift'},
             h('span',{className:'nss-chip'},win.name.replace(/\s*\(.*$/,''),h('span',{className:'nss-chip-hours'},` ${(win.name.match(/\((.*)\)/)||['',''])[1]}`)),
@@ -29242,10 +29242,11 @@ Please keep these login details confidential.`;
     return j;
   }
   const crDT=v=>{try{return formatDateTimeIN(v)}catch(_e){return String(v||'')}};
-  const crPeriodEnd=v=>{const d=new Date(v);const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);return p==='00:00'?`${formatDateIN(new Date(d.getTime()-60000).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))}, 11:59 PM`:crDT(v)};
+  const crPeriodEnd=v=>{const d=new Date(v);const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);return p==='00:00'?`${formatDateIN(new Date(d.getTime()-60000).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))}, 23:59`:crDT(v)};
   const crStatus={saved:['Saved','#5f4c57','#f3edf0'],held:['Held for review','#9a5300','#fff1dc'],sending:['Sending','#2a5fa8','#e8eefb'],sent:['Sent','#08703f','#e3f4ea'],failed:['Not sent — failed','#b0101f','#fde6e8']};
-  const to24=(t,ap)=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);if(!m)return '';let hh=Number(m[1])%12;if(ap==='PM')hh+=12;if(Number(m[2])>59||Number(m[1])>12||Number(m[1])<1)return '';return `${String(hh).padStart(2,'0')}:${m[2]}`};
-  const to12=t=>{const m=String(t||'').match(/^(\d{2}):(\d{2})/);if(!m)return ['08:00','PM'];const hh=Number(m[1]);return [`${String(((hh+11)%12)+1).padStart(2,'0')}:${m[2]}`,hh<12?'AM':'PM']};
+  const to24=(t,ap)=>{const m=String(t||'').match(/^(\d{1,2}):(\d{2})$/);if(!m)return '';if(!ap)return Number(m[1])<=23&&Number(m[2])<=59?`${m[1].padStart(2,'0')}:${m[2]}`:''; // 2.19.70: 24-hour entry
+    let hh=Number(m[1])%12;if(ap==='PM')hh+=12;if(Number(m[2])>59||Number(m[1])>12||Number(m[1])<1)return '';return `${String(hh).padStart(2,'0')}:${m[2]}`};
+  const to12=t=>{const m=String(t||'').match(/^(\d{2}):(\d{2})/);if(!m)return ['20:00',''];return [`${m[1]}:${m[2]}`,'']}; // 2.19.70: now 24-hour, AM/PM part empty
   function ClinicalReportsPanel({kind,patient,profile,onClose}){
     const daily=kind==='clinical_daily',kindKey=daily?'daily':'weekly';
     const [state,setState]=React.useState({loading:true,error:'',data:null});
@@ -29268,7 +29269,7 @@ Please keep these login details confidential.`;
     const verify=async()=>{setBusy('verify');try{await callClinical({mode:'clinical_verify_recipient',patient_id:patient.id});setNote({type:'success',text:"Doctor's WhatsApp number marked as verified."});await load()}catch(e){setNote({type:'error',text:e.message})}finally{setBusy('')}};
     const send=async()=>{const r=confirmSend;if(!r||!confirmed)return;setBusy(`send-${r.id}`);setNote(null);try{const j=await callClinical({mode:'clinical_send',report_id:r.id,confirm:true,confirm_recipient_mobile:rc?.mobile||''});setConfirmSend(null);setConfirmed(false);setNote({type:'success',text:`Sent on WhatsApp to ${rc?.name}. Delivery status will update in the history below and in WhatsApp Inbox.${j.provider_message_id?'':' (No message ID was returned — check WhatsApp Inbox before resending.)'}`});await load()}catch(e){setNote({type:'error',text:e.message})}finally{setBusy('')}};
     const markFailed=async(sid)=>{if(!confirm('Mark this send as NOT delivered? Only do this after checking WhatsApp Inbox — it allows the report to be sent again.'))return;setBusy(`mf-${sid}`);try{await callClinical({mode:'clinical_mark_send_failed',send_id:sid});await load()}catch(e){setNote({type:'error',text:e.message})}finally{setBusy('')}};
-    const saveSettings=async()=>{const f=settingsForm;const c=to24(f.cut,f.cutAp),w=to24(f.wk,f.wkAp);if(!c||!w)return setNote({type:'error',text:'Enter the times as hh:mm (for example 08:00) and choose AM / PM.'});
+    const saveSettings=async()=>{const f=settingsForm;const c=to24(f.cut,f.cutAp),w=to24(f.wk,f.wkAp);if(!c||!w)return setNote({type:'error',text:'Enter the times in 24-hour format HH:MM (for example 20:00).'});
       if(f.auto&&!s.daily_auto_send&&!confirm('Turn ON automatic WhatsApp sending of the Daily Clinical Report to treating doctors?\n\nOnly reports with a VERIFIED doctor number and no hold reason are sent. Keep this OFF until the test sends have been checked.'))return;
       setBusy('settings');try{await callClinical({mode:'clinical_settings',update:{daily_cutoff:c,weekly_run_time:w,daily_enabled:f.dailyOn,weekly_enabled:f.weeklyOn,daily_auto_send:f.auto}});setSettingsForm(null);setNote({type:'success',text:'Report settings saved.'});await load()}catch(e){setNote({type:'error',text:e.message})}finally{setBusy('')}};
     const chip=st=>{const c=crStatus[st]||[st,'#5f4c57','#f3edf0'];return h('span',{className:'cr-chip',style:{color:c[1],background:c[2]}},c[0])};
@@ -29298,8 +29299,8 @@ Please keep these login details confidential.`;
         d.can_send&&h('div',{className:'cr-actions'},h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:()=>generate()},busy==='gen'?'Preparing (up to 1 min)…':daily?'Generate latest report now':'Generate report for the last 7 days'),
           d.is_admin&&daily&&h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:()=>setSettingsForm(settingsForm?null:{cut,cutAp,wk,wkAp,dailyOn:!!s.daily_enabled,weeklyOn:!!s.weekly_enabled,auto:!!s.daily_auto_send})},'Report settings')),
         settingsForm&&h('div',{className:'cr-box'},h('div',{className:'cr-set'},
-          h('div',{className:'field'},h('label',null,'Daily report time'),h('div',{style:{display:'flex',gap:'6px'}},h('input',{value:settingsForm.cut,inputMode:'numeric',placeholder:'-- : --',style:{width:'80px'},onChange:e=>setSettingsForm({...settingsForm,cut:e.target.value})}),h('select',{value:settingsForm.cutAp,onChange:e=>setSettingsForm({...settingsForm,cutAp:e.target.value})},h('option',null,'AM'),h('option',null,'PM')))),
-          h('div',{className:'field'},h('label',null,'Weekly report time'),h('div',{style:{display:'flex',gap:'6px'}},h('input',{value:settingsForm.wk,inputMode:'numeric',placeholder:'-- : --',style:{width:'80px'},onChange:e=>setSettingsForm({...settingsForm,wk:e.target.value})}),h('select',{value:settingsForm.wkAp,onChange:e=>setSettingsForm({...settingsForm,wkAp:e.target.value})},h('option',null,'AM'),h('option',null,'PM')))),
+          h('div',{className:'field'},h('label',null,'Daily report time'),h('div',{style:{display:'flex',gap:'6px'}},h('input',{type:'time',required:true,'aria-label':'Daily report time',value:settingsForm.cut,onChange:e=>setSettingsForm({...settingsForm,cut:e.target.value,cutAp:''})}))),
+          h('div',{className:'field'},h('label',null,'Weekly report time'),h('div',{style:{display:'flex',gap:'6px'}},h('input',{type:'time',required:true,'aria-label':'Weekly report time',value:settingsForm.wk,onChange:e=>setSettingsForm({...settingsForm,wk:e.target.value,wkAp:''})}))),
           h('label',{className:'checkbox'},h('input',{type:'checkbox',checked:settingsForm.dailyOn,onChange:e=>setSettingsForm({...settingsForm,dailyOn:e.target.checked})}),' Make daily reports'),
           h('label',{className:'checkbox'},h('input',{type:'checkbox',checked:settingsForm.weeklyOn,onChange:e=>setSettingsForm({...settingsForm,weeklyOn:e.target.checked})}),' Make weekly reports'),
           h('label',{className:'checkbox'},h('input',{type:'checkbox',checked:settingsForm.auto,onChange:e=>setSettingsForm({...settingsForm,auto:e.target.checked})}),' Send daily report to verified doctors automatically')),
@@ -37607,6 +37608,29 @@ function RoomsBeds({profile,onNavigate}){
       finally{setTimeFixBusy(false);}
     }
     function closeMar(){if(!marBusy){setMarTarget(null);setRescheduleLog(null);setMarMessage('');}}
+    // 2.19.70: AM/PM mix-up guard (incident 05-11-2026: an 8:00 PM dose rescheduled to 08:30 fell on the NEXT
+    // morning, and the dose given that night was recorded 12 h "early"). A reschedule onto the next day or more
+    // than 6 hours away needs an explicit tick; a dose cannot be recorded as Given for a later date, and a dose
+    // given 2 h or more before its time on the same day needs a reason.
+    function marRescheduleCheck(){
+      const time=marForm.rescheduled_time;
+      if(!time||!medicationRescheduleTimeValid(marForm.scheduled_time,time))return null;
+      const date=rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:time});
+      const gap=medicationRescheduleGapMinutes(marForm.scheduled_time,time);
+      const nextDay=date!==String(marForm.scheduled_date||today).slice(0,10);
+      return {date,gap,nextDay,needsConfirm:nextDay||gap>360};
+    }
+    function marEarlyCheck(){
+      if(rescheduleLog||marForm.status!=='Given'||!marForm.administered_at||!marForm.scheduled_time)return null;
+      const dueDate=String(marForm.scheduled_date||today).slice(0,10),dueTime=normalizeMedicationTime(marForm.scheduled_time).slice(0,5);
+      const due=new Date(`${dueDate}T${dueTime}:00+05:30`).getTime(),given=new Date(marForm.administered_at).getTime();
+      if(!Number.isFinite(due)||!Number.isFinite(given))return null;
+      const minutes=Math.round((due-given)/60000);
+      if(minutes<120)return null;
+      const givenDate=clinicalDateTimeInIndia(new Date(given))?.date||'';
+      return {minutes,dueDate,dueTime,laterDay:Boolean(givenDate)&&dueDate>givenDate};
+    }
+    const MEDICATION_EARLY_GIVEN_REASONS=['Doctor\'s instruction','Guest going out (hospital visit / outing)','Before a test / procedure','Other'];
     async function saveMar(e){
       e.preventDefault();
       setMarMessage('');
@@ -37619,6 +37643,8 @@ function RoomsBeds({profile,onNavigate}){
       if(isRescheduleAction&&!rescheduleReason){const text='Enter the reason for rescheduling this dose.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       if(isRescheduleAction&&!marForm.rescheduled_time){const text='Select the new medication time.';setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
       if(isRescheduleAction&&!medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)){const text=MEDICATION_RESCHEDULE_TIME_MESSAGE;setMarMessage(text);showSamaraActionToast('error','Cannot reschedule medication',text);return;}
+      {const rc=marRescheduleCheck();const willReschedule=isRescheduleAction||((marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&marForm.rescheduled_time);
+        if(willReschedule&&rc?.needsConfirm&&!marForm.reschedule_confirm){const text=`Please check the new time: the dose will move to ${formatDateIN(rc.date)} at ${medicationTimeLabel(marForm.rescheduled_time)} (${medicationDurationText(rc.gap)} later). Tick the confirmation box if this is correct.`;setMarMessage(text);showSamaraActionToast('error','Confirm the new dose time',text);return;}}
       if(isRescheduleAction&&rescheduleLog){
         setMarBusy(true);
         const {error}=await client.from('medication_administrations').update({rescheduled_time:normalizeMedicationTime(marForm.rescheduled_time),reschedule_reason:rescheduleReason}).eq('id',rescheduleLog.id);
@@ -37664,6 +37690,11 @@ function RoomsBeds({profile,onNavigate}){
       const lateGivenMinutes=marForm.status==='Given'?medicationLateGivenMinutes(marForm.scheduled_date||today,marForm.scheduled_time,administrationTime.toISOString()):0;
       if(lateGivenMinutes&&!marForm.late_given_reason){const text=`This medicine is being given ${medicationDurationText(lateGivenMinutes)} late. Select the reason for giving it late.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(lateGivenMinutes&&marForm.late_given_reason==='Other'&&!String(marForm.late_given_details||'').trim()){const text='Write the reason for giving the medicine late.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      const early=marEarlyCheck();
+      if(early?.laterDay){const text=`This dose is due on ${formatDateIN(early.dueDate)} at ${medicationTimeLabel(early.dueTime)} — ${medicationDurationText(early.minutes)} from the time you entered. It cannot be recorded as given now. Check the date and time: you may be recording the wrong dose.`;setMarMessage(text);showSamaraActionToast('error','Wrong dose?',text);return;}
+      if(early&&!marForm.early_given_reason){const text=`This medicine is being given ${medicationDurationText(early.minutes)} before its time (${medicationTimeLabel(early.dueTime)}). Select the reason for giving it early.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      if(early&&marForm.early_given_reason==='Other'&&!String(marForm.early_given_details||'').trim()){const text='Write the reason for giving the medicine early.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
+      const earlyNote=early?`Given early (${medicationDurationText(early.minutes)} before ${medicationTimeLabel(early.dueTime)}): ${marForm.early_given_reason}${String(marForm.early_given_details||'').trim()?' — '+String(marForm.early_given_details).trim():''}`:'';
       const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time,marForm.scheduled_date||today);
       if(alreadyRecorded&&isFrontlineClinical){
         const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
@@ -37679,7 +37710,7 @@ function RoomsBeds({profile,onNavigate}){
         status:marForm.status==='Reschedule'?'Delayed':marForm.status,
         administered_at:administrationTime.toISOString(),
         administered_by:user?.id||profile?.auth_user_id||profile?.id,
-        remarks:marForm.status==='Not Given'?['Not given: '+marForm.not_given_reason,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):String(marForm.remarks||'').trim(),
+        remarks:marForm.status==='Not Given'?['Not given: '+marForm.not_given_reason,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):variableDose?[`Blood sugar ${String(marForm.sugar_reading).trim()} mg/dL · ${String(marForm.units_given).trim()} units given`,earlyNote,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '):[earlyNote,String(marForm.remarks||'').trim()].filter(Boolean).join(' · '),
         entry_recorded_at:entryTime.toISOString(),
         late_entry:isLateEntry,
         entry_delay_minutes:entryDelayMinutes,
@@ -38336,7 +38367,17 @@ function RoomsBeds({profile,onNavigate}){
             marForm.status==='Withheld'&&h('div',{className:'field'},h('label',null,'Informed by'),h('select',{value:marForm.doctor_informed_via,onChange:e=>setMarForm({...marForm,doctor_informed_via:e.target.value})},MEDICATION_DOCTOR_CONTACT_MODES.map(m=>h('option',{key:m,value:m},m)))),
             marForm.status==='Withheld'&&marForm.doctor_informed_via!=='Not reachable yet — will retry'&&h('div',{className:'field span-2'},h('label',null,'Doctor informed at'),h(StrictDateTimeInput,{value:marForm.doctor_informed_at,onChange:e=>setMarForm({...marForm,doctor_informed_at:e.target.value})})),
             !rescheduleLog&&MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule,onChange:e=>setMarForm({...marForm,reschedule:e.target.checked,rescheduled_time:e.target.checked?(marForm.rescheduled_time||''):''})}),' Re-medication required — reschedule this dose (e.g. patient sleeping / refused now)'),
-            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value})}),h('small',null,marForm.rescheduled_time&&medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)?`New dose: ${formatDateIN(rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:marForm.rescheduled_time}))} at ${medicationTimeLabel(marForm.rescheduled_time)} (original ${medicationTimeLabel(marForm.scheduled_time)}). Any time may be chosen; a time earlier than the original falls on the next day.`:'Any time may be chosen; a time earlier than the original falls on the next day. The dose will appear again in Today’s MAR and Shift Tasks; the original entry and reason remain permanently in MAR history.')),
+            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&h('div',{className:'field span-2'},h('label',null,'New medication time'),h('input',{type:'time',required:true,value:marForm.rescheduled_time,onChange:e=>setMarForm({...marForm,rescheduled_time:e.target.value,reschedule_confirm:false})}),h('small',null,marForm.rescheduled_time&&medicationRescheduleTimeValid(marForm.scheduled_time,marForm.rescheduled_time)?`New dose: ${formatDateIN(rescheduledDoseDate({scheduled_date:marForm.scheduled_date||today,scheduled_time:marForm.scheduled_time,rescheduled_time:marForm.rescheduled_time}))} at ${medicationTimeLabel(marForm.rescheduled_time)} (original ${medicationTimeLabel(marForm.scheduled_time)}). Any time may be chosen; a time earlier than the original falls on the next day.`:'Any time may be chosen; a time earlier than the original falls on the next day. The dose will appear again in Today’s MAR and Shift Tasks; the original entry and reason remain permanently in MAR history.')),
+            (rescheduleLog||marForm.status==='Reschedule'||(MEDICATION_RESCHEDULE_STATUSES.includes(marForm.status)&&marForm.reschedule))&&(()=>{const rc=marRescheduleCheck();
+              return rc?.needsConfirm?h(React.Fragment,null,
+                h('div',{className:'message warning span-2',style:{fontSize:'15px'}},h('strong',null,`⚠ New dose: ${formatDateIN(rc.date)} at ${medicationTimeLabel(marForm.rescheduled_time)} hrs`),` — ${rc.nextDay?'the NEXT DAY, ':''}${medicationDurationText(rc.gap)} after the original ${medicationTimeLabel(marForm.scheduled_time)}. Times are in 24-hour format (20:30 = 8:30 in the evening).`),
+                h('label',{className:'checkbox span-2'},h('input',{type:'checkbox',checked:!!marForm.reschedule_confirm,onChange:e=>setMarForm({...marForm,reschedule_confirm:e.target.checked})}),` I confirm the new dose is on ${formatDateIN(rc.date)} at ${medicationTimeLabel(marForm.rescheduled_time)} hrs`)):null})(),
+            (()=>{const early=marEarlyCheck();if(!early)return null;
+              if(early.laterDay)return h('div',{className:'message error span-2',style:{fontSize:'15px'}},h('strong',null,`⛔ This dose is due on ${formatDateIN(early.dueDate)} at ${medicationTimeLabel(early.dueTime)} hrs`),` — ${medicationDurationText(early.minutes)} from the time entered. It cannot be recorded as given now; you may be recording the wrong dose.`);
+              return h(React.Fragment,null,
+                h('div',{className:'message warning span-2'},`Given ${medicationDurationText(early.minutes)} before the scheduled ${medicationTimeLabel(early.dueTime)} hrs. A reason is compulsory.`),
+                h('div',{className:'field'},h('label',null,'Reason for giving early *'),h('select',{required:true,value:marForm.early_given_reason||'',onChange:e=>setMarForm({...marForm,early_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_EARLY_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
+                h('div',{className:'field'},h('label',null,marForm.early_given_reason==='Other'?'Details *':'Details (optional)'),h('input',{type:'text',required:marForm.early_given_reason==='Other',value:marForm.early_given_details||'',onChange:e=>setMarForm({...marForm,early_given_details:e.target.value})})));})(),
             !rescheduleLog&&marForm.status!=='Reschedule'&&h('div',{className:'field span-2'},h('label',null,'Actual Administration Time'),h(StrictDateTimeInput,{value:marForm.administered_at,onChange:e=>setMarForm({...marForm,administered_at:e.target.value}),required:true}),h('small',null,'The system records the MAR entry time automatically and staff cannot edit it.')),
             (()=>{const lm=!rescheduleLog&&marForm.status==='Given'&&marForm.administered_at?medicationLateGivenMinutes(marForm.scheduled_date||today,marForm.scheduled_time,new Date(marForm.administered_at).toISOString()):0;
               return lm?h(React.Fragment,null,

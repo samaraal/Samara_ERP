@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.69';
-const CACHE = 'samara-erp-2.19.69-accounts-reconcile';
+const APP_VERSION = '2.19.70';
+const CACHE = 'samara-erp-2.19.70-24h-clock';
 const SHELL = [
   './',
   './index.html',

@@ -54,7 +54,7 @@
   const formatManualTime=value=>{
     const parts=time24Parts(value);
     if(!parts)return '';
-    return `${parts.hour%12||12}:${String(parts.minute).padStart(2,'0')} ${parts.hour>=12?'PM':'AM'}`;
+    return `${String(parts.hour).padStart(2,'0')}:${String(parts.minute).padStart(2,'0')}`;
   };
   const parseManualTime=(value,period)=>{
     const match=String(value||'').trim().match(/^(0?[1-9]|1[0-2]):([0-5]\d)$/);
@@ -64,15 +64,15 @@
     else if(String(period||'').toUpperCase()!=='AM')return '';
     return `${String(hour).padStart(2,'0')}:${match[2]}`;
   };
-  // 2.18.83: time is typed by staff as  hh : mm  (the colon is fixed, not typed) + AM/PM dropdown.
-  // Hour 1–12, minute 00–59; the cursor moves to the minutes by itself. The saved value stays 24-hour HH:MM.
+  // 2.19.70: ERP-wide 24-hour clock (Admin, 06-11-2026) — no AM/PM anywhere, to avoid AM/PM mix-ups
+  // (e.g. a dose rescheduled to 08:30 instead of 20:30). Staff type  HH : MM  (hour 00–23, minutes 00–59);
+  // the colon is fixed and the cursor moves to the minutes by itself. The saved value is HH:MM, as before.
   function ManualTimeInput(props){
     const {value,onChange,style,className,placeholder,min,max,step,required,name,validateTime,disabled,...inputProps}=props||{};
-    const split=v=>{const t=formatManualTime(v);const m=t.match(/^(\d{1,2}):(\d{2}) (AM|PM)$/);return m?{hh:m[1].padStart(2,'0'),mm:m[2],ap:m[3]}:null};
+    const split=v=>{const p=time24Parts(v);return p?{hh:String(p.hour).padStart(2,'0'),mm:String(p.minute).padStart(2,'0')}:null};
     const init=split(value);
     const [hh,setHh]=React.useState(init?.hh||'');
     const [mm,setMm]=React.useState(init?.mm||'');
-    const [period,setPeriod]=React.useState(init?.ap||'AM');
     const hourRef=React.useRef(null),minRef=React.useRef(null);
     const lastEmitted=React.useRef(String(value||'').slice(0,5));
     React.useEffect(()=>{
@@ -80,25 +80,25 @@
       if(v===lastEmitted.current)return; // our own change coming back — keep what the staff is typing
       lastEmitted.current=v;
       const next=split(value);
-      setHh(next?.hh||'');setMm(next?.mm||'');if(next)setPeriod(next.ap);
+      setHh(next?.hh||'');setMm(next?.mm||'');
     },[value]);
-    const parsedOf=(h1,m1,ap)=>{
+    const parsedOf=(h1,m1)=>{
       const hn=Number(h1),mn=Number(m1);
-      if(!/^\d{1,2}$/.test(h1)||!/^\d{2}$/.test(m1)||hn<1||hn>12||mn>59)return '';
-      return parseManualTime(`${hn}:${m1}`,ap);
+      if(!/^\d{1,2}$/.test(h1)||!/^\d{2}$/.test(m1)||hn>23||mn>59)return '';
+      return `${String(hn).padStart(2,'0')}:${m1}`;
     };
-    const parsed=parsedOf(hh,mm,period);
+    const parsed=parsedOf(hh,mm);
     React.useEffect(()=>{
       const input=hourRef.current;if(!input)return;
       let problem='';
-      if((hh||mm)&&!parsed)problem='Enter the time as hh : mm (hour 1–12, minutes 00–59) and choose AM or PM.';
+      if((hh||mm)&&!parsed)problem='Enter the time in 24-hour format as HH : MM (hour 00–23, minutes 00–59), e.g. 20:30 for 8:30 in the evening.';
       else if(!hh&&!mm&&required)problem='Enter the time.';
       if(!problem&&parsed&&validateTime)problem=validateTime(parsed)||'';
       if(!problem&&parsed&&step&&Number(step)>60){const p=time24Parts(parsed);if((p.hour*3600+p.minute*60)%Number(step)!==0)problem=`Use a time in ${Math.round(Number(step)/60)}-minute intervals.`;}
       input.setCustomValidity(problem);
-    },[hh,mm,period,parsed,required,step,validateTime]);
-    const emit=(h1,m1,ap)=>{
-      const out=parsedOf(h1,m1,ap);
+    },[hh,mm,parsed,required,step,validateTime]);
+    const emit=(h1,m1)=>{
+      const out=parsedOf(h1,m1);
       if(out){lastEmitted.current=out;onChange&&onChange({target:{value:out}});}
       else if(!h1&&!m1&&!required){lastEmitted.current='';onChange&&onChange({target:{value:''}});}
     };
@@ -106,33 +106,32 @@
     const digits=v=>{const d=String(v||'').replace(/\D/g,'');return d.length>2?d.slice(-1):d;};
     const onHour=e=>{
       let v=digits(e.target.value);
-      if(v.length===1&&Number(v)>1)v='0'+v;           // 2–9 → 02–09, jump to minutes
-      if(v.length===2&&(Number(v)<1||Number(v)>12))v=v.slice(0,1); // 13+ not allowed
-      setHh(v);emit(v,mm,period);
+      if(v.length===1&&Number(v)>2)v='0'+v;           // 3–9 → 03–09, jump to minutes
+      if(v.length===2&&Number(v)>23)v=v.slice(0,1);    // 24+ not allowed
+      setHh(v);emit(v,mm);
       if(v.length===2&&minRef.current){minRef.current.focus();minRef.current.select&&minRef.current.select();}
     };
     const onMin=e=>{
       let v=digits(e.target.value);
       if(v.length===1&&Number(v)>5)v='0'+v;           // 6–9 → 06–09
-      setMm(v);emit(hh,v,period);
+      setMm(v);emit(hh,v);
     };
     // read the box itself (not the state) — the state may not have caught up when the cursor jumps
-    const padHour=()=>{const cur=hourRef.current?.value||'';if(cur.length===1&&Number(cur)>=1){const v='0'+cur;setHh(v);emit(v,minRef.current?.value||mm,period);}};
-    const padMin=()=>{const cur=minRef.current?.value||'';if(cur.length===1){const v='0'+cur;setMm(v);emit(hourRef.current?.value||hh,v,period);}};
+    const padHour=()=>{const cur=hourRef.current?.value||'';if(cur.length===1){const v='0'+cur;setHh(v);emit(v,minRef.current?.value||mm);}};
+    const padMin=()=>{const cur=minRef.current?.value||'';if(cur.length===1){const v='0'+cur;setMm(v);emit(hourRef.current?.value||hh,v);}};
     const minKey=e=>{if(e.key==='Backspace'&&!mm&&hourRef.current){e.preventDefault();hourRef.current.focus();}};
     const hourKey=e=>{if((e.key===':'||e.key==='.'||e.key==='ArrowRight'&&e.currentTarget.selectionStart===hh.length)&&minRef.current){e.preventDefault();padHour();minRef.current.focus();}};
     const box={width:'2.6em',minWidth:'2.6em',textAlign:'center',padding:'8px 2px',fontVariantNumeric:'tabular-nums',letterSpacing:'.04em'};
     return React.createElement(React.Fragment,null,
       React.createElement('div',{className:`samara-time-entry ${className||''}`.trim(),style:{display:'flex',alignItems:'center',gap:'4px',width:'100%',...(style||{})},role:'group','aria-label':inputProps['aria-label']||'Time'},
-        React.createElement('input',{...inputProps,ref:hourRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'--',value:hh,disabled,required:Boolean(required),
-          'data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Time'} – hour`,title:'Hour (1–12)',style:box,
+        React.createElement('input',{...inputProps,ref:hourRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'HH',value:hh,disabled,required:Boolean(required),
+          'data-samara-time-entry':'true','aria-label':`${inputProps['aria-label']||'Time'} – hour (00–23)`,title:'Hour (00–23, 24-hour clock)',style:box,
           onChange:onHour,onBlur:padHour,onKeyDown:hourKey,onFocus:e=>e.target.select&&e.target.select(),onMouseUp:e=>e.preventDefault()}),
         React.createElement('span',{'aria-hidden':'true',style:{fontWeight:800,fontSize:'18px',lineHeight:1,padding:'0 1px',userSelect:'none'}},':'),
-        React.createElement('input',{ref:minRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'--',value:mm,disabled,required:Boolean(required),
+        React.createElement('input',{ref:minRef,type:'text',inputMode:'numeric',autoComplete:'off',maxLength:2,placeholder:'MM',value:mm,disabled,required:Boolean(required),
           'aria-label':`${inputProps['aria-label']||'Time'} – minutes`,title:'Minutes (00–59)',style:box,
           onChange:onMin,onBlur:padMin,onKeyDown:minKey,onFocus:e=>e.target.select&&e.target.select(),onMouseUp:e=>e.preventDefault()}),
-        React.createElement('select',{value:period,disabled:Boolean(disabled),'aria-label':'AM/PM',onChange:e=>{const ap=e.target.value;setPeriod(ap);emit(hh,mm,ap)},style:{flex:'0 0 74px',width:'74px',padding:'8px 6px',marginLeft:'4px'}},
-          React.createElement('option',{value:'AM'},'AM'),React.createElement('option',{value:'PM'},'PM'))
+        React.createElement('span',{style:{fontSize:'12px',fontWeight:700,color:'#8a5a73',marginLeft:'4px',whiteSpace:'nowrap'}},'hrs (24 h)')
       ),
       name?React.createElement('input',{type:'hidden',name,value:parsed}):null
     );
@@ -195,8 +194,9 @@
     while(walker.nextNode())nodes.push(walker.currentNode);
     nodes.forEach(node=>{
       const parent=node.parentElement;
-      if(!parent||parent.closest('script,style,textarea,option,[contenteditable]'))return;
-      const updated=convert(node.nodeValue);
+      if(!parent||parent.closest('script,style,textarea,[contenteditable]'))return;
+      // 2.19.70: dropdown options get only the 24-hour clock change (their date wording is left as it is)
+      const updated=parent.closest('option')?(window.SamaraDateTime.clock24?window.SamaraDateTime.clock24(node.nodeValue):node.nodeValue):convert(node.nodeValue);
       if(updated!==node.nodeValue)node.nodeValue=updated;
     });
   };
