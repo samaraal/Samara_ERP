@@ -597,6 +597,11 @@
    "lines": 111
   },
   {
+   "file": "reports/care-billing-recon.js",
+   "about": "Care vs Billing reconciliation PDF for MIS & Audit (nebulisation given vs charged, medicines list, related MIS findings)",
+   "lines": 150
+  },
+  {
    "file": "reports/mis-audit.js",
    "about": "MIS & Audit report (Admin / Directors): clinical, financial, operational audit + KPIs",
    "lines": 223

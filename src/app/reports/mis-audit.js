@@ -139,6 +139,7 @@
     const [closing,setClosing]=React.useState(null); // {id,key,title,rows,text}
     const [reopening,setReopening]=React.useState(null); // {id,text}
     const [actBusy,setActBusy]=React.useState(false),[actMsg,setActMsg]=React.useState('');
+    const [cbrBusy,setCbrBusy]=React.useState(false); // 2.19.71 Care vs Billing PDF
     const rpcError=e=>{const m=String(e?.message||e);return /mis_(close|reopen)_finding/.test(m)&&/not find|does not exist|schema cache/i.test(m)?'The MIS close option needs the database update SQL 326. Run supabase/sql/326_mis_close_findings_physio_requeue.sql in Supabase → SQL Editor.':m};
     async function submitClose(e){
       e.preventDefault();if(!closing||actBusy)return;
@@ -189,6 +190,13 @@
     const current=sections.find(s=>s.key===tab)||sections[0];
     const periodName=applied.from===applied.to?formatDateIN(applied.from):`${formatDateIN(applied.from)} – ${formatDateIN(applied.to)}`;
 
+    async function downloadCbr(){
+      setCbrBusy(true);setActMsg('');
+      try{const r=await downloadCareBillingReconPdf({from:applied.from,to:applied.to,misData:data,profile});
+        setActMsg(`Care vs Billing PDF downloaded — ${r.guests} Guests · not charged ${misMoney(r.missing)} · charged but not given ${misMoney(r.over)}.`);}
+      catch(e){setActMsg('Care vs Billing PDF could not be made: '+(e?.message||e))}
+      finally{setCbrBusy(false)}
+    }
     function printReport(){
       const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
       const body=sections.map(s=>{
@@ -256,7 +264,9 @@
       h(Section,{title:'MIS & Audit',subtitle:`Admin / Directors only · audit of ERP entries — discrepancies & deviations, Clinical, Financial, Operational · ${periodName}`,
         actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',disabled:busy||rangeBad,onClick:load},busy?'Checking…':'Re-check'),
-          h('button',{type:'button',className:'btn btn-secondary',disabled:!data,onClick:printReport},'Print / PDF'))},
+          h('button',{type:'button',className:'btn btn-secondary',disabled:!data,onClick:printReport},'Print / PDF'),
+          // 2.19.71: Care vs Billing reconciliation PDF (what was done vs what was charged, per Guest)
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy||rangeBad||cbrBusy,onClick:downloadCbr},cbrBusy?'Preparing PDF…':'⬇ Care vs Billing PDF'))},
         periodControls,
         // 2.19.19: always say which dates the figures below belong to; warn while a new period is chosen but not applied
         h('p',{className:'mis-showing',style:{margin:'8px 0 0',fontWeight:700,color:dirty?'#b4232f':'#8f1d5a'}},
