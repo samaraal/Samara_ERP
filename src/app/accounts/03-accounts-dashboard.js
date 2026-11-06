@@ -1,3 +1,38 @@
+  // 2.19.69: payment modes are stored with varying wording (e.g. Family Portal receipts are
+  // saved as "Razorpay Online"). Group them so every mode total adds up to total receipts.
+  const ACCOUNTS_PAYMENT_MODES=['Cash','UPI','RTGS / Bank Transfer','Card Payment','Razorpay','Other'];
+  function accountsPaymentModeGroup(mode){
+    const m=String(mode||'').trim().toLowerCase();
+    if(!m)return 'Other';
+    if(m.includes('razorpay')||m.includes('online'))return 'Razorpay';
+    if(m==='cash')return 'Cash';
+    if(m.includes('upi')||m.includes('gpay')||m.includes('phonepe'))return 'UPI';
+    if(m.includes('card'))return 'Card Payment';
+    if(/rtgs|neft|imps|bank|transfer|cheque/.test(m))return 'RTGS / Bank Transfer';
+    return 'Other';
+  }
+  // 2.19.69: one shared balance for every Accounts screen. Uses ALL entries up to `through`
+  // (never only the selected period), so a Guest's balance is the same everywhere.
+  // Unpaid amount is aged FIFO: receipts and discounts settle the oldest charges first.
+  function accountsGuestBalances(rows,through){
+    const day=v=>String(v||'').slice(0,10);
+    const byKey=new Map();
+    (rows||[]).forEach((r,i)=>{if(through&&day(r.transaction_date)>through)return;const k=r.patient_id||'__unassigned__';if(!byKey.has(k))byKey.set(k,[]);byKey.get(k).push({...r,_i:i})});
+    const result=new Map();
+    byKey.forEach((list,key)=>{
+      let charges=0,discount=0,receipts=0,refund=0;
+      list.forEach(r=>{const a=Number(r.amount||0);if(r.transaction_type==='Charge')charges+=a;else if(r.transaction_type==='Discount')discount+=a;else if(r.transaction_type==='Payment'||r.transaction_type==='Advance')receipts+=a;else if(r.transaction_type==='Refund')refund+=a});
+      const balance=charges-discount-receipts+refund;
+      // FIFO ageing of whatever is still unpaid
+      let credit=Math.max(0,discount+receipts-refund);
+      const unpaid=[];
+      list.filter(r=>r.transaction_type==='Charge'&&Number(r.amount||0)>0)
+        .sort((a,b)=>new Date(a.transaction_date||0)-new Date(b.transaction_date||0)||a._i-b._i)
+        .forEach(r=>{const a=Number(r.amount||0),used=Math.min(a,credit);credit-=used;if(a-used>0.009)unpaid.push({date:day(r.transaction_date),amount:a-used})});
+      result.set(key,{key,charges,discount,receipts,refund,balance,outstanding:Math.max(0,balance),advance:Math.max(0,-balance),unpaid});
+    });
+    return result;
+  }
   function collectionBreakup(rows,month,through){
     const cents=v=>Math.round(Number(v||0)*100);
     const day=v=>{const d=new Date(v);return Number.isNaN(d.getTime())?'':new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(d)};
@@ -170,10 +205,10 @@
       return realisedDays.length?realisedRevenue/realisedDays.length:0;
     })();
 
-    const modeTotals=['Cash','UPI','RTGS','Card Payment','Razorpay'].map(mode=>[
+    const modeTotals=ACCOUNTS_PAYMENT_MODES.map(mode=>[
       mode,
-      sum(rows.filter(row=>String(row.payment_mode||'').toLowerCase()===mode.toLowerCase()),['Payment','Advance'])
-    ]);
+      sum(rows.filter(row=>accountsPaymentModeGroup(row.payment_mode)===mode),['Payment','Advance'])
+    ]).filter(([mode,value])=>mode!=='Other'||value>0.009);
     const maxMode=Math.max(1,...modeTotals.map(([,value])=>value));
 
     const kpis=[
@@ -182,7 +217,7 @@
       ['Gross Charges This Month',monthGrossCharges,'Accounts Reports','teal','Approved charges raised this month'],
       ['Discounts This Month',monthDiscounts,'Accounts Reports','purple','Approved discounts granted this month'],
       ['Net Charges This Month',monthNetCharges,'Accounts Reports','blue','Gross charges less approved discounts'],
-      ['Realised Revenue This Month',monthRealisedRevenue,'Accounts Reports','green','Revenue materialised against charges'],
+      ['Realised Revenue This Month',monthRealisedRevenue,'Accounts Reports','green','Charges settled by receipts this month (can include earlier months’ bills)'],
       ['Outstanding Receivables',outstanding,'list:outstanding','red','Approved net charges still unpaid · tap for Guest list'],
       ['Unadjusted Advances',unadjustedAdvance,'list:advances','blue','Receipts not yet materialised against charges · tap for Guest list'],
       ['Pending Approvals',pendingApprovals,'Charge Approvals','orange','Clinical charges awaiting decision',true],

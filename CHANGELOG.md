@@ -1,3 +1,9 @@
+## 2.19.69 — 06-11-2026 — Accounts figures now agree across Dashboard and Reports (no SQL)
+- **Collections by Mode:** Family Portal receipts are saved as "Razorpay Online", which the mode boxes did not count (₹1,43,873 in November was missing). Modes are now grouped (Razorpay, Cash, UPI, RTGS / Bank Transfer, Card Payment, Other) so the mode boxes always add up to total receipts — Accounts Dashboard and Accounts Reports.
+- **Patient / Outside Invoice Financial Ledger (Reports):** "Balance" used only the selected period's entries, so a Guest who paid October dues in November showed "Paid" with ₹0. It now shows **Opening Balance + period movement = Closing Balance** as on the To date (same figure as Outstanding Receivables on the Dashboard); overpayment shows as **Advance Held**.
+- **Outstanding Ageing Analysis:** now ages the amount still **unpaid** (receipts settle oldest bills first) as on the To date, instead of all charges raised in the period.
+- Realised Revenue This Month note clarifies it can include earlier months' bills paid this month.
+
 ## 2.19.68 — 05-11-2026 — Discharge: one-step "Approve – Allow Departure (Dues Pending)" + cancelled charge no longer "awaiting Accounts" (SQL 345)
 - Discharge Approval now has a third button for Admin / Directors: **🚨 Approve – Allow Departure (Dues Pending)**. One reason (payment promise) approves the discharge and allows the Guest to leave with the dues on the account (pay later) — no separate step in the register. Dues are not discounted; the Final Bill and the 3-day WhatsApp reminders follow as before. The register button stays for cases already approved.
 - Fix: a Cancelled / Removed charge request (e.g. the duplicate Blood Glucose Monitoring of 29-10-2026 for JOSEPH A A E FERNANDO) was counted as "awaiting Accounts", blocking discount, clearance and pay later. The three discharge checks now skip it.

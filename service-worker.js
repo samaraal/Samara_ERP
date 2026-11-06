@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.68';
-const CACHE = 'samara-erp-2.19.68-approve-pay-later';
+const APP_VERSION = '2.19.69';
+const CACHE = 'samara-erp-2.19.69-accounts-reconcile';
 const SHELL = [
   './',
   './index.html',

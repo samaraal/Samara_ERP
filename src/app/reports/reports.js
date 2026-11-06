@@ -83,7 +83,7 @@ function Reports(){
     if(filters.from&&date<filters.from)return false;
     if(filters.to&&date>filters.to)return false;
     if(filters.patient_id&&row.patient_id!==filters.patient_id)return false;
-    if(filters.payment_mode!=='All'&&String(row.payment_mode||'')!==filters.payment_mode)return false;
+    if(filters.payment_mode!=='All'&&accountsPaymentModeGroup(row.payment_mode)!==filters.payment_mode)return false;
     return true;
   });
 
@@ -99,7 +99,7 @@ function Reports(){
   const totalRefunds=refundRows.reduce((sum,row)=>sum+Number(row.amount||0),0);
   const netCollection=totalReceived-totalRefunds;
   const paymentModeTotal=mode=>receivedRows
-    .filter(row=>String(row.payment_mode||'')===mode)
+    .filter(row=>accountsPaymentModeGroup(row.payment_mode)===mode)
     .reduce((sum,row)=>sum+Number(row.amount||0),0);
 
   const registerRows=filtered.filter(row=>{
@@ -119,33 +119,52 @@ function Reports(){
   filtered.forEach(row=>{const sign=row.transaction_type==='Charge'||row.transaction_type==='Refund'?1:-1;accountBalances.set(row.patient_id,(accountBalances.get(row.patient_id)||0)+sign*Number(row.amount||0));});
   const outstanding=[...accountBalances.values()].reduce((sum,value)=>sum+Math.max(0,value),0);
 
+  // 2.19.69: the ledger shows Opening balance + this period's movement = Closing balance.
+  // Balances use every entry up to the To date (not only the selected period), through the same
+  // calculation as the Accounts Dashboard, so a Guest's balance is the same on both screens.
+  const balanceBase=state.billing.filter(row=>{
+    if(filters.source==='Outside Nursing'&&row.source!=='Outside Nursing')return false;
+    if(filters.source==='Resident Billing'&&row.source==='Outside Nursing')return false;
+    if(filters.patient_id&&row.patient_id!==filters.patient_id)return false;
+    return true;
+  });
+  const dayBefore=(()=>{if(!filters.from)return '';const d=new Date(filters.from+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-1);return d.toISOString().slice(0,10)})();
+  const openingBalances=filters.from?accountsGuestBalances(balanceBase,dayBefore):new Map();
+  const closingBalances=accountsGuestBalances(balanceBase,filters.to||todayISOIndia());
+  const periodRows=balanceBase.filter(row=>{const d=dateOnly(row.transaction_date);return(!filters.from||d>=filters.from)&&(!filters.to||d<=filters.to)});
   const patientLedger=state.patients.map(patient=>{
-    const rows=filtered.filter(row=>row.patient_id===patient.id);
+    const rows=periodRows.filter(row=>row.patient_id===patient.id);
     const byType=type=>rows.filter(row=>row.transaction_type===type).reduce((a,row)=>a+Number(row.amount||0),0);
     const patientCharges=byType('Charge');
     const paid=byType('Payment')+byType('Advance');
     const discount=byType('Discount');
     const refund=byType('Refund');
-    const balance=patientCharges-paid-discount+refund;
-    return {patient,charges:patientCharges,paid,discount,refund,balance};
-  }).filter(row=>row.charges||row.paid||row.discount||row.refund);
+    const opening=openingBalances.get(patient.id)?.balance||0;
+    const balance=closingBalances.get(patient.id)?.balance??(opening+patientCharges-paid-discount+refund);
+    return {patient,opening,charges:patientCharges,paid,discount,refund,balance};
+  }).filter(row=>row.charges||row.paid||row.discount||row.refund||Math.abs(row.opening)>0.009||Math.abs(row.balance)>0.009);
+  const ledgerTotals=patientLedger.reduce((t,r)=>({due:t.due+Math.max(0,r.balance),advance:t.advance+Math.max(0,-r.balance)}),{due:0,advance:0});
 
+  // 2.19.69: ageing of the amount still UNPAID as on the To date (not gross charges).
+  const ageingAsOf=filters.to||todayISOIndia();
   const ageing={current:0,d8_15:0,d16_30:0,over30:0};
-  const now=new Date();
-  filtered.filter(row=>row.transaction_type==='Charge').forEach(row=>{
-    const age=Math.max(0,Math.floor((now-new Date(row.transaction_date))/(86400000)));
-    const value=Number(row.amount||0);
-    if(age<=7)ageing.current+=value;
-    else if(age<=15)ageing.d8_15+=value;
-    else if(age<=30)ageing.d16_30+=value;
-    else ageing.over30+=value;
+  closingBalances.forEach(b=>{
+    if(String(b.key).startsWith('__'))return;
+    b.unpaid.forEach(u=>{
+      const age=Math.max(0,Math.round((new Date(ageingAsOf+'T00:00:00Z')-new Date(u.date+'T00:00:00Z'))/86400000));
+      if(age<=7)ageing.current+=u.amount;
+      else if(age<=15)ageing.d8_15+=u.amount;
+      else if(age<=30)ageing.d16_30+=u.amount;
+      else ageing.over30+=u.amount;
+    });
   });
 
-  const modeTotals=['Cash','UPI','RTGS','Card Payment','Razorpay'].map(mode=>[
+  const modeTotals=ACCOUNTS_PAYMENT_MODES.map(mode=>[
     mode,
-    filtered.filter(row=>['Payment','Advance'].includes(row.transaction_type)&&String(row.payment_mode||'')===mode)
+    filtered.filter(row=>['Payment','Advance'].includes(row.transaction_type)&&accountsPaymentModeGroup(row.payment_mode)===mode)
       .reduce((sum,row)=>sum+Number(row.amount||0),0)
-  ]);
+  ]).filter(([mode,value])=>mode!=='Other'||value>0.009);
+  const modeTotalAll=modeTotals.reduce((t,[,v])=>t+v,0);
 
   const cashVoucherRows=paymentRows.filter(row=>
     row.payment_mode==='Cash'&&String(row.payment_reference||'').startsWith('CV-')
@@ -238,7 +257,7 @@ function Reports(){
         )))),
         miniSelect('Service',filters.source,['All','Resident Billing','Outside Nursing'],v=>setFilters({...filters,source:v})),
         miniSelect('Transaction Type',filters.transaction_type,['All','Payment','Advance','Refund'],v=>setFilters({...filters,transaction_type:v})),
-        miniSelect('Payment Mode',filters.payment_mode,['All','Cash','UPI','RTGS','Card Payment','Razorpay'],v=>setFilters({...filters,payment_mode:v})),
+        miniSelect('Payment Mode',filters.payment_mode,['All',...ACCOUNTS_PAYMENT_MODES],v=>setFilters({...filters,payment_mode:v})),
         miniSelect('Register Type',filters.register_type,['All','Charge','Discount','Charges & Discounts','Payment','Advance','Refund'],v=>setFilters({...filters,register_type:v})),
         h('div',{className:'field'},h('label',null,'Quick Report'),h('button',{type:'button',className:'btn btn-secondary',onClick:setToday},'Today / Daily Collection'))
       )
@@ -249,8 +268,10 @@ function Reports(){
         ['Total Received',totalReceived,'green'],
         ['Cash',paymentModeTotal('Cash'),'green'],
         ['UPI',paymentModeTotal('UPI'),'teal'],
-        ['RTGS',paymentModeTotal('RTGS'),'blue'],
+        ['RTGS / Bank Transfer',paymentModeTotal('RTGS / Bank Transfer'),'blue'],
         ['Card Payment',paymentModeTotal('Card Payment'),'purple'],
+        ['Razorpay',paymentModeTotal('Razorpay'),'teal'],
+        ...(paymentModeTotal('Other')>0.009?[['Other',paymentModeTotal('Other'),'orange']]:[]),
         ['Refunds',totalRefunds,'red'],
         ['Net Collection',netCollection,'orange']
       ].map(([label,value,tone])=>h('div',{className:`accounts-kpi ${tone}`,key:label},
@@ -318,7 +339,7 @@ function Reports(){
 
     h('div',{className:'accounts-dashboard-grid'},
       h('div',{className:'accounts-panel'},
-        h('div',{className:'accounts-panel-head'},h('div',null,h('h3',null,'Outstanding Ageing Analysis'),h('small',null,'Gross charge ageing for the selected period'))),
+        h('div',{className:'accounts-panel-head'},h('div',null,h('h3',null,'Outstanding Ageing Analysis'),h('small',null,'Amount still unpaid as on '+formatDateIN(ageingAsOf)+' — receipts settle the oldest bills first; age counted from the charge date'))),
         h('div',{className:'accounts-mode-grid'},
           [
             ['0–7 Days',ageing.current],
@@ -329,7 +350,7 @@ function Reports(){
         )
       ),
       h('div',{className:'accounts-panel'},
-        h('div',{className:'accounts-panel-head'},h('div',null,h('h3',null,'Collections by Mode'),h('small',null,'Payments and advances'))),
+        h('div',{className:'accounts-panel-head'},h('div',null,h('h3',null,'Collections by Mode'),h('small',null,'Payments and advances in the selected period · Total '+money(modeTotalAll)))),
         h('div',{className:'accounts-status-list'},
           modeTotals.map(([label,value])=>h('div',{className:'accounts-status-item',key:label},h('span',null,label),h('strong',null,money(value))))
         )
@@ -339,16 +360,17 @@ function Reports(){
     h('div',{id:'report-ledger'}),
     h(LogTable,{
       title:`Patient / Outside Invoice Financial Ledger (${patientLedger.length})`,
-      subtitle:'Charges, receipts, concessions, refunds and balance',
-      heads:['Patient','Patient / Invoice ID','Room / Bed','Charges','Paid / Advance','Discount','Refund','Balance','Status'],
+      subtitle:`Opening balance + this period's charges − receipts − discounts + refunds = Closing balance as on ${formatDateIN(filters.to||todayISOIndia())} · Due ${money(ledgerTotals.due)} · Advance held ${money(ledgerTotals.advance)}`,
+      heads:['Patient','Patient / Invoice ID','Room / Bed','Opening Balance','Charges','Paid / Advance','Discount','Refund','Closing Balance','Status'],
       rows:patientLedger.map(row=>[
         formalName(row.patient)||row.patient.full_name,
         row.patient.patient_id||'—',
         row.patient.room_no?`${row.patient.room_no}${row.patient.bed_no?`-${row.patient.bed_no}`:''}`:'—',
+        h('span',{style:{color:row.opening>0.009?'#b42318':row.opening<-0.009?'#1d4ed8':undefined}},row.opening<-0.009?money(-row.opening)+' Adv':money(row.opening)),
         money(row.charges),money(row.paid),money(row.discount),money(row.refund),
-        money(Math.max(0,row.balance)),
-        h('span',{className:'badge',style:row.balance<=0.009?{background:'#fae7f0',color:'#7a1247'}:row.paid>0?{background:'#fff4df',color:'#9a6700'}:{background:'#ffeded',color:'#b42318'}},
-          row.balance<=0.009?'Paid':row.paid>0?'Partially Paid':'Outstanding'
+        h('strong',{style:{color:row.balance>0.009?'#b42318':row.balance<-0.009?'#1d4ed8':'#067647'}},row.balance<-0.009?money(-row.balance)+' Adv':money(row.balance)),
+        h('span',{className:'badge',style:Math.abs(row.balance)<=0.009?{background:'#fae7f0',color:'#7a1247'}:row.balance<0?{background:'#e8efff',color:'#1d4ed8'}:row.paid>0||row.opening>0.009?{background:'#fff4df',color:'#9a6700'}:{background:'#ffeded',color:'#b42318'}},
+          Math.abs(row.balance)<=0.009?'Paid':row.balance<0?'Advance Held':row.paid>0?'Partially Paid':'Outstanding'
         )
       ])
     }),
