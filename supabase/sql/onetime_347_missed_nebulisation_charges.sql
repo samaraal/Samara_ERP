@@ -53,3 +53,25 @@ select g.patient_id, g.d, ((g.d + g.last_t) at time zone 'Asia/Kolkata'), 'Nursi
    and not exists (select 1 from public.bill_charge_requests x where x.patient_id=g.patient_id and x.charge_date=g.d
                     and x.remarks like 'MIS Care-vs-Billing reconciliation (onetime 347)%');
 end $mis347$;
+
+-- Follow-up (06-11-2026 21:35): Accounts' approval accepts one session per request at the Charge Master rate
+-- ("Approved amount must match the current Admin-fixed tariff"), so each request above with quantity > 1 was split into
+-- single-session requests (same date, time, remarks). Result: 26 requests × qty 1, Rs 2,150, all Pending.
+do $split347$
+declare r public.bill_charge_requests%rowtype; i int; rate numeric;
+begin
+  perform set_config('samara.nursing_procedure_charge','on',true);
+  for r in select * from public.bill_charge_requests
+            where remarks like 'MIS Care-vs-Billing reconciliation (onetime 347)%' and quantity>1
+              and coalesce(approval_status,'Pending')='Pending' and coalesce(status,'')<>'Removed' for update loop
+    rate := r.unit_cost;
+    for i in 2..r.quantity::int loop
+      insert into public.bill_charge_requests(patient_id,charge_date,service_datetime,category,service_code,charge_item_code,service_name,description,
+        quantity,unit,unit_cost,estimated_amount,requested_amount,billable,bill_available,urgency,status,approval_status,remarks,raised_by,raised_by_name,raised_at,updated_at)
+      values(r.patient_id,r.charge_date,r.service_datetime,r.category,r.service_code,r.charge_item_code,r.service_name,r.description||' — session '||i||' of '||r.quantity::int,
+        1,r.unit,rate,rate,rate,r.billable,r.bill_available,r.urgency,'Raised','Pending',r.remarks,r.raised_by,r.raised_by_name,r.raised_at,now());
+    end loop;
+    update public.bill_charge_requests set quantity=1, estimated_amount=rate, requested_amount=rate,
+           description=description||' — session 1 of '||r.quantity::int, updated_at=now() where id=r.id;
+  end loop;
+end $split347$;
