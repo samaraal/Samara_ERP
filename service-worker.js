@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.71';
-const CACHE = 'samara-erp-2.19.71-care-vs-billing';
+const APP_VERSION = '2.19.72';
+const CACHE = 'samara-erp-2.19.72-cbr-cancelled';
 const SHELL = [
   './',
   './index.html',

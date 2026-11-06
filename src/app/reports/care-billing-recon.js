@@ -13,7 +13,7 @@
   const CBR_RELATED_CHECKS=['np_started_not_charged','sugar_charge_vs_reading','physio_unbilled','possible_duplicates','charged_before_service','charge_outside_stay'];
   const cbrIsNeb=o=>/inhal/i.test(String(o?.route||''))||/^\s*neb/i.test(String(o?.medicine_name||''));
   const cbrIsNebCharge=r=>/nebul/i.test(`${r?.service_name||''} ${r?.description||''}`);
-  const cbrCounts=r=>String(r?.status||'')!=='Removed'&&String(r?.approval_status||'')!=='Rejected';
+  const cbrCounts=r=>!['Removed','Cancelled'].includes(String(r?.status||''))&&String(r?.approval_status||'')!=='Rejected'; // 2.19.72: Cancelled (reversed) charges do not count
   const cbrHHMM=v=>String(v||'').slice(0,5);
   const cbrRs=v=>'Rs. '+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:2});
   async function cbrFetchAll(build){
@@ -97,7 +97,7 @@
     header('Care vs Billing — summary');
     const totMissing=rows.reduce((n,r)=>n+r.missingValue,0),totOver=rows.reduce((n,r)=>n+r.overValue,0);
     doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(80,60,70);
-    const intro=doc.splitTextToSize(`What was done for each Guest (MAR and nursing records) compared with what was charged in Bills & Charges. Chargeable medicine: nebulisation only (one session = one dose time given; two medicines at the same time = one session). A charge counts unless Removed or Rejected (Pending counts). Today (${formatDateIN(today)}) is shown but not counted as missing, because the day is not over. Generated ${formatDateTimeIN(new Date())} by ${who}.`,W-20);
+    const intro=doc.splitTextToSize(`What was done for each Guest (MAR and nursing records) compared with what was charged in Bills & Charges. Chargeable medicine: nebulisation only (one session = one dose time given; two medicines at the same time = one session). A charge counts unless Removed, Cancelled or Rejected (Pending counts). Today (${formatDateIN(today)}) is shown but not counted as missing, because the day is not over. Generated ${formatDateTimeIN(new Date())} by ${who}.`,W-20);
     doc.text(intro,10,29);
     let y=29+intro.length*4+2;
     const box=(x,label,val,hi)=>{doc.setFillColor(...(hi?[178,11,93]:[255,247,251]));doc.setDrawColor(...(hi?[178,11,93]:[231,195,212]));doc.roundedRect(x,y,(W-26)/3,15,2,2,'FD');

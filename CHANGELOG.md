@@ -1,3 +1,6 @@
+## 2.19.72 — 06-11-2026 — Care vs Billing PDF: reversed (Cancelled) charges no longer counted
+- The PDF counted charges marked Cancelled (e.g. the 2 reversed nebulisation charges of Mr. S. SWAMINATHAN on 06-11, onetime 348). It now skips Removed, Cancelled and Rejected charges.
+
 ## 2.19.71 — 06-11-2026 — MIS: Care vs Billing reconciliation PDF (+ onetime SQL 347, already run)
 - **MIS & Audit → ⬇ Care vs Billing PDF** (Admin / Directors): for the chosen period, compares what was done for each Guest with what was charged. Page 1: summary per Guest (nebulisation sessions given, charged, not charged, charged-but-not-given, value). Then one page per Guest: day-wise differences with the MAR session times, the full medicine list (admission prescription and every change) with the chargeable ones marked, and that Guest's related MIS findings (procedures not charged, blood sugar, physiotherapy, duplicates). Read-only.
 - Rule (Admin): of the medicines only **nebulisation** is chargeable; one session = one dose time given (two medicines at the same time = one session); Pending charges count, Removed / Rejected do not; today is not counted as missing.
