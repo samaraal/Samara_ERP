@@ -256,7 +256,7 @@
         h('div',{role:'group','aria-label':'Period length',style:{display:'flex',gap:'4px'}},
           [7,30].map(n=>h('button',{key:n,type:'button',className:`btn ${days===n?'btn-primary':'btn-secondary'}`,'aria-pressed':days===n,disabled:n===30&&narrow,title:n===30&&narrow?'30 days needs a wider screen (computer or tablet)':undefined,onClick:()=>setPeriod(n)},`${n} days`))),
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Previous period',onClick:()=>move(-1)},'‹'),
-        h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:startDraft,onChange:e=>setStartDraft(e.target.value)})),
+        h('label',{'data-no-draft':'',style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:startDraft,onChange:e=>setStartDraft(e.target.value)})),
         startDraft&&startDraft!==start?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(startDraft)}},'Apply'):null,
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Next period',onClick:()=>move(1)},'›'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(monday(today))}},'This week'),
@@ -277,7 +277,7 @@
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
         h('span',null,'⚠ Leave pending · P Permission · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
-        h('span',{style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day',
+        h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
           h('input',{type:'number',min:0,value:minCover.N||'',onChange:e=>setMinCover({...minCover,N:e.target.value}),style:{width:'52px',padding:'2px 4px'}}))),
       error?h('div',{className:'message error'},error):null,

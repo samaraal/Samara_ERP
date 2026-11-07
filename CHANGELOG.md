@@ -1,3 +1,7 @@
+## 2.19.76 — 07-11-2026 — No false "unsaved entry" reminder from the Duty Roster
+- Changing the Duty Roster's **From** date or **Minimum per shift** boxes no longer counts as an unsaved entry (they are settings; the roster cells themselves are taps and are saved with Save roster). The reminder already kept on devices from such changes is cleared once.
+- The "You have N unsaved entries on this device" reminder now also shows the Guest and what was typed, so it is easy to see whose entry it is. (Drafts were and remain per login: each person sees only their own.)
+
 ## 2.19.75 — 07-11-2026 — Daily Report: PowerPoint deck + morning WhatsApp PDF (SQL 349 + Edge Function mis-daily-report-dispatch)
 - **New page OVERVIEW → Daily Report** (Admin / Directors; Nursing Manager under CLINICAL REVIEW): all happenings of a day, midnight to midnight, in 12 slides — Day at a glance (with yesterday and the 7-day average, 8-day charts), Guest movement, Clinical care, Escalations & incidents, Care services, Guests needing attention, Billing, Money, Staff, Stores / food / equipment, Family & communication, Exceptions (MIS & Audit findings).
 - **⬇ PowerPoint** (opens in PowerPoint on Windows; charts and tables are editable) and **⬇ PDF (WhatsApp copy)**. The Nursing Manager's copy leaves out the Billing and Money slides and every amount (removed in the database, not just hidden).

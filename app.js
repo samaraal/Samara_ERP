@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.75';
+  const APP_VERSION = '2.19.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Nov-2026 Daily Report';
+  const APP_BUILD_DATE = '07-Nov-2026 Roster draft fix';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -13670,6 +13670,9 @@ https://samaraassistedliving.com/`;
     // 2.18.197: one-time clean-up of "drafts" that earlier versions kept from view-only pages (filters only)
     try{if(!ls.get('samara_draft_cleanup:2.18.197')){ls.keys().forEach(k=>{try{const d=JSON.parse(ls.get(k)||'null');
       if(d&&/^(Charge Register|WhatsApp Logs|Accounts Reports|Stock Report|Payment Statements|Accounts Statement|Net Profit Statement|Prescription History|Medication History|Movement History|Complete Transaction History|Intelligent Reports|Full Intelligent Report|Admission Register)$|Dashboard$/i.test(String(d.page||'')))ls.del(k)}catch(_){}});ls.set('samara_draft_cleanup:2.18.197','1')}}catch(_){}
+    // 2.19.76: one-time clean-up of Duty Roster "drafts" made by changing the From date / minimum per shift (not entries)
+    try{if(!ls.get('samara_draft_cleanup:2.19.76')){ls.keys().forEach(k=>{try{const d=JSON.parse(ls.get(k)||'null');
+      if(d&&/^Duty Roster$/i.test(String(d.title||'')))ls.del(k)}catch(_){}});ls.set('samara_draft_cleanup:2.19.76','1')}}catch(_){}
     function readDraft(k){try{const d=JSON.parse(ls.get(k)||'null');return d&&d.v===1?d:null}catch(_){return null}}
     function myDrafts(){
       const now=Date.now(),out=[];
@@ -13755,7 +13758,7 @@ https://samaraassistedliving.com/`;
     }
     function offerSummary(list){
       summaryShown=true;
-      const sub=list.slice(0,4).map(d=>`${d.page||'Page'}${d.title?` — ${d.title}`:''} (${fmtTime(d.savedAt)})`).join('\n');
+      const sub=list.slice(0,4).map(d=>`${d.page||'Page'}${d.title?` — ${d.title}`:''} (${fmtTime(d.savedAt)})${d.guest?` · ${d.guest}`:''}${d.preview&&d.preview.length?` · “${d.preview.join(' · ')}”`:''}`).join('\n');
       const buttons=list.slice(0,3).filter((d,i,a)=>d.page&&a.findIndex(x=>x.page===d.page)===i).map(d=>[`Open ${d.page}`,'sdb-main',()=>{hideBar();window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:d.page}}))}]);
       buttons.push(['Discard all','sdb-alt',()=>{if(!window.confirm(`Discard ${list.length===1?'this unsaved entry':`these ${list.length} unsaved entries`}? ${list.length===1?'It':'They'} cannot be brought back.`))return;list.forEach(d=>{ls.del(d.key);dismissed.add(d.key)});hideBar()}]);
       buttons.push(['Not now','sdb-alt',()=>{list.forEach(d=>dismissed.add(d.key));rememberDismiss(list);hideBar()}]);
@@ -42823,7 +42826,7 @@ function ShiftManagement({profile}){
         h('div',{role:'group','aria-label':'Period length',style:{display:'flex',gap:'4px'}},
           [7,30].map(n=>h('button',{key:n,type:'button',className:`btn ${days===n?'btn-primary':'btn-secondary'}`,'aria-pressed':days===n,disabled:n===30&&narrow,title:n===30&&narrow?'30 days needs a wider screen (computer or tablet)':undefined,onClick:()=>setPeriod(n)},`${n} days`))),
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Previous period',onClick:()=>move(-1)},'‹'),
-        h('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:startDraft,onChange:e=>setStartDraft(e.target.value)})),
+        h('label',{'data-no-draft':'',style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',color:'#725d68'}},'From',h(StrictDateInput,{value:startDraft,onChange:e=>setStartDraft(e.target.value)})),
         startDraft&&startDraft!==start?h('button',{type:'button',className:'btn btn-primary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(startDraft)}},'Apply'):null,
         h('button',{type:'button',className:'btn btn-secondary','aria-label':'Next period',onClick:()=>move(1)},'›'),
         h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{if(dirtyCount&&!window.confirm('You have unsaved roster changes. Discard them?'))return;setDraft({});setStart(monday(today))}},'This week'),
@@ -42844,7 +42847,7 @@ function ShiftManagement({profile}){
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
         h('span',null,'⚠ Leave pending · P Permission · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
-        h('span',{style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day',
+        h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
           h('input',{type:'number',min:0,value:minCover.N||'',onChange:e=>setMinCover({...minCover,N:e.target.value}),style:{width:'52px',padding:'2px 4px'}}))),
       error?h('div',{className:'message error'},error):null,

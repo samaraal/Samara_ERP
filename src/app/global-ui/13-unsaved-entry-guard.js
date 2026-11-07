@@ -157,6 +157,9 @@
     // 2.18.197: one-time clean-up of "drafts" that earlier versions kept from view-only pages (filters only)
     try{if(!ls.get('samara_draft_cleanup:2.18.197')){ls.keys().forEach(k=>{try{const d=JSON.parse(ls.get(k)||'null');
       if(d&&/^(Charge Register|WhatsApp Logs|Accounts Reports|Stock Report|Payment Statements|Accounts Statement|Net Profit Statement|Prescription History|Medication History|Movement History|Complete Transaction History|Intelligent Reports|Full Intelligent Report|Admission Register)$|Dashboard$/i.test(String(d.page||'')))ls.del(k)}catch(_){}});ls.set('samara_draft_cleanup:2.18.197','1')}}catch(_){}
+    // 2.19.76: one-time clean-up of Duty Roster "drafts" made by changing the From date / minimum per shift (not entries)
+    try{if(!ls.get('samara_draft_cleanup:2.19.76')){ls.keys().forEach(k=>{try{const d=JSON.parse(ls.get(k)||'null');
+      if(d&&/^Duty Roster$/i.test(String(d.title||'')))ls.del(k)}catch(_){}});ls.set('samara_draft_cleanup:2.19.76','1')}}catch(_){}
     function readDraft(k){try{const d=JSON.parse(ls.get(k)||'null');return d&&d.v===1?d:null}catch(_){return null}}
     function myDrafts(){
       const now=Date.now(),out=[];
@@ -242,7 +245,7 @@
     }
     function offerSummary(list){
       summaryShown=true;
-      const sub=list.slice(0,4).map(d=>`${d.page||'Page'}${d.title?` — ${d.title}`:''} (${fmtTime(d.savedAt)})`).join('\n');
+      const sub=list.slice(0,4).map(d=>`${d.page||'Page'}${d.title?` — ${d.title}`:''} (${fmtTime(d.savedAt)})${d.guest?` · ${d.guest}`:''}${d.preview&&d.preview.length?` · “${d.preview.join(' · ')}”`:''}`).join('\n');
       const buttons=list.slice(0,3).filter((d,i,a)=>d.page&&a.findIndex(x=>x.page===d.page)===i).map(d=>[`Open ${d.page}`,'sdb-main',()=>{hideBar();window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:d.page}}))}]);
       buttons.push(['Discard all','sdb-alt',()=>{if(!window.confirm(`Discard ${list.length===1?'this unsaved entry':`these ${list.length} unsaved entries`}? ${list.length===1?'It':'They'} cannot be brought back.`))return;list.forEach(d=>{ls.del(d.key);dismissed.add(d.key)});hideBar()}]);
       buttons.push(['Not now','sdb-alt',()=>{list.forEach(d=>dismissed.add(d.key));rememberDismiss(list);hideBar()}]);
