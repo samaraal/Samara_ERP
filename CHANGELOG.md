@@ -1,3 +1,9 @@
+## 2.19.81 — 07-11-2026 — Physiotherapy: reschedule the 2nd / 3rd session of the day — SQL 352
+- **Found and fixed**: for a twice-daily plan, rescheduling the 2nd session (16:00–18:00) after the 1st session was done failed with "Save failed — An outcome is already recorded". The database looked up the session by plan + date only (a rule from when plans had one session a day), so it found the completed 1st session.
+- The Record Physiotherapy Session form now sends the chosen "Session (plan time)", and the database finds that exact session (plan + date + time, as for saving sessions since SQL 280). Each session of the day is rescheduled on its own; a session already recorded still asks for a correction, now naming its time.
+- A second reschedule request for the same session, while one is waiting for approval, is refused with a clear message. The Physiotherapist login can also request a reschedule.
+- **Database**: run `supabase/sql/352_physio_reschedule_by_session_time.sql`. Until it is run, the screen falls back to the old way.
+
 ## 2.19.80 — 07-11-2026 — 24-hour clock everywhere (global) — SQL 351 + 10 Edge Functions
 - **Found and fixed**: Intake / Output chart slots showed "7–09:00", "1–15:00" (the start of a range had no AM/PM, so it was never converted). Slots now read 07:00–09:00 … 05:00–07:00, on one line.
 - **At the source** — every place that built AM/PM times now writes HH:MM: Intake / Output, Nursing Notes, Physiotherapy (time list + labels), Physiotherapist Accounts, Special Nurse, Nursing Procedure Plan, Patients (daily report time), interview times, Food Vendor (cut-off times, vendor messages), Help pop-up, Medication History, Medicines, Charge Register, Razorpay Statement, Employees, Outside Nursing, notification bell, unsaved-entry reminder.

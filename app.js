@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.80';
+  const APP_VERSION = '2.19.81';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Nov-2026 24-hour clock everywhere';
+  const APP_BUILD_DATE = '07-Nov-2026 Physio reschedule 2nd session';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -39535,7 +39535,14 @@ function RoomsBeds({profile,onNavigate}){
         if(!form.reason.trim()||!rescheduleDate||!rescheduleTime){showToast('error','Enter the new date, time and reason.');return;}
         setSaving(true);
         try{
-          const {error}=await client.rpc('request_planned_physio_reschedule',{p_plan:entryPlan.id,p_original_date:form.session_date,p_new_date:rescheduleDate,p_new_time:rescheduleTime,p_reason:form.reason.trim()});
+          // 2.19.81: send the session (plan time) being rescheduled, so the 2nd / 3rd session of the day is found
+          // on its own and not confused with an earlier session that is already done (SQL 352).
+          const base={p_plan:entryPlan.id,p_original_date:form.session_date,p_new_date:rescheduleDate,p_new_time:rescheduleTime,p_reason:form.reason.trim()};
+          const slot=String(form.scheduled_time||'').slice(0,5);
+          let {error}=await client.rpc('request_planned_physio_reschedule',slot?{...base,p_slot_time:slot}:base);
+          if(error&&slot&&/p_slot_time|could not find the function|PGRST202/i.test(`${error.code||''} ${error.message||''}`)){
+            ({error}=await client.rpc('request_planned_physio_reschedule',base));
+          }
           if(error)throw error;
           setEntryPlan(null);showToast('success','Reschedule submitted for Nursing Manager/Admin approval. The session has not been marked Completed.');await load();
         }catch(error){showToast('error',error.message||'Unable to request reschedule.');}finally{setSaving(false);}
