@@ -607,6 +607,11 @@
    "lines": 223
   },
   {
+   "file": "reports/daily-report.js",
+   "about": "Daily Report (Admin / Directors + Nursing Manager): all happenings of the day, PowerPoint + WhatsApp PDF",
+   "lines": 355
+  },
+  {
    "file": "z-end/01-form-helpers-and-start-app.js",
    "about": "Small form helpers, then STARTS the app and CLOSES the main closure",
    "lines": 13

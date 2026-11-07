@@ -136,7 +136,7 @@
     return {...section,items};
   });
   const NAV_SECTIONS = [
-    { title:'OVERVIEW', items:['Dashboard','MIS & Audit','Notifications'] }, // 2.19.11: MIS & Audit — Admin / Directors only
+    { title:'OVERVIEW', items:['Dashboard','MIS & Audit','Daily Report','Notifications'] }, // 2.19.11: MIS & Audit — Admin / Directors only · 2.19.75: Daily Report — Admin + Nursing Manager
     { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health'] }, // 2.16.43: System Health (Admin)
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Employee Register','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
@@ -156,7 +156,7 @@
   const NURSING_ENTRY_NAV=['Shift Tasks','Daily Care','Vital Signs','Medicines','Physiotherapy','Special Nurse','Shift Handover'];
   const ROLE_NAV={
     Admin:ALL_NAV.filter(item=>item!=='My To-Do & Follow-up'&&(!NURSING_ENTRY_NAV.includes(item)||item==='Physiotherapy')),
-    Manager:ALL_NAV.filter(item=>!['MIS & Audit','Net Profit Statement','Razorpay Statement','Profit by Service','Monthly Expenses','Outside Bills Paid by Samara','Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Employee Register','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
+    Manager:ALL_NAV.filter(item=>!['MIS & Audit','Daily Report','Net Profit Statement','Razorpay Statement','Profit by Service','Monthly Expenses','Outside Bills Paid by Samara','Petty Cash','Payments & Vouchers','Payment Requests','Approved—Ready to Pay','Payment Vouchers','Payment Statements',"Director's Office",'Enquiries & Feedback','System Maintenance','System Health','Alert Settings','Payments','Patient Ledger','Accounts Statement','Final Billing','Refunds','HR Dashboard','Employees','Employee Register','Leave Approvals','Career Applications','Interviews',...NURSING_ENTRY_NAV].includes(item)),
 
     Nurse:['Outside Nursing Dashboard','Outside Samara Nursing Procedures','Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Rooms','Discharge','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Nursing Notes','Medicines','Approval Requests','Raise Indent','Received Indents / Used Balance','Oxygen Cylinders','Biomedical Equipment','Patient Consumables','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','Charge Approvals','My To-Do List','My Leave & Permission','Notifications'],
     Caregiver:['Clinical Dashboard','Clinical Alerts','Talk to Guest','Duty Assignment','Patients','Shift Tasks','Daily Care','Vital Signs','Intake / Output','Nursing Notes','Medicines','Food & Diet','Physiotherapy','Special Nurse','Shift Handover','Incidents','My Leave & Permission','Notifications'],
@@ -204,7 +204,7 @@
       'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy','Physiotherapy Dashboard',
       'Clinical Dashboard','Nursing Notes','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Approvals','Charge Register', // 2.17.6: Bills & Charges (raise outside bills)
-      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Daily Report','Intelligent Reports','Medication Errors','Recovery Timeline',
       'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -262,6 +262,8 @@
     const physio=allowed.includes('Physiotherapy Dashboard');
     sections.forEach(section=>{section.items=section.items.filter(x=>!['Physiotherapy','Physiotherapist Accounts','Physiotherapy Dashboard'].includes(x));});
     if(physio)sections.splice(Math.min(2,sections.length),0,{title:'PHYSIOTHERAPY',items:['Physiotherapy Dashboard']});
+    // 2.19.75: Daily Report — make sure it is in the menu for everyone allowed (e.g. a Nursing Manager whose login role is Nurse)
+    if(allowed.includes('Daily Report')&&!sections.some(section=>section.items.includes('Daily Report'))){const cr=sections.find(section=>section.title==='CLINICAL REVIEW');if(cr)cr.items=['Daily Report',...cr.items];else sections.push({title:'CLINICAL REVIEW',items:['Daily Report']});}
     // Keep daily work first for each role; specialist modules follow the core workflow.
     const generalOrder=['OVERVIEW','ADMISSION','PATIENTS','NURSING','NURSING WORKSPACE','NURSING OVERVIEW','FOOD & DIET','PHYSIOTHERAPY','PHARMACY & STORES','OUTSIDE NURSING','ACCOUNTS / BILLING','MANAGER',"DIRECTOR'S OFFICE",'DUTY ROSTER & LEAVE','NURSING STAFF','HR','ROOMS & PACKAGES','PETTY CASH','CLINICAL REVIEW','COMMUNICATION','CHARGE MASTER','ADMIN','MY ACCOUNT'];
     const roleFirst=role==='Accounts'?['OVERVIEW','ACCOUNTS / BILLING','PATIENTS','OUTSIDE NURSING','PHYSIOTHERAPY']:CLINICAL_ROLES.includes(role)?['NURSING WORKSPACE','ADMISSION','PHYSIOTHERAPY','PHARMACY & STORES','DUTY ROSTER & LEAVE','OUTSIDE NURSING']:role==='Manager'&&allowed.includes('My To-Do List')?['NURSING OVERVIEW','PATIENTS','ADMISSION','NURSING STAFF','DUTY ROSTER & LEAVE','PHYSIOTHERAPY','PHARMACY & STORES','FOOD & DIET','OUTSIDE NURSING']:role==='Manager'?['OVERVIEW','MANAGER','PATIENTS','NURSING','ADMISSION']:role==='Kitchen'?['OVERVIEW','FOOD & DIET','PHARMACY & STORES','PATIENTS']:role==='STD'?['OVERVIEW',"DIRECTOR'S OFFICE",'COMMUNICATION','PHARMACY & STORES','FOOD & DIET']:[];
@@ -293,7 +295,7 @@
         {title:'PETTY CASH',items:['Petty Cash'].filter(item=>allowed.includes(item))}, // 2.16.20: Nursing Manager's own petty cash book
         {title:'FOOD & DIET',items:['Food & Diet'].filter(item=>allowed.includes(item))},
         {title:'COMMUNICATION',items:['WhatsApp Inbox'].filter(item=>allowed.includes(item))},
-        {title:'CLINICAL REVIEW',items:['Reports'].filter(item=>allowed.includes(item))},
+        {title:'CLINICAL REVIEW',items:['Daily Report','Reports'].filter(item=>allowed.includes(item))}, // 2.19.75
         {title:'MY ACCOUNT',items:['My Profile'].filter(item=>allowed.includes(item))}
       ].filter(section=>section.items.length);
     }

@@ -1,3 +1,10 @@
+## 2.19.75 — 07-11-2026 — Daily Report: PowerPoint deck + morning WhatsApp PDF (SQL 349 + Edge Function mis-daily-report-dispatch)
+- **New page OVERVIEW → Daily Report** (Admin / Directors; Nursing Manager under CLINICAL REVIEW): all happenings of a day, midnight to midnight, in 12 slides — Day at a glance (with yesterday and the 7-day average, 8-day charts), Guest movement, Clinical care, Escalations & incidents, Care services, Guests needing attention, Billing, Money, Staff, Stores / food / equipment, Family & communication, Exceptions (MIS & Audit findings).
+- **⬇ PowerPoint** (opens in PowerPoint on Windows; charts and tables are editable) and **⬇ PDF (WhatsApp copy)**. The Nursing Manager's copy leaves out the Billing and Money slides and every amount (removed in the database, not just hidden).
+- **Saved copy:** a finished day is saved the first time it is prepared, so it always shows the same numbers. Admin can press **↻ Prepare again**. Today can be viewed "so far" (not saved).
+- **Every morning ~07:00** the PDF goes on WhatsApp to Admin / Directors (full) and the Nursing Manager (without money), re-tried until 09:00 — after Meta approves template `samara_mis_daily_report` (docs/META_TEMPLATE_samara_mis_daily_report.md) and the secret `MIS_DAILY_REPORT_ENABLED=true` is set. Admin can also press **📲 Send on WhatsApp now**.
+- Needs: run `supabase/sql/349_mis_daily_report.sql`; deploy Edge Function `mis-daily-report-dispatch` (for the PDF / WhatsApp). PowerPoint maker is in `vendor/pptxgen.bundle.js` (PptxGenJS 3.12.0).
+
 ## 2.19.74 — 07-11-2026 — Final Billing: Total row in Charge Summary
 - **Accounts / Billing → Final Billing:** the Charge Summary now ends with a highlighted **Total** row showing the total number of entries and the total amount of all categories.
 
