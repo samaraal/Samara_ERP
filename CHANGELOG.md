@@ -1,3 +1,6 @@
+## 2.19.83 — 07-11-2026 — Physiotherapy correction requests fit the screen
+- The Physiotherapy Correction Request / Approvals table no longer scrolls sideways: all columns fit the screen, text wraps, and the Review controls (reject reason, Voice, Language, Dictate, Approve, Reject) stack inside their column. No database change.
+
 ## 2.19.82 — 07-11-2026 — Physiotherapy: on-screen pop-up for each new reschedule / correction request
 - Nursing Manager and Admin now get a **visible pop-up** (pink, pulsing, top-right; bottom on phones) for each new physiotherapy reschedule / correction request, as well as the bell count.
 - **Tap the pop-up → it opens that request's Approve / Reject window directly.** × dismisses it; the request stays in the bell until it is decided.

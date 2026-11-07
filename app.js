@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.82';
+  const APP_VERSION = '2.19.83';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Nov-2026 Physio request pop-up';
+  const APP_BUILD_DATE = '07-Nov-2026 Physio requests fit screen';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -39346,6 +39346,28 @@ function RoomsBeds({profile,onNavigate}){
     st.textContent='.physio-note-voice{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 6px}.physio-dictate-anchor{display:block}.physio-dictate-anchor+.samara-dictation-tools{margin-top:6px}';
     document.head.appendChild(st);
   })();
+  // 2.19.83: correction requests fit the screen — no horizontal scrolling; text wraps; Review controls stack.
+  ;(function(){
+    if(document.getElementById('physio-req-table-css'))return;
+    const st=document.createElement('style');st.id='physio-req-table-css';
+    st.textContent=`
+      .table-wrap:has(> table.physio-req-table){overflow-x:visible!important}
+      table.physio-req-table{min-width:0!important;width:100%!important;table-layout:fixed}
+      table.physio-req-table th,table.physio-req-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.4;padding:8px 6px}
+      table.physio-req-table th:nth-child(1){width:13%}table.physio-req-table th:nth-child(2){width:8%}
+      table.physio-req-table th:nth-child(3){width:8%}table.physio-req-table th:nth-child(4){width:9%}
+      table.physio-req-table th:nth-child(5){width:12%}table.physio-req-table th:nth-child(6){width:12%}
+      table.physio-req-table th:nth-child(7){width:7%}table.physio-req-table th:nth-child(8){width:9%}
+      table.physio-req-table th:nth-child(9){width:22%}
+      .physio-req-review{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+      .physio-req-review>*{max-width:100%}
+      .physio-req-review input,.physio-req-review textarea{flex:1 1 100%;width:100%!important;min-width:0;box-sizing:border-box}
+      .physio-req-review .btn{flex:1 1 auto;margin:0!important;white-space:nowrap}
+      .physio-req-review select{max-width:100%}
+      @media(max-width:900px){table.physio-req-table{table-layout:auto}}
+    `;
+    document.head.appendChild(st);
+  })();
   function Physiotherapy({profile,onNavigate,filters=null}){
     const canEnter=['Admin','Manager','Nurse','Caregiver','Physiotherapist'].includes(profile?.role);
     const isPhysioLogin=profile?.role==='Physiotherapist'; // 2.19.55: she records her own sessions
@@ -39691,7 +39713,7 @@ function RoomsBeds({profile,onNavigate}){
       request.action==='Delete'?'Remove incorrect entry':formatDateIN(request.proposed.session_date)+' / '+clockLabel(request.proposed.scheduled_time)+' / '+(request.action==='Reschedule'?'Pending':request.proposed.status)+(request.action==='Modify'&&request.proposed.status==='Completed'?' · Actual: '+clockLabel(request.proposed.actual_time):''),
       request.reason,request.state,fmt(request.requested_at),
       canReview&&request.state==='Pending'&&ownRequest(request)?h('span',{className:'badge',style:{background:'#fff4e0',color:'#8a5300'},title:'You cannot approve your own request'},profile?.role==='Admin'?'Your request — waiting for Nursing Manager':'Your request — waiting for Admin'): // 2.18.126
-      canReview&&request.state==='Pending'?h('div',null,
+      canReview&&request.state==='Pending'?h('div',{className:'physio-req-review'},
         h('input',{'aria-label':'Review note',value:reviewNotes[request.id]||'',placeholder:'Reason required to reject',onChange:e=>setReviewNotes({...reviewNotes,[request.id]:e.target.value})}),
         h('button',{type:'button',className:'btn btn-primary',disabled:saving,onClick:()=>reviewRequest(request,true)},'Approve'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:saving,onClick:()=>reviewRequest(request,false)},'Reject')):
@@ -39807,7 +39829,7 @@ function RoomsBeds({profile,onNavigate}){
       message&&h('div',{className:'message error'},message),
       h(RecordFocusBanner,{focus:requestFocus,onShowAll:clearRequestFocus}),
       loading?h('p',{className:'small-note'},'Loading request…'):!requestRows.length?h('div',{className:'message'},'This request is no longer available. Press Show all to see every request.'):
-      h('div',{id:'physio-request-focus'},h(LogTable,{title:'Physiotherapy Correction Request',subtitle:'Approve or reject here. The original session stays unchanged until approval.',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows})));
+      h('div',{id:'physio-request-focus'},h(LogTable,{title:'Physiotherapy Correction Request',subtitle:'Approve or reject here. The original session stays unchanged until approval.',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows,className:'physio-req-table'})));
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
       returnedPanel,
@@ -39828,7 +39850,7 @@ function RoomsBeds({profile,onNavigate}){
         rows:recentRows
       }),
       h(PhysioSessionCounts,{profile,filters}),
-      h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows}),
+      h(LogTable,{title:canReview?'Physiotherapy Correction Approvals':'My Correction Requests',subtitle:'Original sessions remain unchanged until approval',heads:['Patient','Original date','Action','Original','Requested change','Reason','Status','Submitted','Review'],rows:requestRows,className:'physio-req-table'}),
       correctionModal,resendModal,
       entryPlan&&h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget)setEntryPlan(null)}},
         h('form',{className:'card modal',onSubmit:saveSession},
