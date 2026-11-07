@@ -1,3 +1,6 @@
+## 2.19.74 — 07-11-2026 — Final Billing: Total row in Charge Summary
+- **Accounts / Billing → Final Billing:** the Charge Summary now ends with a highlighted **Total** row showing the total number of entries and the total amount of all categories.
+
 ## 2.19.73 — 07-11-2026 — Final Billing: Charge Summary fits the screen (text wraps)
 - **Accounts / Billing → Final Billing:** the Charge Summary and Payment & Adjustment History tables no longer need sideways scrolling. Long descriptions (consumables, pharmacy, physiotherapy session lists) now wrap onto several lines, and the Amount column stays visible on the right.
 - The Gross Charges / Payments / Net Payable boxes on this page are now always shown as coloured cards (they appeared as plain text unless the Payments page had been opened first).

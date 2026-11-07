@@ -475,19 +475,29 @@
         ),
 
         // 2.19.73: wrap long text so the Charge Summary / Payment History fit the screen (no sideways scrolling).
-        h('style',null,'table.fb-wrap-table{min-width:0!important;width:100%;table-layout:fixed}table.fb-wrap-table th,table.fb-wrap-table td{white-space:normal!important;overflow-wrap:break-word;word-break:normal;vertical-align:top;line-height:1.4}table.fb-wrap-table td:last-child,table.fb-wrap-table th:last-child{text-align:right;white-space:nowrap!important}.fb-charge-summary th:nth-child(1){width:80px}.fb-charge-summary th:nth-child(2){width:200px}.fb-charge-summary th:nth-child(3){width:90px}.fb-charge-summary th:nth-child(5){width:130px}.fb-payment-history th:nth-child(1){width:110px}.fb-payment-history th:nth-child(2){width:12%}.fb-payment-history th:nth-child(3){width:14%}.fb-payment-history th:nth-child(4){width:11%}.fb-payment-history th:nth-child(6){width:130px}@media(max-width:760px){table.fb-wrap-table{table-layout:auto}}'),
+        h('style',null,'table.fb-wrap-table{min-width:0!important;width:100%;table-layout:fixed}table.fb-wrap-table th,table.fb-wrap-table td{white-space:normal!important;overflow-wrap:break-word;word-break:normal;vertical-align:top;line-height:1.4}table.fb-wrap-table td:last-child,table.fb-wrap-table th:last-child{text-align:right;white-space:nowrap!important}.fb-charge-summary th:nth-child(1){width:80px}.fb-charge-summary th:nth-child(2){width:200px}.fb-charge-summary th:nth-child(3){width:90px}.fb-charge-summary th:nth-child(5){width:130px}.fb-payment-history th:nth-child(1){width:110px}.fb-payment-history th:nth-child(2){width:12%}.fb-payment-history th:nth-child(3){width:14%}.fb-payment-history th:nth-child(4){width:11%}.fb-payment-history th:nth-child(6){width:130px}@media(max-width:760px){table.fb-wrap-table{table-layout:auto}}.fb-charge-summary tbody tr:last-child td{border-top:2px solid #b0185e;background:#fff1f7;font-size:17px}'),
         h(LogTable,{
           className:'fb-wrap-table fb-charge-summary',
           title:loading?'Loading complete bill…':`Charge Summary (${chargeGroups.length})`,
           subtitle:`${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}`,
           heads:['Sl. No.','Category','Entries','Description','Amount'],
-          rows:chargeGroups.map((group,index)=>[
-            index+1,
-            group.category,
-            group.items.length,
-            compactChargeDescription(group),
-            money(group.amount)
-          ])
+          rows:[
+            ...chargeGroups.map((group,index)=>[
+              index+1,
+              group.category,
+              group.items.length,
+              compactChargeDescription(group),
+              money(group.amount)
+            ]),
+            // 2.19.74: Total row at the bottom of the Charge Summary.
+            ...(chargeGroups.length?[[
+              '',
+              h('strong',null,'Total'),
+              h('strong',null,chargeGroups.reduce((sum,group)=>sum+group.items.length,0)),
+              '',
+              h('strong',null,money(chargeGroups.reduce((sum,group)=>sum+Number(group.amount||0),0)))
+            ]]:[])
+          ]
         }),
 
         h(LogTable,{
