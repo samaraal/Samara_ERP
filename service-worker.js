@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.78';
-const CACHE = 'samara-erp-2.19.78-zenset-account';
+const APP_VERSION = '2.19.79';
+const CACHE = 'samara-erp-2.19.79-zenset-rent';
 const SHELL = [
   './',
   './index.html',

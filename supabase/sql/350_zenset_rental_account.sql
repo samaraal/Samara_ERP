@@ -1,6 +1,6 @@
 -- ERP 2.19.78 — ZENSET (GENERATOR) ACCOUNT (07-11-2026). Run AFTER SQL 305 / 309 (Expenses). Run once; safe to run again.
 --
--- A separate account for the generator hired from the Zenset vendor (₹15,000 + GST a month, paid before the 10th):
+-- A separate account for the generator hired from the Zenset vendor (₹13,549 + 18% GST = ₹15,988 a month, from 1-Oct-2026, paid before the 10th):
 --   • Refundable deposit paid to the vendor — Samara's money held by the vendor. NOT an expense (no effect on Net Profit).
 --     A refund received later reduces it.
 --   • Monthly rent — recorded ONCE here; it is added to Expenses automatically under the head "Zenset Rental"
@@ -48,9 +48,14 @@ revoke all on public.rental_accounts from public, anon, authenticated;
 revoke all on public.rental_entries from public, anon, authenticated;
 
 insert into public.rental_accounts(name, item, expense_head, monthly_rent, gst_percent, due_day, rent_from, notes)
-values ('Zenset', 'Generator (genset) on hire', 'Zenset Rental', 15000, 18, 10, date '2026-11-01',
-        'Rent ₹15,000 + GST a month, paid before the 10th. Refundable deposit paid to the vendor.')
+values ('Zenset', 'Generator (genset) on hire', 'Zenset Rental', 13549, 18, 10, date '2026-10-01',
+        'Rent ₹13,549 + 18% GST = ₹15,988 a month, from 1-Oct-2026, paid before the 10th. Refundable deposit paid to the vendor.')
 on conflict (name) do nothing;
+-- 2.19.79: correct figures (₹13,549 + 18% GST = ₹15,988, from 1-Oct-2026) if the first version of this file was already run
+update public.rental_accounts
+   set monthly_rent = 13549, rent_from = date '2026-10-01',
+       notes = 'Rent ₹13,549 + 18% GST = ₹15,988 a month, from 1-Oct-2026, paid before the 10th. Refundable deposit paid to the vendor.'
+ where name = 'Zenset' and monthly_rent = 15000 and rent_from = date '2026-11-01';
 
 create or replace function public.rental_account_rpc(p_action text, p jsonb default '{}'::jsonb)
 returns jsonb language plpgsql security definer set search_path=public,pg_temp as $f$
@@ -67,7 +72,7 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) order by x.entry_date desc, x.created_at desc),'[]') into entries
       from (select r.*, to_char(r.period_month,'Mon YYYY') as period_label from public.rental_entries r where r.account_id = acc.id) x;
     -- month-by-month rent status from "rent from" to this month (and any month paid outside that range)
-    with due as (select round(acc.monthly_rent * (1 + acc.gst_percent/100), 2) as amt),
+    with due as (select (acc.monthly_rent + round(acc.monthly_rent * acc.gst_percent/100)) as amt),
     mm as (
       select generate_series(date_trunc('month', coalesce(acc.rent_from, today))::date, date_trunc('month', today)::date, interval '1 month')::date as m
       union
@@ -89,7 +94,7 @@ begin
         'deposit_refunded', (select coalesce(sum(amount),0) from public.rental_entries where account_id=acc.id and kind='Deposit refunded' and voided_at is null),
         'rent_paid', (select coalesce(sum(amount),0) from public.rental_entries where account_id=acc.id and kind='Rent payment' and voided_at is null),
         'rent_paid_gst', (select coalesce(sum(gst_amount),0) from public.rental_entries where account_id=acc.id and kind='Rent payment' and voided_at is null),
-        'monthly_due', round(acc.monthly_rent * (1 + acc.gst_percent/100), 2)),
+        'monthly_due', (acc.monthly_rent + round(acc.monthly_rent * acc.gst_percent/100))),
       'today', today);
 
   elsif p_action = 'save_account' then
@@ -120,7 +125,7 @@ begin
     end if;
     if coalesce((p->>'confirm_again')::boolean,false) = false and exists(select 1 from public.rental_entries
          where account_id = acc.id and kind = 'Rent payment' and voided_at is null and period_month = v_month
-         having sum(amount) >= round(acc.monthly_rent*(1+acc.gst_percent/100),2) - 1) then
+         having sum(amount) >= (acc.monthly_rent + round(acc.monthly_rent*acc.gst_percent/100)) - 1) then
       raise exception 'Rent for % is already paid in full. Tick "Pay again for this month" only if this is really a second payment.', to_char(v_month,'Mon YYYY');
     end if;
     -- 1) Expenses (counts in Net Profit)

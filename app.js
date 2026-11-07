@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.78';
+  const APP_VERSION = '2.19.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Nov-2026 Zenset Account';
+  const APP_BUILD_DATE = '07-Nov-2026 Zenset rent 13549';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -53639,7 +53639,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   // Tamil / English voice fills the form. Page opens on boxes; each box opens its section with "← Back".
   const EXP_BILL_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
   const EXP_HEAD_WORDS=[
-    // 2.19.77: generator (genset) hire — Rs.15,000 + GST a month, paid before the 10th; checked before Rent so "genset rental" is not filed as Rent
+    // 2.19.77: generator (genset) hire — Rs.13,549 + 18% GST = Rs.15,988 a month from Oct 2026, paid before the 10th; checked before Rent so "genset rental" is not filed as Rent
     ['Zenset Rental',/(zen ?set|gen ?set|generator|ஜென்செட்|ஜெனரேட்டர்)/i],
     ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|கூலி|சம்பளம் நாள்)/i],
     // 2.18.184: new facility — cots, chairs, curtains, furniture, heaters etc.
@@ -54312,7 +54312,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
     );
   }
   // 2.19.78: ZENSET (GENERATOR) ACCOUNT — Admin / Directors only (SQL 350 rental_account_rpc).
-  // Refundable deposit with the vendor (not an expense) + monthly rent (₹15,000 + GST, due by the 10th).
+  // Refundable deposit with the vendor (not an expense) + monthly rent (₹13,549 + 18% GST = ₹15,988, due by the 10th).
   // Rent is recorded once here and is added to Expenses automatically under "Zenset Rental" (so it counts in Net Profit).
   const ZA_STATUS={Paid:['#e8f6ee','#13643a'],'Part paid':['#fff6e0','#8a5a00'],Due:['#eef3ff','#2b4c9a'],Overdue:['#fdecee','#b4232f']};
   const zaMonthLabel=iso=>{if(!iso)return '—';const [y,m]=String(iso).slice(0,7).split('-').map(Number);return new Date(Date.UTC(y,m-1,1)).toLocaleDateString('en-GB',{month:'short',year:'numeric',timeZone:'UTC'})};
@@ -54340,7 +54340,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
 
     function openRent(monthIso){
       const m=monthIso||(months.slice().reverse().find(x=>x.status!=='Paid')?.month)||zaAddMonths(today,0);
-      const rent=Number(acc?.monthly_rent||0),gst=Math.round(rent*Number(acc?.gst_percent||0))/100;
+      const rent=Number(acc?.monthly_rent||0),gst=Math.round(rent*Number(acc?.gst_percent||0)/100); // GST to the whole rupee, as on the bill (13,549 + 2,439 = 15,988)
       setForm({month:String(m).slice(0,10),date:today,rent_amount:String(rent||''),gst_amount:String(gst||''),mode:'Bank Transfer',reference:'',note:'',no_bill:false,no_bill_reason:'',confirm_again:false});
       setBill(null);upload.current=null;setPanel('rent');setMsg('');
     }
@@ -54441,7 +54441,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
           h('strong',{style:{gridColumn:'1/-1',color:'#a80d4f',fontSize:'17px'}},'Record rent payment — also goes to Expenses as "'+acc.expense_head+'"'),
           fld('Rent for month *',h('select',{value:form.month,onChange:e=>setForm({...form,month:e.target.value,confirm_again:false})},rentMonthOptions.map(m=>h('option',{key:m,value:m},zaMonthLabel(m)+(months.find(x=>String(x.month).slice(0,10)===m)?.status==='Paid'?' — paid':''))))),
           fld('Payment date *',h(StrictDateInput,{value:form.date,min:'2026-08-27',max:today,onChange:e=>setForm({...form,date:e.target.value}),required:true})),
-          fld('Rent ₹ *',h('input',{type:'number',min:'0.01',step:'0.01',value:form.rent_amount,onChange:e=>{const v=e.target.value;setForm({...form,rent_amount:v,gst_amount:String(Math.round(Number(v||0)*Number(acc.gst_percent||0))/100)})},required:true})),
+          fld('Rent ₹ *',h('input',{type:'number',min:'0.01',step:'0.01',value:form.rent_amount,onChange:e=>{const v=e.target.value;setForm({...form,rent_amount:v,gst_amount:String(Math.round(Number(v||0)*Number(acc.gst_percent||0)/100))})},required:true})),
           fld(`GST ₹ (${Number(acc.gst_percent)}%)`,h('input',{type:'number',min:'0',step:'0.01',value:form.gst_amount,onChange:e=>setForm({...form,gst_amount:e.target.value})})),
           fld('Total paid',h('div',{style:{fontSize:'20px',fontWeight:800,color:'#5d1740',padding:'6px 0'}},npMoney(Number(form.rent_amount||0)+Number(form.gst_amount||0)))),
           fld('Paid by',h('select',{value:form.mode,onChange:e=>setForm({...form,mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x)))),

@@ -1,3 +1,7 @@
+## 2.19.79 — 07-11-2026 — Zenset rent corrected: ₹13,549 + 18% GST = ₹15,988, from 1-Oct-2026
+- Zenset Account starts at **October 2026** with rent **₹13,549 + 18% GST (₹2,439) = ₹15,988** a month. GST is rounded to the whole rupee, as on the vendor's bill.
+- `supabase/sql/350_zenset_rental_account.sql` updated: run it (again, if already run) — it corrects the first version's ₹15,000 / November figures; nothing else changes.
+
 ## 2.19.78 — 07-11-2026 — Zenset Account (generator on hire) — SQL 350
 - **New page Accounts → Profit · Admin only → Zenset Account** (Admin / Directors). A separate account for the generator hired from the Zenset vendor (₹15,000 + GST, due by the 10th):
   - **Deposit paid / Deposit refunded** — the refundable deposit is Samara's money with the vendor: shown in the account, **not** an expense, no effect on Net Profit.

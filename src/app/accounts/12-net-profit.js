@@ -137,7 +137,7 @@
   // Tamil / English voice fills the form. Page opens on boxes; each box opens its section with "← Back".
   const EXP_BILL_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
   const EXP_HEAD_WORDS=[
-    // 2.19.77: generator (genset) hire — Rs.15,000 + GST a month, paid before the 10th; checked before Rent so "genset rental" is not filed as Rent
+    // 2.19.77: generator (genset) hire — Rs.13,549 + 18% GST = Rs.15,988 a month from Oct 2026, paid before the 10th; checked before Rent so "genset rental" is not filed as Rent
     ['Zenset Rental',/(zen ?set|gen ?set|generator|ஜென்செட்|ஜெனரேட்டர்)/i],
     ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|கூலி|சம்பளம் நாள்)/i],
     // 2.18.184: new facility — cots, chairs, curtains, furniture, heaters etc.
