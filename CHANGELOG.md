@@ -1,3 +1,7 @@
+## SQL 354 — 07-11-2026 — Family Portal: Outstanding / Advance Balance now from the full ledger (database only)
+- **Found and fixed**: the Family Portal read only a Guest's latest 100 ledger entries, so for long-stay Guests the older charges were missed and the portal showed a false "Advance Balance" instead of the amount due (SHANTHI.T: showed Advance ₹17,726, truly due ₹325; S. SWAMINATHAN: showed Advance ₹5,262, truly due ₹18,983; JOSEPH A A E FERNANDO: showed Advance ₹9,000, truly ₹0). The family's Pay Outstanding button was switched off as a result. Razorpay payments themselves were always correct (server reads the full ledger).
+- **Database**: run `supabase/sql/354_family_portal_full_billing_ledger.sql` — patches the live Family Portal function(s) to return the full ledger. No app or portal file change.
+
 ## 2.19.84 — 07-11-2026 — Physiotherapy: out-of-date requests close by themselves — SQL 353
 - When a waiting session gets its outcome recorded (Completed / Not Done), any reschedule / correction request still waiting for that session closes automatically, with the note "Closed automatically — session recorded as Completed at HH:MM after this request was made". It leaves the bell, the pop-up and the approval list, and shows as **Closed (out of date)** in the request history (kept for audit).
 - Requests already in this state are tidied once when the SQL is run (e.g. the 08:54 request for Mr. S. Swaminathan's 08:00 session, done at 09:30).
