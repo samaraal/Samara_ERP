@@ -1,3 +1,8 @@
+## 2.19.82 — 07-11-2026 — Physiotherapy: on-screen pop-up for each new reschedule / correction request
+- Nursing Manager and Admin now get a **visible pop-up** (pink, pulsing, top-right; bottom on phones) for each new physiotherapy reschedule / correction request, as well as the bell count.
+- **Tap the pop-up → it opens that request's Approve / Reject window directly.** × dismisses it; the request stays in the bell until it is decided.
+- Each request pops up once per device; it disappears by itself once approved / rejected (on any screen). The person who made the request does not get it (they cannot approve their own). No database change.
+
 ## 2.19.81 — 07-11-2026 — Physiotherapy: reschedule the 2nd / 3rd session of the day — SQL 352
 - **Found and fixed**: for a twice-daily plan, rescheduling the 2nd session (16:00–18:00) after the 1st session was done failed with "Save failed — An outcome is already recorded". The database looked up the session by plan + date only (a rule from when plans had one session a day), so it found the completed 1st session.
 - The Record Physiotherapy Session form now sends the chosen "Session (plan time)", and the database finds that exact session (plan + date + time, as for saving sessions since SQL 280). Each session of the day is rescheduled on its own; a session already recorded still asks for a correction, now naming its time.

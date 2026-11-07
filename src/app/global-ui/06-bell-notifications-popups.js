@@ -69,8 +69,9 @@
           if(disposed||error)return;
           const rows=Array.isArray(data)?data:[],fresh=rows.filter(row=>!seen.has(row.request_id));
           rows.forEach(row=>seen.add(row.request_id));saveSeen(rows.map(row=>row.request_id));setAlerts(rows);
-          if(fresh.length)setNotice({ids:fresh.map(row=>row.request_id),text:fresh.length===1?`${fresh[0].action} requested by ${fresh[0].requested_by_name}. Review in Physiotherapy.`:`${fresh.length} physiotherapy correction requests need approval.`});
-          else setNotice(current=>current&&current.ids.some(id=>rows.some(row=>row.request_id===id))?current:null);
+          if(fresh.length)setNotice(current=>({ids:[...new Set([...(current?.ids||[]),...fresh.map(row=>row.request_id)])],rows:[...((current?.rows)||[]).filter(r=>!fresh.some(f=>f.request_id===r.request_id)),...fresh],text:fresh.length===1?`${fresh[0].action} requested by ${fresh[0].requested_by_name}. Review in Physiotherapy.`:`${fresh.length} physiotherapy correction requests need approval.`}));
+          // 2.19.82: keep only pop-ups whose request is still waiting (approved / rejected elsewhere → gone)
+          else setNotice(current=>{if(!current)return null;const keep=(current.rows||[]).filter(r=>rows.some(row=>row.request_id===r.request_id));return keep.length?{...current,ids:keep.map(r=>r.request_id),rows:keep}:null;});
         }catch(_error){/* Retry on the next live event, focus or timer tick. */}finally{busy=false;}
       };
       refresh();
@@ -78,7 +79,7 @@
       const timer=setInterval(refresh,30000);window.addEventListener('focus',refresh);
       return()=>{disposed=true;clearInterval(timer);window.removeEventListener('focus',refresh);client.removeChannel(channel)};
     },[profile?.id,enabled]);
-    return {alerts,notice,dismiss:()=>setNotice(null)};
+    return {alerts,notice,dismiss:()=>setNotice(null),dismissOne:id=>setNotice(current=>{if(!current)return null;const keep=(current.rows||[]).filter(r=>r.request_id!==id);return keep.length?{...current,ids:keep.map(r=>r.request_id),rows:keep}:null;})};
   }
   // 2.18.106 (SQL 284): completed physiotherapy sessions not billed to the Guest after 24 h — Admin / Accounts chip.
   function PhysioUnbilledAlert({profile,onNavigate}){
@@ -131,6 +132,45 @@
       .physio-approval-item small{display:block;color:#725d68}
       .physio-approval-list.compact{margin:0;padding:8px;border-radius:10px}
       .physio-approval-list.compact h4{font-size:13px}
+    `;
+    document.head.appendChild(st);
+  })();
+
+  // 2.19.82: a visible pop-up for each NEW physiotherapy reschedule / correction request (Nursing Manager / Admin).
+  // Tapping a card opens that request's Approve / Reject window directly. Shown once per request on this device.
+  function PhysioRequestPopups({notifications}){
+    const rows=(notifications?.notice?.rows)||[];
+    if(!rows.length)return null;
+    const open=a=>{notifications.dismissOne(a.request_id);openPhysioRequest(a)};
+    return h('div',{className:'physio-req-popups',role:'alert','aria-live':'assertive'},
+      rows.slice(-4).map(a=>h('div',{key:a.request_id,className:'physio-req-popup'},
+        h('button',{type:'button',className:'physio-req-popup-main',onClick:()=>open(a),'aria-label':`Open ${a.action||'change'} request for ${a.patient_name||'Guest'} for approval`},
+          h('span',{className:'physio-req-popup-tag'},`🧘 Physiotherapy ${String(a.action||'change').toLowerCase()} — approval needed`),
+          h('strong',{'data-no-translate':'true'},a.patient_name||'Guest'),
+          h('span',null,`${a.session_date?formatDateIN(a.session_date):''}${a.reason?' · '+a.reason:''}`),
+          h('small',null,`Requested by ${a.requested_by_name||'Care team'}`),
+          h('span',{className:'physio-req-popup-go'},'Tap to Approve / Reject →')),
+        h('button',{type:'button',className:'physio-req-popup-x','aria-label':'Dismiss (the request stays in the bell)',title:'Dismiss — the request stays in the bell',onClick:()=>notifications.dismissOne(a.request_id)},'×'))),
+      rows.length>4&&h('div',{className:'physio-req-popup-more'},`+ ${rows.length-4} more in the bell 🔔`));
+  }
+  ;(function(){
+    if(document.getElementById('physio-req-popup-css'))return;
+    const st=document.createElement('style');st.id='physio-req-popup-css';
+    st.textContent=`
+      .physio-req-popups{position:fixed;top:92px;right:18px;z-index:100060;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100vw - 24px))}
+      .physio-req-popup{position:relative;border-radius:16px;background:linear-gradient(135deg,#ffe3ef,#ffd0e4);border:2px solid #c2185b;box-shadow:0 10px 28px #8e1b4f55;animation:physioReqIn .35s ease-out,physioReqPulse 1.6s ease-in-out .35s 4}
+      .physio-req-popup-main{display:block;width:100%;text-align:left;background:none;border:0;padding:14px 40px 14px 16px;cursor:pointer;font:inherit;color:#382734;touch-action:manipulation}
+      .physio-req-popup-main>*{display:block}
+      .physio-req-popup-tag{font-size:12px;font-weight:800;color:#8e1b4f;text-transform:uppercase;letter-spacing:.02em;margin-bottom:4px}
+      .physio-req-popup-main strong{font-size:17px;margin-bottom:2px}
+      .physio-req-popup-main small{color:#725d68;margin-top:2px}
+      .physio-req-popup-go{margin-top:8px;font-weight:800;color:#fff;background:#c2185b;border-radius:999px;padding:6px 12px;width:max-content}
+      .physio-req-popup-main:hover .physio-req-popup-go{background:#8e1b4f}
+      .physio-req-popup-x{position:absolute;top:6px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:#ffffffaa;color:#8e1b4f;font-size:20px;line-height:1;cursor:pointer}
+      .physio-req-popup-more{align-self:flex-end;background:#8e1b4f;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700}
+      @keyframes physioReqIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+      @keyframes physioReqPulse{0%,100%{box-shadow:0 10px 28px #8e1b4f55}50%{box-shadow:0 0 0 6px #e23a7a55,0 10px 28px #8e1b4f77}}
+      @media (max-width:640px){.physio-req-popups{top:auto;bottom:14px;right:12px}}
     `;
     document.head.appendChild(st);
   })();

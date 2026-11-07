@@ -770,6 +770,7 @@
           h(StartScreensaverButton,{profile}), // 2.18.23
           h(StoreIndentAlerts,{profile:realProfile,onNavigate:openAnyRole}),
           clinicalAlertsAllowedFor(profile)&&h(ClinicalAlertBell,{engine:alertEngine,onOpen:setPage,physioAlerts:physioNotifications.alerts}),
+          h(PhysioRequestPopups,{notifications:physioNotifications}), // 2.19.82: pop-up per new physio request → opens its approval
           // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
           // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
