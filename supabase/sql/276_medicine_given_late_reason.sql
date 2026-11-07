@@ -50,7 +50,7 @@ begin
   values(v_key,new.patient_id,'Medicine Late',new.id,now(),'Urgent','Manager',
     concat(coalesce(v_med,'Medicine'),' given ',
       case when v_late>=60 then concat(v_late/60,' h ',v_late%60,' min') else concat(v_late,' min') end,
-      ' late (scheduled ',to_char(new.scheduled_time::time,'HH12:MI AM'),') — ',new.late_given_reason,
+      ' late (scheduled ',to_char(new.scheduled_time::time,'HH24:MI'),') — ',new.late_given_reason,
       case when coalesce(btrim(new.late_given_details),'')<>'' then concat(': ',new.late_given_details) else '' end))
   on conflict (alert_key) do update
     set resolved_at=null, resolution_action=null, resolution_remarks=null,

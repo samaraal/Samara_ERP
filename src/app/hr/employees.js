@@ -532,7 +532,7 @@
     function employmentActionStamp(x){
       if(!x?.created_at)return '';
       const d=new Date(x.created_at);if(Number.isNaN(d.getTime()))return '';
-      const t=d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();
+      const t=d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase();
       return `${formatDateIN(d)} ${t}`;
     }
     function currentSuspension(){

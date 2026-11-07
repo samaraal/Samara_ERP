@@ -148,7 +148,7 @@
       const seen=new Set();
       return ranked.filter(row=>{const mobile=String(row?.mobile||'').replace(/\D/g,'').slice(-10);const name=String(row?.relative_name||'').trim().toLowerCase().replace(/\s+/g,' ');const key=`${mobile}|${name}`;if(!mobile)return true;if(seen.has(key))return false;seen.add(key);return true;});
     }
-    function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);const suffix=hh>=12?'PM':'AM';const hour=hh%12||12;return `${hour}:${mm} ${suffix}`;}
+    function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);return `${String(hh).padStart(2,'0')}:${mm}`;} // 2.19.80: 24-hour clock
     // 2.15.2: the card opens at once with a "Loading…" panel; a slow or failed load shows a message instead of silence.
     const openPatientSeqRef=React.useRef(0);
     const [patientOpenError,setPatientOpenError]=React.useState('');

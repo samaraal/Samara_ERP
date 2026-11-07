@@ -32,7 +32,7 @@
     const rows=p.rows.filter(admissionFeedRowEntered);
     if(rows.length)lines.push('TIME — FEEDS');
     rows.forEach(r=>{
-      const time=r.time?new Date(`2000-01-01T${r.time}:00`).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'Time not entered';
+      const time=r.time?new Date(`2000-01-01T${r.time}:00`).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}):'Time not entered';
       const parts=[r.item,r.scoops?`${r.scoops} scoop(s)`:'',r.water_ml?`in ${r.water_ml} ml water`:'',r.volume_ml?`feed volume ${r.volume_ml} ml`:'',r.consistency,r.preparation,r.note].filter(Boolean);
       lines.push(`${time} — ${parts.join('; ')}`);
     });

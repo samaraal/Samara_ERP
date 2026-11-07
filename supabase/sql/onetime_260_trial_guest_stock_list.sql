@@ -36,7 +36,7 @@ order by 1;
 
 -- OPTIONAL cross-check: the stock list saved in the audit log at each bulk erase
 -- (run this separately — select it and press Run):
--- select to_char(created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as erased_at,
+-- select to_char(created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as erased_at,
 --        e->>'item' as item, e->>'handed_over' as handed_over, e->>'received' as received
 -- from public.audit_log a, jsonb_array_elements(coalesce(a.details->'stock_issued','[]'::jsonb)) e
 -- where a.action='TRIAL_GUESTS_BULK_PURGED' order by a.created_at, item;

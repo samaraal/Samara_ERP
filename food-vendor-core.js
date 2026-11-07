@@ -15,8 +15,8 @@ function total(items){return (items||[]).map(i=>`${clean(i.name)}: *${Number(i.r
  function placeKey(s){const p=String(s&&s.place||'');if(!p||/samara|mogappair/i.test(p))return 'samara';if(/appgeo|saidapet/i.test(p))return 'appgeo';return 'other'}
  function headerKind(kind,s){return kind==='order'?'order':kind==='modification'?(s&&s.cancellation?'cancelled':'revised'):kind==='receipt'?'received':null}
  function header(kind,s){const k=headerKind(kind,s);return k?headerBase+k+'-'+placeKey(s)+'.jpg':logo}
- function time12(v){const m=/^(\d{1,2}):(\d{2})/.exec(String(v??'').trim());if(!m)return clean(v);let h=Number(m[1]);const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+m[2]+' '+ap}
- function istTime(v){const d=new Date(v);if(isNaN(d.getTime()))return clean(v);const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).formatToParts(d).map(x=>[x.type,x.value]));return Number(p.hour)+':'+p.minute+' '+String(p.dayPeriod||'').toUpperCase()}
+ function time12(v){const m=/^(\d{1,2}):(\d{2})/.exec(String(v??'').trim());if(!m)return clean(v);return String(Number(m[1])).padStart(2,'0')+':'+m[2]} // 2.19.80: 24-hour clock (name kept)
+ function istTime(v){const d=new Date(v);if(isNaN(d.getTime()))return clean(v);const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).map(x=>[x.type,x.value]));return Number(p.hour)+':'+p.minute+' '+String(p.dayPeriod||'').toUpperCase()}
  function qty(items,fn){const parts=(items||[]).map(i=>[clean(i.name),fn(i)]).filter(x=>x[1]>0).map(x=>x[0]+' *'+x[1]+'*');return parts.join(' • ')||'None'}
  const both=i=>Number(i.residents||0)+Number(i.employees||0);
  function messageV2(kind,s){
@@ -248,7 +248,7 @@ function orderCutoff(order,now=Date.now(),configured={}){
  const deadline=Date.parse(order.date+'T'+rule.time+':00+05:30')-rule.days*86400000;
  if(!Number.isFinite(deadline))return null;
  const date=new Date(deadline).toLocaleDateString('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'-');
- const time=new Date(deadline).toLocaleTimeString('en-US',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true});
+ const time=new Date(deadline).toLocaleTimeString('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
  const closed=now>=deadline;
  return {deadline,closed,text:closed?'Cutoff passed for '+rule.label+' ('+date+' at '+time+' IST). No new orders or modifications are allowed.':'Order and modification cutoff: '+date+' at '+time+' IST.'};
 }

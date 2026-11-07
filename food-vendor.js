@@ -16,7 +16,7 @@ const drinkSlot=slot=>['Morning Tea / Coffee','Evening Tea / Coffee'].includes(s
 const drinks=['Coffee','Tea'];
 // 2.15.87: each meal has an allowed delivery-time window (India time) and a default time. [from, to, default]
 const DELIVERY_WINDOWS={'Tiffin':['06:00','10:30','07:30'],'Morning Tea / Coffee':['06:00','11:30','10:30'],'Lunch':['11:30','15:00','12:30'],'Evening Tea / Coffee':['15:00','19:00','16:30'],'Dinner':['18:00','22:30','19:30']};
-const hm12=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return String(t||'');const h=Number(m[1]);return (h%12||12)+':'+m[2]+' '+(h<12?'AM':'PM')};
+const hm12=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(t||''));if(!m)return String(t||'');return String(Number(m[1])).padStart(2,'0')+':'+m[2]}; // 2.19.80: 24-hour clock
 const slotLabel=slot=>slot==='Tiffin'?'Breakfast':slot;
 const deliveryOk=(slot,t)=>{const w=DELIVERY_WINDOWS[slot];const v=String(t||'').slice(0,5);return !w||(!!v&&v>=w[0]&&v<=w[1])};
 const deliveryRule=slot=>{const w=DELIVERY_WINDOWS[slot];return w?'Allowed for '+slotLabel(slot)+': '+hm12(w[0])+' – '+hm12(w[1]):''};
@@ -123,7 +123,7 @@ window.SamaraFoodVendor=function({client,profile}){
     const nextDate=new Date(cutoffNow+86400000).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
     let info=C.orderCutoff({slot,date},cutoffNow,settings?.order_cutoffs),forDate=date;
     if(info.closed){const next=C.orderCutoff({slot,date:nextDate},cutoffNow,settings?.order_cutoffs);if(!next.closed){info=next;forDate=nextDate}}
-    const rule={...C.cutoffRules[slot],...(settings?.order_cutoffs?.[slot]||{})},clock=String(rule.time||'').split(':'),hour=Number(clock[0]),minute=clock[1]||'00',shown=((hour+11)%12+1)+':'+minute+' '+(hour>=12?'PM':'AM');
+    const rule={...C.cutoffRules[slot],...(settings?.order_cutoffs?.[slot]||{})},clock=String(rule.time||'').split(':'),hour=Number(clock[0]),minute=clock[1]||'00',shown=String(hour).padStart(2,'0')+':'+minute; // 2.19.80: 24-hour clock
     const schedule=rule.days===1?shown+' the previous day':shown+' on the delivery date';
     return h('div',{key:slot,className:'fv-notice'},
      h('div',null,(slot==='Tiffin'?'Breakfast':slot)+' · '+schedule+' · ',h('strong',{className:'fv-cutoff-status '+(info.closed?'is-closed':'is-open')},info.closed?'CLOSED':'OPEN')),

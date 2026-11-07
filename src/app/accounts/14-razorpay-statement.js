@@ -10,7 +10,7 @@
   const rzsShiftMonth=(iso,n)=>{const [y,m]=String(iso).slice(0,7).split('-').map(Number);return new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,10)};
   const rzsMonthLabel=iso=>new Date(`${rzsMonthStart(iso)}T00:00:00`).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   function rzsMonthOptions(){const out=[];let m=rzsMonthStart(todayISOIndia());while(m>=rzsMonthStart(RZS_FIRST)){out.push(m);m=rzsShiftMonth(m,-1)}return out}
-  const rzsTime=iso=>{try{return new Date(iso).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true})}catch(_){return ''}};
+  const rzsTime=iso=>{try{return new Date(iso).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}catch(_){return ''}};
   const rzsWho=r=>{const m=(r.erp||[])[0];return m?[m.name,m.code].filter(Boolean).join(' · '):''};
   // 2.19.62: colourful amounts, same scheme as the other Accounts pages
   const RZS_C={in:'#087f5b',fee:'#b42336',bank:'#1d4ed8',held:'#b54708',net:'#a80d4f'};

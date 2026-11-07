@@ -80,5 +80,5 @@ select position('IST_DATE_CHECK_V1' in pg_get_functiondef('public.run_daily_bill
 -- select public.run_daily_billing_cron();
 -- 4. After 12:05 AM, see the run history (times shown in IST):
 -- select charge_date, run_type, status, room_charges_created,
---        to_char(started_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') started_ist
+--        to_char(started_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') started_ist
 --   from public.daily_billing_runs order by started_at desc limit 5;

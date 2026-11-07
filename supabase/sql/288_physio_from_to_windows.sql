@@ -55,4 +55,4 @@ revoke all on function public.physio_due_slots() from public,authenticated;
 select public.sync_physio_escalations(null);
 commit;
 notify pgrst,'reload schema';
-select to_char(due_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as reminder_due,(select full_name from public.patients where id=s.patient_id) as guest from public.physio_due_slots() s order by due_at;
+select to_char(due_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as reminder_due,(select full_name from public.patients where id=s.patient_id) as guest from public.physio_due_slots() s order by due_at;

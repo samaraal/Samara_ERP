@@ -527,7 +527,7 @@
       .slice().sort((a,b)=>String(b.recorded_at||'').localeCompare(String(a.recorded_at||'')));
     const has=(v,field)=>v[field]!==null&&v[field]!==undefined&&v[field]!==''&&Number.isFinite(Number(v[field]))&&Number(v[field])>0; // 0 = not taken
     const latest=field=>list.find(v=>has(v,field))||null;
-    const at=v=>v?.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    const at=v=>v?.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}):'';
     const sv=latest('blood_sugar');
     if(MEDICATION_SUGAR_RE.test(name)&&sv&&Number(sv.blood_sugar)<100){
       const sugar=Number(sv.blood_sugar);

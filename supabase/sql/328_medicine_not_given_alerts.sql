@@ -37,7 +37,7 @@ begin
     from public.medication_orders mo where mo.id=new.order_id;
   insert into public.clinical_alert_escalations(alert_key,patient_id,alert_type,source_id,due_at,priority,escalated_to_role,escalation_reason)
   values(v_key,new.patient_id,'Medicine Not Given',new.id,now(),'Urgent','Manager',
-    concat(coalesce(v_med,'Medicine'),' (',to_char(new.scheduled_time::time,'HH12:MI AM'),') not given — ',
+    concat(coalesce(v_med,'Medicine'),' (',to_char(new.scheduled_time::time,'HH24:MI'),') not given — ',
            coalesce(nullif(btrim(new.not_given_reason),''),nullif(btrim(new.remarks),''),'reason not entered')))
   on conflict (alert_key) do update set resolved_at=null, resolution_action=null, resolution_remarks=null,
         due_at=excluded.due_at, escalation_reason=excluded.escalation_reason;
@@ -82,7 +82,7 @@ end $c$;
 -- today's Not Given doses recorded before this update → inform the Nursing Manager now
 insert into public.clinical_alert_escalations(alert_key,patient_id,alert_type,source_id,due_at,priority,escalated_to_role,escalation_reason)
 select concat('Medicine Not Given:',a.id),a.patient_id,'Medicine Not Given',a.id,now(),'Urgent','Manager',
-       concat(concat_ws(' ',mo.medicine_name,nullif(btrim(coalesce(mo.strength,'')),'')),' (',to_char(a.scheduled_time::time,'HH12:MI AM'),') not given — ',
+       concat(concat_ws(' ',mo.medicine_name,nullif(btrim(coalesce(mo.strength,'')),'')),' (',to_char(a.scheduled_time::time,'HH24:MI'),') not given — ',
               coalesce(nullif(btrim(a.not_given_reason),''),nullif(btrim(a.remarks),''),'reason not entered'))
   from public.medication_administrations a left join public.medication_orders mo on mo.id=a.order_id
  where a.status='Not Given' and a.scheduled_date >= (now() at time zone 'Asia/Kolkata')::date - 1

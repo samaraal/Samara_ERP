@@ -34,7 +34,7 @@
   }
   const nnIsDay=start=>Number(nnParts(new Date(start)).hh)===7;
   const nnShiftName=start=>nnIsDay(start)?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)';
-  const nnTime=at=>{const p=nnParts(new Date(at));const h=Number(p.hh);return `${((h+11)%12)+1}:${p.mi} ${h<12?'AM':'PM'}`};
+  const nnTime=at=>{const p=nnParts(new Date(at));return `${String(Number(p.hh)%24).padStart(2,'0')}:${p.mi}`}; // 2.19.80: 24-hour clock
   const nnDateTime=at=>`${formatDateIN(nnISO(at))} ${nnTime(at)}`;
   const nnPatientLabel=p=>p?`${formalName(p)||p.full_name||'Guest'}${p.room_no?` · Room ${p.room_no}${p.bed_no?'-'+p.bed_no:''}`:''}`:'Guest';
   const nnNeeded=(patient,shiftStart)=>{

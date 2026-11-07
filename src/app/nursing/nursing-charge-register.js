@@ -90,7 +90,7 @@
     // 2.18.163: Guest ID not needed here — Patient shows name · room; Date shows the time the charge was raised.
     const guestLabel=id=>{const p=pFor(id);if(!p.id)return '—';const trial=p.is_trial?' · 🧪 TRIAL':'';
       return p.is_active===false?`${formalName(p)} · Discharged${trial}`:`${formalName(p)} · Room ${p.room_no||'—'}-${p.bed_no||'—'}${trial}`;};
-    const raisedTime=r=>{const d=new Date(r.created_at||'');return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();};
+    const raisedTime=r=>{const d=new Date(r.created_at||'');return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase();};
     // 2.18.164: opens on a dashboard of boxes; a box (or "Search with filters") opens the list with all
     // filters; a row opens full details. Pending / Returned boxes count every open item (any date) so
     // nothing waiting disappears when the period changes; the other boxes follow the chosen period.

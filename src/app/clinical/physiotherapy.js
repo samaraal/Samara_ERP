@@ -50,10 +50,8 @@
       (form.organisation_id||form.physiotherapist_name)&&h('div',{className:'field span-2'},h(PhysioContact,{organisationId:form.organisation_id,name:form.physiotherapist_name,showName:true}))); // 2.18.124: call the physiotherapist from the form 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
-      const h12=hour%12||12;
-      const suffix=hour<12?'AM':'PM';
       const value=`${String(hour).padStart(2,'0')}:00`;
-      return {value,label:`${h12}:00 ${suffix}`};
+      return {value,label:value}; // 2.19.80: 24-hour clock
     });
 
     function clockLabel(value){
@@ -61,7 +59,7 @@
       const raw=String(value).slice(0,5);
       const [h,m]=raw.split(':').map(Number);
       if(Number.isNaN(h)||Number.isNaN(m))return value;
-      return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; // 2.19.80: 24-hour clock
     }
 
     function showToast(type,text){

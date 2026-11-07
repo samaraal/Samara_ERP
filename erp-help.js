@@ -27,7 +27,7 @@ function fresh(){return new Promise(function(res){var k=token();if(k&&k.exp>Date
 function currentPage(){var a=document.querySelector('[data-nav].active');if(a)return a.getAttribute('data-nav')||a.textContent.trim();var h=document.querySelector('.content h2,.content h1');return h?h.textContent.trim().slice(0,60):''}
 function esc(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
-function dmy(v){var d=new Date(v);if(isNaN(d))return '';var p=function(n){return('0'+n).slice(-2)};var h=d.getHours();return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()+', '+p(h%12||12)+':'+p(d.getMinutes())+' '+(h>=12?'PM':'AM')}
+function dmy(v){var d=new Date(v);if(isNaN(d))return '';var p=function(n){return('0'+n).slice(-2)};var h=d.getHours();return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()+', '+p(h)+':'+p(d.getMinutes())} // 2.19.80: 24-hour clock
 
 // 2.14.84: show the AI's **bold**, numbered steps and "Button names" nicely (text is escaped first — no raw HTML).
 function inline(t){

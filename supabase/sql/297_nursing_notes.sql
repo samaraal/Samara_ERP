@@ -210,7 +210,7 @@ declare
      concat('Room ',coalesce(nb.room_no,'—'),case when nb.bed_no is not null then '-'||nb.bed_no else '' end),
      concat('Nursing Notes Due: ',nc.done,' of ',nc.need,' recorded this shift'),
      concat('At least ',nc.need,' nursing note',case when nc.need>1 then 's' else '' end,' per Guest per shift',
-            ' · escalates at ',to_char((nsd.shift_start+interval '11 hours') at time zone 'Asia/Kolkata','HH12:MI AM'),' if not recorded'),
+            ' · escalates at ',to_char((nsd.shift_start+interval '11 hours') at time zone 'Asia/Kolkata','HH24:MI'),' if not recorded'),
      nsd.shift_start+interval '10 hours 30 minutes',
      greatest(0,floor(extract(epoch from(v_now-(nsd.shift_start+interval '10 hours 30 minutes')))/60))::int,
      case when v_now>=nsd.shift_start+interval '11 hours' then 'Urgent' else 'Routine' end,
@@ -302,7 +302,7 @@ begin
     update public.clinical_alert_escalations e
        set resolved_at=now(), resolved_by=new.recorded_by, resolution_action='Completed',
            resolution_remarks=concat('Automatically resolved: ',v_done,' nursing note(s) recorded in this shift; last at ',
-             to_char(now() at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM'),' IST.'),
+             to_char(now() at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI'),' IST.'),
            updated_at=now()
      where e.alert_type='Nursing Notes' and e.resolved_at is null and e.patient_id=new.patient_id
        and e.due_at=new.shift_start+interval '10 hours 30 minutes';
@@ -339,4 +339,4 @@ select
   to_regclass('public.nursing_note_addenda') is not null as addenda_table_ready,
   strpos(pg_get_functiondef('public.get_current_clinical_alerts()'::regprocedure),'2.18.139 nursing notes')>0 as notes_alerts_ready,
   exists(select 1 from pg_trigger where tgname='nursing_notes_after_insert') as notes_trigger_ready,
-  (select to_char(max(nursing_notes_from) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') from public.clinical_alert_settings where is_active=true) as notes_alerts_start_ist;
+  (select to_char(max(nursing_notes_from) at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') from public.clinical_alert_settings where is_active=true) as notes_alerts_start_ist;

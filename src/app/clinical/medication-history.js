@@ -20,7 +20,7 @@
   const mhMedicine=o=>[o?.medicine_name,o?.strength||o?.dose].filter(Boolean).join(' ')||'Medicine';
   const mhTimes=o=>(Array.isArray(o?.scheduled_times)?o.scheduled_times:String(o?.scheduled_times||'').split(',')).map(mhT).filter(Boolean);
   const mhDayIndia=v=>{if(!v)return '';const d=new Date(v);if(!Number.isFinite(d.getTime()))return '';try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}).slice(0,10)}catch(_){return String(v).slice(0,10)}};
-  const mhTimeIN=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase():''};
+  const mhTimeIN=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase():''};
   function mhStatusOf(row){
     const log=row.log;if(!log)return 'Not recorded';
     if(log.status==='Withheld')return medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld';

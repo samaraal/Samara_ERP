@@ -81,8 +81,8 @@ begin
   v_slot := (new.scheduled_date + new.scheduled_time::time) at time zone 'Asia/Kolkata';
   if v_slot < v_start - interval '1 minute' then
     raise exception 'This dose time (% %) is before the medicine started (%). Choose "Now — first dose" or a later time.',
-      to_char(new.scheduled_date,'DD-MM-YYYY'), to_char(new.scheduled_time::time,'HH12:MI AM'),
-      to_char(v_start at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM');
+      to_char(new.scheduled_date,'DD-MM-YYYY'), to_char(new.scheduled_time::time,'HH24:MI'),
+      to_char(v_start at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI');
   end if;
   return new;
 end $$;
@@ -97,7 +97,7 @@ update public.medication_administrations a
        scheduled_date = (a.administered_at at time zone 'Asia/Kolkata')::date,
        late_given_reason = null, late_given_details = null,
        remarks = concat_ws(' · ', nullif(a.remarks,''),
-                 'First dose after doctor review — was saved against '||to_char(a.scheduled_time::time,'HH12:MI AM')||' by mistake (corrected 31-10-2026, SQL 325)')
+                 'First dose after doctor review — was saved against '||to_char(a.scheduled_time::time,'HH24:MI')||' by mistake (corrected 31-10-2026, SQL 325)')
   from public.medication_orders mo
  where mo.id = a.order_id
    and a.status = 'Given'

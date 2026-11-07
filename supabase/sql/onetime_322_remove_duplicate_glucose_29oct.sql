@@ -52,7 +52,7 @@ end $$;
 commit;
 
 -- Check: that Guest's Blood Glucose Monitoring on 29-10 (the 5:52 AM one now Cancelled)
-select to_char(b.service_datetime at time zone 'Asia/Kolkata','DD-MM HH12:MI AM') as at, b.status, b.approval_status,
+select to_char(b.service_datetime at time zone 'Asia/Kolkata','DD-MM HH24:MI') as at, b.status, b.approval_status,
        coalesce(b.approved_amount,b.final_amount) as amount, b.billing_transaction_id is not null as in_bill
   from public.bill_charge_requests b
  where b.charge_item_code='NUR-0005' and b.charge_date='2026-10-29'

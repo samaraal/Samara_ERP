@@ -170,7 +170,7 @@
       }
       return out.sort((a,b)=>b.savedAt-a.savedAt);
     }
-    const fmtTime=ms=>{try{const d=new Date(ms);const t=d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'}).toUpperCase();const day=typeof formatDateIN==='function'?formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})):'';return day?`${day} ${t}`:t}catch(_){return ''}};
+    const fmtTime=ms=>{try{const d=new Date(ms);const t=d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'}).toUpperCase();const day=typeof formatDateIN==='function'?formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})):'';return day?`${day} ${t}`:t}catch(_){return ''}};
 
     async function restore(c,d){
       const setVal=(el,v)=>{

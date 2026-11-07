@@ -10,8 +10,8 @@ import webpush from "npm:web-push@3.6.7";
 const env = (name: string) => String(Deno.env.get(name) || "").trim();
 const key = (name: string) => env(name).replace(new RegExp("^" + name + "="), "").replace(/^['"]|['"]$/g, "").replace(/\s+/g, "").replace(/=+$/g, "");
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const timeIN = (v: string) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(v)).toUpperCase();
-const doseTime = (hhmm: string) => { const [h, m] = String(hhmm || "").split(":").map(Number); if (!Number.isFinite(h)) return hhmm || ""; return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+const timeIN = (v: string) => new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(v)).toUpperCase();
+const doseTime = (hhmm: string) => { const [h, m] = String(hhmm || "").split(":").map(Number); if (!Number.isFinite(h)) return hhmm || ""; return `${String(h).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`; }; // 2.19.80: 24-hour clock
 const waited = (min: number) => min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
 
 Deno.serve(async (req) => {

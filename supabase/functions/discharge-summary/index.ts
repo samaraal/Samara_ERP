@@ -31,9 +31,9 @@ const TZ = "Asia/Kolkata";
 const isoDay = (v: unknown) => { try { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(String(v))); } catch { return ""; } };
 const dmy = (iso: string) => { const [y, m, d] = String(iso).slice(0, 10).split("-"); return y && m && d ? `${d}-${m}-${y}` : "-"; };
 const dm = (iso: string) => dmy(iso).slice(0, 5);
-const time12 = (v: unknown) => { try { return new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(String(v))).toUpperCase(); } catch { return "-"; } };
+const time12 = (v: unknown) => { try { return new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(String(v))).toUpperCase(); } catch { return "-"; } };
 const dmyTime = (v: unknown) => v ? `${dmy(isoDay(v))}, ${time12(v)}` : "-";
-const hhmm12 = (t: unknown) => { const m = text(t).match(/^(\d{1,2}):(\d{2})/); if (!m) return text(t); const h = Number(m[1]); return `${h % 12 || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`; };
+const hhmm12 = (t: unknown) => { const m = text(t).match(/^(\d{1,2}):(\d{2})/); if (!m) return text(t); return `${String(Number(m[1])).padStart(2, "0")}:${m[2]}`; }; // 2.19.80: 24-hour clock (name kept)
 const num = (v: unknown) => { const x = Number(v); return Number.isFinite(x) && x !== 0 ? x : null; };
 const lc = (v: unknown) => text(v).toLowerCase();
 const guestName = (p: any) => [text(p.title), text(p.full_name)].filter(Boolean).join(" ") || "Guest";

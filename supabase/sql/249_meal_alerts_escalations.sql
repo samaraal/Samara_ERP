@@ -145,7 +145,7 @@ begin
     update public.clinical_alert_escalations e
        set resolved_at=now(), resolved_by=v_by, resolution_action='Completed',
            resolution_remarks=concat('Automatically resolved: ',public.samara_meal_label(new.meal_type),' recorded as ',
-             coalesce(new.consumption_status,'recorded'),' at ',to_char(now() at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM'),' IST.'),
+             coalesce(new.consumption_status,'recorded'),' at ',to_char(now() at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI'),' IST.'),
            updated_at=now()
      where e.alert_type='Meal' and e.resolved_at is null and e.patient_id=new.patient_id and e.due_at=v_due;
   end if;

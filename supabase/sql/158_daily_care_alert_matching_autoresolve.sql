@@ -68,9 +68,9 @@ declare
    select 'Daily Care'::text,c.id,c.patient_id,p.full_name,
      concat('Room ',coalesce(p.room_no,'—'),case when p.bed_no is not null then '-'||p.bed_no else '' end),
      concat('Daily Care Due: ',c.care_type),
-     concat(case when w.timed then concat('Preferred ',to_char(w.remind_at at time zone 'Asia/Kolkata','HH12:MI AM'),' – ',to_char(w.esc_at at time zone 'Asia/Kolkata','HH12:MI AM'))
+     concat(case when w.timed then concat('Preferred ',to_char(w.remind_at at time zone 'Asia/Kolkata','HH24:MI'),' – ',to_char(w.esc_at at time zone 'Asia/Kolkata','HH24:MI'))
                  else 'Any time this shift' end,
-            ' · escalates at ',to_char(w.esc_at at time zone 'Asia/Kolkata','HH12:MI AM'),' if not recorded',
+            ' · escalates at ',to_char(w.esc_at at time zone 'Asia/Kolkata','HH24:MI'),' if not recorded',
             case when btrim(coalesce(c.instruction,''))<>'' then concat(' · ',c.instruction) else '' end),
      w.esc_at-interval '30 minutes',
      greatest(0,floor(extract(epoch from(v_now-(w.esc_at-interval '30 minutes')))/60))::int,
@@ -149,7 +149,7 @@ begin
      set resolved_at=now(),
          resolution_action='Completed',
          resolution_remarks=concat('Automatically resolved: daily care recorded as ',new.status,' at ',
-           to_char(v_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM'),' IST.'),
+           to_char(v_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI'),' IST.'),
          updated_at=now()
    where e.resolved_at is null
      and e.alert_type='Daily Care'
@@ -188,7 +188,7 @@ update public.clinical_alert_escalations t
    set resolved_at=now(),
        resolution_action='Completed',
        resolution_remarks=concat('Automatically resolved (clean-up 2.14.87): daily care recorded as ',m.status,' at ',
-         to_char(m.at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM'),' IST.'),
+         to_char(m.at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI'),' IST.'),
        updated_at=now()
   from m
  where t.id=m.id;

@@ -121,7 +121,7 @@ begin
   c := c || public.mis_check('vitals_missed','Vitals not recorded for a scheduled slot','high','Vital Signs',
     'No vitals entry within the slot window (90 min before to 4 h after the scheduled time).',
     format($q$with s as (%s)
-      select s.due as sort_at, to_char(s.due at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+      select s.due as sort_at, to_char(s.due at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
              concat_ws(' · ', s.guest, s.room) as who, 'Scheduled vitals not recorded' as detail, null::numeric as amount
         from s where not exists(select 1 from public.vital_signs v where v.patient_id=s.patient_id
                                  and v.recorded_at>=s.due-interval '90 minutes' and v.recorded_at<s.due+interval '4 hours')$q$, v_slots),
@@ -130,7 +130,7 @@ begin
   c := c || public.mis_check('doses_unrecorded','Medicine doses with no entry','high','Medicines',
     'A dose was due but nothing (Given / Refused / Withheld / Missed …) was recorded.',
     format($q$with s as (%s)
-      select s.due as sort_at, to_char(s.due at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+      select s.due as sort_at, to_char(s.due at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
              concat_ws(' · ', s.guest, s.room) as who, coalesce(s.medicine_name,'Medicine')||' — no entry' as detail, null::numeric as amount
         from s where not exists(select 1 from public.medication_administrations a
                                  where a.order_id=s.order_id and a.scheduled_date=s.d and a.scheduled_time::time=s.slot)$q$, v_doses),
@@ -139,7 +139,7 @@ begin
   c := c || public.mis_check('doses_missed','Doses recorded as Missed or Refused','medium','Medication Errors',
     'Doses the nurse recorded as Missed or Refused — check the reason and whether the doctor was told.',
     $q$select ((a.scheduled_date + a.scheduled_time::time) at time zone 'Asia/Kolkata') as sort_at,
-              to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+              to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               a.status||' · '||coalesce(mo.medicine_name,'Medicine')||coalesce(' · '||nullif(a.remarks,''),'') as detail, null::numeric as amount
          from public.medication_administrations a join public.patients p on p.id=a.patient_id
@@ -150,7 +150,7 @@ begin
   c := c || public.mis_check('withheld_open','Withheld doses still waiting for the doctor''s instruction','high','Medicines',
     'Withheld doses with no doctor''s instruction recorded yet.',
     $q$select ((a.scheduled_date + a.scheduled_time::time) at time zone 'Asia/Kolkata') as sort_at,
-              to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+              to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               coalesce(mo.medicine_name,'Medicine')||' · '||coalesce(a.withhold_reason,'withheld') as detail, null::numeric as amount
          from public.medication_administrations a join public.patients p on p.id=a.patient_id
@@ -160,7 +160,7 @@ begin
 
   c := c || public.mis_check('doses_late','Medicines given 30 minutes or more late','medium','Medicines',
     'Given, but 30+ minutes after the scheduled time.',
-    $q$select a.administered_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+    $q$select a.administered_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               coalesce(mo.medicine_name,'Medicine')||' · '||public.samara_med_given_late_minutes(a.scheduled_date, a.scheduled_time::time, a.administered_at)||' min late' as detail,
               null::numeric as amount
@@ -172,7 +172,7 @@ begin
 
   c := c || public.mis_check('mar_late_entry','Medicine entries made late (after the round)','low','Medicines',
     'The dose was entered in the ERP well after it was given (documentation delay).',
-    $q$select a.entry_recorded_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+    $q$select a.entry_recorded_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               coalesce(mo.medicine_name,'Medicine')||' · entered '||coalesce(a.entry_delay_minutes::text,'?')||' min late'||coalesce(' · '||nullif(a.late_entry_reason,''),'') as detail,
               null::numeric as amount
@@ -183,7 +183,7 @@ begin
 
   c := c || public.mis_check('escalations_open','Clinical escalations raised in the period and still open','high','Clinical Escalations',
     'Raised to Manager / Admin in this period and not yet attended. (Older escalations stay in the record for audit and training; they are not counted here.)',
-    $q$select e.created_at as sort_at, to_char(e.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select e.created_at as sort_at, to_char(e.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', e.alert_type, e.priority, 'to '||e.escalated_to_role, e.escalation_reason) as detail, null::numeric as amount
          from public.clinical_alert_escalations e left join public.patients p on p.id=e.patient_id
@@ -193,7 +193,7 @@ begin
 
   c := c || public.mis_check('escalations_raised','Clinical escalations raised in the period (audit & training)','low','Clinical Escalations',
     'Every alert that reached Manager / Admin because it was not done in time — attended or not. Use for staff training.',
-    $q$select e.created_at as sort_at, to_char(e.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select e.created_at as sort_at, to_char(e.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', e.alert_type, e.priority, case when e.resolved_at is null then 'OPEN' else coalesce(e.resolution_action,'Resolved') end) as detail,
               null::numeric as amount
@@ -203,7 +203,7 @@ begin
 
   c := c || public.mis_check('incidents_open','Incidents not closed','high','Incidents',
     'Open or under review — needs closure note.',
-    $q$select i.incident_at as sort_at, to_char(i.incident_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select i.incident_at as sort_at, to_char(i.incident_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', i.incident_no, i.incident_type, i.severity, i.status, left(i.description,80)) as detail, null::numeric as amount
          from public.incidents i left join public.patients p on p.id=i.patient_id
@@ -212,7 +212,7 @@ begin
 
   c := c || public.mis_check('falls','Falls in the period','medium','Incidents',
     'Each fall recorded as an incident.',
-    $q$select i.incident_at as sort_at, to_char(i.incident_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select i.incident_at as sort_at, to_char(i.incident_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', i.incident_no, i.severity, i.status, left(i.description,80)) as detail, null::numeric as amount
          from public.incidents i left join public.patients p on p.id=i.patient_id
@@ -221,7 +221,7 @@ begin
 
   c := c || public.mis_check('med_errors_open','Medication errors not closed','medium','Medication Errors',
     'Reported medication errors still open / under review / corrective action.',
-    $q$select m.occurred_at as sort_at, to_char(m.occurred_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select m.occurred_at as sort_at, to_char(m.occurred_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', m.error_type, m.severity, m.status) as detail, null::numeric as amount
          from public.medication_errors m left join public.patients p on p.id=m.patient_id
@@ -248,7 +248,7 @@ begin
 
   c := c || public.mis_check('np_waiting_approval','Nursing procedure requests waiting for approval over 1 hour','medium','Approval Requests',
     'Requested by the nurse, not yet approved or declined by the Nursing Manager / Admin.',
-    $q$select r.requested_at as sort_at, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.requested_at as sort_at, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', r.procedure_code, r.procedure_name, 'by '||r.requested_by_name) as detail, null::numeric as amount
          from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
@@ -257,7 +257,7 @@ begin
 
   c := c || public.mis_check('np_not_started','Approved nursing procedures not started after 24 hours','low','Approval Requests',
     'Approved, but the nurse has not confirmed it was done (Start). If done, it is also not billed.',
-    $q$select r.decision_at as sort_at, to_char(r.decision_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.decision_at as sort_at, to_char(r.decision_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', coalesce(r.category,'Nursing Procedures'), r.procedure_name, 'approved by '||r.decision_by_name) as detail, null::numeric as amount
          from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
@@ -266,9 +266,9 @@ begin
 
   c := c || public.mis_check('verbal_orders','Telephone / verbal doctor orders not confirmed','medium','Medicines',
     'Doctor''s verbal or telephone order still waiting for written confirmation past its due time.',
-    $q$select r.reviewed_at as sort_at, to_char(r.reviewed_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.reviewed_at as sort_at, to_char(r.reviewed_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
-              concat_ws(' · ', r.order_mode, r.doctor_name, 'due '||to_char(r.verbal_confirmation_due_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')) as detail, null::numeric as amount
+              concat_ws(' · ', r.order_mode, r.doctor_name, 'due '||to_char(r.verbal_confirmation_due_at at time zone 'Asia/Kolkata','DD-MM HH24:MI')) as detail, null::numeric as amount
          from public.medication_reviews r join public.patients p on p.id=r.patient_id
         where r.verbal_confirmation_status='Pending' and r.verbal_confirmation_due_at < now()
           and not coalesce(p.is_trial,false)$q$,
@@ -277,7 +277,7 @@ begin
   c := c || public.mis_check('physio_not_done','Physiotherapy sessions not done / still pending','low','Physiotherapy Dashboard',
     'Planned sessions marked Not Done, or past their day and still Pending.',
     $q$select (s.session_date + coalesce(s.scheduled_time, time '09:00'))::timestamp at time zone 'Asia/Kolkata' as sort_at,
-              to_char(s.session_date,'DD-MM-YYYY')||coalesce(' '||to_char(s.scheduled_time,'HH12:MI AM'),'') as date,
+              to_char(s.session_date,'DD-MM-YYYY')||coalesce(' '||to_char(s.scheduled_time,'HH24:MI'),'') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               s.status||coalesce(' · '||nullif(s.reason,''),'') as detail, null::numeric as amount
          from public.physiotherapy_sessions s join public.patients p on p.id=s.patient_id
@@ -330,7 +330,7 @@ begin
   -- Audit checks
   c := c || public.mis_check('charges_pending','Charges waiting with Accounts for over 30 minutes','high','Charge Approvals',
     'Raised by Nursing, not yet approved or returned by Accounts.',
-    $q$select coalesce(b.raised_at,b.created_at) as sort_at, to_char(coalesce(b.raised_at,b.created_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select coalesce(b.raised_at,b.created_at) as sort_at, to_char(coalesce(b.raised_at,b.created_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', b.category, coalesce(b.service_name,b.description), 'Qty '||coalesce(b.quantity,1), 'by '||b.raised_by_name) as detail,
               coalesce(b.requested_amount,b.estimated_amount) as amount
@@ -342,7 +342,7 @@ begin
 
   c := c || public.mis_check('charges_returned','Charges returned by Accounts and not corrected','medium','Charge Approvals',
     'Returned to Nursing for correction and not resubmitted — the service is not billed until it is.',
-    $q$select coalesce(b.decision_date,b.approved_at,b.updated_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at,b.updated_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select coalesce(b.decision_date,b.approved_at,b.updated_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at,b.updated_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', coalesce(b.service_name,b.description), 'raised by '||b.raised_by_name, 'reason: '||coalesce(nullif(b.approval_remarks,''),'—')) as detail,
               coalesce(b.requested_amount,b.estimated_amount) as amount
@@ -399,7 +399,7 @@ begin
 
   c := c || public.mis_check('np_started_not_charged','Nursing procedures done but no charge raised','high','Approval Requests',
     'The nurse confirmed and started the procedure, but no Bills & Charges request exists for it — not billed.',
-    $q$select r.started_at as sort_at, to_char(r.started_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.started_at as sort_at, to_char(r.started_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', r.procedure_code, r.procedure_name, 'started by '||r.started_by_name) as detail, null::numeric as amount
          from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
@@ -410,7 +410,7 @@ begin
 
   c := c || public.mis_check('physio_rate_changes','Guest physiotherapy rate set or changed','medium','Physiotherapist Accounts',
     'New Guest rates entered in the period — check each against what was agreed (e.g. ₹500 entered, then ₹800 the next day).',
-    $q$select r.created_at as sort_at, to_char(r.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.created_at as sort_at, to_char(r.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               'From '||to_char(r.effective_from,'DD-MM-YYYY')||': ₹'||r.amount||coalesce(' (was ₹'||prev.amount||')','')||' · '||left(r.notes,60) as detail, null::numeric as amount
          from public.patient_physio_rates r join public.patients p on p.id=r.patient_id
@@ -420,7 +420,7 @@ begin
 
   c := c || public.mis_check('approved_differs','Charges approved at a different amount than requested','low','Charge Approvals',
     'Accounts approved more or less than the requested amount (partial approvals included).',
-    $q$select coalesce(b.decision_date,b.approved_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select coalesce(b.decision_date,b.approved_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', coalesce(b.service_name,b.description), 'requested ₹'||b.requested_amount, 'approved ₹'||coalesce(b.approved_amount,b.final_amount), 'by '||b.decision_by_name) as detail,
               coalesce(b.approved_amount,b.final_amount) - b.requested_amount as amount
@@ -432,7 +432,7 @@ begin
 
   c := c || public.mis_check('possible_duplicates','Possible duplicate charges','medium','Charge Approvals',
     'Same Guest, same item, same date and time raised more than once (not returned).',
-    $q$select max(b.created_at) as sort_at, to_char(b.charge_date,'DD-MM-YYYY')||coalesce(' '||to_char(b.service_datetime at time zone 'Asia/Kolkata','HH12:MI AM'),'') as date,
+    $q$select max(b.created_at) as sort_at, to_char(b.charge_date,'DD-MM-YYYY')||coalesce(' '||to_char(b.service_datetime at time zone 'Asia/Kolkata','HH24:MI'),'') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               coalesce(b.service_name,b.description)||' × '||count(*)||' entries' as detail, sum(coalesce(b.approved_amount,b.final_amount,b.requested_amount,0)) as amount
          from public.bill_charge_requests b join public.patients p on p.id=b.patient_id
@@ -458,7 +458,7 @@ begin
 
   c := c || public.mis_check('receipt_no_reference','Non-cash receipts with no transaction reference','medium','Payments',
     'UPI / bank / card receipts should carry the transaction reference for reconciliation.',
-    $q$select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', t.transaction_type, t.payment_mode) as detail, t.amount as amount
          from public.billing_transactions t join public.patients p on p.id=t.patient_id
@@ -470,7 +470,7 @@ begin
 
   c := c || public.mis_check('receipts_not_sent','Payment receipts not sent to the family','medium','Payments',
     'The automatic WhatsApp receipt failed or its status is unknown.',
-    $q$select r.created_at as sort_at, to_char(r.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.created_at as sort_at, to_char(r.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ', r.source, r.receipt_status, left(r.receipt_error,80)) as detail, t.amount as amount
          from public.ledger_payment_receipts r join public.billing_transactions t on t.id=r.billing_transaction_id
@@ -480,7 +480,7 @@ begin
 
   c := c || public.mis_check('online_recovered','Online payments recorded by the background check','low','Payments',
     'Paid on the Family Portal but the portal did not confirm — recorded later by the safety net. Check the receipt went.',
-    $q$select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who, 'Razorpay · recorded by background check' as detail, t.amount as amount
          from public.billing_transactions t join public.patients p on p.id=t.patient_id
         where t.description ilike '%background check%' and (t.transaction_date at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
@@ -599,7 +599,7 @@ begin
 
   c := c || public.mis_check('indent_not_received','Indents handed over but not marked Received (20+ min)','medium','Patient Consumables',
     'The store handed the items over; the nurse has not pressed Received.',
-    $q$select n.handed_over_at as sort_at, to_char(n.handed_over_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select n.handed_over_at as sort_at, to_char(n.handed_over_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', 'CI-'||lpad(n.indent_no::text,5,'0'), n.item_name, coalesce(n.handed_over_qty,n.approved_qty)||' '||coalesce(n.unit,''), 'nurse '||n.initiated_by_name) as detail, null::numeric as amount
          from public.patient_consumable_indents n left join public.patients p on p.id=n.patient_id
@@ -608,7 +608,7 @@ begin
 
   c := c || public.mis_check('indent_waiting','Indents waiting for the store over 2 hours','medium','Patient Consumables',
     'Raised by Nursing, not yet approved / handed over.',
-    $q$select n.initiated_at as sort_at, to_char(n.initiated_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select n.initiated_at as sort_at, to_char(n.initiated_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name),'—') as who,
               concat_ws(' · ', 'CI-'||lpad(n.indent_no::text,5,'0'), n.item_name, n.requested_qty||' '||coalesce(n.unit,''), n.status) as detail, null::numeric as amount
          from public.patient_consumable_indents n left join public.patients p on p.id=n.patient_id
@@ -617,7 +617,7 @@ begin
 
   c := c || public.mis_check('equipment_faults','Equipment faults not resolved','high','Biomedical Equipment',
     'Faults reported by Nursing and still open.',
-    $q$select r.requested_at as sort_at, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select r.requested_at as sort_at, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(e.asset_no, r.item_name, 'Equipment') as who, concat_ws(' · ', e.equipment_name, left(r.details,80)) as detail, null::numeric as amount
          from public.bme_care_requests r left join public.biomedical_equipment e on e.id=r.equipment_id
         where r.kind='Fault' and r.status='Pending'$q$,
@@ -692,7 +692,7 @@ begin
 
   c := c || public.mis_check('whatsapp_failed','Food-vendor WhatsApp messages that failed','medium','Food & Diet',
     'Order / modification messages Meta could not deliver.',
-    $q$select m.updated_at as sort_at, to_char(m.updated_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select m.updated_at as sort_at, to_char(m.updated_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(m.kind,'message') as who, coalesce(left(m.error,100),'Failed') as detail, null::numeric as amount
          from public.fv_messages m
         where m.status='Failed' and (m.updated_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$,
@@ -742,7 +742,7 @@ begin
     format($q$with x as (%s), y as (
          select x.*, lag(x.svc_at) over w as prev_at, lag(x.raised_by_name) over w as prev_by, lag(x.id) over w as prev_id
            from x window w as (partition by x.patient_id, x.item_key order by x.svc_at, x.created_at))
-       select y.svc_at as sort_at, to_char(y.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, y.guest as who,
+       select y.svc_at as sort_at, to_char(y.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date, y.guest as who,
               y.item_name||' — again '||greatest(0,round(extract(epoch from (y.svc_at-y.prev_at))/60))::int||' min after the previous charge'
                 ||' (by '||coalesce(y.raised_by_name,'?')||coalesce(', earlier by '||y.prev_by,'')||') · '||coalesce(y.approval_status,'Pending')
                 ||coalesce(' · reason given: '||nullif(to_jsonb(y)->>'repeat_reason',''),' · no reason given') as detail,
@@ -771,7 +771,7 @@ begin
   -- 3. approved price per unit differs from the Charge Master rate (service items; stores, physio, outside bills excluded)
   c := c || public.mis_check('rate_deviation','Approved price different from the Charge Master rate','medium','Charge Approvals',
     'Approved amount ÷ quantity is not the fixed Charge Master rate for that item.',
-    $q$select coalesce(b.decision_date,b.approved_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select coalesce(b.decision_date,b.approved_at) as sort_at, to_char(coalesce(b.decision_date,b.approved_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               coalesce(b.service_name,b.description)||' · rate ₹'||t.amount||' × '||coalesce(b.quantity,1)||' = ₹'||(t.amount*coalesce(b.quantity,1))
                 ||', approved ₹'||coalesce(b.approved_amount,b.final_amount)||' by '||coalesce(b.decision_by_name,'?') as detail,
@@ -791,7 +791,7 @@ begin
     format($q$with x as (%s), norm as (
          select item_key, percentile_cont(0.5) within group (order by coalesce(quantity,1)) as med, count(*) as n
            from x where x.svc_at > now() - interval '90 days' group by 1)
-       select x.svc_at as sort_at, to_char(x.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, x.guest as who,
+       select x.svc_at as sort_at, to_char(x.svc_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date, x.guest as who,
               x.item_name||' · qty '||x.quantity||' (usual '||round(norm.med::numeric,1)||') · by '||coalesce(x.raised_by_name,'?') as detail,
               coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
          from x join norm on norm.item_key=x.item_key
@@ -816,8 +816,8 @@ begin
   c := c || public.mis_check('late_billing','Charges raised more than 48 hours after the service','low','Charge Approvals',
     'Late billing — risk of missed charges.',
     format($q$with x as (%s)
-       select x.raised_at as sort_at, to_char(x.service_datetime at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, x.guest as who,
-              x.item_name||' · raised '||to_char(x.raised_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')||' by '||coalesce(x.raised_by_name,'?') as detail,
+       select x.raised_at as sort_at, to_char(x.service_datetime at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date, x.guest as who,
+              x.item_name||' · raised '||to_char(x.raised_at at time zone 'Asia/Kolkata','DD-MM HH24:MI')||' by '||coalesce(x.raised_by_name,'?') as detail,
               coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
          from x where x.service_datetime is not null and x.raised_at - x.service_datetime > interval '48 hours'
           and (x.raised_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch),
@@ -825,8 +825,8 @@ begin
   c := c || public.mis_check('charged_before_service','Charges raised before the service time','medium','Charge Approvals',
     'The service time is more than an hour after the charge was raised — charged before it was done.',
     format($q$with x as (%s)
-       select x.raised_at as sort_at, to_char(x.service_datetime at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date, x.guest as who,
-              x.item_name||' · raised at '||to_char(x.raised_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')||' by '||coalesce(x.raised_by_name,'?') as detail,
+       select x.raised_at as sort_at, to_char(x.service_datetime at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date, x.guest as who,
+              x.item_name||' · raised at '||to_char(x.raised_at at time zone 'Asia/Kolkata','DD-MM HH24:MI')||' by '||coalesce(x.raised_by_name,'?') as detail,
               coalesce(x.approved_amount,x.final_amount,x.requested_amount) as amount
          from x where x.service_datetime is not null and x.service_datetime - x.raised_at > interval '1 hour'
           and (x.raised_at at time zone 'Asia/Kolkata')::date between $1 and $2$q$, ch),
@@ -835,7 +835,7 @@ begin
   -- 7. vitals readings that cannot be right (typing errors)
   c := c || public.mis_check('vitals_implausible','Vitals readings that look like typing errors','medium','Vital Signs',
     'Outside what is humanly possible — e.g. temperature 9.8, SpO₂ above 100, BP 1200, sugar 9.',
-    $q$select v.recorded_at as sort_at, to_char(v.recorded_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select v.recorded_at as sort_at, to_char(v.recorded_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               concat_ws(' · ',
                 case when t.c is not null and (t.c<33 or t.c>43) then 'Temp '||v.temperature end,
@@ -870,9 +870,9 @@ begin
                 row(v.temperature,v.systolic,v.diastolic,v.pulse,v.spo2)::text as this_set,
                 lag(v.recorded_at) over (partition by v.patient_id order by v.recorded_at) as prev_at
            from public.vital_signs v where v.recorded_at >= ($1::timestamp at time zone 'Asia/Kolkata') - interval '2 days')
-       select v.recorded_at as sort_at, to_char(v.recorded_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+       select v.recorded_at as sort_at, to_char(v.recorded_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
-              'Same as reading at '||to_char(v.prev_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM')||' · T '||coalesce(v.temperature::text,'-')||' BP '||coalesce(v.systolic::text,'-')||'/'||coalesce(v.diastolic::text,'-')||' P '||coalesce(v.pulse::text,'-')||' SpO₂ '||coalesce(v.spo2::text,'-')||coalesce(' · by '||pr.full_name,'') as detail,
+              'Same as reading at '||to_char(v.prev_at at time zone 'Asia/Kolkata','DD-MM HH24:MI')||' · T '||coalesce(v.temperature::text,'-')||' BP '||coalesce(v.systolic::text,'-')||'/'||coalesce(v.diastolic::text,'-')||' P '||coalesce(v.pulse::text,'-')||' SpO₂ '||coalesce(v.spo2::text,'-')||coalesce(' · by '||pr.full_name,'') as detail,
               null::numeric as amount
          from v join public.patients p on p.id=v.patient_id left join public.profiles pr on pr.id=v.recorded_by or pr.auth_user_id=v.recorded_by
         where not coalesce(p.is_trial,false) and v.prev_set = v.this_set
@@ -883,7 +883,7 @@ begin
   -- 9. one staff member entering vitals for many Guests within 10 minutes (entered later from paper, not at the bedside?)
   c := c || public.mis_check('vitals_batch_entry','Vitals for many Guests entered within 10 minutes by one staff member','low','Vital Signs',
     '6 or more Guests'' vitals saved by the same person inside 10 minutes — usually entered later, not at the bedside.',
-    $q$select min(v.recorded_at) as sort_at, to_char(min(v.recorded_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select min(v.recorded_at) as sort_at, to_char(min(v.recorded_at) at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               coalesce(pr.full_name,'Staff') as who, count(distinct v.patient_id)||' Guests in '||greatest(1,round(extract(epoch from max(v.recorded_at)-min(v.recorded_at))/60))::int||' min' as detail,
               null::numeric as amount
          from public.vital_signs v left join public.profiles pr on pr.id=v.recorded_by or pr.auth_user_id=v.recorded_by
@@ -895,9 +895,9 @@ begin
   -- 10. medicines: given far too early, or the same dose given twice
   c := c || public.mis_check('dose_given_early','Medicines given more than 1 hour before the scheduled time','medium','Medicines',
     'Given well before its time — check the timing or whether the right dose was recorded.',
-    $q$select a.administered_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+    $q$select a.administered_at as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
-              coalesce(mo.medicine_name,'Medicine')||' · given at '||to_char(a.administered_at at time zone 'Asia/Kolkata','HH12:MI AM') as detail, null::numeric as amount
+              coalesce(mo.medicine_name,'Medicine')||' · given at '||to_char(a.administered_at at time zone 'Asia/Kolkata','HH24:MI') as detail, null::numeric as amount
          from public.medication_administrations a join public.patients p on p.id=a.patient_id
          left join public.medication_orders mo on mo.id=a.order_id
         where not coalesce(p.is_trial,false) and a.status='Given' and a.scheduled_date between $1 and $2
@@ -905,7 +905,7 @@ begin
     p_from, p_to);
   c := c || public.mis_check('dose_given_twice','Same dose recorded as Given twice','high','Medicines',
     'Two Given entries for the same medicine, date and time — possible double dose or double entry.',
-    $q$select max(a.administered_at) as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH12:MI AM') as date,
+    $q$select max(a.administered_at) as sort_at, to_char(a.scheduled_date + a.scheduled_time::time,'DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               coalesce(max(mo.medicine_name),'Medicine')||' · '||count(*)||' Given entries' as detail, null::numeric as amount
          from public.medication_administrations a join public.patients p on p.id=a.patient_id
@@ -917,7 +917,7 @@ begin
   -- 10b. physiotherapy: Samara pays the physiotherapist but the Guest is not charged, or pays more than it charges
   c := c || public.mis_check('physio_fee_not_charged','Physiotherapist paid for a session the Guest was not charged for','high','Physiotherapist Accounts',
     'A session fee is posted to the physiotherapist, but there is no Guest charge for that session (or it was returned). Set the Guest''s physiotherapy rate to bill it.',
-    $q$select l.created_at as sort_at, to_char(coalesce(s.session_date,l.entry_date),'DD-MM-YYYY')||coalesce(' '||to_char(s.scheduled_time,'HH12:MI AM'),'') as date,
+    $q$select l.created_at as sort_at, to_char(coalesce(s.session_date,l.entry_date),'DD-MM-YYYY')||coalesce(' '||to_char(s.scheduled_time,'HH24:MI'),'') as date,
               coalesce(concat_ws(' ', nullif(p.title,''), p.full_name), l.snapshot->>'patient_name','—') as who,
               concat_ws(' · ', l.snapshot->>'physiotherapist', 'fee ₹'||l.amount,
                 case when exists(select 1 from public.patient_physio_rates r where r.patient_id=s.patient_id and r.effective_from<=s.session_date) then 'Guest rate set — charge missing' else 'No Guest rate set' end) as detail,
@@ -951,7 +951,7 @@ begin
            from public.billing_transactions t
           where t.transaction_type in ('Payment','Advance') and t.transaction_date > ($1::timestamp at time zone 'Asia/Kolkata') - interval '1 day'
          window w as (partition by t.patient_id, t.amount order by t.transaction_date))
-       select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+       select t.transaction_date as sort_at, to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               concat_ws(' ', nullif(p.title,''), p.full_name) as who,
               t.payment_mode||' · same amount '||round(extract(epoch from t.transaction_date-t.prev_at)/3600,1)||' h after a '||coalesce(t.prev_mode,'')||' receipt' as detail, t.amount as amount
          from t join public.patients p on p.id=t.patient_id

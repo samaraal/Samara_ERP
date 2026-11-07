@@ -25,14 +25,14 @@ const DAILY_PATIENT_REPORT_TEMPLATE="amara_daily_patient_report";
 const indiaDate=(value=new Date())=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).format(value);
 // 2.16.10: dates DD-MM-YYYY everywhere (was DD:MM:YYYY, easily read as a time)
 const displayDate=(iso:string)=>{const [y,m,d]=iso.split("-");return `${d}-${m}-${y}`};
-const displayDateTime=(v:unknown)=>v?pdfText(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:true}).format(new Date(String(v))).replace(",","").replace(/\//g,"-")):"-";
+const displayDateTime=(v:unknown)=>v?pdfText(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle: "h23"}).format(new Date(String(v))).replace(",","").replace(/\//g,"-")):"-";
 const sameDay=(v:unknown,date:string)=>{if(!v)return false;try{return indiaDate(new Date(String(v)))===date}catch{return false}};
 const patientName=(p:any)=>[text(p.title),text(p.full_name)].filter(Boolean).join(" ")||"Patient";
 const canonicalMealType=(value:unknown)=>{const v=text(value).toLowerCase();if(v.includes("lunch"))return "Lunch";if(v.includes("dinner"))return "Dinner";return "Tiffin"};
 
 // 2.16.10: family wording for a withheld dose (doctor's instruction recorded) — same meaning as SQL medication_withhold_family_text
 const isWithheld=(x:any)=>text(x?.status).toLowerCase()==="withheld";
-const hhmm12=(v:unknown)=>{const m=text(v).match(/^(\d{1,2}):(\d{2})/);if(!m)return "";const h=Number(m[1]);return `${((h+11)%12)+1}:${m[2]} ${h<12?"AM":"PM"}`};
+const hhmm12=(v:unknown)=>{const m=text(v).match(/^(\d{1,2}):(\d{2})/);if(!m)return "";return `${String(Number(m[1])).padStart(2,"0")}:${m[2]}`}; // 2.19.80: 24-hour clock (name kept)
 const withheldFamilyShort=(x:any)=>{
   const reason=({"Low blood pressure":"BP low","Low blood sugar":"Sugar low","Low pulse / heart rate":"Pulse low","Drowsy / unwell":"Drowsy / unwell","Nil by mouth (NPO)":"Nil by mouth","Vomiting / cannot swallow":"Vomiting"} as Record<string,string>)[text(x.withhold_reason)]||"Clinical reason";
   const reading=["Low blood pressure","Low blood sugar","Low pulse / heart rate"].includes(text(x.withhold_reason))&&text(x.withhold_reading)?` (${text(x.withhold_reading).replace(/\s+at\s+.*$/i,"")})`:"";
@@ -166,11 +166,11 @@ async function makeReport(sb:any,patient:any,date:string){
     ...dayBeverages.map((x:any)=>`${bevName(x)} at ${text(x.given_time).slice(0,5)}${text(x.consumption_status)&&text(x.consumption_status)!=="Consumed fully"?` (${text(x.consumption_status)})`:""}`)].join("; ")||"No beverage entered";
   const wellbeing=`Mobility ${/mobil|walk|ambulat|turn|position/i.test(wellbeingText)?"documented":"not separately recorded"}; pain ${/pain/i.test(wellbeingText)?"mentioned":"not separately recorded"}; sleep ${/sleep/i.test(wellbeingText)?"documented":"not separately recorded"}; orientation ${/orient|conscious|alert/i.test(wellbeingText)?"documented":"not separately recorded"}.`;
   const previous=vitalRows[1];const direction=(a:any,b:any)=>a==null||b==null?"Not enough data":a>b?"increased":a<b?"decreased":"remained stable";
-  // 2.16.11: Intake / Output chart (SQL 211). Shown only when the Guest has chart entries for this chart day (7 AM to 7 AM).
+  // 2.16.11: Intake / Output chart (SQL 211). Shown only when the Guest has chart entries for this chart day (07:00 to 07:00).
   let fluidLine="";
   try{const io=await sb.rpc("io_rows",{p_patient:patient.id,p_from:date,p_to:date});const list:any[]=io.error?[]:(io.data||[]);
     if(list.some((r:any)=>r.source==="Chart")){const sum=(d:string)=>Math.round(list.filter((r:any)=>r.direction===d).reduce((t:number,r:any)=>t+Number(r.ml||0),0));
-      fluidLine=` Fluid chart (7 AM to 7 AM): intake ${sum("Intake")} ml, output ${sum("Output")} ml.`}}catch{/* SQL 211 not run yet */}
+      fluidLine=` Fluid chart (07:00 to 07:00): intake ${sum("Intake")} ml, output ${sum("Output")} ml.`}}catch{/* SQL 211 not run yet */}
   const glanceCards:[string,string][]=[
     ["VITAL TREND",latest&&previous?`BP ${n(latest.systolic)??"-"}/${n(latest.diastolic)??"-"}; pulse ${direction(n(latest.pulse),n(previous.pulse))}; SpO2 ${direction(n(latest.spo2),n(previous.spo2))}`:latest?"One observation; comparison unavailable":"No observation entered"],
     ["MEDICATION",`${given} given; ${missed} missed / omitted / refused`],
@@ -210,7 +210,7 @@ const SAMARA_WEB="samaraassistedliving.com",SAMARA_WEB_URL="https://samaraassist
 const addDays=(iso:string,n:number)=>{const d=new Date(`${iso}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const isoOf=(v:unknown)=>{if(!v)return "";const s=String(v);if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;try{return indiaDate(new Date(s))}catch{return ""}};
 const inWindow=(v:unknown,from:string,to:string)=>{const d=isoOf(v);return Boolean(d&&d>=from&&d<=to)};
-const timeOf=(v:unknown)=>{if(!v)return "";try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour:"numeric",minute:"2-digit",hour12:true}).format(new Date(String(v))).toUpperCase()}catch{return ""}};
+const timeOf=(v:unknown)=>{if(!v)return "";try{return new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Kolkata",hour: "2-digit",minute:"2-digit",hourCycle: "h23"}).format(new Date(String(v))).toUpperCase()}catch{return ""}};
 const drName=(v:unknown)=>{const d=text(v);if(!d)return "Treating Doctor";return /^dr(\.|\s)/i.test(d)?d.replace(/^dr\.?\s*/i,"Dr. "):`Dr. ${d}`};
 const num=(v:any)=>{if(v===null||v===undefined||v==="")return null;const x=Number(v);return Number.isFinite(x)&&x!==0?x:null};
 const ageOf=(p:any)=>{const a=num(p.age);if(a)return Math.round(a);const dob=text(p.date_of_birth);if(!dob)return null;const b=new Date(dob);if(isNaN(+b))return null;const n=new Date();let y=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))y--;return y>0&&y<130?y:null};
@@ -575,7 +575,7 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
   T(`Avg output: ${charted.length?Math.round(tout/charted.length):0} ml/day`,lx,ly,6.8,regular,ink);ly-=9;
   T(`Net balance: ${tin-tout>=0?"+":""}${tin-tout} ml`,lx,ly,6.8,bold,tin-tout<0?red:green);ly-=9;
   if(st)T(`Stools: ${st}`,lx,ly,6.8,regular,ink);
-  T("Balance per day (intake - output) is shown under each date. Chart day = 7 AM to 7 AM.",M+2,base-24,6,italic,grey);
+  T("Balance per day (intake - output) is shown under each date. Chart day = 07:00 to 07:00.",M+2,base-24,6,italic,grey);
   y=base-30;
  }
 

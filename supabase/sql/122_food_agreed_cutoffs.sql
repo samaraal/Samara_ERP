@@ -16,7 +16,7 @@ declare deadline timestamptz:=public.fv_order_deadline(order_data); meal text:=o
 begin
  if deadline is not null and at_time>=deadline then
   if meal='Tiffin' then meal:='Breakfast';end if;
-  raise exception 'Cutoff passed for % (% IST). No new orders or modifications are allowed.',meal,to_char(deadline at time zone 'Asia/Kolkata','DD/MM/YYYY "at" FMHH12:MI AM');
+  raise exception 'Cutoff passed for % (% IST). No new orders or modifications are allowed.',meal,to_char(deadline at time zone 'Asia/Kolkata','DD/MM/YYYY "at" HH24:MI');
  end if;
 end $$;
 do $patch$

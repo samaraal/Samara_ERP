@@ -8,7 +8,7 @@
 -- STEP 1 (preview) — should show TWO rows for the same Guest: the Razorpay payment (kept) and the UPI advance (to remove)
 select t.id, concat_ws(' ', p.title, p.full_name) as guest, p.patient_id as guest_id,
        t.transaction_type, t.amount, t.payment_mode, t.payment_reference,
-       to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as entered_at,
+       to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as entered_at,
        case when t.payment_reference='630595478825' and t.transaction_type='Advance' then 'REMOVE (duplicate)' else 'keep' end as action
 from public.billing_transactions t join public.patients p on p.id=t.patient_id
 where t.amount=35931 and (t.transaction_date at time zone 'Asia/Kolkata')::date=date '2026-11-01'
@@ -42,7 +42,7 @@ end $$;
 
 -- STEP 3 (check) — only the Razorpay payment should remain
 select t.transaction_type, t.amount, t.payment_mode, t.payment_reference,
-       to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as entered_at
+       to_char(t.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as entered_at
 from public.billing_transactions t
 where t.amount=35931 and (t.transaction_date at time zone 'Asia/Kolkata')::date=date '2026-11-01'
   and t.transaction_type in ('Payment','Advance');

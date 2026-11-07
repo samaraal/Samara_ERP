@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.79';
+  const APP_VERSION = '2.19.80';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Nov-2026 Zenset rent 13549';
+  const APP_BUILD_DATE = '07-Nov-2026 24-hour clock everywhere';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -2244,6 +2244,10 @@ function initSamaraInaugurationInvitation(){
       // 2.19.70: dropdown options get only the 24-hour clock change (their date wording is left as it is)
       const updated=parent.closest('option')?(window.SamaraDateTime.clock24?window.SamaraDateTime.clock24(node.nodeValue):node.nodeValue):convert(node.nodeValue);
       if(updated!==node.nodeValue)node.nodeValue=updated;
+    });
+    // 2.19.80: box hints and tooltips too (e.g. "e.g. 9:00 AM") — 24-hour clock only, values are never touched
+    if(window.SamaraDateTime.clock24&&root.querySelectorAll)root.querySelectorAll('[placeholder],[title]').forEach(el=>{
+      ['placeholder','title'].forEach(a=>{const v=el.getAttribute(a);if(v&&/[AaPp]\.?\s?[Mm]\b/.test(v)){const u=window.SamaraDateTime.clock24(v);if(u!==v)el.setAttribute(a,u)}});
     });
   };
   const TASK_NAVIGATION_KEY='samara_regular_task_context';
@@ -8262,7 +8266,7 @@ https://samaraassistedliving.com/`;
       alerts.map(a=>h('button',{key:a.request_id,type:'button',className:'physio-approval-item',onClick:()=>openPhysioRequest(a)},
         h('strong',{'data-no-translate':'true'},a.patient_name||'Guest'),
         h('span',null,`${a.action||'Change'} · ${a.session_date?formatDateIN(a.session_date):''}${a.reason?' · '+a.reason:''}`),
-        h('small',null,`Requested by ${a.requested_by_name||'Care team'} · ${a.requested_at?new Date(a.requested_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).replace(/\//g,'-'):''} · Tap to review →`))));
+        h('small',null,`Requested by ${a.requested_by_name||'Care team'} · ${a.requested_at?new Date(a.requested_at).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).replace(/\//g,'-'):''} · Tap to review →`))));
   }
   ;(function(){
     if(document.getElementById('physio-approval-css'))return;
@@ -8482,7 +8486,7 @@ https://samaraassistedliving.com/`;
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
             h('button',{type:'button',className:'btn btn-primary',onClick:()=>openFoodVendorMessage(a,onNavigate)},'Open order message'),
             h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(await markFoodVendorAlertHandled(a))loadFoodReplyAlerts()}},'Mark handled')))}):h('p',{className:'small-note'},'No food vendor replies need action.')):null,
-      foodAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Receipts Overdue'),h('small',null,'Delivered orders past their 2-hour receipt entry window. Record what actually arrived now — an order left open past the 1-hour grace period auto-closes as not received and is not billed.'),foodReceiptDue.length?foodReceiptDue.map(({order:o,deadline:d})=>h('article',{key:o.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${o.data.slot==='Tiffin'?'Breakfast':o.data.slot} · ${formatDateIN(o.data.date)} · ${o.status}`),h('p',null,`Delivery time: ${o.data.delivery} IST · Overdue by ${Math.floor(d.overdueMinutes/60)}h ${d.overdueMinutes%60}m · Auto-closes as not received at ${new Date(d.closeAt).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true})} IST if not recorded.`),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{sessionStorage.setItem('samara_food_view','Food Vendor Management')}catch(_error){}navigate('Food & Diet')}},'Record receipt now'))):h('p',{className:'empty'},'No food orders are currently overdue for receipt entry.')):null,
+      foodAccess?h('section',{style:{marginBottom:'22px'}},h('h4',null,'Food Receipts Overdue'),h('small',null,'Delivered orders past their 2-hour receipt entry window. Record what actually arrived now — an order left open past the 1-hour grace period auto-closes as not received and is not billed.'),foodReceiptDue.length?foodReceiptDue.map(({order:o,deadline:d})=>h('article',{key:o.id,style:{border:'1px solid #efd3d3',borderRadius:'12px',padding:'12px',marginTop:'10px',background:'#fff8f8'}},h('strong',null,`${o.data.slot==='Tiffin'?'Breakfast':o.data.slot} · ${formatDateIN(o.data.date)} · ${o.status}`),h('p',null,`Delivery time: ${o.data.delivery} IST · Overdue by ${Math.floor(d.overdueMinutes/60)}h ${d.overdueMinutes%60}m · Auto-closes as not received at ${new Date(d.closeAt).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})} IST if not recorded.`),h('button',{type:'button',className:'btn btn-primary',onClick:()=>{try{sessionStorage.setItem('samara_food_view','Food Vendor Management')}catch(_error){}navigate('Food & Diet')}},'Record receipt now'))):h('p',{className:'empty'},'No food orders are currently overdue for receipt entry.')):null,
       h('section',null,h('h4',null,'Medication & Care Escalations — Over 30 Minutes'),h('div',{className:'table-wrap'},h('table',{className:'table'},h('thead',null,h('tr',null,['Patient','Room','Type','Details','Overdue'].map(x=>h('th',{key:x},x)))),h('tbody',null,overdueClinical.map(a=>h('tr',{key:a.key||`${a.alert_type}-${a.source_id}`,role:'button',tabIndex:0,onClick:()=>navigate('Clinical Escalations'),style:{cursor:'pointer',touchAction:'manipulation'}},h('td',null,a.patient_name||'Patient'),h('td',null,a.room_label||'—'),h('td',null,/medic|medicine/.test(`${a.alert_type||''} ${a.title||''}`.toLowerCase())?'Medication':'Care'),h('td',null,a.description||a.title||'Pending clinical action'),h('td',null,englishOverdueLabel(a.overdue_minutes)))),overdueClinical.length===0?h('tr',null,h('td',{colSpan:5,className:'empty'},'No medication or care escalation is currently overdue by 30 minutes.')):null))))
     );
   }
@@ -13683,7 +13687,7 @@ https://samaraassistedliving.com/`;
       }
       return out.sort((a,b)=>b.savedAt-a.savedAt);
     }
-    const fmtTime=ms=>{try{const d=new Date(ms);const t=d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'}).toUpperCase();const day=typeof formatDateIN==='function'?formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})):'';return day?`${day} ${t}`:t}catch(_){return ''}};
+    const fmtTime=ms=>{try{const d=new Date(ms);const t=d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'}).toUpperCase();const day=typeof formatDateIN==='function'?formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})):'';return day?`${day} ${t}`:t}catch(_){return ''}};
 
     async function restore(c,d){
       const setVal=(el,v)=>{
@@ -15119,7 +15123,8 @@ https://samaraassistedliving.com/`;
     },[]);
 
     React.useEffect(()=>{
-      const root=document.getElementById('root');
+      // 2.19.80: whole page — pop-ups, toasts and notification panels live outside #root
+      const root=document.body||document.getElementById('root');
       if(!root)return;
       normaliseVisibleIndianDates(root);
       let queued=false;
@@ -19062,7 +19067,7 @@ Thank you.`;
     const [waHistory,setWaHistory]=React.useState([]),[manualFallbackUrl,setManualFallbackUrl]=React.useState(''),[waBusy,setWaBusy]=React.useState(false);
     const [interviewDate,setInterviewDate]=React.useState(''),[interviewTime,setInterviewTime]=React.useState('10:00');
     const [rescheduleDate,setRescheduleDate]=React.useState(''),[rescheduleTime,setRescheduleTime]=React.useState('10:00');
-    const interviewTimeOptions=Array.from({length:15},(_,i)=>{const total=10*60+i*30;const hh=Math.floor(total/60),mm=total%60;const value=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;const hour12=hh>12?hh-12:hh;const ampm=hh>=12?'PM':'AM';return {value,label:`${hour12}.${String(mm).padStart(2,'0')} ${ampm}`}});
+    const interviewTimeOptions=Array.from({length:15},(_,i)=>{const total=10*60+i*30;const hh=Math.floor(total/60),mm=total%60;const value=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;return {value,label:value}}); // 2.19.80: 24-hour clock
     function splitInterviewDateTime(value){if(!value)return {date:'',time:'10:00'};const d=new Date(value);if(Number.isNaN(d.getTime()))return {date:'',time:'10:00'};return {date:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}}
     async function load(){const {data,error}=await client.from('career_applications').select('*').order('created_at',{ascending:false});if(error){setMsg(error.message);return}setRows(data||[]);if(selected){const fresh=(data||[]).find(x=>x.id===selected.id);if(fresh){setSelected(fresh);setEdit({...fresh})}}}
     // 2.19.54: a row tapped on the Interviews page opens that application here directly.
@@ -22390,7 +22395,7 @@ Thank you.`;
     function employmentActionStamp(x){
       if(!x?.created_at)return '';
       const d=new Date(x.created_at);if(Number.isNaN(d.getTime()))return '';
-      const t=d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();
+      const t=d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase();
       return `${formatDateIN(d)} ${t}`;
     }
     function currentSuspension(){
@@ -24181,7 +24186,7 @@ Thank you.`;
       .slice().sort((a,b)=>String(b.recorded_at||'').localeCompare(String(a.recorded_at||'')));
     const has=(v,field)=>v[field]!==null&&v[field]!==undefined&&v[field]!==''&&Number.isFinite(Number(v[field]))&&Number(v[field])>0; // 0 = not taken
     const latest=field=>list.find(v=>has(v,field))||null;
-    const at=v=>v?.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
+    const at=v=>v?.recorded_at?new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}):'';
     const sv=latest('blood_sugar');
     if(MEDICATION_SUGAR_RE.test(name)&&sv&&Number(sv.blood_sugar)<100){
       const sugar=Number(sv.blood_sugar);
@@ -24225,7 +24230,7 @@ Thank you.`;
   // 2.18.27: fixed times (HH:MM), like medicines. Empty = any time in the shift.
   const nprocHHMM=v=>{const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''};
   function nursingProcedureTimes(o){return [...new Set((Array.isArray(o?.scheduled_times)?o.scheduled_times:[]).map(nprocHHMM).filter(Boolean))].sort() /* 2.18.32: plain clock order (6:00 AM … 10:00 PM) */}
-  function nprocTime12(t){const v=nprocHHMM(t);if(!v)return '';const [hh,mm]=v.split(':').map(Number);return `${hh%12||12}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}
+  function nprocTime12(t){const v=nprocHHMM(t);if(!v)return '';const [hh,mm]=v.split(':').map(Number);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`} // 2.19.80: 24-hour clock
   const nprocShiftOfTime=t=>{const hh=Number(nprocHHMM(t).slice(0,2));return hh>=7&&hh<19?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)'};
   function nprocShiftForTimes(times){const s=new Set(times.map(nprocShiftOfTime));return s.size===1?[...s][0]:'Both shifts'}
   function nprocFrequencyForTimes(times){return times.length===1?'Once daily':times.length===2?'Twice daily':`${times.length} times daily`}
@@ -24554,7 +24559,7 @@ Thank you.`;
     const rows=p.rows.filter(admissionFeedRowEntered);
     if(rows.length)lines.push('TIME — FEEDS');
     rows.forEach(r=>{
-      const time=r.time?new Date(`2000-01-01T${r.time}:00`).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'Time not entered';
+      const time=r.time?new Date(`2000-01-01T${r.time}:00`).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hourCycle:'h23'}):'Time not entered';
       const parts=[r.item,r.scoops?`${r.scoops} scoop(s)`:'',r.water_ml?`in ${r.water_ml} ml water`:'',r.volume_ml?`feed volume ${r.volume_ml} ml`:'',r.consistency,r.preparation,r.note].filter(Boolean);
       lines.push(`${time} — ${parts.join('; ')}`);
     });
@@ -29597,7 +29602,7 @@ Please keep these login details confidential.`;
       const seen=new Set();
       return ranked.filter(row=>{const mobile=String(row?.mobile||'').replace(/\D/g,'').slice(-10);const name=String(row?.relative_name||'').trim().toLowerCase().replace(/\s+/g,' ');const key=`${mobile}|${name}`;if(!mobile)return true;if(seen.has(key))return false;seen.add(key);return true;});
     }
-    function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);const suffix=hh>=12?'PM':'AM';const hour=hh%12||12;return `${hour}:${mm} ${suffix}`;}
+    function displayDailyReportTime(value){if(!value)return 'Not scheduled';const parts=String(value).slice(0,5).split(':');const hh=Number(parts[0]),mm=parts[1]||'00';if(!Number.isFinite(hh))return String(value);return `${String(hh).padStart(2,'0')}:${mm}`;} // 2.19.80: 24-hour clock
     // 2.15.2: the card opens at once with a "Loading…" panel; a slow or failed load shows a message instead of silence.
     const openPatientSeqRef=React.useRef(0);
     const [patientOpenError,setPatientOpenError]=React.useState('');
@@ -36314,7 +36319,7 @@ function RoomsBeds({profile,onNavigate}){
   const ioChartDay=at=>{const d=new Date(new Date(at).getTime()-7*3600000);const p=ioIndiaParts(d);return `${p.y}-${p.m}-${p.d}`};
   const ioShiftOf=at=>{const hh=Number(ioIndiaParts(new Date(at)).hh);return hh>=7&&hh<19?IO_DAY:IO_NIGHT};
   const ioAddDays=(iso,n)=>{const d=new Date(`${iso}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
-  const ioTime=at=>{const p=ioIndiaParts(new Date(at));const h=Number(p.hh);return `${((h+11)%12)+1}:${p.mi} ${h<12?'AM':'PM'}`};
+  const ioTime=at=>{const p=ioIndiaParts(new Date(at));return `${String(Number(p.hh)%24).padStart(2,'0')}:${p.mi}`}; // 2.19.80: 24-hour clock
   const ioMl=n=>`${Math.round(Number(n)||0).toLocaleString('en-IN')} ml`;
   function ioBeverageMl(b){
     const qty=b.quantity!=null&&b.quantity!==''?Number(b.quantity):b.quantity_ml!=null?Number(b.quantity_ml):null;
@@ -36344,8 +36349,8 @@ function RoomsBeds({profile,onNavigate}){
   const IO_SLOT_H=2,IO_SLOTS=24/IO_SLOT_H;
   const ioSlotStart=(day,i)=>new Date(new Date(`${day}T07:00:00+05:30`).getTime()+i*IO_SLOT_H*3600000);
   const ioSlotOf=(day,at)=>Math.floor((new Date(at).getTime()-ioSlotStart(day,0).getTime())/(IO_SLOT_H*3600000));
-  const ioHour=d=>{const h=Number(ioIndiaParts(d).hh);return `${((h+11)%12)+1}${h<12?' AM':' PM'}`};
-  const ioSlotLabel=(day,i)=>{const a=ioSlotStart(day,i),b=ioSlotStart(day,i+1);return `${ioHour(a).replace(/ (AM|PM)$/,ioHour(a).slice(-2)===ioHour(b).slice(-2)?'':' $1')}–${ioHour(b)}`};
+  const ioHour=d=>`${String(Number(ioIndiaParts(d).hh)%24).padStart(2,'0')}:00`; // 2.19.80: 24-hour clock
+  const ioSlotLabel=(day,i)=>`${ioHour(ioSlotStart(day,i))}–${ioHour(ioSlotStart(day,i+1))}`; // 2.19.80: 07:00–09:00
   const ioColOf=category=>IO_COLS.find(c=>c.cats.includes(category))||IO_COLS[IO_COLS.length-1];
 
   // 2.18.87: printable Intake / Output PDF (full clinical detail) — day-wise totals with Day / Night shift totals,
@@ -36627,7 +36632,7 @@ function RoomsBeds({profile,onNavigate}){
 .io-grid thead tr:nth-child(2) th{top:0}
 .io-grid th.io-in{background:#eaf4ff;color:#1d4f91}.io-grid th.io-out{background:#fff3e0;color:#8a4b00}
 .io-grid .io-ic{display:block;font-size:15px;line-height:1.1}
-.io-grid td.io-time,.io-grid th.io-time{text-align:left;padding:4px 6px;font-weight:700;color:#3f2a35;font-size:12px;white-space:normal}
+.io-grid td.io-time,.io-grid th.io-time{text-align:left;padding:4px 6px;font-weight:700;color:#3f2a35;font-size:12px;white-space:nowrap} /* 2.19.80: 07:00–09:00 on one line */
 .io-grid td.io-time small{display:inline-block;margin-left:4px;background:#a91360;color:#fff;border-radius:6px;padding:0 5px;font-size:10px}
 .io-grid tr.io-now td{background:#fff7fb}
 .io-grid tr.io-nightrow td.io-time{background:#f3f4fb}
@@ -36795,7 +36800,7 @@ function RoomsBeds({profile,onNavigate}){
   const mhMedicine=o=>[o?.medicine_name,o?.strength||o?.dose].filter(Boolean).join(' ')||'Medicine';
   const mhTimes=o=>(Array.isArray(o?.scheduled_times)?o.scheduled_times:String(o?.scheduled_times||'').split(',')).map(mhT).filter(Boolean);
   const mhDayIndia=v=>{if(!v)return '';const d=new Date(v);if(!Number.isFinite(d.getTime()))return '';try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}).slice(0,10)}catch(_){return String(v).slice(0,10)}};
-  const mhTimeIN=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase():''};
+  const mhTimeIN=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase():''};
   function mhStatusOf(row){
     const log=row.log;if(!log)return 'Not recorded';
     if(log.status==='Withheld')return medicationWithholdOpen(log)?'Withheld · awaiting doctor':'Withheld';
@@ -39352,10 +39357,8 @@ function RoomsBeds({profile,onNavigate}){
       (form.organisation_id||form.physiotherapist_name)&&h('div',{className:'field span-2'},h(PhysioContact,{organisationId:form.organisation_id,name:form.physiotherapist_name,showName:true}))); // 2.18.124: call the physiotherapist from the form 
 
     const timeOptions=Array.from({length:24},(_,hour)=>{
-      const h12=hour%12||12;
-      const suffix=hour<12?'AM':'PM';
       const value=`${String(hour).padStart(2,'0')}:00`;
-      return {value,label:`${h12}:00 ${suffix}`};
+      return {value,label:value}; // 2.19.80: 24-hour clock
     });
 
     function clockLabel(value){
@@ -39363,7 +39366,7 @@ function RoomsBeds({profile,onNavigate}){
       const raw=String(value).slice(0,5);
       const [h,m]=raw.split(':').map(Number);
       if(Number.isNaN(h)||Number.isNaN(m))return value;
-      return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`;
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; // 2.19.80: 24-hour clock
     }
 
     function showToast(type,text){
@@ -39905,7 +39908,7 @@ function RoomsBeds({profile,onNavigate}){
       }catch(error){if(!stopped)setError(error.message||'Unable to load counts.')}};
       load();const channel=client.channel('physio-counts-'+profile?.id).on('postgres_changes',{event:'*',schema:'public',table:'physiotherapy_sessions'},load).subscribe();const timer=setInterval(load,30000);window.addEventListener('focus',load);return()=>{stopped=true;clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(channel)}},[from,to,profile?.id,filters?.key]);
     const rupee=v=>v==null?'—':'₹'+Number(v).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const clock=v=>{if(!v)return '—';const [hh,mm]=String(v).slice(0,5).split(':').map(Number);return `${hh%12||12}:${String(mm).padStart(2,'0')} ${hh<12?'AM':'PM'}`};
+    const clock=v=>{if(!v)return '—';const [hh,mm]=String(v).slice(0,5).split(':').map(Number);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`}; // 2.19.80: 24-hour clock
     const total=rows.reduce((t,r)=>({completed:t.completed+Number(r.completed||0),pending:t.pending+Number(r.pending||0),not_done:t.not_done+Number(r.not_done||0)}),{completed:0,pending:0,not_done:0});
     const sessionsOf=g=>(details||[]).filter(r=>r.organisation+'\0'+r.physiotherapist===g.key);
     const fee=r=>r.pay_basis==='Salary'?'Salary':r.org_type==='Samara'&&!r.pay_basis?'—':r.fee_amount!=null?rupee(r.fee_amount)+' posted':r.status==='Completed'?'Not posted':'—';
@@ -40001,7 +40004,7 @@ function RoomsBeds({profile,onNavigate}){
     const workScope=!!org&&(statementPhysio?(statementPhysio.pay_basis||'Session fee')==='Salary':samaraNoFees);
     const norm=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
     const workList=workRows.filter(r=>org&&r.organisation===org.name&&(!statementPhysio||norm(r.physiotherapist)===norm(statementPhysio.full_name)));
-    const clock=v=>{if(!v)return '—';const [hh,mm]=String(v).slice(0,5).split(':').map(Number);return `${hh%12||12}:${String(mm).padStart(2,'0')} ${hh<12?'AM':'PM'}`};
+    const clock=v=>{if(!v)return '—';const [hh,mm]=String(v).slice(0,5).split(':').map(Number);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`}; // 2.19.80: 24-hour clock
     const workCount=st=>workList.filter(r=>r.status===st).length;
     const workFields=r=>[['Date',formatDateIN(r.session_date)],['Guest',r.guest_name],['Guest ID',r.guest_id],['Room',r.room],['Organisation',r.organisation],['Physiotherapist',r.physiotherapist],['Paid by',r.pay_basis||'—'],['Scheduled / window start',clock(r.scheduled_time)],['Actual time',clock(r.actual_time)],['Status',r.status],['Reason',r.reason],['Notes',r.notes],['Recorded by',r.recorded_by],['Recorded at',r.recorded_at?formatDateTimeIN(r.recorded_at):''],['Guest charge',r.guest_charge!=null?'₹'+money(r.guest_charge)+' · '+(r.guest_charge_status||''):'Not billed yet'],['Physiotherapist fee',r.pay_basis==='Salary'?'Salary — no session fee':r.fee_amount!=null?'₹'+money(r.fee_amount)+' posted':'Not posted']];
     const ledgerFields=row=>[['Date',formatDateIN(row.entry_date)],['Voucher',voucher(row)],['Type',row.kind+(row.snapshot?.auto_posted?' (auto-posted)':'')+(row.reversed_at?' (reversed)':'')],['Physiotherapist',row.snapshot?.physiotherapist],['Guest',row.snapshot?.patient_name],['Guest ID',row.snapshot?.resident_id],['Room',row.snapshot?.room],['Session date',row.snapshot?.session_date?formatDateIN(row.snapshot.session_date):''],['Scheduled time',row.snapshot?.session_time],['Actual time',row.snapshot?.actual_time],['Rate','₹'+money(row.rate||0)],['Amount',row.amount<0?'Paid ₹'+money(-row.amount):'Fee ₹'+money(row.amount)],['Balance after','₹'+money(row.balance)],['Method',row.method],['Reference',row.reference],['Recipient / payer',row.recipient],['Notes',row.notes],['Session notes',row.snapshot?.notes]];
@@ -40371,7 +40374,7 @@ function RoomsBeds({profile,onNavigate}){
   const ONS_SOURCES=["Doctor's prescription",'Family request','Hospital referral','Director / Admin'];
   const ONS_SOURCE_HINT={"Doctor's prescription":'Doctor name','Family request':'Family member name and relation','Hospital referral':'Hospital / doctor name','Director / Admin':'Name'};
   const ONS_VIA=['Phone call','WhatsApp','Written','In person'];
-  const onsTime=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?`${formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))} ${d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase()}`:''};
+  const onsTime=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?`${formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))} ${d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase()}`:''};
   const onsSourceText=s=>s?`${s.source}${s.source_detail?` (${s.source_detail})`:''} · Approved by ${s.approved_by} (${s.approved_via})`:'';
   // SQL 267 not yet run → {missing:true}: screens keep the earlier "Submit completed procedure" path.
   async function loadOutsideStarts(){
@@ -40942,7 +40945,7 @@ function RoomsBeds({profile,onNavigate}){
     const clockLabel=value=>{
       if(!value)return '—';
       const [hour,minute]=String(value).slice(0,5).split(':').map(Number);
-      return `${hour%12||12}:${String(minute||0).padStart(2,'0')} ${hour<12?'AM':'PM'}`;
+      return `${String(hour).padStart(2,'0')}:${String(minute||0).padStart(2,'0')}`; // 2.19.80: 24-hour clock
     };
     const daysLabel=value=>Array.isArray(value)?value.join(', '):(value||'—');
 
@@ -41445,7 +41448,7 @@ function RoomsBeds({profile,onNavigate}){
     // 2.18.163: Guest ID not needed here — Patient shows name · room; Date shows the time the charge was raised.
     const guestLabel=id=>{const p=pFor(id);if(!p.id)return '—';const trial=p.is_trial?' · 🧪 TRIAL':'';
       return p.is_active===false?`${formalName(p)} · Discharged${trial}`:`${formalName(p)} · Room ${p.room_no||'—'}-${p.bed_no||'—'}${trial}`;};
-    const raisedTime=r=>{const d=new Date(r.created_at||'');return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:true}).toUpperCase();};
+    const raisedTime=r=>{const d=new Date(r.created_at||'');return Number.isNaN(d.getTime())?'':d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase();};
     // 2.18.164: opens on a dashboard of boxes; a box (or "Search with filters") opens the list with all
     // filters; a row opens full details. Pending / Returned boxes count every open item (any date) so
     // nothing waiting disappears when the period changes; the other boxes follow the chosen period.
@@ -43115,7 +43118,7 @@ function ShiftHandover({profile,onNavigate}){
   }
   const nnIsDay=start=>Number(nnParts(new Date(start)).hh)===7;
   const nnShiftName=start=>nnIsDay(start)?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)';
-  const nnTime=at=>{const p=nnParts(new Date(at));const h=Number(p.hh);return `${((h+11)%12)+1}:${p.mi} ${h<12?'AM':'PM'}`};
+  const nnTime=at=>{const p=nnParts(new Date(at));return `${String(Number(p.hh)%24).padStart(2,'0')}:${p.mi}`}; // 2.19.80: 24-hour clock
   const nnDateTime=at=>`${formatDateIN(nnISO(at))} ${nnTime(at)}`;
   const nnPatientLabel=p=>p?`${formalName(p)||p.full_name||'Guest'}${p.room_no?` · Room ${p.room_no}${p.bed_no?'-'+p.bed_no:''}`:''}`:'Guest';
   const nnNeeded=(patient,shiftStart)=>{
@@ -54122,7 +54125,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   const rzsShiftMonth=(iso,n)=>{const [y,m]=String(iso).slice(0,7).split('-').map(Number);return new Date(Date.UTC(y,m-1+n,1)).toISOString().slice(0,10)};
   const rzsMonthLabel=iso=>new Date(`${rzsMonthStart(iso)}T00:00:00`).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   function rzsMonthOptions(){const out=[];let m=rzsMonthStart(todayISOIndia());while(m>=rzsMonthStart(RZS_FIRST)){out.push(m);m=rzsShiftMonth(m,-1)}return out}
-  const rzsTime=iso=>{try{return new Date(iso).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true})}catch(_){return ''}};
+  const rzsTime=iso=>{try{return new Date(iso).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}catch(_){return ''}};
   const rzsWho=r=>{const m=(r.erp||[])[0];return m?[m.name,m.code].filter(Boolean).join(' · '):''};
   // 2.19.62: colourful amounts, same scheme as the other Accounts pages
   const RZS_C={in:'#087f5b',fee:'#b42336',bank:'#1d4ed8',held:'#b54708',net:'#a80d4f'};

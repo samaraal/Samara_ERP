@@ -32,7 +32,7 @@ begin
      order by r.started_at desc limit 1;
     if found then
       raise exception 'REPEAT CHECK: % was already done for this Guest at % by % (% min ago). If it is really being done again, give the reason.',
-        new.procedure_name, to_char(prev.started_at at time zone 'Asia/Kolkata','HH12:MI AM'), coalesce(prev.started_by_name,'staff'),
+        new.procedure_name, to_char(prev.started_at at time zone 'Asia/Kolkata','HH24:MI'), coalesce(prev.started_by_name,'staff'),
         greatest(0, round(extract(epoch from (v_at - prev.started_at))/60))::int;
     end if;
   end if;
@@ -86,7 +86,7 @@ begin
    order by abs(extract(epoch from (coalesce(b.service_datetime,b.raised_at,b.created_at) - v_at))) limit 1;
   if found then
     raise exception 'REPEAT CHECK: % was already charged for this Guest at % by %. If it is really a second time, give the reason.',
-      coalesce(new.service_name,'This item'), to_char(prev.at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM'), coalesce(prev.raised_by_name,'staff');
+      coalesce(new.service_name,'This item'), to_char(prev.at at time zone 'Asia/Kolkata','DD-MM HH24:MI'), coalesce(prev.raised_by_name,'staff');
   end if;
   return new;
 end $f$;

@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
         return json({ success: false, error: "Only Admin / Director may run this." }, 403);
     }
     const h = hourIN();
-    if (h < 10 || h >= 19) return json({ success: true, skipped: "Outside 10 AM – 7 PM India time." });
+    if (h < 10 || h >= 19) return json({ success: true, skipped: "Outside 10:00–19:00 India time." });
 
     const { data: settings } = await admin.from("google_review_settings").select("*").eq("id", 1).maybeSingle();
     if (!settings?.enabled) return json({ success: true, disabled: true });

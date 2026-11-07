@@ -17,8 +17,8 @@ select bt.id,
        bt.category,
        split_part(bt.description,' · ',1)                                         as item,
        bt.amount,
-       to_char(bt.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as billed_at_ist,
-       to_char(r.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM')        as raised_at_ist,
+       to_char(bt.transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as billed_at_ist,
+       to_char(r.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI')        as raised_at_ist,
        r.quantity,
        case when bt.category = 'Consumables' then 'WILL MOVE to 06-10' else 'stays' end as action
 from public.billing_transactions bt
@@ -45,7 +45,7 @@ with g as (
     and bt.description ilike 'Examination Gloves%'
     and (bt.transaction_date at time zone 'Asia/Kolkata')::date = date '2026-10-07'
 )
-select to_char(g.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as raised_at_ist,
+select to_char(g.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as raised_at_ist,
        coalesce(pr.full_name,'—') as raised_by,
        g.quantity, g.amount, g.status,
        case when g.request_id is null then 'NO REQUEST LINKED — check manually'
@@ -103,8 +103,8 @@ update public.billing_transactions bt
 commit;
 
 -- After STEP 3: should list the moved charges, now on 06-10-2026
-select to_char(l.new_transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as now_dated,
-       to_char(l.old_transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as was_dated,
+select to_char(l.new_transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as now_dated,
+       to_char(l.old_transaction_date at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as was_dated,
        split_part(bt.description,' · ',1) as item, bt.amount
 from public.billing_date_fix_log l
 join public.billing_transactions bt on bt.id = l.billing_transaction_id

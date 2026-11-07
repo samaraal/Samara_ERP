@@ -30,7 +30,7 @@ function formatTimeIN(value: unknown) {
   if (!value) return "—";
   const d = new Date(String(value));
   if (Number.isNaN(d.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true }).format(d);
+  return new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
 }
 function formatDateIN(value: unknown) {
   if (!value) return "—";

@@ -199,6 +199,10 @@
       const updated=parent.closest('option')?(window.SamaraDateTime.clock24?window.SamaraDateTime.clock24(node.nodeValue):node.nodeValue):convert(node.nodeValue);
       if(updated!==node.nodeValue)node.nodeValue=updated;
     });
+    // 2.19.80: box hints and tooltips too (e.g. "e.g. 9:00 AM") — 24-hour clock only, values are never touched
+    if(window.SamaraDateTime.clock24&&root.querySelectorAll)root.querySelectorAll('[placeholder],[title]').forEach(el=>{
+      ['placeholder','title'].forEach(a=>{const v=el.getAttribute(a);if(v&&/[AaPp]\.?\s?[Mm]\b/.test(v)){const u=window.SamaraDateTime.clock24(v);if(u!==v)el.setAttribute(a,u)}});
+    });
   };
   const TASK_NAVIGATION_KEY='samara_regular_task_context';
   const saveTaskNavigationContext = context => {

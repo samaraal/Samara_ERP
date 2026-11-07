@@ -25,7 +25,7 @@ begin
   if found then
     raise exception '% is already waiting for this Guest under % (requested % by %). Open that request instead of raising a new one.',
       new.procedure_name, case prev.status when 'Approved' then '"Ready to Start"' else '"Pending Approval"' end,
-      to_char(prev.requested_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM'), coalesce(prev.requested_by_name,'staff');
+      to_char(prev.requested_at at time zone 'Asia/Kolkata','DD-MM HH24:MI'), coalesce(prev.requested_by_name,'staff');
   end if;
   return new;
 end $f$;
@@ -57,6 +57,6 @@ notify pgrst, 'reload schema';
 commit;
 
 -- Check: open requests now (the three duplicates should be gone)
-select p.full_name, r.procedure_code, r.procedure_name, r.status, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM HH12:MI AM') as requested
+select p.full_name, r.procedure_code, r.procedure_name, r.status, to_char(r.requested_at at time zone 'Asia/Kolkata','DD-MM HH24:MI') as requested
   from public.nursing_procedure_requests r join public.patients p on p.id=r.patient_id
  where r.status in ('Requested','Approved') order by r.requested_at;

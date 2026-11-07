@@ -67,7 +67,7 @@ begin
     v_redo := (case when v_give > v_sched then v_row.scheduled_date else v_row.scheduled_date + 1 end) + v_give;
     if v_redo < v_now_ist - interval '10 minutes' then
       raise exception 'The time % on % has already passed for this dose (dose of % %). Choose a later time, or "Skip this dose" if the doctor advised waiting for the next dose.',
-        to_char(v_give,'HH12:MI AM'), to_char(v_redo,'DD-MM-YYYY'), to_char(v_row.scheduled_date,'DD-MM-YYYY'), to_char(v_sched,'HH12:MI AM');
+        to_char(v_give,'HH24:MI'), to_char(v_redo,'DD-MM-YYYY'), to_char(v_row.scheduled_date,'DD-MM-YYYY'), to_char(v_sched,'HH24:MI');
     end if;
   end if;
 
@@ -115,8 +115,8 @@ returns text language sql immutable set search_path = public, pg_temp as $$
             when btrim(p_doctor) ~* '^dr(\.|\s)' then btrim(p_doctor)
             else 'Dr. ' || btrim(p_doctor) end
     || case p_instruction
-         when 'Give now'             then ' was informed and advised to give it' || coalesce(' at ' || ltrim(to_char(p_give,'HH12:MI AM'),'0'),' then')
-         when 'Give at a later time' then ' was informed and advised to give it' || coalesce(' at ' || ltrim(to_char(p_give,'HH12:MI AM'),'0'),' later')
+         when 'Give now'             then ' was informed and advised to give it' || coalesce(' at ' || ltrim(to_char(p_give,'HH24:MI'),'0'),' then')
+         when 'Give at a later time' then ' was informed and advised to give it' || coalesce(' at ' || ltrim(to_char(p_give,'HH24:MI'),'0'),' later')
          when 'Skip this dose'       then ' was informed and advised to skip this dose'
          else ' was informed and reviewed the prescription'
        end

@@ -132,7 +132,7 @@ declare def text;
   anchor constant text := $a$  c := c || public.mis_check('no_nurse_rostered'$a$;
   addition constant text := $b$  c := c || public.mis_check('guest_cover','Guest attended by a nurse not assigned to her','medium','Staff Duty Assignment',
     'A nurse recorded care for a Guest assigned to another nurse on that shift (reason given by the nurse).',
-    $q$select c.created_at as sort_at, to_char(c.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') as date,
+    $q$select c.created_at as sort_at, to_char(c.created_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') as date,
               c.nurse_name as who,
               concat_ws(' · ', nullif(btrim(concat_ws(' ', p.title, p.full_name)),''), c.shift||' shift', 'assigned: '||coalesce(c.assigned_nurse_name,'—'), c.page, 'reason: '||c.reason) as detail,
               null::numeric as amount

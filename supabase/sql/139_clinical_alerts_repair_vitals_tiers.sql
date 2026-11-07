@@ -94,7 +94,7 @@ begin
  vit as(
    select 'Vital Signs'::text,p.id,p.id,p.full_name,
      concat('Room ',coalesce(p.room_no,'—'),case when p.bed_no is not null then '-'||p.bed_no else '' end),
-     concat('Vital Signs Due: ',to_char(vs.tm,'HH12:MI AM')),'Routine vital observations are pending.'::text,
+     concat('Vital Signs Due: ',to_char(vs.tm,'HH24:MI')),'Routine vital observations are pending.'::text,
      vs.due,
      greatest(0,floor(extract(epoch from(v_now-vs.due))/60))::int,
      case when v_now>=vs.due+interval '90 minutes' then 'Critical'

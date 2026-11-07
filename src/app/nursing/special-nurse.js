@@ -75,7 +75,7 @@
     const clockLabel=value=>{
       if(!value)return '—';
       const [hour,minute]=String(value).slice(0,5).split(':').map(Number);
-      return `${hour%12||12}:${String(minute||0).padStart(2,'0')} ${hour<12?'AM':'PM'}`;
+      return `${String(hour).padStart(2,'0')}:${String(minute||0).padStart(2,'0')}`; // 2.19.80: 24-hour clock
     };
     const daysLabel=value=>Array.isArray(value)?value.join(', '):(value||'—');
 

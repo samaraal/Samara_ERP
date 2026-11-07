@@ -28,7 +28,7 @@ begin
      set resolved_at=now(), resolved_by=v_by, resolution_action='Completed',
          resolution_remarks=concat('Automatically resolved: dose recorded as ',new.status,
            case when new.administered_at is not null
-                then concat(' at ',to_char(new.administered_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM'),' IST') else '' end,'.'),
+                then concat(' at ',to_char(new.administered_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI'),' IST') else '' end,'.'),
          updated_at=now()
    where e.resolved_at is null and e.alert_type='Medication'
      and e.source_id=new.order_id
@@ -58,7 +58,7 @@ update public.clinical_alert_escalations t
    set resolved_at=now(), resolution_action='Completed',
        resolution_remarks=concat('Automatically resolved (clean-up 2.18.86): dose recorded as ',m.status,
          case when m.administered_at is not null
-              then concat(' at ',to_char(m.administered_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM'),' IST') else '' end,'.'),
+              then concat(' at ',to_char(m.administered_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI'),' IST') else '' end,'.'),
        updated_at=now()
   from m
  where t.id=m.id;

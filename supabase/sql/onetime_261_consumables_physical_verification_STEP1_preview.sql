@@ -99,7 +99,7 @@ declare
 begin
   if exists(select 1 from public.store_physical_verifications where verification_no=c_vno) then
     raise exception 'Physical Verification % was already applied on %. Nothing done.', c_vno,
-      (select to_char(applied_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH12:MI AM') from public.store_physical_verifications where verification_no=c_vno);
+      (select to_char(applied_at at time zone 'Asia/Kolkata','DD-MM-YYYY HH24:MI') from public.store_physical_verifications where verification_no=c_vno);
   end if;
 
   begin  -- everything below is undone automatically in preview mode -------------------------------

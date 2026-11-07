@@ -5,7 +5,7 @@
   const ONS_SOURCES=["Doctor's prescription",'Family request','Hospital referral','Director / Admin'];
   const ONS_SOURCE_HINT={"Doctor's prescription":'Doctor name','Family request':'Family member name and relation','Hospital referral':'Hospital / doctor name','Director / Admin':'Name'};
   const ONS_VIA=['Phone call','WhatsApp','Written','In person'];
-  const onsTime=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?`${formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))} ${d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase()}`:''};
+  const onsTime=v=>{if(!v)return '';const d=new Date(v);return Number.isFinite(d.getTime())?`${formatDateIN(d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'}))} ${d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).toUpperCase()}`:''};
   const onsSourceText=s=>s?`${s.source}${s.source_detail?` (${s.source_detail})`:''} · Approved by ${s.approved_by} (${s.approved_via})`:'';
   // SQL 267 not yet run → {missing:true}: screens keep the earlier "Submit completed procedure" path.
   async function loadOutsideStarts(){

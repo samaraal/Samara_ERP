@@ -233,7 +233,8 @@
     },[]);
 
     React.useEffect(()=>{
-      const root=document.getElementById('root');
+      // 2.19.80: whole page — pop-ups, toasts and notification panels live outside #root
+      const root=document.body||document.getElementById('root');
       if(!root)return;
       normaliseVisibleIndianDates(root);
       let queued=false;

@@ -12,7 +12,7 @@
   const ioChartDay=at=>{const d=new Date(new Date(at).getTime()-7*3600000);const p=ioIndiaParts(d);return `${p.y}-${p.m}-${p.d}`};
   const ioShiftOf=at=>{const hh=Number(ioIndiaParts(new Date(at)).hh);return hh>=7&&hh<19?IO_DAY:IO_NIGHT};
   const ioAddDays=(iso,n)=>{const d=new Date(`${iso}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
-  const ioTime=at=>{const p=ioIndiaParts(new Date(at));const h=Number(p.hh);return `${((h+11)%12)+1}:${p.mi} ${h<12?'AM':'PM'}`};
+  const ioTime=at=>{const p=ioIndiaParts(new Date(at));return `${String(Number(p.hh)%24).padStart(2,'0')}:${p.mi}`}; // 2.19.80: 24-hour clock
   const ioMl=n=>`${Math.round(Number(n)||0).toLocaleString('en-IN')} ml`;
   function ioBeverageMl(b){
     const qty=b.quantity!=null&&b.quantity!==''?Number(b.quantity):b.quantity_ml!=null?Number(b.quantity_ml):null;
@@ -42,8 +42,8 @@
   const IO_SLOT_H=2,IO_SLOTS=24/IO_SLOT_H;
   const ioSlotStart=(day,i)=>new Date(new Date(`${day}T07:00:00+05:30`).getTime()+i*IO_SLOT_H*3600000);
   const ioSlotOf=(day,at)=>Math.floor((new Date(at).getTime()-ioSlotStart(day,0).getTime())/(IO_SLOT_H*3600000));
-  const ioHour=d=>{const h=Number(ioIndiaParts(d).hh);return `${((h+11)%12)+1}${h<12?' AM':' PM'}`};
-  const ioSlotLabel=(day,i)=>{const a=ioSlotStart(day,i),b=ioSlotStart(day,i+1);return `${ioHour(a).replace(/ (AM|PM)$/,ioHour(a).slice(-2)===ioHour(b).slice(-2)?'':' $1')}–${ioHour(b)}`};
+  const ioHour=d=>`${String(Number(ioIndiaParts(d).hh)%24).padStart(2,'0')}:00`; // 2.19.80: 24-hour clock
+  const ioSlotLabel=(day,i)=>`${ioHour(ioSlotStart(day,i))}–${ioHour(ioSlotStart(day,i+1))}`; // 2.19.80: 07:00–09:00
   const ioColOf=category=>IO_COLS.find(c=>c.cats.includes(category))||IO_COLS[IO_COLS.length-1];
 
   // 2.18.87: printable Intake / Output PDF (full clinical detail) — day-wise totals with Day / Night shift totals,
@@ -325,7 +325,7 @@
 .io-grid thead tr:nth-child(2) th{top:0}
 .io-grid th.io-in{background:#eaf4ff;color:#1d4f91}.io-grid th.io-out{background:#fff3e0;color:#8a4b00}
 .io-grid .io-ic{display:block;font-size:15px;line-height:1.1}
-.io-grid td.io-time,.io-grid th.io-time{text-align:left;padding:4px 6px;font-weight:700;color:#3f2a35;font-size:12px;white-space:normal}
+.io-grid td.io-time,.io-grid th.io-time{text-align:left;padding:4px 6px;font-weight:700;color:#3f2a35;font-size:12px;white-space:nowrap} /* 2.19.80: 07:00–09:00 on one line */
 .io-grid td.io-time small{display:inline-block;margin-left:4px;background:#a91360;color:#fff;border-radius:6px;padding:0 5px;font-size:10px}
 .io-grid tr.io-now td{background:#fff7fb}
 .io-grid tr.io-nightrow td.io-time{background:#f3f4fb}

@@ -17,7 +17,7 @@
   // 2.18.27: fixed times (HH:MM), like medicines. Empty = any time in the shift.
   const nprocHHMM=v=>{const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);return m?`${m[1].padStart(2,'0')}:${m[2]}`:''};
   function nursingProcedureTimes(o){return [...new Set((Array.isArray(o?.scheduled_times)?o.scheduled_times:[]).map(nprocHHMM).filter(Boolean))].sort() /* 2.18.32: plain clock order (6:00 AM … 10:00 PM) */}
-  function nprocTime12(t){const v=nprocHHMM(t);if(!v)return '';const [hh,mm]=v.split(':').map(Number);return `${hh%12||12}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`}
+  function nprocTime12(t){const v=nprocHHMM(t);if(!v)return '';const [hh,mm]=v.split(':').map(Number);return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`} // 2.19.80: 24-hour clock
   const nprocShiftOfTime=t=>{const hh=Number(nprocHHMM(t).slice(0,2));return hh>=7&&hh<19?'Day Shift (7 AM–7 PM)':'Night Shift (7 PM–7 AM)'};
   function nprocShiftForTimes(times){const s=new Set(times.map(nprocShiftOfTime));return s.size===1?[...s][0]:'Both shifts'}
   function nprocFrequencyForTimes(times){return times.length===1?'Once daily':times.length===2?'Twice daily':`${times.length} times daily`}
