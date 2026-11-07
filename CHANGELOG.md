@@ -1,3 +1,7 @@
+## 2.19.77 — 07-11-2026 — Expenses: new head "Zenset Rental"
+- **Accounts → Expenses:** new Expense Head **Zenset Rental** (generator hire, ₹15,000 + GST a month, paid before the 10th). It is a running cost, so it counts in Net Profit and shows as its own line in the Net Profit Statement and the Daily Report's Expenses table.
+- Voice entry: saying "genset", "zenset" or "generator" picks Zenset Rental (no longer filed as Rent because of the word "rental").
+
 ## 2.19.76 — 07-11-2026 — No false "unsaved entry" reminder from the Duty Roster
 - Changing the Duty Roster's **From** date or **Minimum per shift** boxes no longer counts as an unsaved entry (they are settings; the roster cells themselves are taps and are saved with Save roster). The reminder already kept on devices from such changes is cleared once.
 - The "You have N unsaved entries on this device" reminder now also shows the Guest and what was typed, so it is easy to see whose entry it is. (Drafts were and remain per login: each person sees only their own.)

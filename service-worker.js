@@ -1,5 +1,5 @@
-const APP_VERSION = '2.19.76';
-const CACHE = 'samara-erp-2.19.76-draft-roster';
+const APP_VERSION = '2.19.77';
+const CACHE = 'samara-erp-2.19.77-zenset';
 const SHELL = [
   './',
   './index.html',

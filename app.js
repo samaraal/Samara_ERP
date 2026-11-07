@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.76';
+  const APP_VERSION = '2.19.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '07-Nov-2026 Roster draft fix';
+  const APP_BUILD_DATE = '07-Nov-2026 Zenset Rental head';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -53504,7 +53504,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   // Expenses = every ERP source (stock receipts, food vendor, kitchen, petty cash, outsourced physio, outside bills)
   // + Monthly Expenses entered here (salaries paid, rent, electricity …). Equipment purchases count in full
   // in the month bought, on their own line: Operating Profit (before equipment) and Net Profit (after).
-  const NP_HEADS=['Salaries','Facility Development (Furniture & Setup)','Daily Wages','Rent','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
+  const NP_HEADS=['Salaries','Facility Development (Furniture & Setup)','Daily Wages','Rent','Zenset Rental','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
   const NP_MODES=['Cash','UPI','Bank Transfer','Cheque','Card'];
   const npMoney=v=>`₹${(Number(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const npMonthStart=iso=>`${String(iso).slice(0,7)}-01`;
@@ -53638,6 +53638,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   // Tamil / English voice fills the form. Page opens on boxes; each box opens its section with "← Back".
   const EXP_BILL_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
   const EXP_HEAD_WORDS=[
+    // 2.19.77: generator (genset) hire — Rs.15,000 + GST a month, paid before the 10th; checked before Rent so "genset rental" is not filed as Rent
+    ['Zenset Rental',/(zen ?set|gen ?set|generator|ஜென்செட்|ஜெனரேட்டர்)/i],
     ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|கூலி|சம்பளம் நாள்)/i],
     // 2.18.184: new facility — cots, chairs, curtains, furniture, heaters etc.
     ['Facility Development (Furniture & Setup)',/(\b(cots?|beds?|mattress(es)?|pillows?|bedsheets?|chairs?|tables?|curtains?|furniture|almirah|cupboards?|wardrobes?|racks?|shelf|shelves|sofas?|fans?|heaters?|geysers?|interiors?|facility development|new facility|setup)\b|கட்டில்|நாற்காலி|சேர்|திரைச்சீலை|ஸ்கிரீன்|மெத்தை|பீரோ|மேசை|டேபிள்)/i],
