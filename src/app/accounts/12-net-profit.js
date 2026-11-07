@@ -385,6 +385,7 @@
       try{
         if(!form.date||form.date<'2026-08-27'||form.date>today)throw new Error('Choose a date between 27-08-2026 and today.');
         if(!(Number(form.amount)>0))throw new Error('Enter the amount spent.');
+        if(form.head==='Zenset Rental')throw new Error('Zenset rent is recorded in Accounts → Zenset Account (it adds the Expense here by itself). Open Zenset Account to record it, so it is not counted twice.'); // 2.19.78
         if(!bill&&!form.no_bill)throw new Error('Add a photo of the bill, or tick "No bill" and give the reason.');
         if(form.no_bill&&String(form.no_bill_reason).trim().length<3)throw new Error('Give the reason there is no bill (e.g. auto fare, small shop without bill).');
         let path='';

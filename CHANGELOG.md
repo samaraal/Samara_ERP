@@ -1,3 +1,13 @@
+## 2.19.78 — 07-11-2026 — Zenset Account (generator on hire) — SQL 350
+- **New page Accounts → Profit · Admin only → Zenset Account** (Admin / Directors). A separate account for the generator hired from the Zenset vendor (₹15,000 + GST, due by the 10th):
+  - **Deposit paid / Deposit refunded** — the refundable deposit is Samara's money with the vendor: shown in the account, **not** an expense, no effect on Net Profit.
+  - **Record rent payment** — month, date, rent + GST (worked out from the GST %), paid by, reference, bill photo / PDF or "No bill" reason. Recorded **once** here and added to **Expenses** by itself under "Zenset Rental", so it counts in Net Profit. Removing it here removes the Expenses entry too (with the reason).
+  - **Rent month by month** — Paid / Part paid / Due / Overdue (after the due day), with a Pay button; a second payment for a month already paid needs a tick to confirm.
+  - **Account details** — vendor name, phone, GSTIN, monthly rent, GST %, due day, month to start tracking from.
+  - Entries list with All / Today / This Week / Month / Period filters.
+- Expenses: "Zenset Rental" can no longer be typed in Expenses directly — it points to the Zenset Account, so the rent is never counted twice.
+- Needs `supabase/sql/350_zenset_rental_account.sql` run in Supabase.
+
 ## 2.19.77 — 07-11-2026 — Expenses: new head "Zenset Rental"
 - **Accounts → Expenses:** new Expense Head **Zenset Rental** (generator hire, ₹15,000 + GST a month, paid before the 10th). It is a running cost, so it counts in Net Profit and shows as its own line in the Net Profit Statement and the Daily Report's Expenses table.
 - Voice entry: saying "genset", "zenset" or "generator" picks Zenset Rental (no longer filed as Rent because of the word "rental").
