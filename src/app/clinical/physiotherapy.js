@@ -363,7 +363,7 @@
       patientLabel(request.original.patient_id),formatDateIN(request.original.session_date),
       request.action,request.original.status+' / '+clockLabel(request.original.scheduled_time)+(request.original.actual_time?' · Actual: '+clockLabel(request.original.actual_time):''),
       request.action==='Delete'?'Remove incorrect entry':formatDateIN(request.proposed.session_date)+' / '+clockLabel(request.proposed.scheduled_time)+' / '+(request.action==='Reschedule'?'Pending':request.proposed.status)+(request.action==='Modify'&&request.proposed.status==='Completed'?' · Actual: '+clockLabel(request.proposed.actual_time):''),
-      request.reason,request.state,fmt(request.requested_at),
+      request.reason,request.state==='Rejected'&&/^Closed automatically/.test(request.review_note||'')?'Closed (out of date)':request.state,fmt(request.requested_at), // 2.19.84 (SQL 353)
       canReview&&request.state==='Pending'&&ownRequest(request)?h('span',{className:'badge',style:{background:'#fff4e0',color:'#8a5300'},title:'You cannot approve your own request'},profile?.role==='Admin'?'Your request — waiting for Nursing Manager':'Your request — waiting for Admin'): // 2.18.126
       canReview&&request.state==='Pending'?h('div',{className:'physio-req-review'},
         h('input',{'aria-label':'Review note',value:reviewNotes[request.id]||'',placeholder:'Reason required to reject',onChange:e=>setReviewNotes({...reviewNotes,[request.id]:e.target.value})}),

@@ -1,3 +1,8 @@
+## 2.19.84 — 07-11-2026 — Physiotherapy: out-of-date requests close by themselves — SQL 353
+- When a waiting session gets its outcome recorded (Completed / Not Done), any reschedule / correction request still waiting for that session closes automatically, with the note "Closed automatically — session recorded as Completed at HH:MM after this request was made". It leaves the bell, the pop-up and the approval list, and shows as **Closed (out of date)** in the request history (kept for audit).
+- Requests already in this state are tidied once when the SQL is run (e.g. the 08:54 request for Mr. S. Swaminathan's 08:00 session, done at 09:30).
+- **Database**: run `supabase/sql/353_physio_auto_close_outdated_requests.sql`.
+
 ## 2.19.83 — 07-11-2026 — Physiotherapy correction requests fit the screen
 - The Physiotherapy Correction Request / Approvals table no longer scrolls sideways: all columns fit the screen, text wraps, and the Review controls (reject reason, Voice, Language, Dictate, Approve, Reject) stack inside their column. No database change.
 
