@@ -1,3 +1,7 @@
+## 2.19.73 — 07-11-2026 — Final Billing: Charge Summary fits the screen (text wraps)
+- **Accounts / Billing → Final Billing:** the Charge Summary and Payment & Adjustment History tables no longer need sideways scrolling. Long descriptions (consumables, pharmacy, physiotherapy session lists) now wrap onto several lines, and the Amount column stays visible on the right.
+- The Gross Charges / Payments / Net Payable boxes on this page are now always shown as coloured cards (they appeared as plain text unless the Payments page had been opened first).
+
 ## 2.19.72 — 06-11-2026 — Care vs Billing PDF: reversed (Cancelled) charges no longer counted
 - The PDF counted charges marked Cancelled (e.g. the 2 reversed nebulisation charges of Mr. S. SWAMINATHAN on 06-11, onetime 348). It now skips Removed, Cancelled and Rejected charges.
 

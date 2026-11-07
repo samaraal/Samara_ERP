@@ -54,7 +54,7 @@
     }catch(e){return e?.message||String(e)}
   }
   function FinalBillingView({profile,onNavigate}){
-    React.useEffect(()=>{ensureAccountsWorkspaceStyle()},[]);
+    React.useEffect(()=>{ensureAccountsWorkspaceStyle();ensurePaymentSettlementStyle()},[]);
     const [patients]=usePatients(true);
     const [patientScope,setPatientScope]=React.useState('active');
     const scopedPatients=patients.filter(p=>patientScope==='all'||(patientScope==='inactive'?p.is_active===false:p.is_active!==false));
@@ -474,7 +474,10 @@
           ))
         ),
 
+        // 2.19.73: wrap long text so the Charge Summary / Payment History fit the screen (no sideways scrolling).
+        h('style',null,'table.fb-wrap-table{min-width:0!important;width:100%;table-layout:fixed}table.fb-wrap-table th,table.fb-wrap-table td{white-space:normal!important;overflow-wrap:break-word;word-break:normal;vertical-align:top;line-height:1.4}table.fb-wrap-table td:last-child,table.fb-wrap-table th:last-child{text-align:right;white-space:nowrap!important}.fb-charge-summary th:nth-child(1){width:80px}.fb-charge-summary th:nth-child(2){width:200px}.fb-charge-summary th:nth-child(3){width:90px}.fb-charge-summary th:nth-child(5){width:130px}.fb-payment-history th:nth-child(1){width:110px}.fb-payment-history th:nth-child(2){width:12%}.fb-payment-history th:nth-child(3){width:14%}.fb-payment-history th:nth-child(4){width:11%}.fb-payment-history th:nth-child(6){width:130px}@media(max-width:760px){table.fb-wrap-table{table-layout:auto}}'),
         h(LogTable,{
+          className:'fb-wrap-table fb-charge-summary',
           title:loading?'Loading complete bill…':`Charge Summary (${chargeGroups.length})`,
           subtitle:`${formalName(patient)||patient.full_name} · ${patient.patient_id||'No ID'}`,
           heads:['Sl. No.','Category','Entries','Description','Amount'],
@@ -488,6 +491,7 @@
         }),
 
         h(LogTable,{
+          className:'fb-wrap-table fb-payment-history',
           title:'Payment & Adjustment History',
           subtitle:'Payments, advances, discounts and refunds',
           heads:['Date','Type','Category','Mode','Reference / Description','Amount'],
