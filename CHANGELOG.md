@@ -1,3 +1,7 @@
+## 2.19.89 — 08-11-2026 — Daily Report: physiotherapy one row per Guest; tables never run over the footer — SQL 361
+- **Physiotherapy — sessions per Guest** (SQL 361, replaces 360): one row per Guest — Done (e.g. 2 of 2) · Session 1 · Session 2 (· Session 3), each "Plan 08:00–09:00 · Done 09:30 ✓"; a rescheduled session shows "Plan 17:00–18:00 → moved to 19:30 · Done 19:10 ✓". SQL 360 used a helper (physio_plan_window_ends) that is not on the live database — 361 does not need it.
+- **PowerPoint**: a table that cannot fit its title, header and first row moves to a new slide (it overlapped the footer); empty "Session N" columns are hidden.
+
 ## 2.19.88 — 08-11-2026 — Daily Report: clickable contents, Home / Back, abnormal readings in red; physio notes without a session — SQL 359
 - **Navigation**: each contents box on the title slide opens its section's slide; every slide has **⌂ Home** (contents) and **◀ Back** (previous slide) buttons — click in Slide Show, Ctrl + click while editing.
 - **Readings outside normal**: each value outside normal (BP ≥140/90 or <90/60, pulse >100 or <60, SpO2 <95, temperature ≥99.5 °F, RR >24, sugar >200 or <70) in red bold; Level Critical in red, Warning in amber. Columns are never narrower than their longest word.

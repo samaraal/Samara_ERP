@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.88';
+  const APP_VERSION = '2.19.89';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Nov-2026 Daily Report navigation + abnormal readings';
+  const APP_BUILD_DATE = '08-Nov-2026 Daily Report physio per Guest + no footer overlap';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -56263,6 +56263,7 @@ function AuditTrail(){
       data&&h('p',{className:'small-note'},`Checked ${formatDateTimeIN(data.generated_at||new Date())} · India time. Trial Guests are left out. The morning WhatsApp summary covers the previous day.`)
     );
   }
+  // 2.19.89: a table never starts where it cannot fit (no overlap with the footer); empty Session columns hidden.
   // 2.19.88: contents boxes link to their slide; Home / Back on every slide; abnormal readings in red bold.
   // 2.19.86: colourful deck (accent colour + icon per section, coloured tiles / tables, problem rows in red).
   // 2.19.85: larger fonts throughout the PowerPoint; table notes printed under each table (Care services slide).
@@ -56437,7 +56438,10 @@ function AuditTrail(){
       return y+Math.ceil(kpis.length/per)*(th+gap)+0.04;
     };
     // table geometry: column widths by content, row heights by wrapping
-    const tableModel=(t,w,fs=13)=>{
+    const tableModel=(t0,w,fs=13)=>{
+      // a "Session N" column that is empty for every row is left out (e.g. Session 3 when all plans are twice daily)
+      const keep=(t0.cols||[]).map((c,i)=>!(/^Session \d/.test(String(c))&&(t0.rows||[]).length&&(t0.rows||[]).every(r=>r[i]==null||r[i]==='—')));
+      const t=keep.every(Boolean)?t0:{...t0,cols:t0.cols.filter((_,i)=>keep[i]),rows:(t0.rows||[]).map(r=>r.filter((_,i)=>keep[i]))};
       const cols=t.cols||[];
       const rows=(t.rows||[]).map(r=>cols.map((c,i)=>mdrCell(c,r[i])));
       const weights=cols.map((c,i)=>Math.max(Math.ceil(String(c).length*1.25)+1,...rows.map(r=>Math.min(String(r[i]).length,60)),3));
@@ -56560,9 +56564,12 @@ function AuditTrail(){
         }
         const m=tableModel(a,CW,(a.cols||[]).length>7?12:13);
         let from=0,cont=false;
+        // 2.19.89: never start a table where not even its title, header and first row (or its message) fit — new slide instead
+        const firstNeed=m.msg?tableHeight(m):TITLE_H+HEAD_H+0.05+(m.rows.length?m.rowH(m.rows[0]):0.34)+(m.rows.length===1?m.noteH:0);
+        if(y+firstNeed>BOTTOM&&y>1.35)newSlide();
         do{
           let n=rowsThatFit(m,from,BOTTOM-y);
-          if(n<Math.min(3,m.rows.length-from)&&y>1.35){newSlide();n=rowsThatFit(m,from,BOTTOM-y)}
+          if((m.msg?y+tableHeight(m)>BOTTOM:n<Math.min(3,m.rows.length-from))&&y>1.35){newSlide();n=rowsThatFit(m,from,BOTTOM-y)}
           n=Math.max(1,n);
           y+=drawTable(s,m,M,y,CW,from,Math.min(m.rows.length,from+n),cont)+0.15;
           from+=n;cont=true;
