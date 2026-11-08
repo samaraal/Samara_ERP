@@ -1,4 +1,4 @@
-// Self-contained for Supabase Dashboard deployment. Edge Function: bill-charge-escalation-dispatch (ERP 2.15.54, SQL 188 + 189).
+// Self-contained for Supabase Dashboard deployment. Edge Function: bill-charge-escalation-dispatch (ERP 2.15.54, SQL 188 + 189; 2.19.88 image header + failure back-off).
 // WhatsApps Admin / Director ONE summary (count + since when, no Guest details) when Bills & Charges requests are still Pending with Accounts 30 minutes after being raised, repeated every 30 minutes until attended.
 // Secrets: BILLING_WHATSAPP_ENABLED=true (after Meta approves template samara_billing_escalation); uses the existing WhatsApp + CRON secrets.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -100,13 +100,17 @@ Deno.serve(async (req) => {
 
     let sent = 0, failed = 0, skipped = 0, processed = 0;
     for (const recipient of recipients as any[]) {
-      const { data: last } = await admin.from("bill_charge_whatsapp_summaries")
+      const { data: recent } = await admin.from("bill_charge_whatsapp_summaries")
         .select("id,status,created_at").eq("recipient_number", recipient.phone)
-        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        .order("created_at", { ascending: false }).limit(3);
+      const last = (recent || [])[0];
       if (last) {
         const age = Date.now() - new Date(last.created_at).getTime();
-        // Sent / Sending: wait the full 30 minutes. Failed: retry after 5 minutes.
-        if (last.status === "Failed" ? age < 5 * 60 * 1000 : age < repeatMs - 30 * 1000) { skipped += 1; continue; }
+        // Sent / Sending: wait the full 30 minutes. Failed: retry after 5 minutes — but after 3 failures in a row wait
+        // the full 30 minutes too (2.19.88: a template mismatch made ~1,000 failed tries a day).
+        const failedRun = (recent || []).length >= 3 && (recent || []).every((r: any) => r.status === "Failed");
+        const wait = last.status === "Failed" && !failedRun ? 5 * 60 * 1000 : repeatMs - 30 * 1000;
+        if (age < wait) { skipped += 1; continue; }
       }
       processed += 1;
       const { data: logRow, error: logError } = await admin.from("bill_charge_whatsapp_summaries").insert({
@@ -122,7 +126,10 @@ Deno.serve(async (req) => {
         template: {
           name: templateName,
           language: { code: languageCode },
-          components: [{ type: "body", parameters: [
+          // 2.19.88: the approved template has an IMAGE header (Samara logo) — Meta refused every send without it
+          // (#132012 "Parameter format does not match format in the created template", 04-11-2026 onwards).
+          components: [{ type: "header", parameters: [{ type: "image", image: { link: Deno.env.get("WHATSAPP_BILLING_HEADER_IMAGE") || Deno.env.get("WHATSAPP_CLINICAL_HEADER_IMAGE") || "https://samaraassistedliving.com/assets/samara-logo.png" } }] },
+            { type: "body", parameters: [
             { type: "text", text: String(total) },
             { type: "text", text: since },
           ] }],
