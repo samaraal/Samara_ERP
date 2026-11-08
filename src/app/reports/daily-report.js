@@ -1,3 +1,4 @@
+  // 2.19.90: sugar readings / High-Low results coloured (Clinical care).
   // 2.19.89: a table never starts where it cannot fit (no overlap with the footer); empty Session columns hidden.
   // 2.19.88: contents boxes link to their slide; Home / Back on every slide; abnormal readings in red bold.
   // 2.19.86: colourful deck (accent colour + icon per section, coloured tiles / tables, problem rows in red).
@@ -208,11 +209,11 @@
         :m.rows.slice(from,to).map((r,ri)=>{
           const warn=r.some(v=>String(v).startsWith('⚠')); // a problem row stands out in light red
           return r.map((v,i)=>{const sv=String(v),col=String(m.cols[i]);
-            const level=/^(level|alert)$/i.test(col)?(/critical/i.test(sv)?MDR_C.red:/warn/i.test(sv)?'B45309':''):'';
+            const level=/^(level|alert|result)$/i.test(col)?(/critical|high|low/i.test(sv)?MDR_C.red:/warn/i.test(sv)?'B45309':/^normal$/i.test(sv)?MDR_C.green:''):'';
             const color=level||(sv.startsWith('⚠')?MDR_C.red:sv.startsWith('▲')?'1D4ED8':sv.startsWith('▼')?'C2410C':warn?'7A1F1F':MDR_C.ink);
             const opts={align:numLike(col,sv)?'right':'left',bold:!!level||/^[⚠▲▼]/.test(sv),color,fill:{color:warn?'FDECEC':ri%2?acc.z:'FFFFFF'}};
             // vitals text: each reading outside normal in red bold
-            if(/^reading/i.test(col)&&sv.includes('·')){
+            if(/^reading/i.test(col)&&sv!=='—'){
               const parts=sv.split(' · ');
               return {text:parts.map((p,pi)=>({text:p+(pi<parts.length-1?' · ':''),options:mdrVitalAbnormal(p)?{color:MDR_C.red,bold:true}:{color}})),options:opts};
             }

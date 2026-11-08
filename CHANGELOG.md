@@ -1,3 +1,7 @@
+## 2.19.90 — 08-11-2026 — Daily Report: blood glucose on Clinical care — SQL 362
+- Blood glucose values are saved in Vital Signs; "Readings outside normal" listed only rounds marked Warning / Critical, so sugar readings never showed. Now any sugar above 200 or below 70 mg/dL is listed there (red bold), and a new table **Blood glucose readings** lists every sugar check of the day — Time · Guest · Reading · Result (High / Low in red, Normal in green).
+- Needs `supabase/sql/362_mdr_blood_glucose_readings.sql`, then "↻ Prepare again".
+
 ## 2.19.89 — 08-11-2026 — Daily Report: physiotherapy one row per Guest; tables never run over the footer — SQL 361
 - **Physiotherapy — sessions per Guest** (SQL 361, replaces 360): one row per Guest — Done (e.g. 2 of 2) · Session 1 · Session 2 (· Session 3), each "Plan 08:00–09:00 · Done 09:30 ✓"; a rescheduled session shows "Plan 17:00–18:00 → moved to 19:30 · Done 19:10 ✓". SQL 360 used a helper (physio_plan_window_ends) that is not on the live database — 361 does not need it.
 - **PowerPoint**: a table that cannot fit its title, header and first row moves to a new slide (it overlapped the footer); empty "Session N" columns are hidden.
