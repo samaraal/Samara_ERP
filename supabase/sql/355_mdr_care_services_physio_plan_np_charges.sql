@@ -64,11 +64,11 @@ declare d date := p_day; k jsonb := '[]'; t jsonb := '[]';
          and coalesce(r.category,'Nursing Procedures') <> 'Biomedical Equipment'
          and (r.started_at at time zone 'Asia/Kolkata')::date = $1
     ), lnk as (   -- charges linked to the procedure (raised automatically on Start)
-      select n.patient_id, n.procedure_name, b.*
+      select n.patient_id, n.procedure_name, b.approval_status, b.billing_transaction_id, b.approved_amount, b.final_amount
         from npr n join public.bill_charge_requests b on b.id = n.charge_request_id
        where coalesce(b.status,'') <> 'Cancelled'
     ), hand as (  -- same item, same Guest, same day, raised by hand (not linked to any procedure)
-      select b.patient_id, b.service_name as procedure_name, b.*
+      select b.patient_id, b.service_name as procedure_name, b.approval_status, b.billing_transaction_id, b.approved_amount, b.final_amount
         from public.bill_charge_requests b
        where coalesce(b.status,'') <> 'Cancelled'
          and coalesce(b.charge_date, (coalesce(b.service_datetime, b.raised_at, b.created_at) at time zone 'Asia/Kolkata')::date) = $1
