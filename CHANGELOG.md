@@ -1,3 +1,9 @@
+## 2.19.88 — 08-11-2026 — Daily Report: clickable contents, Home / Back, abnormal readings in red; physio notes without a session — SQL 359
+- **Navigation**: each contents box on the title slide opens its section's slide; every slide has **⌂ Home** (contents) and **◀ Back** (previous slide) buttons — click in Slide Show, Ctrl + click while editing.
+- **Readings outside normal**: each value outside normal (BP ≥140/90 or <90/60, pulse >100 or <60, SpO2 <95, temperature ≥99.5 °F, RR >24, sugar >200 or <70) in red bold; Level Critical in red, Warning in amber. Columns are never narrower than their longest word.
+- **Physiotherapy** (SQL 359): a Guest with a physio note but no session recorded shows as "⚠ Note only — no session recorded (no physio plan)" and counts in "Physiotherapy not done" — found for Mrs. Shanthi (notes 03–06-11, no plan, no sessions, nothing charged).
+- Billing escalation WhatsApp (to Admin / Directors) has been failing since 04-11 with Meta error #132012 "Parameter format does not match the template" — retried every 5 minutes (472 / 581 / 889 / 1,012 failures a day).
+
 ## 2.19.87 — 08-11-2026 — Daily Report: chart bars show up / down; WhatsApp sent excludes failed — SQL 358
 - **Day at a glance charts**: each bar is coloured against the day before — green = higher (better), red = lower, grey = same — with a small key under each chart.
 - **Family & communication** (SQL 358): "WhatsApp sent" now counts only messages accepted by WhatsApp; new "WhatsApp attempts" number; "WhatsApp by type" shows Attempts · Sent · Failed (07-11-2026 showed 1,047 "sent" of which 1,012 had failed).

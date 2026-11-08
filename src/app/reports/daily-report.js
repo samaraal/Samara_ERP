@@ -1,3 +1,4 @@
+  // 2.19.88: contents boxes link to their slide; Home / Back on every slide; abnormal readings in red bold.
   // 2.19.86: colourful deck (accent colour + icon per section, coloured tiles / tables, problem rows in red).
   // 2.19.85: larger fonts throughout the PowerPoint; table notes printed under each table (Care services slide).
   // 2.19.75: DAILY REPORT — "all happenings of the day" (midnight to midnight, IST) as a PowerPoint deck (Windows),
@@ -48,6 +49,19 @@
   const mdrNum=v=>{if(v==null||v==='')return '—';const n=Number(v);return Number.isFinite(n)?n.toLocaleString('en-IN',{maximumFractionDigits:1}):String(v)};
   const mdrKpiValue=k=>k?.value==null?'—':k.unit==='₹'?mdrMoney(k.value):k.unit==='%'?`${mdrNum(k.value)}%`:k.unit==='min'?`${mdrNum(k.value)} min`:mdrNum(k.value);
   const mdrCell=(col,v)=>mdrIsMoneyCol(col)?mdrMoney(v):(v==null||v===''?'—':typeof v==='number'?mdrNum(v):String(v));
+  // 2.19.88: which part of a vitals text ("BP 160/90 · Pulse 86 · SpO2 97% · Temp 98.2") is outside normal
+  function mdrVitalAbnormal(part){
+    const t=String(part||'').trim(),n=parseFloat((t.match(/[\s:=]\s*(-?\d+(?:\.\d+)?)/)||[])[1]); // the value after the name (SpO2's own "2" is not the value)
+    const bp=t.match(/^BP\s*(\d+)\s*\/\s*(\d+)/i);
+    if(bp){const sy=+bp[1],di=+bp[2];return sy>=140||sy<90||di>=90||di<60}
+    if(!Number.isFinite(n))return false;
+    if(/^(pulse|pr|hr|heart)/i.test(t))return n>100||n<60;
+    if(/^spo2|^sat/i.test(t))return n<95;
+    if(/^temp/i.test(t))return n<45?(n>=37.5||n<35.8):(n>=99.5||n<96.5);
+    if(/^(rr|resp)/i.test(t))return n>24||n<12;
+    if(/^(rbs|grbs|cbg|sugar|glucose|fbs|ppbs)/i.test(t))return n>200||n<70;
+    return false;
+  }
   // "Yesterday 4 · 7-day avg 4.0" with good / bad colour
   function mdrCompare(k){
     if(k?.prev==null&&k?.avg7==null)return {text:k?.note||'',tone:''};
@@ -83,7 +97,19 @@
   }
   async function buildDailyReportPptx(rep){
     const PptxGenJS=await loadPptxLibrary();
+    const logo=await mdrLogoData();
+    // 2.19.88: two passes — the first only finds the slide where each section starts (a section can run over several
+    // slides), so the contents boxes on the title slide can link to the right slide.
+    const secStart=[];
+    mdrRenderDeck(new PptxGenJS(),rep,logo,secStart);
     const pptx=new PptxGenJS();
+    mdrRenderDeck(pptx,rep,logo,secStart);
+    const care=rep.variant==='care';
+    const name=`Samara_Daily_Report_${String(rep.day||'').slice(0,10)}${care?'_Nursing':''}.pptx`;
+    await pptx.writeFile({fileName:name,compression:true});
+    return name;
+  }
+  function mdrRenderDeck(pptx,rep,logo,secStart){
     pptx.layout='LAYOUT_WIDE'; // 13.33 × 7.5 in
     pptx.author='Samara Care ERP';pptx.company='Samara Health Care LLP';
     pptx.title=`Samara Daily Report ${rep.day_label}`;
@@ -95,13 +121,21 @@
                {c:'C2410C',d:'8A2E08',t:'FDEBDD',z:'FFF8F2'},{c:'1D4ED8',d:'1E3A8A',t:'E2EAFB',z:'F5F8FE'},{c:'15803D',d:'14532D',t:'E0F2E6',z:'F4FBF6'}];
     const ICON={glance:'📊',movement:'🛏️',clinical:'🩺',escalations:'🚨',services:'💉',attention:'⚠️',billing:'🧾',money:'💰',staff:'👩‍⚕️',stores:'📦',family:'👪',exceptions:'🔍'};
     let accIdx=0,acc=PAL[0],icon='';
-    const logo=await mdrLogoData();
     let pageNo=0;
     const footer=s=>{
       pageNo+=1;
       s.addText(`Samara Health Care LLP  ·  Daily Report ${rep.day_label} (${rep.weekday||''})`,{x:M,y:7.06,w:7,h:0.3,fontSize:11,color:MDR_C.grey,fontFace:FONT});
       s.addText(copy,{x:W/2-1.8,y:7.06,w:3.6,h:0.3,fontSize:11,color:MDR_C.grey,align:'center',fontFace:FONT});
-      s.addText(String(pageNo),{x:W-M-1,y:7.06,w:1,h:0.3,fontSize:11,color:MDR_C.grey,align:'right',fontFace:FONT});
+      s.addText(String(pageNo),{x:W-M-0.6,y:7.06,w:0.6,h:0.3,fontSize:11,color:MDR_C.grey,align:'right',fontFace:FONT});
+      // Home (contents) and Back (previous slide) — work in Slide Show (click) and in editing (Ctrl + click)
+      navBtn(s,'⌂  Home',W-M-2.9,1,'Contents');
+      if(pageNo>2)navBtn(s,'◀  Back',W-M-1.75,pageNo-1,'Previous slide');
+    };
+    const mdrLinkArea=(s,x,y,w,h,slide,tip)=>s.addText('',{x,y,w,h,hyperlink:{slide,tooltip:tip},margin:0});
+    const navBtn=(s,label,x,slide,tip)=>{
+      s.addText(label,{x,y:7.07,w:1.05,h:0.3,shape:pptx.ShapeType.roundRect,rectRadius:0.15,fill:{color:acc.t},line:{color:acc.c,width:0.75},
+        color:acc.d,fontSize:11,bold:true,align:'center',valign:'middle',fontFace:FONT,margin:0});
+      mdrLinkArea(s,x,7.07,1.05,0.3,slide,tip);
     };
     // slide master: the top bar, logo and footer line are stored once for the whole deck
     pptx.defineSlideMaster({title:'MDR',background:{color:'FFFFFF'},objects:[
@@ -143,7 +177,13 @@
       const rows=(t.rows||[]).map(r=>cols.map((c,i)=>mdrCell(c,r[i])));
       const weights=cols.map((c,i)=>Math.max(Math.ceil(String(c).length*1.25)+1,...rows.map(r=>Math.min(String(r[i]).length,60)),3));
       const sum=weights.reduce((a,b)=>a+b,0)||1;
-      let colW=weights.map(x=>Math.max(0.65,w*x/sum));const k=w/colW.reduce((a,b)=>a+b,0);colW=colW.map(x=>x*k);
+      // no column narrower than its longest word (so "Warning" never breaks as "Warni-ng")
+      const minW=cols.map((c,i)=>Math.max(0.65,0.16+Math.max(...[String(c),...rows.map(r=>r[i])].map(v=>Math.max(0,...String(v).split(/\s+/).map(x=>x.length))))*fs/125*1.12));
+      let colW=weights.map((x,i)=>Math.max(minW[i],w*x/sum));
+      for(let pass=0;pass<4;pass++){const over=colW.reduce((a,b)=>a+b,0)-w;if(over<=0.001)break;
+        const flex=colW.map((x,i)=>Math.max(0,x-minW[i])),fs2=flex.reduce((a,b)=>a+b,0);if(!fs2)break;
+        colW=colW.map((x,i)=>x-over*flex[i]/fs2);}
+      const k=w/colW.reduce((a,b)=>a+b,0);colW=colW.map(x=>x*k);
       const cpi=125/fs; // characters per inch
       const rowH=r=>0.05+0.0165*fs*Math.max(1,...r.map((v,i)=>Math.ceil(String(v).length/Math.max(1,(colW[i]-0.12)*cpi))));
       const noteLines=t.note&&!t.error?Math.ceil(String(t.note).length/Math.max(1,w*(125/11))):0;
@@ -163,9 +203,16 @@
       const body=m.msg?[[{text:m.msg,options:{colspan:m.cols.length,italic:true,color:MDR_C.grey}}]]
         :m.rows.slice(from,to).map((r,ri)=>{
           const warn=r.some(v=>String(v).startsWith('⚠')); // a problem row stands out in light red
-          return r.map((v,i)=>{const sv=String(v);
-            const color=sv.startsWith('⚠')?MDR_C.red:sv.startsWith('▲')?'1D4ED8':sv.startsWith('▼')?'C2410C':warn?'7A1F1F':MDR_C.ink;
-            return {text:v,options:{align:numLike(m.cols[i],sv)?'right':'left',bold:/^[⚠▲▼]/.test(sv),color,fill:{color:warn?'FDECEC':ri%2?acc.z:'FFFFFF'}}}});
+          return r.map((v,i)=>{const sv=String(v),col=String(m.cols[i]);
+            const level=/^(level|alert)$/i.test(col)?(/critical/i.test(sv)?MDR_C.red:/warn/i.test(sv)?'B45309':''):'';
+            const color=level||(sv.startsWith('⚠')?MDR_C.red:sv.startsWith('▲')?'1D4ED8':sv.startsWith('▼')?'C2410C':warn?'7A1F1F':MDR_C.ink);
+            const opts={align:numLike(col,sv)?'right':'left',bold:!!level||/^[⚠▲▼]/.test(sv),color,fill:{color:warn?'FDECEC':ri%2?acc.z:'FFFFFF'}};
+            // vitals text: each reading outside normal in red bold
+            if(/^reading/i.test(col)&&sv.includes('·')){
+              const parts=sv.split(' · ');
+              return {text:parts.map((p,pi)=>({text:p+(pi<parts.length-1?' · ':''),options:mdrVitalAbnormal(p)?{color:MDR_C.red,bold:true}:{color}})),options:opts};
+            }
+            return {text:v,options:opts}});
         });
       s.addTable([head,...body],{x,y:y+TITLE_H,w,colW:m.colW,fontSize:m.fs,fontFace:FONT,color:MDR_C.ink,border:{type:'solid',pt:0.5,color:acc.t},margin:[0.03,0.07,0.03,0.07],autoPage:false});
       let h=tableHeight(m,from,to)-(to>=m.rows.length?m.noteH:0);
@@ -191,7 +238,10 @@
         s.addShape(pptx.ShapeType.roundRect,{x:cx,y:cy,w:cwid,h:ch,fill:{color:pc.t},line:{color:pc.c,width:1},rectRadius:0.1});
         s.addShape(pptx.ShapeType.ellipse,{x:cx+0.12,y:cy+(ch-0.5)/2,w:0.5,h:0.5,fill:{color:pc.c},line:{color:pc.c}});
         s.addText(String(i+1),{x:cx+0.12,y:cy+(ch-0.5)/2,w:0.5,h:0.5,fontSize:14,bold:true,color:MDR_C.white,align:'center',valign:'middle',fontFace:FONT,margin:0});
-        s.addText(`${ICON[x.key]?ICON[x.key]+'  ':''}${x.title}`,{x:cx+0.72,y:cy,w:cwid-0.8,h:ch,fontSize:13.5,bold:true,color:pc.d,valign:'middle',fontFace:FONT,margin:0,fit:'shrink'});});
+        s.addText(`${ICON[x.key]?ICON[x.key]+'  ':''}${x.title}`,{x:cx+0.72,y:cy,w:cwid-0.8,h:ch,fontSize:13.5,bold:true,color:pc.d,valign:'middle',fontFace:FONT,margin:0,fit:'shrink'});
+        // the whole box is clickable: an invisible layer on top carries the link (no underlined text)
+        if(secStart[i])mdrLinkArea(s,cx,cy,cwid,ch,secStart[i],`Go to ${x.title}`);});
+      s.addText('Tap a box to open that section · every slide has Home and Back',{x:cx0,y:6.62,w:2*cwid+cg,h:0.3,fontSize:11,italic:true,color:MDR_C.grey,align:'center',fontFace:FONT,margin:0});
       s.addText('Samara Health Care LLP  ·  Samara Assisted Living',{x:M+0.2,y:6.55,w:6,h:0.4,fontSize:12,color:MDR_C.grey,fontFace:FONT,margin:0});
       pageNo+=1;
     }
@@ -200,6 +250,7 @@
     (rep.sections||[]).forEach((sec,si)=>{
       const numText=`${si+1} of ${total}`;
       accIdx=si%PAL.length;acc=PAL[accIdx];icon=ICON[sec.key]||'';
+      secStart[si]=pageNo+1;
       let s=addPage();header(s,sec.title,sec.subtitle,numText);
       let y=tiles(s,sec.kpis||[],1.32);
       if(sec.key==='glance'){
@@ -260,9 +311,6 @@
       }
       footer(s);
     });
-    const name=`Samara_Daily_Report_${String(rep.day||'').slice(0,10)}${care?'_Nursing':''}.pptx`;
-    await pptx.writeFile({fileName:name,compression:true});
-    return name;
   }
 
   // ───────────── page ─────────────
