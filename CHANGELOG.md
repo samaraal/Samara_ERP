@@ -1,3 +1,8 @@
+## 2.19.86 — 08-11-2026 — Daily Report: colourful slides; Care services Yesterday | Today — SQL 357
+- **Colourful PowerPoint**: each section has its own colour and icon (header circle, page pill, coloured tiles with a side stripe, coloured table headers and rows); problem rows (⚠) show in light red; title slide lists the 12 sections as coloured chips; charts in colour.
+- **Care services**: nursing procedures table has Yesterday · Today · Change (▲ / ▼) per procedure per Guest; every number shows yesterday and the 7-day average; new numbers Blood glucose checks and Nebulizations.
+- Needs `supabase/sql/357_mdr_care_services_yesterday_today.sql` run in Supabase, then "↻ Prepare again" for an already-saved day.
+
 ## 2.19.85 — 08-11-2026 — Daily Report: Care services slide checks physio plans and procedure charges; larger fonts — SQL 355
 - **Physiotherapy** table now starts from each Guest's plan (Twice daily = 2 rows) and puts the recorded session against each planned time. A planned session with no entry shows **⚠ Not recorded** instead of disappearing. New number "Physiotherapy sessions planned"; "Physiotherapy not done" also counts the not-recorded ones.
 - **Nursing procedures** table: per procedure per Guest — Done · Charge raised · Approved · In Guest account · Not charged. New numbers "Procedures not charged", "Charges not yet in Guest account" and (Directors' copy) "Procedure charges posted ₹".
