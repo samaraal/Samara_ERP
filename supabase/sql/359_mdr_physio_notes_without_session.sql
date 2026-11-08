@@ -125,7 +125,7 @@ begin
       'Yesterday | Today = times done the day before and on this day (▲ more, ▼ fewer). Charges are for this day. Charge raised = linked to the procedure, or raised by hand for the same item, Guest and day. In Guest account = approved by Accounts and posted to the Guest''s ledger.');
   t := t || public.mdr_table('Physiotherapy — planned and recorded','["Guest","Physiotherapist","Planned","Done at","Status"]'::jsonb, format($q$
       select jsonb_build_array(z.guest, coalesce(z.physio,'—'), coalesce(to_char(z.planned,'HH24:MI'),'—'),
-               coalesce(to_char(z.done_at,'HH24:MI'),'—'), case when z.status = 'Not recorded' or z.status like 'Note only%' then '⚠ ' || z.status else z.status end) as r
+               coalesce(to_char(z.done_at,'HH24:MI'),'—'), case when z.status = 'Not recorded' or left(z.status, 9) = 'Note only' then '⚠ ' || z.status else z.status end) as r
         from (%s) z order by z.guest, z.planned nulls last$q$, physio), d, 30, false,
       'One row per session in the Guest''s plan (Twice daily = 2). "Not recorded" = planned, but no session entered for that time. "Note only" = a physio note was written but no session recorded, so nothing is charged.');
   t := t || public.mdr_table('Lab / scans','["Guest","Test","Lab","Status"]'::jsonb, format($q$
