@@ -192,7 +192,20 @@ function headline(rep: any) {
   return `${v("Guests in house")} Guests | ${v("Admissions")} admitted | ${v("Discharges")} discharged | ${v("Escalations raised")} escalations | ${v("Incidents & falls")} incidents | ${v("Open findings — High")} high findings`;
 }
 
+// 2.19.91: the PDF that goes with each message is also kept in storage (bucket whatsapp-media), so the ERP WhatsApp
+// Inbox shows "📄 Samara_Daily_Report_….pdf" on the message and can open it (before, only the text was recorded).
+let pendingMedia: Record<string, string> | null = null;
+async function keepPdfCopy(fileName: string, bytes: Uint8Array) {
+  try {
+    const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+    const path = `daily-report/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${fileName.replace(/[^A-Za-z0-9._-]+/g, "_")}`;
+    const up = await db.storage.from("whatsapp-media").upload(path, new Blob([bytes], { type: "application/pdf" }), { contentType: "application/pdf", upsert: true });
+    return up.error ? null : { path, bucket: "whatsapp-media", filename: fileName, mime_type: "application/pdf" };
+  } catch { return null; }   // never stop the WhatsApp because the inbox copy could not be kept
+}
+
 async function sendPdf(to: string, params: string[], fileName: string, bytes: Uint8Array, caption: string) {
+  pendingMedia = await keepPdfCopy(fileName, bytes);
   const token = Deno.env.get("WHATSAPP_ACCESS_TOKEN"), phone = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
   const ver = Deno.env.get("WHATSAPP_GRAPH_API_VERSION") || "v25.0";
   if (!token || !phone) throw new Error("WhatsApp configuration is missing.");
@@ -318,7 +331,7 @@ async function samaraInboxFetch(input: any, init?: RequestInit): Promise<Respons
   const id = crypto.randomUUID(), now = new Date().toISOString();
   const reserved = await db.from("hr_whatsapp_communications").insert({ id, recipient_number: String(payload.to || "").replace(/\D/g, ""), template_name: template,
     communication_type: template ? `WhatsApp · ${template}` : "WhatsApp Document", direction: "outbound", message_type: payload.type || "template", status: "Sending",
-    message_content: content, message_payload: { inbox_transport: true, body_params: params }, source_type: "Daily Report", created_at: now, updated_at: now });
+    message_content: content, message_payload: { inbox_transport: true, body_params: params, ...(pendingMedia ? { _samara_media: pendingMedia } : {}) }, source_type: "Daily Report", created_at: now, updated_at: now });
   if (reserved.error) throw new Error("WhatsApp was not sent because Inbox recording is unavailable. " + reserved.error.message);
   let response: Response;
   try { response = await globalThis.fetch(input, init); }
