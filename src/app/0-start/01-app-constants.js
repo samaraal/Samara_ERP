@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.86';
+  const APP_VERSION = '2.19.87';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -45,7 +45,7 @@
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Nov-2026 Daily Report colourful + yesterday vs today';
+  const APP_BUILD_DATE = '08-Nov-2026 Daily Report charts up / down colours';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,

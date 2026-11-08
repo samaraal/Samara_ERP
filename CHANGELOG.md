@@ -1,3 +1,7 @@
+## 2.19.87 — 08-11-2026 — Daily Report: chart bars show up / down; WhatsApp sent excludes failed — SQL 358
+- **Day at a glance charts**: each bar is coloured against the day before — green = higher (better), red = lower, grey = same — with a small key under each chart.
+- **Family & communication** (SQL 358): "WhatsApp sent" now counts only messages accepted by WhatsApp; new "WhatsApp attempts" number; "WhatsApp by type" shows Attempts · Sent · Failed (07-11-2026 showed 1,047 "sent" of which 1,012 had failed).
+
 ## 2.19.86 — 08-11-2026 — Daily Report: colourful slides; Care services Yesterday | Today — SQL 357
 - **Colourful PowerPoint**: each section has its own colour and icon (header circle, page pill, coloured tiles with a side stripe, coloured table headers and rows); problem rows (⚠) show in light red; title slide lists the 12 sections as coloured chips; charts in colour.
 - **Care services**: nursing procedures table has Yesterday · Today · Change (▲ / ▼) per procedure per Guest; every number shows yesterday and the 7-day average; new numbers Blood glucose checks and Nebulizations.

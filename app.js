@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.86';
+  const APP_VERSION = '2.19.87';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Nov-2026 Daily Report colourful + yesterday vs today';
+  const APP_BUILD_DATE = '08-Nov-2026 Daily Report charts up / down colours';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -56472,11 +56472,16 @@ function AuditTrail(){
         const charts=(sec.kpis||[]).filter(k=>Array.isArray(k.series)&&['Guests in house','Collected'].includes(k.label));
         const cw=charts.length>1?(CW-0.3)/2:CW;
         charts.forEach((k,i)=>{
-          const x=M+i*(cw+0.3),hh=Math.max(1.6,BOTTOM-y-0.1);
-          s.addChart(pptx.ChartType.bar,[{name:k.label,labels:k.series_days||[],values:(k.series||[]).map(v=>Number(v)||0)}],
-            {x,y,w:cw,h:hh,barDir:'col',chartColors:[PAL[(accIdx+i*2)%PAL.length].c],showValue:true,dataLabelFontSize:12,dataLabelColor:MDR_C.deep,
+          const x=M+i*(cw+0.3),hh=Math.max(1.6,BOTTOM-y-0.45);
+          // 2.19.86: each bar coloured against the day before — green = better, red = worse, grey = same (first bar: grey)
+          const vals=(k.series||[]).map(v=>Number(v)||0),downGood=k.good==='down';
+          const barColors=vals.map((v,ix)=>ix===0||v===vals[ix-1]?'9CA3AF':((v>vals[ix-1])!==downGood?'15803D':'B4232F'));
+          s.addChart(pptx.ChartType.bar,[{name:k.label,labels:k.series_days||[],values:vals}],
+            {x,y,w:cw,h:hh,barDir:'col',chartColors:barColors.length>1?barColors:[acc.c],showValue:true,dataLabelFontSize:12,dataLabelColor:MDR_C.deep,
              dataLabelFormatCode:k.unit==='₹'?'#,##0':'0',valAxisHidden:true,valGridLine:{style:'none'},catAxisLabelFontSize:12,catAxisLabelColor:MDR_C.grey,
              showTitle:true,title:`${k.label} — last 8 days`,titleFontSize:16,titleColor:MDR_C.deep,showLegend:false});
+          s.addText([{text:'■ ',options:{color:'15803D'}},{text:downGood?'lower than the day before   ':'higher than the day before   '},{text:'■ ',options:{color:'B4232F'}},{text:downGood?'higher   ':'lower   '},{text:'■ ',options:{color:'9CA3AF'}},{text:'same'}],
+            {x,y:y+hh+0.02,w:cw,h:0.3,fontSize:11,color:'6B5560',align:'center',fontFace:FONT,margin:0});
         });
         footer(s);return;
       }
