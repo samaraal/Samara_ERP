@@ -1,3 +1,4 @@
+  // 2.19.85: larger fonts throughout the PowerPoint; table notes printed under each table (Care services slide).
   // 2.19.75: DAILY REPORT — "all happenings of the day" (midnight to midnight, IST) as a PowerPoint deck (Windows),
   // with an on-screen preview. Admin / Directors get every slide; the Nursing Manager gets the same report without the
   // money slides / numbers (the database removes them — SQL 349 mis_daily_report). The same report goes out as a PDF on
@@ -22,20 +23,20 @@
       .mdr-sec>small{display:block;color:#8b6b79;margin:2px 0 10px}
       .mdr-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
       .mdr-kpi{background:linear-gradient(145deg,#fffafd,#fdf1f6);border:1px solid #e8c3d2;border-radius:14px;padding:10px 12px;min-width:0}
-      .mdr-kpi small{display:block;color:#8b6b79;font-weight:700;font-size:12.5px}
-      .mdr-kpi strong{display:block;font-size:23px;color:#4a1430;margin-top:2px;overflow-wrap:anywhere}
+      .mdr-kpi small{display:block;color:#8b6b79;font-weight:700;font-size:14px}
+      .mdr-kpi strong{display:block;font-size:28px;color:#4a1430;margin-top:2px;overflow-wrap:anywhere}
       .mdr-kpi em{display:block;font-style:normal;font-size:12px;margin-top:3px;color:#8b6b79}
       .mdr-kpi em.good{color:#13643a}.mdr-kpi em.bad{color:#b4232f}
       .mdr-tables{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
       .mdr-table{min-width:0}
       .mdr-table b{display:block;color:#4a1430;margin-bottom:4px}
-      .mdr-table table{width:100%;border-collapse:collapse;table-layout:auto;font-size:13.5px}
-      .mdr-table th{background:#a80d4f;color:#fff;text-align:left;padding:6px 8px;font-size:12.5px}
+      .mdr-table table{width:100%;border-collapse:collapse;table-layout:auto;font-size:15px}
+      .mdr-table th{background:#a80d4f;color:#fff;text-align:left;padding:6px 8px;font-size:14px}
       .mdr-table td{padding:6px 8px;border-bottom:1px solid #f7e6ee;vertical-align:top;overflow-wrap:anywhere;color:#3a2230}
       .mdr-table td.num,.mdr-table th.num{text-align:right;white-space:nowrap}
       .mdr-table td.mdr-short{white-space:nowrap}
       .mdr-table .mdr-empty{color:#9a8590;font-style:italic}
-      .mdr-table .mdr-more{font-size:12px;color:#8b6b79;margin-top:4px}
+      .mdr-table .mdr-more{font-size:13px;color:#8b6b79;margin-top:4px}
       .mdr-sends table{width:100%;border-collapse:collapse;font-size:13px}
       .mdr-sends td,.mdr-sends th{padding:5px 8px;border-bottom:1px solid #f7e6ee;text-align:left}
     `;
@@ -92,9 +93,9 @@
     let pageNo=0;
     const footer=s=>{
       pageNo+=1;
-      s.addText(`Samara Health Care LLP  ·  Daily Report ${rep.day_label} (${rep.weekday||''})`,{x:M,y:7.06,w:7,h:0.3,fontSize:9,color:MDR_C.grey,fontFace:FONT});
-      s.addText(copy,{x:W/2-1.8,y:7.06,w:3.6,h:0.3,fontSize:9,color:MDR_C.grey,align:'center',fontFace:FONT});
-      s.addText(String(pageNo),{x:W-M-1,y:7.06,w:1,h:0.3,fontSize:9,color:MDR_C.grey,align:'right',fontFace:FONT});
+      s.addText(`Samara Health Care LLP  ·  Daily Report ${rep.day_label} (${rep.weekday||''})`,{x:M,y:7.06,w:7,h:0.3,fontSize:11,color:MDR_C.grey,fontFace:FONT});
+      s.addText(copy,{x:W/2-1.8,y:7.06,w:3.6,h:0.3,fontSize:11,color:MDR_C.grey,align:'center',fontFace:FONT});
+      s.addText(String(pageNo),{x:W-M-1,y:7.06,w:1,h:0.3,fontSize:11,color:MDR_C.grey,align:'right',fontFace:FONT});
     };
     // slide master: the top bar, logo and footer line are stored once for the whole deck
     pptx.defineSlideMaster({title:'MDR',background:{color:'FFFFFF'},objects:[
@@ -103,51 +104,55 @@
       ...(logo?[{image:{data:logo.data,x:W-M-Math.min(1.4,0.42*logo.w/logo.h),y:0.68,w:Math.min(1.4,0.42*logo.w/logo.h),h:0.42}}]:[])]});
     const addPage=()=>pptx.addSlide({masterName:'MDR'});
     const header=(s,title,subtitle,n)=>{
-      s.addText(title,{x:M,y:0.28,w:9.5,h:0.55,fontSize:26,bold:true,color:MDR_C.mag,fontFace:FONT,margin:0});
-      if(subtitle)s.addText(subtitle,{x:M,y:0.8,w:10,h:0.3,fontSize:12,color:MDR_C.grey,fontFace:FONT,margin:0});
-      if(n)s.addText(n,{x:W-M-3,y:0.3,w:3,h:0.4,fontSize:11,color:MDR_C.grey,align:'right',fontFace:FONT});
+      s.addText(title,{x:M,y:0.24,w:9.5,h:0.6,fontSize:30,bold:true,color:MDR_C.mag,fontFace:FONT,margin:0});
+      if(subtitle)s.addText(subtitle,{x:M,y:0.84,w:10.3,h:0.34,fontSize:15,fit:'shrink',color:MDR_C.grey,fontFace:FONT,margin:0});
+      if(n)s.addText(n,{x:W-M-3,y:0.28,w:3,h:0.4,fontSize:14,color:MDR_C.grey,align:'right',fontFace:FONT});
     };
     // KPI tiles; returns the y below them
     const tiles=(s,kpis,y,perRowMax=5)=>{
       if(!kpis.length)return y;
       const per=kpis.length<=perRowMax?kpis.length:Math.min(perRowMax,Math.ceil(kpis.length/2));
-      const gap=0.16,tw=(CW-gap*(per-1))/per,th=1.08;
+      const gap=0.16,tw=(CW-gap*(per-1))/per,th=1.42;
       kpis.forEach((k,i)=>{
         const r=Math.floor(i/per),c=i%per,x=M+c*(tw+gap),yy=y+r*(th+gap);
         s.addShape(pptx.ShapeType.roundRect,{x,y:yy,w:tw,h:th,fill:{color:MDR_C.blush},line:{color:'E8C3D2',width:0.75},rectRadius:0.08});
-        s.addText(k.label,{x:x+0.12,y:yy+0.06,w:tw-0.24,h:0.28,fontSize:11,bold:true,color:MDR_C.grey,fontFace:FONT,margin:0});
-        s.addText(mdrKpiValue(k),{x:x+0.12,y:yy+0.33,w:tw-0.24,h:0.45,fontSize:k.unit==='₹'?21:24,bold:true,color:MDR_C.deep,fontFace:FONT,margin:0,fit:'shrink'});
+        // label may wrap to 2 lines at the larger size; long labels get a slightly smaller font so they never run into the number
+        const lfs=String(k.label||'').length*13*0.0078>2*(tw-0.24)?11.5:13.5;
+        s.addText(k.label,{x:x+0.12,y:yy+0.06,w:tw-0.24,h:0.46,fontSize:lfs,bold:true,color:MDR_C.grey,fontFace:FONT,margin:0,valign:'top'});
+        s.addText(mdrKpiValue(k),{x:x+0.12,y:yy+0.52,w:tw-0.24,h:0.56,fontSize:k.unit==='₹'?28:32,bold:true,color:MDR_C.deep,fontFace:FONT,margin:0,fit:'shrink'});
         const cmp=mdrCompare(k);
-        if(cmp.text)s.addText(cmp.text,{x:x+0.12,y:yy+0.78,w:tw-0.24,h:0.25,fontSize:9,color:cmp.tone==='good'?MDR_C.green:cmp.tone==='bad'?MDR_C.red:MDR_C.grey,fontFace:FONT,margin:0,fit:'shrink'});
+        if(cmp.text)s.addText(cmp.text,{x:x+0.12,y:yy+1.1,w:tw-0.24,h:0.27,fontSize:11.5,color:cmp.tone==='good'?MDR_C.green:cmp.tone==='bad'?MDR_C.red:MDR_C.grey,fontFace:FONT,margin:0,fit:'shrink'});
       });
       return y+Math.ceil(kpis.length/per)*(th+gap)+0.04;
     };
     // table geometry: column widths by content, row heights by wrapping
-    const tableModel=(t,w,fs=10)=>{
+    const tableModel=(t,w,fs=13)=>{
       const cols=t.cols||[];
       const rows=(t.rows||[]).map(r=>cols.map((c,i)=>mdrCell(c,r[i])));
       const weights=cols.map((c,i)=>Math.max(String(c).length,...rows.map(r=>Math.min(String(r[i]).length,60)),3));
       const sum=weights.reduce((a,b)=>a+b,0)||1;
       let colW=weights.map(x=>Math.max(0.65,w*x/sum));const k=w/colW.reduce((a,b)=>a+b,0);colW=colW.map(x=>x*k);
       const cpi=125/fs; // characters per inch
-      const rowH=r=>0.045+0.16*Math.max(1,...r.map((v,i)=>Math.ceil(String(v).length/Math.max(1,(colW[i]-0.12)*cpi))));
-      return {t,cols,rows,colW,rowH,fs,msg:t.error||''};
+      const rowH=r=>0.05+0.0165*fs*Math.max(1,...r.map((v,i)=>Math.ceil(String(v).length/Math.max(1,(colW[i]-0.12)*cpi))));
+      const noteLines=t.note&&!t.error?Math.ceil(String(t.note).length/Math.max(1,w*(125/11))):0;
+      return {t,cols,rows,colW,rowH,fs,msg:t.error||'',noteH:noteLines?0.06+0.19*noteLines:0};
     };
-    const TITLE_H=0.3,HEAD_H=0.24;
+    const TITLE_H=0.4,HEAD_H=0.32;
     // height of rows [from, to) with title + header
-    const tableHeight=(m,from=0,to=m.rows.length)=>TITLE_H+HEAD_H+(m.msg?0.27:m.rows.slice(from,to).reduce((a,r)=>a+m.rowH(r),0))+0.05;
+    const tableHeight=(m,from=0,to=m.rows.length)=>TITLE_H+HEAD_H+(m.msg?0.34:m.rows.slice(from,to).reduce((a,r)=>a+m.rowH(r),0))+0.05+(to>=m.rows.length?m.noteH:0);
     // how many rows from `from` fit in maxH
-    const rowsThatFit=(m,from,maxH)=>{let n=0,h=TITLE_H+HEAD_H+0.05;for(let i=from;i<m.rows.length;i++){h+=m.rowH(m.rows[i]);if(h>maxH)break;n+=1}return n};
+    const rowsThatFit=(m,from,maxH)=>{let n=0,h=TITLE_H+HEAD_H+0.05;for(let i=from;i<m.rows.length;i++){h+=m.rowH(m.rows[i])+(i===m.rows.length-1?m.noteH:0);if(h>maxH)break;n+=1}return n};
     const drawTable=(s,m,x,y,w,from=0,to=m.rows.length,cont=false)=>{
       const t=m.t;
-      s.addText(t.title+(cont?' (continued)':''),{x,y,w,h:0.28,fontSize:13,bold:true,color:MDR_C.deep,fontFace:FONT,margin:0});
+      s.addText(t.title+(cont?' (continued)':''),{x,y,w,h:0.36,fontSize:16,bold:true,color:MDR_C.deep,fontFace:FONT,margin:0});
       const head=m.cols.map(c=>({text:c,options:{bold:true,color:MDR_C.white,fill:{color:MDR_C.mag},align:mdrIsMoneyCol(c)?'right':'left'}}));
       const body=m.msg?[[{text:m.msg,options:{colspan:m.cols.length,italic:true,color:MDR_C.grey}}]]
         :m.rows.slice(from,to).map((r,ri)=>r.map((v,i)=>({text:v,options:{align:mdrIsMoneyCol(m.cols[i])||/^[\d,.₹%\s-]+$/.test(v)?'right':'left',fill:{color:ri%2?'FFF8FB':'FFFFFF'}}})));
       s.addTable([head,...body],{x,y:y+TITLE_H,w,colW:m.colW,fontSize:m.fs,fontFace:FONT,color:MDR_C.ink,border:{type:'solid',pt:0.5,color:MDR_C.line},margin:[0.02,0.06,0.02,0.06],autoPage:false});
-      let h=tableHeight(m,from,to);
+      let h=tableHeight(m,from,to)-(to>=m.rows.length?m.noteH:0);
+      if(m.noteH&&to>=m.rows.length){s.addText(String(t.note),{x,y:y+h,w,h:m.noteH,fontSize:11,italic:true,color:MDR_C.grey,fontFace:FONT,margin:0,valign:'top'});h+=m.noteH}
       const more=(Number(t.total)||0)-m.rows.length;
-      if(!m.msg&&to>=m.rows.length&&more>0){s.addText(`+ ${more} more — see the ERP`,{x,y:y+h-0.03,w,h:0.22,fontSize:9,italic:true,color:MDR_C.grey,fontFace:FONT,margin:0});h+=0.22}
+      if(!m.msg&&to>=m.rows.length&&more>0){s.addText(`+ ${more} more — see the ERP`,{x,y:y+h-0.03,w,h:0.26,fontSize:11,italic:true,color:MDR_C.grey,fontFace:FONT,margin:0});h+=0.26}
       return h;
     };
 
@@ -163,8 +168,8 @@
       s.addText(`${copy}  ·  Prepared ${rep.saved_label||rep.generated_label||''}`,{x:M+0.2,y:4.45,w:10,h:0.35,fontSize:12,color:MDR_C.grey,fontFace:FONT,margin:0});
       const list=(rep.sections||[]).map((x,i)=>`${i+1}. ${x.title}`);
       const half=Math.ceil(list.length/2);
-      s.addText(list.slice(0,half).join('\n'),{x:M+0.2,y:5.05,w:4.6,h:1.9,fontSize:12,color:MDR_C.deep,fontFace:FONT,valign:'top',margin:0,paraSpaceAfter:2});
-      s.addText(list.slice(half).join('\n'),{x:M+4.9,y:5.05,w:4.6,h:1.9,fontSize:12,color:MDR_C.deep,fontFace:FONT,valign:'top',margin:0,paraSpaceAfter:2});
+      s.addText(list.slice(0,half).join('\n'),{x:M+0.2,y:5.05,w:4.6,h:1.9,fontSize:14,color:MDR_C.deep,fontFace:FONT,valign:'top',margin:0,paraSpaceAfter:2});
+      s.addText(list.slice(half).join('\n'),{x:M+4.9,y:5.05,w:4.6,h:1.9,fontSize:14,color:MDR_C.deep,fontFace:FONT,valign:'top',margin:0,paraSpaceAfter:2});
       s.addText('Samara Health Care LLP\nSamara Assisted Living',{x:W-M-4,y:5.9,w:4,h:0.8,fontSize:12,color:MDR_C.grey,align:'right',fontFace:FONT});
       pageNo+=1;
     }
@@ -181,9 +186,9 @@
         charts.forEach((k,i)=>{
           const x=M+i*(cw+0.3),hh=Math.max(1.6,BOTTOM-y-0.1);
           s.addChart(pptx.ChartType.bar,[{name:k.label,labels:k.series_days||[],values:(k.series||[]).map(v=>Number(v)||0)}],
-            {x,y,w:cw,h:hh,barDir:'col',chartColors:[MDR_C.mag],showValue:true,dataLabelFontSize:9,dataLabelColor:MDR_C.deep,
-             dataLabelFormatCode:k.unit==='₹'?'#,##0':'0',valAxisHidden:true,valGridLine:{style:'none'},catAxisLabelFontSize:10,catAxisLabelColor:MDR_C.grey,
-             showTitle:true,title:`${k.label} — last 8 days`,titleFontSize:13,titleColor:MDR_C.deep,showLegend:false});
+            {x,y,w:cw,h:hh,barDir:'col',chartColors:[MDR_C.mag],showValue:true,dataLabelFontSize:12,dataLabelColor:MDR_C.deep,
+             dataLabelFormatCode:k.unit==='₹'?'#,##0':'0',valAxisHidden:true,valGridLine:{style:'none'},catAxisLabelFontSize:12,catAxisLabelColor:MDR_C.grey,
+             showTitle:true,title:`${k.label} — last 8 days`,titleFontSize:16,titleColor:MDR_C.deep,showLegend:false});
         });
         footer(s);return;
       }
@@ -200,7 +205,7 @@
         if(j>i+1)tables.splice(i+1,0,tables.splice(j,1)[0]);
         const b=j>i?tables[i+1]:null;
         if(narrow(a)&&narrow(b)){
-          const w=(CW-0.3)/2,ma=tableModel(a,w,9.5),mb=tableModel(b,w,9.5);
+          const w=(CW-0.3)/2,ma=tableModel(a,w,12),mb=tableModel(b,w,12);
           const need=Math.max(tableHeight(ma),tableHeight(mb));
           // side by side when both fit here, or on a fresh slide if little room is left here; otherwise one below the other
           if(y+need<=BOTTOM||(BOTTOM-y<1.6&&need<=BOTTOM-1.3)){
@@ -209,7 +214,7 @@
             y+=need+0.15;i+=2;continue;
           }
         }
-        const m=tableModel(a,CW,10);
+        const m=tableModel(a,CW,13);
         let from=0,cont=false;
         do{
           let n=rowsThatFit(m,from,BOTTOM-y);
@@ -222,8 +227,8 @@
         i+=1;
       }
       if(empty.length){
-        if(y+0.35>BOTTOM)newSlide();
-        s.addText(`Nothing recorded: ${empty.join(' · ')}`,{x:M,y,w:CW,h:0.3,fontSize:11,italic:true,color:MDR_C.grey,fontFace:FONT,margin:0});
+        if(y+0.42>BOTTOM)newSlide();
+        s.addText(`Nothing recorded: ${empty.join(' · ')}`,{x:M,y,w:CW,h:0.38,fontSize:14,italic:true,color:MDR_C.grey,fontFace:FONT,margin:0});
       }
       footer(s);
     });

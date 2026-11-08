@@ -1,3 +1,9 @@
+## 2.19.85 — 08-11-2026 — Daily Report: Care services slide checks physio plans and procedure charges; larger fonts — SQL 355
+- **Physiotherapy** table now starts from each Guest's plan (Twice daily = 2 rows) and puts the recorded session against each planned time. A planned session with no entry shows **⚠ Not recorded** instead of disappearing. New number "Physiotherapy sessions planned"; "Physiotherapy not done" also counts the not-recorded ones.
+- **Nursing procedures** table: per procedure per Guest — Done · Charge raised · Approved · In Guest account · Not charged. New numbers "Procedures not charged", "Charges not yet in Guest account" and (Directors' copy) "Procedure charges posted ₹".
+- **PowerPoint**: larger fonts on every slide (titles 30, tiles 32, tables 13 / 12 side by side, footer 11); the note under a table is printed on the slide.
+- Needs `supabase/sql/355_mdr_care_services_physio_plan_np_charges.sql` run in Supabase. Days already saved (e.g. 07-11-2026) need "↻ Prepare again".
+
 ## SQL 354 — 07-11-2026 — Family Portal: Outstanding / Advance Balance now from the full ledger (database only)
 - **Found and fixed**: the Family Portal read only a Guest's latest 100 ledger entries, so for long-stay Guests the older charges were missed and the portal showed a false "Advance Balance" instead of the amount due (SHANTHI.T: showed Advance ₹17,726, truly due ₹325; S. SWAMINATHAN: showed Advance ₹5,262, truly due ₹18,983; JOSEPH A A E FERNANDO: showed Advance ₹9,000, truly ₹0). The family's Pay Outstanding button was switched off as a result. Razorpay payments themselves were always correct (server reads the full ledger).
 - **Database**: run `supabase/sql/354_family_portal_full_billing_ledger.sql` — patches the live Family Portal function(s) to return the full ledger. No app or portal file change.
