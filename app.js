@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.90';
+  const APP_VERSION = '2.19.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Nov-2026 Daily Report blood glucose readings';
+  const APP_BUILD_DATE = '08-Nov-2026 WhatsApp Inbox faster (7 days)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -18307,8 +18307,9 @@ Samara Assisted Living`;
     // 2.15.97: load only a chosen period (default last 30 days; remembered per user). Chats opened directly,
     // or "Show older messages", load that one contact's full history.
     const WA_PERIODS=[['7','Last 7 days'],['30','Last 30 days'],['90','Last 3 months'],['180','Last 6 months'],['all','All messages']];
-    const PERIOD_KEY=`samara_wa_period_v1_${profile?.id||'anon'}`;
-    const [waPeriod,setWaPeriod]=React.useState(()=>{try{const v=localStorage.getItem(PERIOD_KEY);return WA_PERIODS.some(x=>x[0]===v)?v:'30'}catch(_error){return '30'}});
+    // 2.19.91: opens on the last 7 days (new key, so everyone starts at 7 days once; a longer period can still be chosen)
+    const PERIOD_KEY=`samara_wa_period_v2_${profile?.id||'anon'}`;
+    const [waPeriod,setWaPeriod]=React.useState(()=>{try{const v=localStorage.getItem(PERIOD_KEY);return WA_PERIODS.some(x=>x[0]===v)?v:'7'}catch(_error){return '7'}});
     const [waPeriodDraft,setWaPeriodDraft]=React.useState(waPeriod);
     const [loadedAt,setLoadedAt]=React.useState(0);
     const periodRef=React.useRef(waPeriod);periodRef.current=waPeriod;
@@ -18333,7 +18334,9 @@ Samara Assisted Living`;
       if(showStatus)setMessage('Refreshing WhatsApp Inbox…');
       try{
         const data=[];
-        const baseQuery=()=>client.from('hr_whatsapp_communications').select('*');
+        // 2.19.91: failed internal billing alerts to Admin (thousands from 04-11-2026, a template mismatch) are not a
+        // conversation — left out of the inbox (still in WhatsApp Logs and the Daily Report).
+        const baseQuery=()=>client.from('hr_whatsapp_communications').select('*').or('template_name.is.null,template_name.neq.samara_billing_escalation,status.neq.Failed');
         const days=Number(periodRef.current);
         const since=periodRef.current!=='all'&&days>0?new Date(Date.now()-days*86400000).toISOString():null;
         for(let offset=0;;offset+=1000){

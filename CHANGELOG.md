@@ -1,3 +1,7 @@
+## 2.19.91 — 08-11-2026 — WhatsApp Inbox opens faster
+- Opens on **Last 7 days** (was 30); a longer period can still be chosen from "Show" and is remembered.
+- Failed internal billing alerts to Admin (`samara_billing_escalation`, ~3,000 failed tries from 04-11-2026 — template mismatch, fixed today) are left out of the inbox; they stay in WhatsApp Logs and the Daily Report.
+
 ## 2.19.90 — 08-11-2026 — Daily Report: blood glucose on Clinical care — SQL 362
 - Blood glucose values are saved in Vital Signs; "Readings outside normal" listed only rounds marked Warning / Critical, so sugar readings never showed. Now any sugar above 200 or below 70 mg/dL is listed there (red bold), and a new table **Blood glucose readings** lists every sugar check of the day — Time · Guest · Reading · Result (High / Low in red, Normal in green).
 - Needs `supabase/sql/362_mdr_blood_glucose_readings.sql`, then "↻ Prepare again".
