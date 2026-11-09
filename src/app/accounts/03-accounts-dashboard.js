@@ -75,7 +75,18 @@
     const [breakupMonth,setBreakupMonth]=React.useState(todayISOIndia().slice(0,7));
     const [breakupCategory,setBreakupCategory]=React.useState(null);
     // 2.18.103: Outstanding / Unadjusted Advance boxes open a Guest-wise list on this page.
-    const [balanceList,setBalanceList]=React.useState(null); // 'outstanding' | 'advances' | null
+    // 2.19.92: opened from the main Dashboard "Outstanding Amount" box → show the Guest-wise list straight away.
+    const [balanceList,setBalanceList]=React.useState(()=>{
+      const focus=String(readDashboardIntent('Accounts Dashboard')?.focus||'');
+      return focus==='Outstanding Receivables'?'outstanding':focus==='Unadjusted Advances'?'advances':null;
+    }); // 'outstanding' | 'advances' | null
+    const [balanceListScrolled,setBalanceListScrolled]=React.useState(false);
+    React.useEffect(()=>{
+      if(!balanceList||balanceListScrolled||state.loading)return;
+      setBalanceListScrolled(true);
+      const t=setTimeout(()=>{const el=document.getElementById('accounts-balance-list');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},150);
+      return()=>clearTimeout(t);
+    },[balanceList,state.loading]);
     const [balanceGuest,setBalanceGuest]=React.useState(null);
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
     const dateKey=value=>String(value||'').slice(0,10);

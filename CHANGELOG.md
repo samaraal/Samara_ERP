@@ -1,3 +1,9 @@
+## 2.19.92 — 09-11-2026 — Dashboard: every box opens the right page
+- **Outstanding Amount** now opens Accounts Dashboard straight on the **Outstanding Receivables — Guest-wise** list (S.No · Guest · Room · Amount, row → full details). It used to open the general Accounts Reports page for this month.
+- The box total is now worked out Guest by Guest, the same way as that list, so the two numbers match (before, one Guest's advance was reducing another Guest's dues).
+- **Today's Operational Focus** opened Shift Tasks, which Admin / Manager logins cannot open, so it bounced back to Dashboard; it now opens the Nursing Dashboard.
+- Any box whose page a login cannot open now says so ("No access") instead of silently staying on Dashboard.
+
 ## 2.19.91 — 08-11-2026 — WhatsApp Inbox opens faster
 - Opens on **Last 7 days** (was 30); a longer period can still be chosen from "Show" and is remembered.
 - Failed internal billing alerts to Admin (`samara_billing_escalation`, ~3,000 failed tries from 04-11-2026 — template mismatch, fixed today) are left out of the inbox; they stay in WhatsApp Logs and the Daily Report.

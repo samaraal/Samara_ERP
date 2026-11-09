@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.91';
+  const APP_VERSION = '2.19.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '08-Nov-2026 WhatsApp Inbox faster (7 days)';
+  const APP_BUILD_DATE = '09-Nov-2026 Dashboard boxes open the right page';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -17270,7 +17270,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
         client.from('room_beds').select('*').order('room_no',{ascending:true}).order('bed_no',{ascending:true}),
         client.from('medication_administrations').select('*',{count:'exact',head:true}).eq('scheduled_date',today),
         client.from('care_logs').select('*',{count:'exact',head:true}).eq('care_date',today),
-        client.from('billing_transactions').select('amount,transaction_type'),
+        client.from('billing_transactions').select('patient_id,amount,transaction_type'),
         client.from('incidents').select('*',{count:'exact',head:true}).eq('status','Open'),
         client.from('patient_discharges').select('id,patient_id,status,management_status,accounts_status'),
         client.from('family_visit_requests').select('*',{count:'exact',head:true}).eq('status','Pending'),
@@ -17319,14 +17319,25 @@ function Dashboard({profile,onNavigate,alertEngine}){
       }).length;
       const risks=patients.filter(p=>p.fall_risk||p.pressure_sore_risk||p.aspiration_risk||p.wandering_risk||p.infection_risk||p.oxygen_required).length;
       const pendingConsent=patients.filter(p=>['Awaiting Signed Consent','Upload Pending - Exception'].includes(p.admission_consent_status)).length;
-      const outstanding=Math.max(0,(bill.data||[]).reduce((total,row)=>{
-        const amount=Number(row.amount||0);
-        const type=String(row.transaction_type||'Charge');
-        if(type==='Charge')return total+amount;
-        if(type==='Payment'||type==='Advance'||type==='Discount')return total-amount;
-        if(type==='Refund')return total+amount;
-        return total;
-      },0));
+      // 2.19.92: Guest-wise, same as Accounts Dashboard "Outstanding Receivables" — one Guest's
+      // advance must not reduce another Guest's dues, so the card and its Guest list show the same total.
+      const outstanding=(()=>{
+        const per=new Map();
+        (bill.data||[]).forEach(row=>{
+          const key=row.patient_id||'__unassigned__';
+          const t=per.get(key)||{gross:0,discount:0,receipts:0,refund:0};
+          const amount=Number(row.amount||0);
+          const type=String(row.transaction_type||'Charge');
+          if(type==='Charge')t.gross+=amount;
+          else if(type==='Discount')t.discount+=amount;
+          else if(type==='Payment'||type==='Advance')t.receipts+=amount;
+          else if(type==='Refund')t.refund+=amount;
+          per.set(key,t);
+        });
+        let total=0;
+        per.forEach(t=>{total+=Math.max(0,Math.max(0,t.gross-t.discount)-Math.max(0,t.receipts-t.refund))});
+        return Math.round(total*100)/100;
+      })();
       const activeDischarges=(dis.data||[]).filter(row=>{
         const status=String(row.status||'').trim().toLowerCase();
         return !['completed','closed','cancelled','canceled'].includes(status);
@@ -17388,6 +17399,14 @@ function Dashboard({profile,onNavigate,alertEngine}){
       /daily care|care due/i.test(`${alert.alert_type||''} ${alert.title||''}`)
     ).length;
 
+    // 2.19.92: dashboard box → page permission check (same list the side menu uses).
+    const dashboardAllowedPages=(()=>{try{return typeof allowedPagesForProfile==='function'?(allowedPagesForProfile(profile)||[]):[]}catch(_){return []}})();
+    const dashboardPageAllowed=page=>!dashboardAllowedPages.length||dashboardAllowedPages.includes(page);
+    const dashboardNoAccess=page=>{
+      const text=`Your login cannot open ${page}. Please ask Admin if you need access.`;
+      if(typeof showSamaraActionToast==='function')showSamaraActionToast('error','No access',text);else window.alert(text);
+    };
+    const operationalFocusPage=dashboardPageAllowed('Shift Tasks')?'Shift Tasks':'Clinical Dashboard';
     const cards=[
       {label:'Current patients',value:stats.patients,page:'Patients',icon:'👥',patientFilter:'active'},
       {label:'Available beds',value:stats.availableBeds,page:'Rooms',icon:'🛏️',roomBedFilter:'available',status:stats.availableBeds?`${stats.availableBeds} currently available bed${stats.availableBeds===1?'':'s'}`:'No beds currently available'},
@@ -17399,7 +17418,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
       {label:'Care actions today',value:careActionsToday,page:'Clinical Alerts',icon:'✅',clinicalFocus:'Daily Care',status:careActionsToday?`${careActionsToday} pending / due care action${careActionsToday===1?'':'s'}`:'No care actions due'},
       {label:'Open incidents',value:stats.incidents,page:'Incidents',icon:'🚨',incidentFilter:'open'},
       {label:'Clinical escalations',value:stats.escalations,page:'Clinical Escalations',icon:'🔔',escalationFilter:'open',status:stats.escalations?`${stats.escalations} awaiting Manager/Admin action`:'No open escalations'},
-      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Accounts Reports',icon:'₹',status:'Resident and outside nursing receivables'},
+      {label:'Outstanding Amount',value:`₹${stats.outstanding.toLocaleString('en-IN')}`,page:'Accounts Dashboard',focus:'Outstanding Receivables',icon:'₹',status:'Guest-wise dues · tap for Guest list'},
       {label:'Package Expiry',value:stats.packageExpiry,page:'Package Expiry Dashboard',icon:'📦',status:stats.packageExpiry?`${stats.packageExpiry} expired / expiring within 2 days`:'No package expiry due'},
       {label:'Admission Enquiries',value:stats.enquiries,page:'Enquiry Register',icon:'☎',enquiryFilter:'active',status:stats.enquiries?`${stats.enquiries} awaiting follow-up`:'No new enquiries'},
       {label:'Visit Requests',value:stats.visitRequests,page:'Family Communication',icon:'📅',visitFilter:'pending',status:stats.visitRequests?`${stats.visitRequests} pending approval`:'No pending requests'},
@@ -17490,7 +17509,9 @@ function Dashboard({profile,onNavigate,alertEngine}){
           if(card.visitFilter)sessionStorage.setItem('samara-visit-filter',card.visitFilter);
           if(card.dischargeFilter)sessionStorage.setItem('samara-discharge-filter',card.dischargeFilter);
         }catch(_error){}
-        dashboardNavigate(onNavigate,card.page,card.label,{source:'Main Dashboard'});
+        // 2.19.92: never send a box to a page this login cannot open (it used to bounce silently back to Dashboard).
+        if(!dashboardPageAllowed(card.page))return dashboardNoAccess(card.page);
+        dashboardNavigate(onNavigate,card.page,card.focus||card.label,{source:'Main Dashboard'});
       },title:`Open ${card.page}`},h('span',{className:'dashboard-icon','aria-hidden':'true'},card.icon),h('span',null,card.label),h('strong',null,card.value),h('small',null,card.status||`Open ${card.page} →`)))),
       h('div',{className:'grid two',style:{marginTop:'18px'}},
         h('div',{className:'card panel'},
@@ -17498,7 +17519,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
           (stats.recentEnquiries||[]).length?h('div',{style:{display:'grid',gap:'9px'}},stats.recentEnquiries.map(r=>h('button',{type:'button',key:r.id,onClick:()=>{try{sessionStorage.setItem('samara-open-enquiry-id',r.id)}catch(_){}dashboardNavigate(onNavigate,'Enquiry Register','Latest Admission Enquiries',{source:'Main Dashboard'})},style:{textAlign:'left',padding:'11px 12px',border:'1px solid #ecd6e2',borderRadius:'12px',background:'#fffafd',cursor:'pointer'}},h('div',{style:{display:'flex',justifyContent:'space-between',gap:'8px',alignItems:'center'}},h('strong',{style:{color:'#5d1039'}},r.patient_name||'Resident'),h('span',{className:'badge'},r.source||'Website')),h('small',{style:{display:'block',marginTop:'4px'}},`${r.family_contact_name||'—'} · ${r.family_contact_phone||'—'}`),h('small',{style:{display:'block',marginTop:'3px',color:'#8a6577'}},`${r.care_type||'Admission enquiry'} · ${r.status||'New'} · ${formatDateTimeIN(r.created_at)}`)))):h('p',{className:'empty'},'No new admission enquiries.' )
         ),
         h('div',{style:{display:'grid',gap:'12px'}},
-          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Shift Tasks','Today’s Operational Focus',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},'Open Shift Tasks →')),
+          // 2.19.92: Admin / Manager logins cannot open Shift Tasks (nurse entry page) — open the Nursing Dashboard instead.
+          h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>{const target=operationalFocusPage;if(!dashboardPageAllowed(target))return dashboardNoAccess(target);dashboardNavigate(onNavigate,target,'Today’s Operational Focus',{source:'Main Dashboard'})}},h('div',{className:'panel-head'},h('h3',null,'Today’s Operational Focus')),h('p',null,'Open medicines, bathing, restroom assistance, feeding, mobility, physiotherapy and special-nurse tasks.'),h('span',{className:'badge'},operationalFocusPage==='Shift Tasks'?'Open Shift Tasks →':'Open Nursing Dashboard →')),
           h('button',{type:'button',className:'card panel dashboard-panel-link',onClick:()=>dashboardNavigate(onNavigate,'Reports','Management Reports',{source:'Main Dashboard'})},h('div',{className:'panel-head'},h('h3',null,'Management reports')),h('p',null,'Open occupancy, clinical risks, incidents, billing, collections and outstanding details.'),h('span',{className:'badge'},'Open Reports →'))
         )
       )
@@ -44565,7 +44587,18 @@ function ShiftHandover({profile,onNavigate}){
     const [breakupMonth,setBreakupMonth]=React.useState(todayISOIndia().slice(0,7));
     const [breakupCategory,setBreakupCategory]=React.useState(null);
     // 2.18.103: Outstanding / Unadjusted Advance boxes open a Guest-wise list on this page.
-    const [balanceList,setBalanceList]=React.useState(null); // 'outstanding' | 'advances' | null
+    // 2.19.92: opened from the main Dashboard "Outstanding Amount" box → show the Guest-wise list straight away.
+    const [balanceList,setBalanceList]=React.useState(()=>{
+      const focus=String(readDashboardIntent('Accounts Dashboard')?.focus||'');
+      return focus==='Outstanding Receivables'?'outstanding':focus==='Unadjusted Advances'?'advances':null;
+    }); // 'outstanding' | 'advances' | null
+    const [balanceListScrolled,setBalanceListScrolled]=React.useState(false);
+    React.useEffect(()=>{
+      if(!balanceList||balanceListScrolled||state.loading)return;
+      setBalanceListScrolled(true);
+      const t=setTimeout(()=>{const el=document.getElementById('accounts-balance-list');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},150);
+      return()=>clearTimeout(t);
+    },[balanceList,state.loading]);
     const [balanceGuest,setBalanceGuest]=React.useState(null);
     const money=value=>`₹${Number(value||0).toLocaleString('en-IN',{maximumFractionDigits:2})}`;
     const dateKey=value=>String(value||'').slice(0,10);
