@@ -367,8 +367,8 @@
   },
   {
    "file": "clinical/bedside-verification.js",
-   "about": "2.19.93-95 Bedside Verification: QR trial (NFC later), OFF by default; scanner, panel on bedside entry screens, Scan & Administer, Admin page (SQL 363-365)",
-   "lines": 482
+   "about": "2.19.93-95 Bedside Verification: QR trial (NFC later), OFF by default; scanner, panel on bedside entry screens, Scan & Administer, Admin page ; computer block for Nurse/Caregiver (SQL 363-366)",
+   "lines": 517
   },
   {
    "file": "clinical/medicines.js",

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.95';
+  const APP_VERSION = '2.19.96';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '09-Nov-2026 Scan & Administer (bedside QR first)';
+  const APP_BUILD_DATE = '09-Nov-2026 Bedside entries only from phone (Nurse, Caregiver)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -27725,6 +27725,7 @@ Please keep these login details confidential.`;
     }
 
     async function logMedicine(order,time,status){
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){alert(_bb);return;}} // 2.19.96
       const {data:{user}}=await client.auth.getUser();
       const remarks=status==='Given'?'':prompt('Enter reason / remarks:')||'';
       const {error}=await client.from('medication_administrations').insert({
@@ -27736,6 +27737,7 @@ Please keep these login details confidential.`;
     }
 
     async function logCare(taskOrOrder,status,taskShift=shift){
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){alert(_bb);return;}} // 2.19.96
       try{
         const careOrder=taskOrOrder?.order||taskOrOrder;
         if(!careOrder?.id||!careOrder?.patient_id){
@@ -36208,6 +36210,7 @@ function RoomsBeds({profile,onNavigate}){
     async function save(e){
       e.preventDefault();
       if(saving)return;
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);return;}} // 2.19.96
       if(!form.patient_id){
         showToast('error','Please select a patient before saving the care record.');
         return;
@@ -36315,7 +36318,7 @@ function RoomsBeds({profile,onNavigate}){
           ),h('small',{className:'shift-entry-note'},`Current active shift: ${activeShift}`)),
           miniSelect('Status',form.status,['Completed','Refused','Not required','Pending'],v=>setForm({...form,status:v})),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
-          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94: shows nothing unless the QR trial is ON
+          h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94: shows nothing unless the QR trial is ON
           h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving care record…':'Save care record')
         )
       ),
@@ -36363,7 +36366,7 @@ function RoomsBeds({profile,onNavigate}){
       setReturnPage(context.return_page||'');
       clearTaskNavigationContext();
     },[]);
-    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}bedsideRecordTask({kind:'vitals',patientId:form.patient_id,label:'Vital signs',scan:bedsideScan});setBedsideScan(null);showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();finishSuccessfulAction({returnPage,onNavigate})}
+    async function save(e){e.preventDefault();{const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);return;}}/* 2.19.96 */const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}bedsideRecordTask({kind:'vitals',patientId:form.patient_id,label:'Vital signs',scan:bedsideScan});setBedsideScan(null);showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();finishSuccessfulAction({returnPage,onNavigate})}
     const patientRows=selectedPatient?rows.filter(r=>r.patient_id===selectedPatient).slice(0,10):rows.slice(0,10);
     const latest=patientRows[0];
     const input=(label,key,unit,opts={})=>h('div',{className:'vital-input'},h('label',null,label),h('div',{className:'vital-input-wrap'},h('input',{type:'number',step:opts.step||'any',min:opts.min,max:opts.max,value:form[key],placeholder:opts.placeholder||'',disabled:Boolean(opts.disabled),onChange:e=>setForm({...form,[key]:e.target.value})}),unit&&h('span',null,unit)));
@@ -36373,7 +36376,7 @@ function RoomsBeds({profile,onNavigate}){
         h('form',{className:'vitals-entry-card',onSubmit:save},
           h('div',{className:'vitals-patient-row'},patientSelect(patients,form.patient_id,v=>{setForm({...form,patient_id:v});setSelectedPatient(v)}),h('div',{className:`vital-live-status ${calculateLevel(form).toLowerCase().replace(' ','-')}`},h('small',null,'Current entry'),h('strong',null,calculateLevel(form)))),
           h('div',{className:'vitals-grid'},input('Temperature','temperature','°C / °F',{placeholder:'98.6'}),input('Systolic BP','systolic','mmHg'),input('Diastolic BP','diastolic','mmHg'),input('Pulse','pulse','/min'),input('Respiration','respiration','/min'),input('SpO₂','spo2','%'),h('div',{className:'vital-input'},h('label',null,'Blood Sugar Type'),h('select',{value:form.blood_sugar_type||'Not Taken',onChange:e=>setForm({...form,blood_sugar_type:e.target.value,blood_sugar:e.target.value==='Not Taken'?'':form.blood_sugar})},['Not Taken','FBS','PPBS','RBS'].map(x=>h('option',{value:x,key:x},x)))),input('Blood Sugar','blood_sugar','mg/dL',{disabled:(form.blood_sugar_type||'Not Taken')==='Not Taken'}),input('Weight','weight','kg',{step:'0.1'}),input('Pain Score','pain_score','/10',{min:0,max:10})),
-          h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan})),h('button',{className:'btn btn-primary vitals-save'},'Save Vital Signs')))),
+          h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan})),h('button',{className:'btn btn-primary vitals-save'},'Save Vital Signs')))),
       selectedPatient&&latest&&h('div',{className:'latest-vitals-strip'},h('div',null,h('small',null,'Latest for selected patient'),h('strong',null,formalName(latest.patients||{})||latest.patients?.full_name)),[['BP',`${measured(latest.systolic)??'—'}/${measured(latest.diastolic)??'—'}`],['Pulse',measured(latest.pulse)??'—'],['SpO₂',measured(latest.spo2)??'—'],['Sugar',measured(latest.blood_sugar)!==null?`${latest.blood_sugar_type||'RBS'} ${measured(latest.blood_sugar)}`:'—'],['Status',latest.computed_alert_level]].map(([a,b])=>h('div',{key:a},h('small',null,a),h('strong',null,b)))),
       h(LogTable,{className:'vitals-log-table',subtitle:'Swipe left or right to view all measurements.',title:selectedPatient?'Patient Vital Trend':'Recent Vital Signs',heads:['Patient','BP','Temp','Pulse','Resp.','SpO₂','Sugar Type','Sugar','Pain','Alert','Recorded'],rows:patientRows.map(r=>[formalName(r.patients||{})||r.patients?.full_name,vitalBP(r),vitalReading('temperature',r.temperature),vitalReading('pulse',r.pulse),vitalReading('respiration',r.respiration),vitalReading('spo2',r.spo2),r.blood_sugar_type||'Not Taken',vitalReading('blood_sugar',r.blood_sugar),r.pain_score??'—',vitalAlert(r.computed_alert_level),fmt(r.recorded_at)])})
     );
@@ -37207,16 +37210,36 @@ function RoomsBeds({profile,onNavigate}){
   const BEDSIDE_RESULT_LABEL={verified:'✅ Bed verified',wrong_bed:'⚠️ Wrong bed',unknown_tag:'⚠️ Unknown sticker',no_bed:'⚠️ Guest has no bed on record',not_scanned:'— Not scanned'};
 
   // Mode is read once a minute; any error → 'off'.
-  const bedsideModeCache={mode:'off',at:0};
+  const bedsideModeCache={mode:'off',block:false,at:0};
   async function bedsideLoadMode(force=false){
     if(!force&&bedsideModeCache.at&&Date.now()-bedsideModeCache.at<60000)return bedsideModeCache.mode;
-    let mode='off';
+    let mode='off',block=false;
     try{
-      const r=await client.from('bedside_verify_settings').select('mode').eq('id',1).maybeSingle();
-      if(!r.error&&r.data&&['off','qr_trial','nfc'].includes(r.data.mode))mode=r.data.mode;
+      const r=await client.from('bedside_verify_settings').select('*').eq('id',1).maybeSingle(); // '*' so a missing newer column never breaks it
+      if(!r.error&&r.data&&['off','qr_trial','nfc'].includes(r.data.mode)){mode=r.data.mode;block=r.data.block_computer===true}
     }catch(_){mode='off'}
-    bedsideModeCache.mode=mode;bedsideModeCache.at=Date.now();
+    bedsideModeCache.mode=mode;bedsideModeCache.block=block;bedsideModeCache.at=Date.now();
     return mode;
+  }
+  // 2.19.96: Nurse / Caregiver logins may save bedside entries only from a phone or tablet (SQL 366, Admin switch).
+  // Admin and the Nursing Manager's own login are never blocked (emergency entry from the station computer).
+  function bedsideIsComputer(){
+    try{
+      const ua=String(navigator.userAgent||'');
+      if(navigator.userAgentData&&navigator.userAgentData.mobile===true)return false;
+      if(/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua))return false;
+      if(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches&&!/Windows NT/i.test(ua))return false;
+      return /Windows NT|Macintosh|X11|CrOS|Linux x86_64/i.test(ua);
+    }catch(_){return false}
+  }
+  const BEDSIDE_COMPUTER_MSG='Bedside entries are made only from the Samara phone at the Guest\'s bed. This computer can view, but not save. (Emergency: ask the Nursing Manager or Admin.)';
+  function bedsideBlockedRole(profile){return ['Nurse','Caregiver'].includes(profile?.role)}
+  async function bedsideBlockedHere(profile){
+    try{
+      if(!bedsideBlockedRole(profile)||!bedsideIsComputer())return '';
+      const mode=await bedsideLoadMode();
+      return mode!=='off'&&bedsideModeCache.block?BEDSIDE_COMPUTER_MSG:'';
+    }catch(_){return ''}
   }
   function useBedsideMode(){
     const [mode,setMode]=React.useState(bedsideModeCache.mode);
@@ -37325,7 +37348,7 @@ function RoomsBeds({profile,onNavigate}){
   function BedsideCss(){return h('style',null,BEDSIDE_CSS)}
 
   // Shown inside the MAR "Administer now?" box. value = {code, check, reason}. Shows nothing unless the trial is ON.
-  function BedsideDosePanel({patient,value,onChange,disabled}){
+  function BedsideDosePanel({patient,value,onChange,disabled,profile}){
     const mode=useBedsideMode();
     const [scanning,setScanning]=React.useState(false),[checking,setChecking]=React.useState(false);
     // 2.19.95: arrived from Scan & Administer for this Guest → already bed-verified.
@@ -37335,6 +37358,7 @@ function RoomsBeds({profile,onNavigate}){
       if(s)onChange({code:s.code,check:s.check||null,reason:'',patientId:patient.id,fromScanFirst:true});
     },[mode,patient?.id]);
     if(mode!=='qr_trial'||!patient?.id)return null;
+    if(bedsideModeCache.block&&bedsideIsComputer()&&bedsideBlockedRole(profile))return h('div',{className:'bedside-box'},h(BedsideCss),h('div',{className:'bedside-res bad'},`🔒 ${BEDSIDE_COMPUTER_MSG}`));
     const v=value&&(!value.patientId||value.patientId===patient.id)?value:{};
     const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
     async function gotCode(code){
@@ -37442,7 +37466,7 @@ function RoomsBeds({profile,onNavigate}){
     const loadSettings=React.useCallback(async()=>{
       try{const r=await client.from('bedside_verify_settings').select('*').eq('id',1).maybeSingle();
         if(r.error){setInstalled(false);return}
-        setInstalled(true);setModeInfo(r.data||null);setMode(r.data?.mode||'off');bedsideModeCache.mode=r.data?.mode||'off';bedsideModeCache.at=Date.now();
+        setInstalled(true);setModeInfo(r.data||null);setMode(r.data?.mode||'off');bedsideModeCache.mode=r.data?.mode||'off';bedsideModeCache.block=r.data?.block_computer===true;bedsideModeCache.at=Date.now();
       }catch(_){setInstalled(false)}
     },[]);
     const loadBeds=React.useCallback(async()=>{
@@ -37471,6 +37495,14 @@ function RoomsBeds({profile,onNavigate}){
       setBusy('mode');
       try{const r=await client.rpc('set_bedside_verify_settings',{p_mode:next});if(r.error)throw r.error;await loadSettings();
         showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" on bedside entry screens.':'Bedside Verification is OFF — every screen is exactly as before.');}
+      catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
+      finally{setBusy('')}
+    }
+    async function changeBlock(on){
+      if(!isAdmin||busy)return;
+      setBusy('block');
+      try{const r=await client.rpc('set_bedside_block_computer',{p_on:on});if(r.error)throw r.error;await loadSettings();bedsideModeCache.at=0;
+        showSamaraActionToast('success','Bedside Verification',on?'Computers blocked for Nurse / Caregiver bedside entries.':'Computers allowed again.');}
       catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
       finally{setBusy('')}
     }
@@ -37514,6 +37546,12 @@ function RoomsBeds({profile,onNavigate}){
         h('div',{className:'bedside-tabs'},
           h('button',{type:'button',className:`btn ${mode==='off'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('off')},'OFF'),
           h('button',{type:'button',className:`btn ${mode==='qr_trial'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('qr_trial')},'QR trial (record-only)')),
+        h('h3',{style:{marginTop:'14px'}},'Computers (Nurse / Caregiver logins)'),
+        h('div',{className:'small-note'},'ON = Nurses and Caregivers can save bedside entries only from a phone / tablet. Admin and the Nursing Manager\'s own login can still enter from a computer.'),
+        h('div',{className:'bedside-tabs'},
+          h('button',{type:'button',className:`btn ${modeInfo?.block_computer?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||modeInfo?.block_computer===undefined||busy==='block',onClick:()=>changeBlock(true)},'Block computers'),
+          h('button',{type:'button',className:`btn ${modeInfo&&!modeInfo.block_computer?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||modeInfo?.block_computer===undefined||busy==='block',onClick:()=>changeBlock(false)},'Allow computers')),
+        modeInfo&&modeInfo.block_computer===undefined&&h('div',{className:'small-note'},'Needs supabase/sql/366_bedside_block_computer.sql.'),
         h('h3',{style:{marginTop:'14px'}},'Test a sticker'),
         h('div',{className:'small-note'},'Scan any printed sticker to see which bed it belongs to. Nothing is saved.'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:!installed,onClick:()=>{setTestResult(null);setTestScan(true)}},'📷 Test a sticker'),
@@ -38205,6 +38243,7 @@ function RoomsBeds({profile,onNavigate}){
       e.preventDefault();
       setMarMessage('');
       if(!marTarget)return;
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);setMarMessage(_bb);return;}} // 2.19.96
       const fresh=await client.from('patients').select('is_active,admission_status').eq('id',marTarget.patient_id).single();
       if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged'){setMarMessage('Patient is discharged or status could not be verified. Refresh the medication list.');await load();return}
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
@@ -38576,6 +38615,7 @@ function RoomsBeds({profile,onNavigate}){
     function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);setConfirmMessage(_bb);return;}} // 2.19.96
       setConfirmBusy(true);setConfirmMessage('');
       try{
         const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();
@@ -38819,7 +38859,7 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
             h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
             minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
-            h(BedsideSafe,null,h(BedsideDosePanel,{patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
+            h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),
@@ -38964,7 +39004,7 @@ function RoomsBeds({profile,onNavigate}){
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
             h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(marForm.status==='Not Given'?(marForm.not_given_reason==='Other'?'Reason (required)':'Remarks (optional)'):['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||(marForm.status==='Not Given'?marForm.not_given_reason==='Other':!['Given','Withheld'].includes(marForm.status))}))
           ),
-          !rescheduleLog&&h(BedsideSafe,null,h(BedsideDosePanel,{patient:patientFor(marTarget),value:bedsideScan,onChange:setBedsideScan,disabled:marBusy})), // 2.19.94: shows nothing unless the QR trial is ON
+          !rescheduleLog&&h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patientFor(marTarget),value:bedsideScan,onChange:setBedsideScan,disabled:marBusy})), // 2.19.94: shows nothing unless the QR trial is ON
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':(rescheduleLog||marForm.status==='Reschedule')?'Save Reschedule':'Save MAR'))
         )
       ),
@@ -39543,6 +39583,7 @@ function RoomsBeds({profile,onNavigate}){
     function moveItem(i,d){setForm(f=>{const a=[...f.items];const j=i+d;if(j<0||j>=a.length)return f;[a[i],a[j]]=[a[j],a[i]];return {...f,items:a}})}
     async function saveMeal(e){
       e.preventDefault();
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);return;}} // 2.19.96
       if(!patientId)return alert('Select a Guest before entering food details.');
       const pending=form.custom.trim();
       const items=pending&&!form.items.some(x=>x.toLowerCase()===pending.toLowerCase())?[...form.items,pending]:form.items;
@@ -39569,6 +39610,7 @@ function RoomsBeds({profile,onNavigate}){
     }
     async function saveBeverage(e){
       e.preventDefault();
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);return;}} // 2.19.96
       if(!bevReady)return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.');
       if(!patientId)return alert('Select a Guest before entering the beverage.');
       if(!bev.beverage)return alert('Choose the beverage: Tea, Coffee, Milk, Boost, Horlicks or Fresh Juice.');
@@ -39649,7 +39691,7 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'fi-row'},miniSelect('Food consumed',form.consumption_status,INTAKE_OPTIONS,v=>setForm({...form,consumption_status:v}))),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each Guest on each date. Record beverages in ☕ Beverage.'),
-          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
+          h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
           h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':`Save ${mealLabel(form.meal_type)} Entry`)
         ):h('form',{className:'fi-form',onSubmit:saveBeverage},
           !bevReady&&h('div',{className:'message error'},'Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase.'),
@@ -39666,7 +39708,7 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
-          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
+          h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
           h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
           !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )

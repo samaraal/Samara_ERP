@@ -62,6 +62,7 @@
     }
 
     async function logMedicine(order,time,status){
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){alert(_bb);return;}} // 2.19.96
       const {data:{user}}=await client.auth.getUser();
       const remarks=status==='Given'?'':prompt('Enter reason / remarks:')||'';
       const {error}=await client.from('medication_administrations').insert({
@@ -73,6 +74,7 @@
     }
 
     async function logCare(taskOrOrder,status,taskShift=shift){
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){alert(_bb);return;}} // 2.19.96
       try{
         const careOrder=taskOrOrder?.order||taskOrOrder;
         if(!careOrder?.id||!careOrder?.patient_id){

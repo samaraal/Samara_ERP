@@ -527,6 +527,7 @@
       e.preventDefault();
       setMarMessage('');
       if(!marTarget)return;
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);setMarMessage(_bb);return;}} // 2.19.96
       const fresh=await client.from('patients').select('is_active,admission_status').eq('id',marTarget.patient_id).single();
       if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged'){setMarMessage('Patient is discharged or status could not be verified. Refresh the medication list.');await load();return}
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
@@ -898,6 +899,7 @@
     function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
+      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);setConfirmMessage(_bb);return;}} // 2.19.96
       setConfirmBusy(true);setConfirmMessage('');
       try{
         const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();
@@ -1141,7 +1143,7 @@
             h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
             h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
             minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
-            h(BedsideSafe,null,h(BedsideDosePanel,{patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
+            h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),
@@ -1286,7 +1288,7 @@
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
             h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(marForm.status==='Not Given'?(marForm.not_given_reason==='Other'?'Reason (required)':'Remarks (optional)'):['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||(marForm.status==='Not Given'?marForm.not_given_reason==='Other':!['Given','Withheld'].includes(marForm.status))}))
           ),
-          !rescheduleLog&&h(BedsideSafe,null,h(BedsideDosePanel,{patient:patientFor(marTarget),value:bedsideScan,onChange:setBedsideScan,disabled:marBusy})), // 2.19.94: shows nothing unless the QR trial is ON
+          !rescheduleLog&&h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patientFor(marTarget),value:bedsideScan,onChange:setBedsideScan,disabled:marBusy})), // 2.19.94: shows nothing unless the QR trial is ON
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':(rescheduleLog||marForm.status==='Reschedule')?'Save Reschedule':'Save MAR'))
         )
       ),
