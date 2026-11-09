@@ -1,3 +1,9 @@
+## 2.19.93 — 09-11-2026 — Bedside Verification (MAR): QR trial — OFF by default — SQL 363
+- New **ADMIN → Bedside Verification** (Admin + Nursing Manager): trial switch (Admin only), bed QR stickers (issue / replace / print), test-a-sticker, and a register (Today / This Week / Month / Period, Guest search, result filter, by-staff summary).
+- When the trial is ON, the MAR "Administer now?" box shows **📷 Scan bed QR** (phone camera). Result: ✅ Bed verified / ⚠️ Wrong bed / ⚠️ Unknown sticker, or "Not scanned" with an optional reason. **Record-only**: the dose is saved exactly as before; the scan is saved separately afterwards and can never block or change a dose.
+- When OFF (default), or if SQL 363 is not run, nurses see nothing new. Nothing else changed: no existing table / function / screen is altered. NFC (NTAG 424 DNA) will replace the QR stickers later using the same register.
+- Needs `supabase/sql/363_bedside_verification_trial.sql` (new tables + functions only). New file `vendor/jsQR.js` (QR reader, Apache-2.0) loads only when the browser has no built-in reader.
+
 ## 2.19.92 — 09-11-2026 — Dashboard: every box opens the right page
 - **Outstanding Amount** now opens Accounts Dashboard straight on the **Outstanding Receivables — Guest-wise** list (S.No · Guest · Room · Amount, row → full details). It used to open the general Accounts Reports page for this month.
 - The box total is now worked out Guest by Guest, the same way as that list, so the two numbers match (before, one Guest's advance was reducing another Guest's dues).

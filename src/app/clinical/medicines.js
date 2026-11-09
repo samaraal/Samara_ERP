@@ -50,6 +50,7 @@
     const [selectedSlot,setSelectedSlot]=React.useState('');
     const [confirmTarget,setConfirmTarget]=React.useState(null);
     const [confirmBusy,setConfirmBusy]=React.useState(false);
+    const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.93: bedside QR trial (record-only, OFF by default)
     const [confirmMessage,setConfirmMessage]=React.useState('');
     const [doseDetail,setDoseDetail]=React.useState(null);
     // 2.18.85: correct the actual "given at" time of a dose recorded TODAY (reason compulsory, audit kept)
@@ -891,7 +892,7 @@
     const roomText=p=>p?.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—';
     const marDateNote=date=>date!==today?` (${formatDateIN(date)})`:'';
     function openWithhold(item){openMar(item.order,item.time,item.date);setMarForm(cur=>({...cur,status:'Withheld'}));}
-    function askAdminister(item){setConfirmMessage('');setConfirmTarget(item);}
+    function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
       setConfirmBusy(true);setConfirmMessage('');
@@ -910,6 +911,7 @@
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
           late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
         if(error)throw error;
+        bedsideRecordAfterGiven({order:item.order,date:item.date,time,scan:bedsideScan}); // 2.19.93: separate record, never blocks
         const p=patientFor(item.order);
         showSamaraActionToast('success','Medicine given',`${medicineLabel(item.order)} · Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'} · ${formatTimeIN(now)}`);
         setConfirmTarget(null);
@@ -1136,6 +1138,7 @@
             h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
             h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
             minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
+            h(BedsideSafe,null,h(BedsideDosePanel,{patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),

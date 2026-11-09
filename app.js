@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.92';
+  const APP_VERSION = '2.19.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '09-Nov-2026 Dashboard boxes open the right page';
+  const APP_BUILD_DATE = '09-Nov-2026 Bedside Verification QR trial (off by default)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -1729,7 +1729,7 @@ function initSamaraInaugurationInvitation(){
   });
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','MIS & Audit','Daily Report','Notifications'] }, // 2.19.11: MIS & Audit — Admin / Directors only · 2.19.75: Daily Report — Admin + Nursing Manager
-    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health'] }, // 2.16.43: System Health (Admin)
+    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health','Bedside Verification'] }, // 2.16.43: System Health (Admin) · 2.19.93: Bedside Verification (Admin + Nursing Manager)
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Employee Register','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
@@ -1796,7 +1796,7 @@ function initSamaraInaugurationInvitation(){
       'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy','Physiotherapy Dashboard',
       'Clinical Dashboard','Nursing Notes','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Approvals','Charge Register', // 2.17.6: Bills & Charges (raise outside bills)
-      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Daily Report','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Daily Report','Intelligent Reports','Medication Errors','Recovery Timeline','Bedside Verification',
       'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
@@ -15822,7 +15822,8 @@ https://samaraassistedliving.com/`;
           page==='Alert Settings'&&h(AlertSettings,{profile,engine:alertEngine}),
           ['Dashboard','HR Dashboard','Clinical Dashboard','Accounts Dashboard',"Director's Office"].includes(page)&&h(GeneralHandoverWorklist,{profile}),
           page==='System Maintenance'&&h(SystemMaintenance,{profile}),
-          page==='System Health'&&h(SystemHealth,{profile})
+          page==='System Health'&&h(SystemHealth,{profile}),
+          page==='Bedside Verification'&&h(BedsideSafe,null,h(BedsideVerification,{profile})) // 2.19.93 (SQL 363)
         )),
         clinicalPopupVisible&&topClinicalAlert&&h('div',{className:`clinical-alert-popup ${String(topClinicalAlert.priority||'Routine').toLowerCase()}`},
           h('div',{className:'clinical-alert-popup-head'},h('strong',null,topClinicalAlert.priority==='Critical'?'🔴 ':topClinicalAlert.priority==='Urgent'?'🟠 ':'🔵 ',topClinicalAlert.title)),
@@ -37186,6 +37187,342 @@ function RoomsBeds({profile,onNavigate}){
           ['Note',!detail.log?'No administration entry was made for this scheduled dose.':'']]})
     ));
   }
+  // ── 2.19.93: BEDSIDE VERIFICATION (MAR) — QR TRIAL, later NFC (SQL 363) ─────────────────────────────────────
+  // Self-contained. OFF by default: until Admin turns on "QR trial" (ADMIN → Bedside Verification) nothing here
+  // shows or runs anywhere in the ERP. If SQL 363 is not installed yet, the mode reads as OFF.
+  // Record-only trial: the scan is saved in its own table AFTER the dose is saved. It never blocks, changes or
+  // delays a dose entry; any scan / network problem is ignored by the MAR.
+
+  const BEDSIDE_QR_PREFIX='SAMARA-BED:';
+  const BEDSIDE_NOT_SCANNED_REASONS=['Sticker missing / damaged','Camera / phone problem','Phone not available','Guest moved / bed changed','Other'];
+  const BEDSIDE_RESULT_LABEL={verified:'✅ Bed verified',wrong_bed:'⚠️ Wrong bed',unknown_tag:'⚠️ Unknown sticker',no_bed:'⚠️ Guest has no bed on record',not_scanned:'— Not scanned'};
+
+  // Mode is read once a minute; any error → 'off'.
+  const bedsideModeCache={mode:'off',at:0};
+  async function bedsideLoadMode(force=false){
+    if(!force&&bedsideModeCache.at&&Date.now()-bedsideModeCache.at<60000)return bedsideModeCache.mode;
+    let mode='off';
+    try{
+      const r=await client.from('bedside_verify_settings').select('mode').eq('id',1).maybeSingle();
+      if(!r.error&&r.data&&['off','qr_trial','nfc'].includes(r.data.mode))mode=r.data.mode;
+    }catch(_){mode='off'}
+    bedsideModeCache.mode=mode;bedsideModeCache.at=Date.now();
+    return mode;
+  }
+  function useBedsideMode(){
+    const [mode,setMode]=React.useState(bedsideModeCache.mode);
+    React.useEffect(()=>{let live=true;bedsideLoadMode().then(m=>{if(live)setMode(m)});return()=>{live=false}},[]);
+    return mode;
+  }
+
+  // A crash inside any bedside piece shows nothing instead of breaking the screen around it.
+  class BedsideSafe extends React.Component{
+    constructor(props){super(props);this.state={failed:false}}
+    static getDerivedStateFromError(){return {failed:true}}
+    componentDidCatch(error){console.warn('Bedside verification part hidden after an error:',error)}
+    render(){return this.state.failed?null:this.props.children}
+  }
+
+  async function bedsideLoadJsQr(){
+    if(window.jsQR)return window.jsQR;
+    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/jsQR.js?v=1.4.0';s.onload=resolve;s.onerror=()=>reject(new Error('QR reader could not be loaded.'));document.head.appendChild(s)});
+    if(!window.jsQR)throw new Error('QR reader is unavailable on this device.');
+    return window.jsQR;
+  }
+
+  // Camera QR reader (phone back camera). Uses the browser's built-in reader when present, else jsQR.
+  function BedsideQrScanner({title='Scan the bed sticker',onCode,onClose}){
+    const videoRef=React.useRef(null),canvasRef=React.useRef(null);
+    const [status,setStatus]=React.useState('Starting camera…'),[error,setError]=React.useState('');
+    React.useEffect(()=>{
+      let stream=null,timer=null,stopped=false,detector=null,reader=null;
+      const stop=()=>{stopped=true;if(timer)clearTimeout(timer);if(stream)stream.getTracks().forEach(t=>{try{t.stop()}catch(_){}})};
+      (async()=>{
+        try{
+          if(!navigator.mediaDevices?.getUserMedia)throw new Error('This device or browser cannot open the camera. Use the Samara phone in Chrome.');
+          stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+          if(stopped){stop();return}
+          const v=videoRef.current;if(!v){stop();return}
+          v.srcObject=stream;v.setAttribute('playsinline','true');await v.play();
+          try{if('BarcodeDetector' in window){const f=await window.BarcodeDetector.getSupportedFormats();if(f.includes('qr_code'))detector=new window.BarcodeDetector({formats:['qr_code']})}}catch(_){detector=null}
+          if(!detector)reader=await bedsideLoadJsQr();
+          if(stopped)return;
+          setStatus('Point the camera at the QR sticker on the bed');
+          const tick=async()=>{
+            if(stopped)return;
+            let text='';
+            try{
+              const vv=videoRef.current;
+              if(vv&&vv.readyState>=2){
+                if(detector){const codes=await detector.detect(vv);text=codes?.[0]?.rawValue||''}
+                else{
+                  const c=canvasRef.current,w=vv.videoWidth,hgt=vv.videoHeight;
+                  if(c&&w&&hgt){const scale=Math.min(1,640/w);c.width=Math.round(w*scale);c.height=Math.round(hgt*scale);const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(vv,0,0,c.width,c.height);const img=ctx.getImageData(0,0,c.width,c.height);const found=reader(img.data,c.width,c.height,{inversionAttempts:'dontInvert'});text=found?.data||''}
+                }
+              }
+            }catch(_){text=''}
+            if(stopped)return;
+            if(text){
+              if(String(text).toUpperCase().startsWith(BEDSIDE_QR_PREFIX)){stop();try{navigator.vibrate?.(80)}catch(_){}onCode(String(text).trim());return}
+              setStatus('That QR is not a Samara bed sticker — scan the bed sticker');
+            }
+            timer=setTimeout(tick,220);
+          };
+          tick();
+        }catch(e){
+          const msg=e?.name==='NotAllowedError'?'Camera permission was refused. Allow the camera for this site in Chrome settings, then try again.':(e?.message||'Camera could not be opened.');
+          setError(msg);stop();
+        }
+      })();
+      return stop;
+    },[]);
+    return h('div',{className:'modal-backdrop bedside-scan-backdrop',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+      h('div',{className:'card modal bedside-scan',role:'dialog','aria-modal':'true','data-no-hover':'true'},
+        h('div',{className:'panel-head'},h('h3',null,title),h('button',{type:'button',className:'close',onClick:onClose},'×')),
+        error?h('div',{className:'message error'},error):h('div',{className:'small-note'},status),
+        h('div',{className:'bedside-scan-view'},h('video',{ref:videoRef,muted:true,playsInline:true}),h('div',{className:'bedside-scan-frame'})),
+        h('canvas',{ref:canvasRef,style:{display:'none'}}),
+        h('div',{className:'modal-actions',style:{marginTop:'10px'}},h('button',{type:'button',className:'btn btn-secondary',onClick:onClose},'Close'))));
+  }
+
+  const BEDSIDE_CSS=`.bedside-box{margin-top:12px;padding:10px 12px;border:1px dashed #e2a9c4;border-radius:12px;background:#fff7fb}
+.bedside-box .bedside-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-weight:800;color:#5d1039;font-size:13.5px}
+.bedside-box .bedside-trial{font-size:11px;font-weight:800;color:#8a5a00;background:#fff4dd;border:1px solid #f0c75e;border-radius:999px;padding:1px 8px}
+.bedside-res{margin-top:8px;padding:8px 10px;border-radius:10px;font-weight:700;font-size:13.5px;overflow-wrap:anywhere}
+.bedside-res.ok{background:#e8f6ee;color:#0a7a42;border:1px solid #bfe5cf}.bedside-res.bad{background:#fdecec;color:#b42318;border:1px solid #e8a0a0}
+.bedside-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}.bedside-row select{flex:1 1 180px;min-width:0}
+.bedside-scan{max-width:440px;width:96vw}.bedside-scan-view{position:relative;margin-top:8px;border-radius:14px;overflow:hidden;background:#111;aspect-ratio:3/4;max-height:62vh}
+.bedside-scan-view video{width:100%;height:100%;object-fit:cover;display:block}.bedside-scan-frame{position:absolute;inset:18% 14%;border:3px solid #ff5fa2;border-radius:16px;box-shadow:0 0 0 999px rgba(0,0,0,.28)}
+.bedside-page .bedside-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
+.bedside-page table{width:100%;table-layout:fixed;border-collapse:collapse}.bedside-page th,.bedside-page td{white-space:normal;overflow-wrap:anywhere;word-break:normal;text-align:left;padding:7px 6px;border-bottom:1px solid #f0dce6;font-size:13px;vertical-align:top}
+.bedside-page th{color:#5d1039;font-size:12px}.bedside-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:10px 0}
+.bedside-card{border-radius:12px;padding:10px;background:linear-gradient(135deg,#fff,#fde8f1);border:1px solid #f0cfe0}.bedside-card b{display:block;font-size:20px;color:#7a1247}.bedside-card small{color:#5d1039;font-weight:700}
+.bedside-chip{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:800}.bedside-chip.verified{background:#e8f6ee;color:#0a7a42}.bedside-chip.not_scanned{background:#f3f0f2;color:#5d4a54}.bedside-chip.wrong_bed,.bedside-chip.unknown_tag,.bedside-chip.no_bed{background:#fdecec;color:#b42318}
+.bedside-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}.bedside-filters .field{flex:0 1 170px;min-width:0;margin:0}`;
+  function BedsideCss(){return h('style',null,BEDSIDE_CSS)}
+
+  // Shown inside the MAR "Administer now?" box. value = {code, check, reason}. Shows nothing unless the trial is ON.
+  function BedsideDosePanel({patient,value,onChange,disabled}){
+    const mode=useBedsideMode();
+    const [scanning,setScanning]=React.useState(false),[checking,setChecking]=React.useState(false);
+    if(mode!=='qr_trial')return null;
+    const v=value||{};
+    const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
+    async function gotCode(code){
+      setScanning(false);setChecking(true);onChange({code,check:null,reason:''});
+      try{
+        const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:patient?.id||null});
+        if(r.error)throw r.error;
+        onChange({code,check:r.data||null,reason:''});
+      }catch(e){onChange({code,check:{result:'error',message:e?.message||'Could not check the sticker'},reason:''})}
+      finally{setChecking(false)}
+    }
+    const c=v.check;
+    const bedText=(room,bed)=>room?`Room ${room}${bed?` · Bed ${bed}`:''}`:'—';
+    let res=null;
+    if(checking)res=h('div',{className:'bedside-res'},'Checking the sticker…');
+    else if(c?.result==='verified')res=h('div',{className:'bedside-res ok'},`✅ Bed verified — ${bedText(c.scanned_room_no,c.scanned_bed_no)}`);
+    else if(c?.result==='wrong_bed')res=h('div',{className:'bedside-res bad'},`⚠️ Wrong bed — this sticker is ${bedText(c.scanned_room_no,c.scanned_bed_no)}; the Guest is in ${bedText(c.guest_room_no,c.guest_bed_no)}. Please check you are at the right bed.`);
+    else if(c?.result==='unknown_tag')res=h('div',{className:'bedside-res bad'},'⚠️ This sticker is not registered (or was replaced). Tell the Nursing Manager.');
+    else if(c?.result==='no_bed')res=h('div',{className:'bedside-res bad'},`⚠️ The Guest has no room / bed on record. Sticker: ${bedText(c.scanned_room_no,c.scanned_bed_no)}.`);
+    else if(c?.result==='error')res=h('div',{className:'bedside-res bad'},`⚠️ ${c.message}. The dose can still be saved.`);
+    return h('div',{className:'bedside-box'},
+      h(BedsideCss),
+      h('div',{className:'bedside-head'},h('span',null,`📍 Bedside check · ${roomText}`),h('span',{className:'bedside-trial'},'TRIAL — dose saves either way')),
+      res,
+      h('div',{className:'bedside-row'},
+        h('button',{type:'button',className:'btn btn-secondary',disabled:disabled||checking,onClick:()=>setScanning(true)},v.code?'📷 Scan again':'📷 Scan bed QR'),
+        !v.code&&h('select',{value:v.reason||'',disabled,onChange:e=>onChange({...v,reason:e.target.value}),'aria-label':'Reason for not scanning'},
+          h('option',{value:''},'Not scanning? Reason (optional)'),BEDSIDE_NOT_SCANNED_REASONS.map(x=>h('option',{key:x,value:x},x)))),
+      scanning&&h(BedsideQrScanner,{onCode:gotCode,onClose:()=>setScanning(false)}));
+  }
+
+  // Called by the MAR after a dose is saved. Fire-and-forget: never throws, never awaited by the MAR.
+  function bedsideRecordAfterGiven({order,date,time,scan}){
+    try{
+      if(bedsideModeCache.mode!=='qr_trial'||!order?.patient_id)return;
+      Promise.resolve()
+        .then(()=>client.rpc('bedside_record_dose_check',{p_order_id:order.id||null,p_patient_id:order.patient_id,p_scheduled_date:date,p_scheduled_time:String(time||'').slice(0,5),
+          p_code:scan?.code||null,p_reason:scan?.code?null:(scan?.reason||null),p_method:'qr'}))
+        .then(r=>{if(r?.error)console.warn('Bedside check not recorded:',r.error.message)})
+        .catch(e=>console.warn('Bedside check not recorded:',e));
+    }catch(e){console.warn('Bedside check not recorded:',e)}
+  }
+
+  // ── ADMIN → Bedside Verification (Admin / Nursing Manager) ──────────────────────────────────────────────────
+  function bedsidePeriodRange(period,month,from,to){
+    const today=todayISOIndia();
+    if(period==='Today')return {from:today,to:today};
+    if(period==='This Week')return {from:mondayOfWeek(today),to:today};
+    if(period==='Month'){const m=month||today.slice(0,7);const [y,mm]=m.split('-').map(Number);const last=new Date(Date.UTC(y,mm,0)).toISOString().slice(0,10);return {from:`${m}-01`,to:last}}
+    return {from:from||today,to:to||today};
+  }
+
+  async function bedsidePrintStickers(tags){
+    const list=(tags||[]).filter(t=>t&&t.tag_code);
+    if(!list.length){showSamaraActionToast('error','Nothing to print','Issue stickers for the beds first.');return}
+    const win=window.open('','_blank');
+    if(!win){showSamaraActionToast('error','Pop-up blocked','Allow pop-ups for this site to print the stickers.');return}
+    try{
+      if(!window.SamaraQRCode){await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/qrcode.bundle.js';s.onload=resolve;s.onerror=()=>reject(new Error('QR generator could not be loaded.'));document.head.appendChild(s)})}
+      const esc=x=>String(x??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+      const logo=new URL('./assets/samara-logo.png',window.location.href).href;
+      const cards=list.map(t=>`<div class="st"><div class="top"><img src="${esc(logo)}" alt=""/><span>Bedside check</span></div>
+        <div class="qr">${window.SamaraQRCode.toSvg(BEDSIDE_QR_PREFIX+t.tag_code,{size:200,margin:2,errorCorrectionLevel:'M'})}</div>
+        <div class="bed">Room ${esc(t.room_no)} · Bed ${esc(t.bed_no)}</div><div class="hint">Scan before giving medicine</div><div class="code">${esc(t.tag_code.slice(-4))}</div></div>`).join('');
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Samara bed stickers</title><style>
+        @page{size:A4;margin:10mm}body{font-family:Arial,sans-serif;margin:0;color:#3a1028}
+        .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6mm}.st{border:2px solid #e03a7c;border-radius:4mm;padding:3mm;text-align:center;break-inside:avoid;page-break-inside:avoid}
+        .top{display:flex;align-items:center;justify-content:center;gap:2mm;font-weight:700;color:#b01264;font-size:11pt}.top img{height:9mm}
+        .qr svg{width:44mm;height:44mm}.bed{font-size:13pt;font-weight:800;color:#7a1247;white-space:nowrap}.hint{font-size:9pt;color:#5d1039}.code{font-size:7pt;color:#999;margin-top:1mm}
+        .note{font-size:10pt;margin:0 0 5mm;color:#5d1039}@media print{.note{display:none}}</style></head><body>
+        <p class="note">Print on sticker paper (or plain paper + clear tape). Stick each on its own bed headboard, where the nurse can reach. Replacing a sticker in the ERP makes the old one stop working.</p>
+        <div class="grid">${cards}</div></body></html>`);
+      win.document.close();
+      if(typeof samaraPrintBar==='function')samaraPrintBar(win);
+    }catch(e){try{win.close()}catch(_){}showSamaraActionToast('error','Could not prepare stickers',e?.message||'Please try again.')}
+  }
+
+  function BedsideVerification({profile}){
+    const isAdmin=['Admin'].includes(profile?.role);
+    const canManage=isAdmin||profile?.role==='Manager'||isNursingManagerProfile(profile);
+    const [tab,setTab]=React.useState('Register');
+    const [mode,setMode]=React.useState(bedsideModeCache.mode),[installed,setInstalled]=React.useState(true),[modeInfo,setModeInfo]=React.useState(null),[busy,setBusy]=React.useState('');
+    const [beds,setBeds]=React.useState([]),[tags,setTags]=React.useState([]),[picked,setPicked]=React.useState({});
+    const [testScan,setTestScan]=React.useState(false),[testResult,setTestResult]=React.useState(null);
+    const [patients]=usePatients(true);
+    const today=todayISOIndia();
+    const [draft,setDraft]=React.useState({period:'Today',month:today.slice(0,7),from:today,to:today,patient:'',search:'',result:''});
+    const {applied,apply,dirty}=useAppliedFilters(draft);
+    const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[loadError,setLoadError]=React.useState('');
+
+    const loadSettings=React.useCallback(async()=>{
+      try{const r=await client.from('bedside_verify_settings').select('*').eq('id',1).maybeSingle();
+        if(r.error){setInstalled(false);return}
+        setInstalled(true);setModeInfo(r.data||null);setMode(r.data?.mode||'off');bedsideModeCache.mode=r.data?.mode||'off';bedsideModeCache.at=Date.now();
+      }catch(_){setInstalled(false)}
+    },[]);
+    const loadBeds=React.useCallback(async()=>{
+      const [b,t]=await Promise.all([client.from('room_beds').select('id,room_no,bed_no,room_type,status').order('room_no').order('bed_no'),client.from('bedside_bed_tags').select('*').eq('is_active',true)]);
+      if(!b.error)setBeds((b.data||[]).filter(isPatientBed).sort((x,y)=>String(x.room_no).localeCompare(String(y.room_no),'en',{numeric:true})||String(x.bed_no).localeCompare(String(y.bed_no),'en',{numeric:true})));
+      if(!t.error)setTags(t.data||[]);
+    },[]);
+    const loadRows=React.useCallback(async()=>{
+      const rg=bedsidePeriodRange(applied.period,applied.month,applied.from,applied.to);
+      if(rg.from>rg.to){setLoadError('From date is after To date.');setRows([]);return}
+      setLoading(true);setLoadError('');
+      try{
+        let q=client.from('bedside_dose_checks').select('*').gte('scheduled_date',rg.from).lte('scheduled_date',rg.to).order('created_at',{ascending:false}).limit(2000);
+        if(applied.patient)q=q.eq('patient_id',applied.patient);
+        if(applied.result)q=q.eq('result',applied.result);
+        const r=await q;if(r.error)throw r.error;setRows(r.data||[]);
+      }catch(e){setRows([]);setLoadError(e?.message||'Could not load the register.')}
+      finally{setLoading(false)}
+    },[applied]);
+    React.useEffect(()=>{loadSettings();loadBeds()},[loadSettings,loadBeds]);
+    React.useEffect(()=>{if(installed)loadRows()},[loadRows,installed]);
+
+    async function changeMode(next){
+      if(!isAdmin||busy)return;
+      setBusy('mode');
+      try{const r=await client.rpc('set_bedside_verify_settings',{p_mode:next});if(r.error)throw r.error;await loadSettings();
+        showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" in Administer now.':'Bedside Verification is OFF — the MAR is exactly as before.');}
+      catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
+      finally{setBusy('')}
+    }
+    async function issue(bedIds){
+      if(!canManage||busy||!bedIds.length)return;
+      setBusy('issue');
+      try{for(const id of bedIds){const r=await client.rpc('bedside_tag_issue',{p_room_bed_id:id,p_kind:'qr'});if(r.error)throw r.error}
+        await loadBeds();showSamaraActionToast('success','Stickers ready',`${bedIds.length} bed sticker(s) issued. Print and stick them on the beds.`);}
+      catch(e){showSamaraActionToast('error','Could not issue',e?.message||'Please try again.');await loadBeds()}
+      finally{setBusy('')}
+    }
+    async function testCode(code){
+      setTestScan(false);setTestResult({checking:true});
+      try{const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:null});if(r.error)throw r.error;setTestResult(r.data||{})}
+      catch(e){setTestResult({error:e?.message||'Could not check'})}
+    }
+
+    if(!canManage)return h('div',{className:'card panel'},'Bedside Verification is for Admin and the Nursing Manager.');
+    const tagFor=bedId=>tags.find(t=>String(t.room_bed_id)===String(bedId)&&t.tag_kind==='qr');
+    const pFor=id=>patients.find(p=>String(p.id)===String(id))||{};
+    const searchText=draft.search.trim().toLowerCase();
+    const patientOptions=patients.filter(p=>searchText.length<3||`${formalName(p)} ${p.patient_id||''}`.toLowerCase().includes(searchText));
+    const appliedSearch=String(applied.search||'').trim().toLowerCase();
+    const shown=rows.filter(r=>{if(appliedSearch.length<3)return true;const p=pFor(r.patient_id);return `${formalName(p)} ${p.patient_id||''}`.toLowerCase().includes(appliedSearch)});
+    const count=k=>shown.filter(r=>r.result===k).length;
+    const staff=(()=>{const m=new Map();shown.forEach(r=>{const k=r.recorded_by_name||'—';const s=m.get(k)||{name:k,total:0,verified:0,not_scanned:0,problem:0};s.total++;if(r.result==='verified')s.verified++;else if(r.result==='not_scanned')s.not_scanned++;else s.problem++;m.set(k,s)});return [...m.values()].sort((a,b)=>a.name.localeCompare(b.name))})();
+    const pct=(a,b)=>b?`${Math.round(a*100/b)}%`:'—';
+
+    const head=h('div',{className:'card panel'},
+      h('div',{className:'panel-head'},h('div',null,h('h2',null,'Bedside Verification'),h('small',null,'Medicine given at the right bed — QR stickers now (trial), NFC stickers later.'))),
+      !installed?h('div',{className:'message warning'},'Database step not installed yet: run supabase/sql/363_bedside_verification_trial.sql in Supabase. Until then this feature stays OFF and the MAR works exactly as before.')
+      :h('div',{className:`message ${mode==='qr_trial'?'success':''}`},mode==='qr_trial'?'QR TRIAL is ON — record-only: nurses can scan the bed sticker in "Administer now"; doses save either way.':mode==='nfc'?'NFC mode is selected (NFC reader comes in the next update; nothing is shown to nurses yet).':'OFF — nurses see nothing new; the MAR is exactly as before.',
+        modeInfo?.updated_by_name?h('small',{style:{display:'block',marginTop:'4px'}},`Last changed by ${modeInfo.updated_by_name} · ${formatDateIN(modeInfo.updated_at)} ${formatTimeIN(modeInfo.updated_at)}`):null),
+      h('div',{className:'bedside-tabs'},['Register','Bed stickers','Settings & test'].map(t=>h('button',{type:'button',key:t,className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t))));
+
+    let body=null;
+    if(tab==='Settings & test'){
+      body=h('div',{className:'card panel'},
+        h('h3',null,'Trial switch'),
+        h('div',{className:'small-note'},'Only Admin / Director can switch. OFF = MAR exactly as before. QR trial = record-only (never blocks a dose).'),
+        h('div',{className:'bedside-tabs'},
+          h('button',{type:'button',className:`btn ${mode==='off'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('off')},'OFF'),
+          h('button',{type:'button',className:`btn ${mode==='qr_trial'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('qr_trial')},'QR trial (record-only)')),
+        h('h3',{style:{marginTop:'14px'}},'Test a sticker'),
+        h('div',{className:'small-note'},'Scan any printed sticker to see which bed it belongs to. Nothing is saved.'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:!installed,onClick:()=>{setTestResult(null);setTestScan(true)}},'📷 Test a sticker'),
+        testResult&&h('div',{className:`bedside-res ${testResult.scanned_room_no?'ok':'bad'}`,style:{marginTop:'8px'}},
+          testResult.checking?'Checking…':testResult.error?`⚠️ ${testResult.error}`:testResult.scanned_room_no?`✅ This sticker belongs to Room ${testResult.scanned_room_no} · Bed ${testResult.scanned_bed_no}`:'⚠️ Not a registered sticker (or it was replaced).'),
+        testScan&&h(BedsideQrScanner,{title:'Test a bed sticker',onCode:testCode,onClose:()=>setTestScan(false)}));
+    }else if(tab==='Bed stickers'){
+      const missing=beds.filter(b=>!tagFor(b.id));
+      const pickedIds=Object.keys(picked).filter(k=>picked[k]);
+      body=h('div',{className:'card panel'},
+        h('div',{className:'small-note'},'One sticker per bed. "Replace" makes a new code — the old printed sticker for that bed stops working (use it if a sticker is lost or copied).'),
+        h('div',{className:'bedside-tabs'},
+          h('button',{type:'button',className:'btn btn-primary',disabled:!installed||!missing.length||Boolean(busy),onClick:()=>issue(missing.map(b=>b.id))},busy==='issue'?'Issuing…':`Issue for ${missing.length} bed(s) without a sticker`),
+          h('button',{type:'button',className:'btn btn-secondary',disabled:!tags.length,onClick:()=>bedsidePrintStickers(pickedIds.length?beds.filter(b=>picked[b.id]).map(b=>tagFor(b.id)).filter(Boolean):beds.map(b=>tagFor(b.id)).filter(Boolean))},pickedIds.length?`🖨 Print ${pickedIds.length} selected`:'🖨 Print all stickers')),
+        h('table',null,h('thead',null,h('tr',null,h('th',{style:{width:'34px'}},''),h('th',null,'Room · Bed'),h('th',null,'Sticker'),h('th',{style:{width:'96px'}},''))),
+          h('tbody',null,beds.map(b=>{const t=tagFor(b.id);return h('tr',{key:b.id},
+            h('td',null,h('input',{type:'checkbox',disabled:!t,checked:Boolean(picked[b.id]),onChange:e=>setPicked(cur=>({...cur,[b.id]:e.target.checked}))})),
+            h('td',null,`Room ${b.room_no} · Bed ${b.bed_no}`),
+            h('td',null,t?`Issued ${formatDateIN(t.created_at)} · …${t.tag_code.slice(-4)}`:h('span',{className:'bedside-chip unknown_tag'},'Not issued')),
+            h('td',null,h('button',{type:'button',className:'btn btn-secondary',disabled:!installed||Boolean(busy),onClick:()=>{if(t&&!window.confirm(`Replace the sticker for Room ${b.room_no} · Bed ${b.bed_no}? The old printed sticker will stop working.`))return;issue([b.id])}},t?'Replace':'Issue')))})),
+          !beds.length&&h('tbody',null,h('tr',null,h('td',{colSpan:4},'No beds found in Rooms.')))));
+    }else{
+      body=h('div',{className:'card panel'},
+        h('div',{className:'bedside-filters'},
+          h('div',{className:'field'},h('label',null,'Period'),h('select',{value:draft.period,onChange:e=>setDraft({...draft,period:e.target.value})},['Today','This Week','Month','Period'].map(x=>h('option',{key:x,value:x},x)))),
+          draft.period==='Month'&&h('div',{className:'field'},h('label',null,'Month'),h('input',{type:'month',min:'2026-08',max:today.slice(0,7),value:draft.month,onChange:e=>setDraft({...draft,month:e.target.value})})),
+          draft.period==='Period'&&h('div',{className:'field'},h('label',null,'From'),h(StrictDateInput,{min:'2026-08-27',max:today,value:draft.from,onChange:e=>setDraft({...draft,from:e.target.value})})),
+          draft.period==='Period'&&h('div',{className:'field'},h('label',null,'To'),h(StrictDateInput,{min:draft.from||'2026-08-27',max:today,value:draft.to,onChange:e=>setDraft({...draft,to:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Search Guest (3+ letters)'),h('input',{value:draft.search,placeholder:'Name or Guest ID',onChange:e=>setDraft({...draft,search:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Guest'),h('select',{value:draft.patient,onChange:e=>setDraft({...draft,patient:e.target.value})},h('option',{value:''},'All Guests'),
+            [...patientOptions].sort((a,b)=>formalName(a).localeCompare(formalName(b))).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
+          h('div',{className:'field'},h('label',null,'Result'),h('select',{value:draft.result,onChange:e=>setDraft({...draft,result:e.target.value})},h('option',{value:''},'All results'),
+            Object.entries(BEDSIDE_RESULT_LABEL).sort((a,b)=>a[1].replace(/^\W+/,'').localeCompare(b[1].replace(/^\W+/,''))).map(([k,l])=>h('option',{key:k,value:k},l)))),
+          h(ApplyFilterButton,{dirty,onApply:apply})),
+        loadError&&h('div',{className:'message error',style:{marginTop:'8px'}},loadError),
+        h('div',{className:'bedside-cards'},
+          [['Doses checked',shown.length],['Bed verified',count('verified')],['Not scanned',count('not_scanned')],['Wrong bed',count('wrong_bed')],['Unknown sticker',count('unknown_tag')+count('no_bed')]]
+            .map(([l,n])=>h('div',{className:'bedside-card',key:l},h('b',null,n),h('small',null,l)))),
+        staff.length>0&&h('details',{open:true},h('summary',null,'By staff'),
+          h('table',null,h('thead',null,h('tr',null,h('th',null,'Staff'),h('th',null,'Doses'),h('th',null,'Verified'),h('th',null,'Not scanned'),h('th',null,'Problems'))),
+            h('tbody',null,staff.map(s=>h('tr',{key:s.name},h('td',null,s.name),h('td',null,s.total),h('td',null,`${s.verified} (${pct(s.verified,s.total)})`),h('td',null,s.not_scanned),h('td',null,s.problem)))))),
+        loading?h('div',{className:'loading',style:{marginTop:'10px'}},'Loading…'):!shown.length?h('div',{className:'small-note',style:{marginTop:'10px'}},'No bedside checks for this filter.'):
+          h('table',{style:{marginTop:'10px'}},h('thead',null,h('tr',null,h('th',null,'Dose'),h('th',null,'Guest'),h('th',null,'Result'),h('th',null,'Staff'))),
+            h('tbody',null,shown.map(r=>{const p=pFor(r.patient_id);return h('tr',{key:r.id},
+              h('td',null,`${formatDateIN(r.scheduled_date)} ${String(r.scheduled_time||'').slice(0,5)}`),
+              h('td',null,`${formalName(p)||'Guest'} · Room ${r.guest_room_no||'—'}${r.guest_bed_no?`-${r.guest_bed_no}`:''}`),
+              h('td',null,h('span',{className:`bedside-chip ${r.result}`},BEDSIDE_RESULT_LABEL[r.result]||r.result),
+                r.scanned_room_no&&r.result!=='verified'?h('small',{style:{display:'block'}},`Scanned: Room ${r.scanned_room_no}-${r.scanned_bed_no}`):null,
+                r.reason?h('small',{style:{display:'block'}},r.reason):null),
+              h('td',null,r.recorded_by_name||'—',h('small',{style:{display:'block'}},`${formatDateIN(r.created_at)} ${formatTimeIN(r.created_at)}`)))}))));
+    }
+    return h('div',{className:'bedside-page'},h(BedsideCss),head,body);
+  }
   // 2.18.60: sliding-scale / sugar-based insulin (no fixed dose on the prescription). Such doses are never part of
   // "Give checked": the nurse checks the sugar first and records the reading + units given in the MAR form.
   function marIsVariableDose(order){
@@ -37238,6 +37575,7 @@ function RoomsBeds({profile,onNavigate}){
     const [selectedSlot,setSelectedSlot]=React.useState('');
     const [confirmTarget,setConfirmTarget]=React.useState(null);
     const [confirmBusy,setConfirmBusy]=React.useState(false);
+    const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.93: bedside QR trial (record-only, OFF by default)
     const [confirmMessage,setConfirmMessage]=React.useState('');
     const [doseDetail,setDoseDetail]=React.useState(null);
     // 2.18.85: correct the actual "given at" time of a dose recorded TODAY (reason compulsory, audit kept)
@@ -38079,7 +38417,7 @@ function RoomsBeds({profile,onNavigate}){
     const roomText=p=>p?.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—';
     const marDateNote=date=>date!==today?` (${formatDateIN(date)})`:'';
     function openWithhold(item){openMar(item.order,item.time,item.date);setMarForm(cur=>({...cur,status:'Withheld'}));}
-    function askAdminister(item){setConfirmMessage('');setConfirmTarget(item);}
+    function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
       setConfirmBusy(true);setConfirmMessage('');
@@ -38098,6 +38436,7 @@ function RoomsBeds({profile,onNavigate}){
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
           late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
         if(error)throw error;
+        bedsideRecordAfterGiven({order:item.order,date:item.date,time,scan:bedsideScan}); // 2.19.93: separate record, never blocks
         const p=patientFor(item.order);
         showSamaraActionToast('success','Medicine given',`${medicineLabel(item.order)} · Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'} · ${formatTimeIN(now)}`);
         setConfirmTarget(null);
@@ -38324,6 +38663,7 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
             h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
             minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
+            h(BedsideSafe,null,h(BedsideDosePanel,{patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),
