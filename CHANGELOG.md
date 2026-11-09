@@ -1,3 +1,9 @@
+## 2.19.94 — 09-11-2026 — Bedside Verification for ALL bedside entries — SQL 364
+- When the QR trial is ON, the **📷 Scan bed QR** box now also appears on: the full MAR form (late doses, sliding-scale insulin, Withheld / Not Given), **Daily Care** (incl. Nursing Procedures), **Vital Signs**, **Meals** and **Beverages**. Shift Tasks one-tap buttons are recorded as "Not scanned — Shift Tasks one-tap".
+- Register: new **Task** filter and task name under each entry; a scan is used only for the Guest it was made for.
+- Still record-only and OFF by default: every save works exactly as before; the bedside record is written separately afterwards.
+- Needs `supabase/sql/364_bedside_verification_all_tasks.sql` (2 columns on the 363 bedside table + 1 new function).
+
 ## 2.19.93 — 09-11-2026 — Bedside Verification (MAR): QR trial — OFF by default — SQL 363
 - New **ADMIN → Bedside Verification** (Admin + Nursing Manager): trial switch (Admin only), bed QR stickers (issue / replace / print), test-a-sticker, and a register (Today / This Week / Month / Period, Guest search, result filter, by-staff summary).
 - When the trial is ON, the MAR "Administer now?" box shows **📷 Scan bed QR** (phone camera). Result: ✅ Bed verified / ⚠️ Wrong bed / ⚠️ Unknown sticker, or "Not scanned" with an optional reason. **Record-only**: the dose is saved exactly as before; the scan is saved separately afterwards and can never block or change a dose.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.93';
+  const APP_VERSION = '2.19.94';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '09-Nov-2026 Bedside Verification QR trial (off by default)';
+  const APP_BUILD_DATE = '09-Nov-2026 Bedside Verification for all bedside entries';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -27730,6 +27730,7 @@ Please keep these login details confidential.`;
         order_id:order.id,patient_id:order.patient_id,scheduled_date:today,scheduled_time:time,
         status,administered_at:new Date().toISOString(),administered_by:user.id,remarks
       });
+      if(!error)bedsideRecordTask({kind:'medicine',patientId:order.patient_id,refId:order.id,date:today,time,label:`${order.medicine_name||order.drug_name||'Medicine'} · ${status}`,reason:'Shift Tasks one-tap (no scan step)'}); // 2.19.94
       if(error)alert(error.message);else load()
     }
 
@@ -27761,6 +27762,7 @@ Please keep these login details confidential.`;
           completed_by:user.id,
           remarks
         },{onConflict:'care_order_id,care_date,shift'});
+        if(!error)bedsideRecordTask({kind:'care',patientId:careOrder.patient_id,refId:careOrder.id,date:today,label:`${careOrder.care_type||'Care'} · ${status}`,reason:'Shift Tasks one-tap (no scan step)'}); // 2.19.94
         if(error)alert(error.message);else await load();
       }catch(error){
         console.error('Care task save failed:',error);
@@ -36147,6 +36149,7 @@ function RoomsBeds({profile,onNavigate}){
     const [patientLedgerRows,setPatientLedgerRows]=React.useState([]);
     const [form,setForm]=React.useState({patient_id:'',care_order_id:'',care_type:DAILY_CARE_ACTIVITY_OPTIONS[0],shift:currentShift(),status:'Completed',remarks:''});
     const [saving,setSaving]=React.useState(false);
+    const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.94: bedside QR trial (record-only, OFF by default)
     const [toast,setToast]=React.useState(null);
     const [returnPage,setReturnPage]=React.useState('');
     const toastTimer=React.useRef(null);
@@ -36257,6 +36260,7 @@ function RoomsBeds({profile,onNavigate}){
         return;
       }
 
+      {const act=normaliseDailyCareActivity(form.care_type);bedsideRecordTask({kind:(linkedTime||guestProcedures.includes(act))?'procedure':'care',patientId:form.patient_id,refId:linkedOrderId,date:payload.care_date,time:linkedTime,label:`${act} · ${form.status}`,scan:bedsideScan});setBedsideScan(null);} // 2.19.94: separate record, never blocks
       showSamaraActionToast('success','Daily care saved',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);showToast('success',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);
       setForm(current=>({...current,care_order_id:'',remarks:''}));
       await load();
@@ -36310,6 +36314,7 @@ function RoomsBeds({profile,onNavigate}){
           ),h('small',{className:'shift-entry-note'},`Current active shift: ${activeShift}`)),
           miniSelect('Status',form.status,['Completed','Refused','Not required','Pending'],v=>setForm({...form,status:v})),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
+          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94: shows nothing unless the QR trial is ON
           h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving care record…':'Save care record')
         )
       ),
@@ -36331,6 +36336,7 @@ function RoomsBeds({profile,onNavigate}){
   function VitalSigns({profile,onNavigate}){
     const [patients]=usePatients(),[rows,setRows]=React.useState([]),[selectedPatient,setSelectedPatient]=React.useState(''),[form,setForm]=React.useState({patient_id:'',temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});
     const [returnPage,setReturnPage]=React.useState('');
+    const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.94: bedside QR trial (record-only, OFF by default)
     const measured=value=>{if(value===null||value===undefined||String(value).trim()==='')return null;const n=Number(value);return Number.isFinite(n)&&n!==0?n:null};
     const tempC=value=>{const n=measured(value);if(n===null)return null;return n>=70&&n<=115?(n-32)*5/9:n};
     const calculateLevel=v=>{const systolic=measured(v.systolic),diastolic=measured(v.diastolic),pulse=measured(v.pulse),temperature=tempC(v.temperature),respiration=measured(v.respiration),spo2=measured(v.spo2),sugar=measured(v.blood_sugar);const any=[systolic,diastolic,pulse,temperature,respiration,spo2,sugar,measured(v.weight),v.pain_score!==''&&v.pain_score!==null?Number(v.pain_score):null].some(x=>x!==null);if(!any)return 'Not Recorded';if((spo2!==null&&spo2<90)||(systolic!==null&&(systolic>=180||systolic<80))||(diastolic!==null&&(diastolic>=120||diastolic<50))||(pulse!==null&&(pulse>130||pulse<40))||(temperature!==null&&(temperature>=39.5||temperature<35))||(respiration!==null&&(respiration>30||respiration<8))||(sugar!==null&&(sugar>400||sugar<50)))return 'Critical';if((spo2!==null&&spo2<94)||(systolic!==null&&(systolic>=160||systolic<90))||(diastolic!==null&&(diastolic>=100||diastolic<60))||(pulse!==null&&(pulse>110||pulse<50))||(temperature!==null&&(temperature>=38||temperature<35.5))||(respiration!==null&&(respiration>24||respiration<10))||(sugar!==null&&(sugar>250||sugar<70)))return 'Warning';return 'Normal'};
@@ -36356,7 +36362,7 @@ function RoomsBeds({profile,onNavigate}){
       setReturnPage(context.return_page||'');
       clearTaskNavigationContext();
     },[]);
-    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();finishSuccessfulAction({returnPage,onNavigate})}
+    async function save(e){e.preventDefault();const sugarType=form.blood_sugar_type||'Not Taken';const sugarValue=sugarType==='Not Taken'?null:num(form.blood_sugar);if(sugarType!=='Not Taken'&&sugarValue===null){showSamaraActionToast('error','Cannot save vital signs','Please enter the blood sugar value for the selected test type.');return;}const payload={...form,temperature:num(form.temperature),systolic:num(form.systolic),diastolic:num(form.diastolic),pulse:num(form.pulse),respiration:num(form.respiration),spo2:num(form.spo2),blood_sugar_type:sugarType,blood_sugar:sugarValue,weight:num(form.weight),pain_score:form.pain_score===''?null:Number(form.pain_score),recorded_at:new Date().toISOString(),recorded_by:profile.id};const level=calculateLevel(payload);if(level==='Not Recorded'){showSamaraActionToast('error','Cannot save vital signs','Please enter at least one actual vital-sign measurement before saving.');return;}payload.alert_level=level;const {error}=await client.from('vital_signs').insert(payload);if(error){showSamaraActionToast('error','Vital signs save failed',error.message||'Unable to save vital signs.');return;}bedsideRecordTask({kind:'vitals',patientId:form.patient_id,label:'Vital signs',scan:bedsideScan});setBedsideScan(null);showSamaraActionToast('success','Vital signs saved','The vital-sign entry has been saved successfully.');setSelectedPatient(form.patient_id);setForm({...form,temperature:'',systolic:'',diastolic:'',pulse:'',respiration:'',spo2:'',blood_sugar_type:'Not Taken',blood_sugar:'',weight:'',pain_score:'',remarks:''});await load();finishSuccessfulAction({returnPage,onNavigate})}
     const patientRows=selectedPatient?rows.filter(r=>r.patient_id===selectedPatient).slice(0,10):rows.slice(0,10);
     const latest=patientRows[0];
     const input=(label,key,unit,opts={})=>h('div',{className:'vital-input'},h('label',null,label),h('div',{className:'vital-input-wrap'},h('input',{type:'number',step:opts.step||'any',min:opts.min,max:opts.max,value:form[key],placeholder:opts.placeholder||'',disabled:Boolean(opts.disabled),onChange:e=>setForm({...form,[key]:e.target.value})}),unit&&h('span',null,unit)));
@@ -36366,7 +36372,7 @@ function RoomsBeds({profile,onNavigate}){
         h('form',{className:'vitals-entry-card',onSubmit:save},
           h('div',{className:'vitals-patient-row'},patientSelect(patients,form.patient_id,v=>{setForm({...form,patient_id:v});setSelectedPatient(v)}),h('div',{className:`vital-live-status ${calculateLevel(form).toLowerCase().replace(' ','-')}`},h('small',null,'Current entry'),h('strong',null,calculateLevel(form)))),
           h('div',{className:'vitals-grid'},input('Temperature','temperature','°C / °F',{placeholder:'98.6'}),input('Systolic BP','systolic','mmHg'),input('Diastolic BP','diastolic','mmHg'),input('Pulse','pulse','/min'),input('Respiration','respiration','/min'),input('SpO₂','spo2','%'),h('div',{className:'vital-input'},h('label',null,'Blood Sugar Type'),h('select',{value:form.blood_sugar_type||'Not Taken',onChange:e=>setForm({...form,blood_sugar_type:e.target.value,blood_sugar:e.target.value==='Not Taken'?'':form.blood_sugar})},['Not Taken','FBS','PPBS','RBS'].map(x=>h('option',{value:x,key:x},x)))),input('Blood Sugar','blood_sugar','mg/dL',{disabled:(form.blood_sugar_type||'Not Taken')==='Not Taken'}),input('Weight','weight','kg',{step:'0.1'}),input('Pain Score','pain_score','/10',{min:0,max:10})),
-          h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h('button',{className:'btn btn-primary vitals-save'},'Save Vital Signs')))),
+          h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan})),h('button',{className:'btn btn-primary vitals-save'},'Save Vital Signs')))),
       selectedPatient&&latest&&h('div',{className:'latest-vitals-strip'},h('div',null,h('small',null,'Latest for selected patient'),h('strong',null,formalName(latest.patients||{})||latest.patients?.full_name)),[['BP',`${measured(latest.systolic)??'—'}/${measured(latest.diastolic)??'—'}`],['Pulse',measured(latest.pulse)??'—'],['SpO₂',measured(latest.spo2)??'—'],['Sugar',measured(latest.blood_sugar)!==null?`${latest.blood_sugar_type||'RBS'} ${measured(latest.blood_sugar)}`:'—'],['Status',latest.computed_alert_level]].map(([a,b])=>h('div',{key:a},h('small',null,a),h('strong',null,b)))),
       h(LogTable,{className:'vitals-log-table',subtitle:'Swipe left or right to view all measurements.',title:selectedPatient?'Patient Vital Trend':'Recent Vital Signs',heads:['Patient','BP','Temp','Pulse','Resp.','SpO₂','Sugar Type','Sugar','Pain','Alert','Recorded'],rows:patientRows.map(r=>[formalName(r.patients||{})||r.patients?.full_name,vitalBP(r),vitalReading('temperature',r.temperature),vitalReading('pulse',r.pulse),vitalReading('respiration',r.respiration),vitalReading('spo2',r.spo2),r.blood_sugar_type||'Not Taken',vitalReading('blood_sugar',r.blood_sugar),r.pain_score??'—',vitalAlert(r.computed_alert_level),fmt(r.recorded_at)])})
     );
@@ -37195,6 +37201,8 @@ function RoomsBeds({profile,onNavigate}){
 
   const BEDSIDE_QR_PREFIX='SAMARA-BED:';
   const BEDSIDE_NOT_SCANNED_REASONS=['Sticker missing / damaged','Camera / phone problem','Phone not available','Guest moved / bed changed','Other'];
+  // 2.19.94: every bedside entry, not only "Administer now" (SQL 364)
+  const BEDSIDE_TASK_LABEL={medicine:'Medicine',procedure:'Nursing Procedure',care:'Daily Care',vitals:'Vital Signs',meal:'Meal',beverage:'Beverage'};
   const BEDSIDE_RESULT_LABEL={verified:'✅ Bed verified',wrong_bed:'⚠️ Wrong bed',unknown_tag:'⚠️ Unknown sticker',no_bed:'⚠️ Guest has no bed on record',not_scanned:'— Not scanned'};
 
   // Mode is read once a minute; any error → 'off'.
@@ -37305,16 +37313,16 @@ function RoomsBeds({profile,onNavigate}){
   function BedsideDosePanel({patient,value,onChange,disabled}){
     const mode=useBedsideMode();
     const [scanning,setScanning]=React.useState(false),[checking,setChecking]=React.useState(false);
-    if(mode!=='qr_trial')return null;
-    const v=value||{};
+    if(mode!=='qr_trial'||!patient?.id)return null;
+    const v=value&&(!value.patientId||value.patientId===patient.id)?value:{};
     const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
     async function gotCode(code){
-      setScanning(false);setChecking(true);onChange({code,check:null,reason:''});
+      setScanning(false);setChecking(true);onChange({code,check:null,reason:'',patientId:patient?.id});
       try{
         const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:patient?.id||null});
         if(r.error)throw r.error;
-        onChange({code,check:r.data||null,reason:''});
-      }catch(e){onChange({code,check:{result:'error',message:e?.message||'Could not check the sticker'},reason:''})}
+        onChange({code,check:r.data||null,reason:'',patientId:patient?.id});
+      }catch(e){onChange({code,check:{result:'error',message:e?.message||'Could not check the sticker'},reason:'',patientId:patient?.id})}
       finally{setChecking(false)}
     }
     const c=v.check;
@@ -37328,11 +37336,11 @@ function RoomsBeds({profile,onNavigate}){
     else if(c?.result==='error')res=h('div',{className:'bedside-res bad'},`⚠️ ${c.message}. The dose can still be saved.`);
     return h('div',{className:'bedside-box'},
       h(BedsideCss),
-      h('div',{className:'bedside-head'},h('span',null,`📍 Bedside check · ${roomText}`),h('span',{className:'bedside-trial'},'TRIAL — dose saves either way')),
+      h('div',{className:'bedside-head'},h('span',null,`📍 Bedside check · ${roomText}`),h('span',{className:'bedside-trial'},'TRIAL — saves either way')),
       res,
       h('div',{className:'bedside-row'},
         h('button',{type:'button',className:'btn btn-secondary',disabled:disabled||checking,onClick:()=>setScanning(true)},v.code?'📷 Scan again':'📷 Scan bed QR'),
-        !v.code&&h('select',{value:v.reason||'',disabled,onChange:e=>onChange({...v,reason:e.target.value}),'aria-label':'Reason for not scanning'},
+        !v.code&&h('select',{value:v.reason||'',disabled,onChange:e=>onChange({...v,reason:e.target.value,patientId:patient?.id}),'aria-label':'Reason for not scanning'},
           h('option',{value:''},'Not scanning? Reason (optional)'),BEDSIDE_NOT_SCANNED_REASONS.map(x=>h('option',{key:x,value:x},x)))),
       scanning&&h(BedsideQrScanner,{onCode:gotCode,onClose:()=>setScanning(false)}));
   }
@@ -37344,6 +37352,20 @@ function RoomsBeds({profile,onNavigate}){
       Promise.resolve()
         .then(()=>client.rpc('bedside_record_dose_check',{p_order_id:order.id||null,p_patient_id:order.patient_id,p_scheduled_date:date,p_scheduled_time:String(time||'').slice(0,5),
           p_code:scan?.code||null,p_reason:scan?.code?null:(scan?.reason||null),p_method:'qr'}))
+        .then(r=>{if(r?.error)console.warn('Bedside check not recorded:',r.error.message)})
+        .catch(e=>console.warn('Bedside check not recorded:',e));
+    }catch(e){console.warn('Bedside check not recorded:',e)}
+  }
+
+  // 2.19.94: any bedside entry (full MAR form, Nursing Procedure, Daily Care, Vital Signs, Meal, Beverage) — SQL 364.
+  // Fire-and-forget after the entry is saved; a scan for another Guest is never used.
+  function bedsideRecordTask({kind,patientId,refId=null,date=null,time=null,label='',scan=null,reason=null}){
+    try{
+      if(!patientId)return;
+      const s=scan&&(!scan.patientId||scan.patientId===patientId)?scan:null;
+      bedsideLoadMode()
+        .then(mode=>mode!=='qr_trial'?null:client.rpc('bedside_record_task_check',{p_kind:kind,p_patient_id:patientId,p_ref_id:refId||null,p_date:date||null,p_time:time?String(time).slice(0,5):null,p_label:label||null,
+          p_code:s?.code||null,p_reason:s?.code?null:(s?.reason||reason||null),p_method:'qr'}))
         .then(r=>{if(r?.error)console.warn('Bedside check not recorded:',r.error.message)})
         .catch(e=>console.warn('Bedside check not recorded:',e));
     }catch(e){console.warn('Bedside check not recorded:',e)}
@@ -37392,7 +37414,7 @@ function RoomsBeds({profile,onNavigate}){
     const [testScan,setTestScan]=React.useState(false),[testResult,setTestResult]=React.useState(null);
     const [patients]=usePatients(true);
     const today=todayISOIndia();
-    const [draft,setDraft]=React.useState({period:'Today',month:today.slice(0,7),from:today,to:today,patient:'',search:'',result:''});
+    const [draft,setDraft]=React.useState({period:'Today',month:today.slice(0,7),from:today,to:today,patient:'',search:'',result:'',task:''});
     const {applied,apply,dirty}=useAppliedFilters(draft);
     const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[loadError,setLoadError]=React.useState('');
 
@@ -37415,6 +37437,7 @@ function RoomsBeds({profile,onNavigate}){
         let q=client.from('bedside_dose_checks').select('*').gte('scheduled_date',rg.from).lte('scheduled_date',rg.to).order('created_at',{ascending:false}).limit(2000);
         if(applied.patient)q=q.eq('patient_id',applied.patient);
         if(applied.result)q=q.eq('result',applied.result);
+        if(applied.task)q=q.eq('task_kind',applied.task);
         const r=await q;if(r.error)throw r.error;setRows(r.data||[]);
       }catch(e){setRows([]);setLoadError(e?.message||'Could not load the register.')}
       finally{setLoading(false)}
@@ -37426,7 +37449,7 @@ function RoomsBeds({profile,onNavigate}){
       if(!isAdmin||busy)return;
       setBusy('mode');
       try{const r=await client.rpc('set_bedside_verify_settings',{p_mode:next});if(r.error)throw r.error;await loadSettings();
-        showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" in Administer now.':'Bedside Verification is OFF — the MAR is exactly as before.');}
+        showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" on bedside entry screens.':'Bedside Verification is OFF — every screen is exactly as before.');}
       catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
       finally{setBusy('')}
     }
@@ -37456,9 +37479,9 @@ function RoomsBeds({profile,onNavigate}){
     const pct=(a,b)=>b?`${Math.round(a*100/b)}%`:'—';
 
     const head=h('div',{className:'card panel'},
-      h('div',{className:'panel-head'},h('div',null,h('h2',null,'Bedside Verification'),h('small',null,'Medicine given at the right bed — QR stickers now (trial), NFC stickers later.'))),
+      h('div',{className:'panel-head'},h('div',null,h('h2',null,'Bedside Verification'),h('small',null,'Care given at the right bed — medicines, nursing procedures, daily care, vitals, meals. QR stickers now (trial), NFC stickers later.'))),
       !installed?h('div',{className:'message warning'},'Database step not installed yet: run supabase/sql/363_bedside_verification_trial.sql in Supabase. Until then this feature stays OFF and the MAR works exactly as before.')
-      :h('div',{className:`message ${mode==='qr_trial'?'success':''}`},mode==='qr_trial'?'QR TRIAL is ON — record-only: nurses can scan the bed sticker in "Administer now"; doses save either way.':mode==='nfc'?'NFC mode is selected (NFC reader comes in the next update; nothing is shown to nurses yet).':'OFF — nurses see nothing new; the MAR is exactly as before.',
+      :h('div',{className:`message ${mode==='qr_trial'?'success':''}`},mode==='qr_trial'?'QR TRIAL is ON — record-only: nurses can scan the bed sticker before saving medicines, procedures, daily care, vitals and meals; entries save either way.':mode==='nfc'?'NFC mode is selected (NFC reader comes in the next update; nothing is shown to nurses yet).':'OFF — nurses see nothing new; every screen is exactly as before.',
         modeInfo?.updated_by_name?h('small',{style:{display:'block',marginTop:'4px'}},`Last changed by ${modeInfo.updated_by_name} · ${formatDateIN(modeInfo.updated_at)} ${formatTimeIN(modeInfo.updated_at)}`):null),
       h('div',{className:'bedside-tabs'},['Register','Bed stickers','Settings & test'].map(t=>h('button',{type:'button',key:t,className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t))));
 
@@ -37466,7 +37489,7 @@ function RoomsBeds({profile,onNavigate}){
     if(tab==='Settings & test'){
       body=h('div',{className:'card panel'},
         h('h3',null,'Trial switch'),
-        h('div',{className:'small-note'},'Only Admin / Director can switch. OFF = MAR exactly as before. QR trial = record-only (never blocks a dose).'),
+        h('div',{className:'small-note'},'Only Admin / Director can switch. OFF = every screen exactly as before. QR trial = record-only (never blocks a save).'),
         h('div',{className:'bedside-tabs'},
           h('button',{type:'button',className:`btn ${mode==='off'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('off')},'OFF'),
           h('button',{type:'button',className:`btn ${mode==='qr_trial'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('qr_trial')},'QR trial (record-only)')),
@@ -37503,18 +37526,20 @@ function RoomsBeds({profile,onNavigate}){
             [...patientOptions].sort((a,b)=>formalName(a).localeCompare(formalName(b))).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
           h('div',{className:'field'},h('label',null,'Result'),h('select',{value:draft.result,onChange:e=>setDraft({...draft,result:e.target.value})},h('option',{value:''},'All results'),
             Object.entries(BEDSIDE_RESULT_LABEL).sort((a,b)=>a[1].replace(/^\W+/,'').localeCompare(b[1].replace(/^\W+/,''))).map(([k,l])=>h('option',{key:k,value:k},l)))),
+          h('div',{className:'field'},h('label',null,'Task'),h('select',{value:draft.task,onChange:e=>setDraft({...draft,task:e.target.value})},h('option',{value:''},'All tasks'),
+            Object.entries(BEDSIDE_TASK_LABEL).sort((a,b)=>a[1].localeCompare(b[1])).map(([k,l])=>h('option',{key:k,value:k},l)))),
           h(ApplyFilterButton,{dirty,onApply:apply})),
         loadError&&h('div',{className:'message error',style:{marginTop:'8px'}},loadError),
         h('div',{className:'bedside-cards'},
-          [['Doses checked',shown.length],['Bed verified',count('verified')],['Not scanned',count('not_scanned')],['Wrong bed',count('wrong_bed')],['Unknown sticker',count('unknown_tag')+count('no_bed')]]
+          [['Entries checked',shown.length],['Bed verified',count('verified')],['Not scanned',count('not_scanned')],['Wrong bed',count('wrong_bed')],['Unknown sticker',count('unknown_tag')+count('no_bed')]]
             .map(([l,n])=>h('div',{className:'bedside-card',key:l},h('b',null,n),h('small',null,l)))),
         staff.length>0&&h('details',{open:true},h('summary',null,'By staff'),
-          h('table',null,h('thead',null,h('tr',null,h('th',null,'Staff'),h('th',null,'Doses'),h('th',null,'Verified'),h('th',null,'Not scanned'),h('th',null,'Problems'))),
+          h('table',null,h('thead',null,h('tr',null,h('th',null,'Staff'),h('th',null,'Entries'),h('th',null,'Verified'),h('th',null,'Not scanned'),h('th',null,'Problems'))),
             h('tbody',null,staff.map(s=>h('tr',{key:s.name},h('td',null,s.name),h('td',null,s.total),h('td',null,`${s.verified} (${pct(s.verified,s.total)})`),h('td',null,s.not_scanned),h('td',null,s.problem)))))),
         loading?h('div',{className:'loading',style:{marginTop:'10px'}},'Loading…'):!shown.length?h('div',{className:'small-note',style:{marginTop:'10px'}},'No bedside checks for this filter.'):
-          h('table',{style:{marginTop:'10px'}},h('thead',null,h('tr',null,h('th',null,'Dose'),h('th',null,'Guest'),h('th',null,'Result'),h('th',null,'Staff'))),
+          h('table',{style:{marginTop:'10px'}},h('thead',null,h('tr',null,h('th',null,'Task'),h('th',null,'Guest'),h('th',null,'Result'),h('th',null,'Staff'))),
             h('tbody',null,shown.map(r=>{const p=pFor(r.patient_id);return h('tr',{key:r.id},
-              h('td',null,`${formatDateIN(r.scheduled_date)} ${String(r.scheduled_time||'').slice(0,5)}`),
+              h('td',null,`${formatDateIN(r.scheduled_date)} ${String(r.scheduled_time||'').slice(0,5)}`,h('small',{style:{display:'block'}},[BEDSIDE_TASK_LABEL[r.task_kind||'medicine']||r.task_kind,r.task_label].filter(Boolean).join(' · '))),
               h('td',null,`${formalName(p)||'Guest'} · Room ${r.guest_room_no||'—'}${r.guest_bed_no?`-${r.guest_bed_no}`:''}`),
               h('td',null,h('span',{className:`bedside-chip ${r.result}`},BEDSIDE_RESULT_LABEL[r.result]||r.result),
                 r.scanned_room_no&&r.result!=='verified'?h('small',{style:{display:'block'}},`Scanned: Room ${r.scanned_room_no}-${r.scanned_bed_no}`):null,
@@ -37933,6 +37958,7 @@ function RoomsBeds({profile,onNavigate}){
     }
     // 2.18.61: dateISO — a night-shift dose (e.g. 10 PM) may be recorded after midnight; it is saved under its own date.
     function openMar(order,time='',dateISO=today){
+      setBedsideScan(s=>s&&s.patientId===order?.patient_id?s:null); // 2.19.94: keep a scan only for the same Guest
       const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','Current administration is unavailable. Pre-departure records are retained for management review.');return}
       const scheduled=time||firstPendingTime(order);
       if(!scheduled){
@@ -38149,6 +38175,7 @@ function RoomsBeds({profile,onNavigate}){
       if(error&&marForm.status==='Not Given'&&/not_given|status_check|check constraint/i.test(error.message||'')){const text='“Not Given” needs the database update SQL 327. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&lateGivenMinutes&&/late_given/i.test(error.message||'')){const text='Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      bedsideRecordTask({kind:'medicine',patientId:marTarget.patient_id,refId:marTarget.id,date:marForm.scheduled_date||today,time:normalizeMedicationTime(marForm.scheduled_time),label:`${medicineLabel(marTarget)} · ${marForm.status==='Reschedule'?'Delayed':marForm.status}`,scan:bedsideScan}); // 2.19.94: separate record, never blocks
       if(marForm.status==='Not Given')showSamaraActionToast('success','Recorded as Not Given',`${marForm.not_given_reason}.${marForm.reschedule?' Re-medication time saved.':''}`);
       else if(marForm.status==='Withheld')showSamaraActionToast('success','Dose withheld','Recorded. Nursing Manager and Admin are alerted. Record the doctor\'s instruction as soon as it is received.');
       else if(lateGivenMinutes)showSamaraActionToast('success','Medication saved',`Recorded as given ${medicationDurationText(lateGivenMinutes)} late — ${marForm.late_given_reason}. The Nursing Manager has been informed.`);
@@ -38436,7 +38463,7 @@ function RoomsBeds({profile,onNavigate}){
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
           late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
         if(error)throw error;
-        bedsideRecordAfterGiven({order:item.order,date:item.date,time,scan:bedsideScan}); // 2.19.93: separate record, never blocks
+        bedsideRecordTask({kind:'medicine',patientId:item.order.patient_id,refId:item.order.id,date:item.date,time,label:`${medicineLabel(item.order)} · Given`,scan:bedsideScan}); // 2.19.93/94: separate record, never blocks
         const p=patientFor(item.order);
         showSamaraActionToast('success','Medicine given',`${medicineLabel(item.order)} · Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'} · ${formatTimeIN(now)}`);
         setConfirmTarget(null);
@@ -38808,6 +38835,7 @@ function RoomsBeds({profile,onNavigate}){
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
             h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(marForm.status==='Not Given'?(marForm.not_given_reason==='Other'?'Reason (required)':'Remarks (optional)'):['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||(marForm.status==='Not Given'?marForm.not_given_reason==='Other':!['Given','Withheld'].includes(marForm.status))}))
           ),
+          !rescheduleLog&&h(BedsideSafe,null,h(BedsideDosePanel,{patient:patientFor(marTarget),value:bedsideScan,onChange:setBedsideScan,disabled:marBusy})), // 2.19.94: shows nothing unless the QR trial is ON
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':(rescheduleLog||marForm.status==='Reschedule')?'Save Reschedule':'Save MAR'))
         )
       ),
@@ -39301,6 +39329,7 @@ function RoomsBeds({profile,onNavigate}){
     const [bevRows,setBevRows]=React.useState([]);
     const [bevReady,setBevReady]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
+    const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.94: bedside QR trial (record-only, OFF by default)
     const [entryType,setEntryType]=React.useState('meal');
     const [patientId,setPatientId]=React.useState('');
     const blankMeal=()=>({meal_date:todayISOIndia(),meal_type:'Tiffin',items:[],custom:'',served_time:'',consumption_status:'Consumed fully',remarks:''});
@@ -39404,6 +39433,7 @@ function RoomsBeds({profile,onNavigate}){
         if(error.code==='23514'||/meal_records_valid_consumption_time/i.test(error.message||''))return alert(`${mealLabel(form.meal_type)} must be recorded between ${mealTimeGuide(form.meal_type)}.`);
         return alert(error.message);
       }
+      bedsideRecordTask({kind:'meal',patientId,date:form.meal_date,time:form.served_time,label:`${mealLabel(form.meal_type)} · ${form.consumption_status||''}`,scan:bedsideScan});setBedsideScan(null); // 2.19.94
       showSamaraActionToast('success','Meal saved',`${mealLabel(form.meal_type)} · ${items.join(', ')}`);
       setForm(f=>({...blankMeal(),meal_date:f.meal_date,meal_type:f.meal_type}));
       load();
@@ -39434,6 +39464,7 @@ function RoomsBeds({profile,onNavigate}){
         if(/beverage_records|does not exist|schema cache/i.test(error.message||'')){setBevReady(false);return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.')}
         return alert(error.message);
       }
+      bedsideRecordTask({kind:'beverage',patientId,date:bev.given_date,time:bev.given_time,label:bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage,scan:bedsideScan});setBedsideScan(null); // 2.19.94
       showSamaraActionToast('success','Beverage saved',`${bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage} at ${bev.given_time}`);
       setBev(b=>({...blankBev(),given_date:b.given_date}));
       load();
@@ -39489,6 +39520,7 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'fi-row'},miniSelect('Food consumed',form.consumption_status,INTAKE_OPTIONS,v=>setForm({...form,consumption_status:v}))),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each Guest on each date. Record beverages in ☕ Beverage.'),
+          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
           h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':`Save ${mealLabel(form.meal_type)} Entry`)
         ):h('form',{className:'fi-form',onSubmit:saveBeverage},
           !bevReady&&h('div',{className:'message error'},'Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase.'),
@@ -39505,6 +39537,7 @@ function RoomsBeds({profile,onNavigate}){
           h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
+          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
           h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
           !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )

@@ -6,6 +6,8 @@
 
   const BEDSIDE_QR_PREFIX='SAMARA-BED:';
   const BEDSIDE_NOT_SCANNED_REASONS=['Sticker missing / damaged','Camera / phone problem','Phone not available','Guest moved / bed changed','Other'];
+  // 2.19.94: every bedside entry, not only "Administer now" (SQL 364)
+  const BEDSIDE_TASK_LABEL={medicine:'Medicine',procedure:'Nursing Procedure',care:'Daily Care',vitals:'Vital Signs',meal:'Meal',beverage:'Beverage'};
   const BEDSIDE_RESULT_LABEL={verified:'✅ Bed verified',wrong_bed:'⚠️ Wrong bed',unknown_tag:'⚠️ Unknown sticker',no_bed:'⚠️ Guest has no bed on record',not_scanned:'— Not scanned'};
 
   // Mode is read once a minute; any error → 'off'.
@@ -116,16 +118,16 @@
   function BedsideDosePanel({patient,value,onChange,disabled}){
     const mode=useBedsideMode();
     const [scanning,setScanning]=React.useState(false),[checking,setChecking]=React.useState(false);
-    if(mode!=='qr_trial')return null;
-    const v=value||{};
+    if(mode!=='qr_trial'||!patient?.id)return null;
+    const v=value&&(!value.patientId||value.patientId===patient.id)?value:{};
     const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
     async function gotCode(code){
-      setScanning(false);setChecking(true);onChange({code,check:null,reason:''});
+      setScanning(false);setChecking(true);onChange({code,check:null,reason:'',patientId:patient?.id});
       try{
         const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:patient?.id||null});
         if(r.error)throw r.error;
-        onChange({code,check:r.data||null,reason:''});
-      }catch(e){onChange({code,check:{result:'error',message:e?.message||'Could not check the sticker'},reason:''})}
+        onChange({code,check:r.data||null,reason:'',patientId:patient?.id});
+      }catch(e){onChange({code,check:{result:'error',message:e?.message||'Could not check the sticker'},reason:'',patientId:patient?.id})}
       finally{setChecking(false)}
     }
     const c=v.check;
@@ -139,11 +141,11 @@
     else if(c?.result==='error')res=h('div',{className:'bedside-res bad'},`⚠️ ${c.message}. The dose can still be saved.`);
     return h('div',{className:'bedside-box'},
       h(BedsideCss),
-      h('div',{className:'bedside-head'},h('span',null,`📍 Bedside check · ${roomText}`),h('span',{className:'bedside-trial'},'TRIAL — dose saves either way')),
+      h('div',{className:'bedside-head'},h('span',null,`📍 Bedside check · ${roomText}`),h('span',{className:'bedside-trial'},'TRIAL — saves either way')),
       res,
       h('div',{className:'bedside-row'},
         h('button',{type:'button',className:'btn btn-secondary',disabled:disabled||checking,onClick:()=>setScanning(true)},v.code?'📷 Scan again':'📷 Scan bed QR'),
-        !v.code&&h('select',{value:v.reason||'',disabled,onChange:e=>onChange({...v,reason:e.target.value}),'aria-label':'Reason for not scanning'},
+        !v.code&&h('select',{value:v.reason||'',disabled,onChange:e=>onChange({...v,reason:e.target.value,patientId:patient?.id}),'aria-label':'Reason for not scanning'},
           h('option',{value:''},'Not scanning? Reason (optional)'),BEDSIDE_NOT_SCANNED_REASONS.map(x=>h('option',{key:x,value:x},x)))),
       scanning&&h(BedsideQrScanner,{onCode:gotCode,onClose:()=>setScanning(false)}));
   }
@@ -155,6 +157,20 @@
       Promise.resolve()
         .then(()=>client.rpc('bedside_record_dose_check',{p_order_id:order.id||null,p_patient_id:order.patient_id,p_scheduled_date:date,p_scheduled_time:String(time||'').slice(0,5),
           p_code:scan?.code||null,p_reason:scan?.code?null:(scan?.reason||null),p_method:'qr'}))
+        .then(r=>{if(r?.error)console.warn('Bedside check not recorded:',r.error.message)})
+        .catch(e=>console.warn('Bedside check not recorded:',e));
+    }catch(e){console.warn('Bedside check not recorded:',e)}
+  }
+
+  // 2.19.94: any bedside entry (full MAR form, Nursing Procedure, Daily Care, Vital Signs, Meal, Beverage) — SQL 364.
+  // Fire-and-forget after the entry is saved; a scan for another Guest is never used.
+  function bedsideRecordTask({kind,patientId,refId=null,date=null,time=null,label='',scan=null,reason=null}){
+    try{
+      if(!patientId)return;
+      const s=scan&&(!scan.patientId||scan.patientId===patientId)?scan:null;
+      bedsideLoadMode()
+        .then(mode=>mode!=='qr_trial'?null:client.rpc('bedside_record_task_check',{p_kind:kind,p_patient_id:patientId,p_ref_id:refId||null,p_date:date||null,p_time:time?String(time).slice(0,5):null,p_label:label||null,
+          p_code:s?.code||null,p_reason:s?.code?null:(s?.reason||reason||null),p_method:'qr'}))
         .then(r=>{if(r?.error)console.warn('Bedside check not recorded:',r.error.message)})
         .catch(e=>console.warn('Bedside check not recorded:',e));
     }catch(e){console.warn('Bedside check not recorded:',e)}
@@ -203,7 +219,7 @@
     const [testScan,setTestScan]=React.useState(false),[testResult,setTestResult]=React.useState(null);
     const [patients]=usePatients(true);
     const today=todayISOIndia();
-    const [draft,setDraft]=React.useState({period:'Today',month:today.slice(0,7),from:today,to:today,patient:'',search:'',result:''});
+    const [draft,setDraft]=React.useState({period:'Today',month:today.slice(0,7),from:today,to:today,patient:'',search:'',result:'',task:''});
     const {applied,apply,dirty}=useAppliedFilters(draft);
     const [rows,setRows]=React.useState([]),[loading,setLoading]=React.useState(false),[loadError,setLoadError]=React.useState('');
 
@@ -226,6 +242,7 @@
         let q=client.from('bedside_dose_checks').select('*').gte('scheduled_date',rg.from).lte('scheduled_date',rg.to).order('created_at',{ascending:false}).limit(2000);
         if(applied.patient)q=q.eq('patient_id',applied.patient);
         if(applied.result)q=q.eq('result',applied.result);
+        if(applied.task)q=q.eq('task_kind',applied.task);
         const r=await q;if(r.error)throw r.error;setRows(r.data||[]);
       }catch(e){setRows([]);setLoadError(e?.message||'Could not load the register.')}
       finally{setLoading(false)}
@@ -237,7 +254,7 @@
       if(!isAdmin||busy)return;
       setBusy('mode');
       try{const r=await client.rpc('set_bedside_verify_settings',{p_mode:next});if(r.error)throw r.error;await loadSettings();
-        showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" in Administer now.':'Bedside Verification is OFF — the MAR is exactly as before.');}
+        showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" on bedside entry screens.':'Bedside Verification is OFF — every screen is exactly as before.');}
       catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
       finally{setBusy('')}
     }
@@ -267,9 +284,9 @@
     const pct=(a,b)=>b?`${Math.round(a*100/b)}%`:'—';
 
     const head=h('div',{className:'card panel'},
-      h('div',{className:'panel-head'},h('div',null,h('h2',null,'Bedside Verification'),h('small',null,'Medicine given at the right bed — QR stickers now (trial), NFC stickers later.'))),
+      h('div',{className:'panel-head'},h('div',null,h('h2',null,'Bedside Verification'),h('small',null,'Care given at the right bed — medicines, nursing procedures, daily care, vitals, meals. QR stickers now (trial), NFC stickers later.'))),
       !installed?h('div',{className:'message warning'},'Database step not installed yet: run supabase/sql/363_bedside_verification_trial.sql in Supabase. Until then this feature stays OFF and the MAR works exactly as before.')
-      :h('div',{className:`message ${mode==='qr_trial'?'success':''}`},mode==='qr_trial'?'QR TRIAL is ON — record-only: nurses can scan the bed sticker in "Administer now"; doses save either way.':mode==='nfc'?'NFC mode is selected (NFC reader comes in the next update; nothing is shown to nurses yet).':'OFF — nurses see nothing new; the MAR is exactly as before.',
+      :h('div',{className:`message ${mode==='qr_trial'?'success':''}`},mode==='qr_trial'?'QR TRIAL is ON — record-only: nurses can scan the bed sticker before saving medicines, procedures, daily care, vitals and meals; entries save either way.':mode==='nfc'?'NFC mode is selected (NFC reader comes in the next update; nothing is shown to nurses yet).':'OFF — nurses see nothing new; every screen is exactly as before.',
         modeInfo?.updated_by_name?h('small',{style:{display:'block',marginTop:'4px'}},`Last changed by ${modeInfo.updated_by_name} · ${formatDateIN(modeInfo.updated_at)} ${formatTimeIN(modeInfo.updated_at)}`):null),
       h('div',{className:'bedside-tabs'},['Register','Bed stickers','Settings & test'].map(t=>h('button',{type:'button',key:t,className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t))));
 
@@ -277,7 +294,7 @@
     if(tab==='Settings & test'){
       body=h('div',{className:'card panel'},
         h('h3',null,'Trial switch'),
-        h('div',{className:'small-note'},'Only Admin / Director can switch. OFF = MAR exactly as before. QR trial = record-only (never blocks a dose).'),
+        h('div',{className:'small-note'},'Only Admin / Director can switch. OFF = every screen exactly as before. QR trial = record-only (never blocks a save).'),
         h('div',{className:'bedside-tabs'},
           h('button',{type:'button',className:`btn ${mode==='off'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('off')},'OFF'),
           h('button',{type:'button',className:`btn ${mode==='qr_trial'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('qr_trial')},'QR trial (record-only)')),
@@ -314,18 +331,20 @@
             [...patientOptions].sort((a,b)=>formalName(a).localeCompare(formalName(b))).map(p=>h('option',{key:p.id,value:p.id},`${formalName(p)} · ${p.patient_id||'—'}`)))),
           h('div',{className:'field'},h('label',null,'Result'),h('select',{value:draft.result,onChange:e=>setDraft({...draft,result:e.target.value})},h('option',{value:''},'All results'),
             Object.entries(BEDSIDE_RESULT_LABEL).sort((a,b)=>a[1].replace(/^\W+/,'').localeCompare(b[1].replace(/^\W+/,''))).map(([k,l])=>h('option',{key:k,value:k},l)))),
+          h('div',{className:'field'},h('label',null,'Task'),h('select',{value:draft.task,onChange:e=>setDraft({...draft,task:e.target.value})},h('option',{value:''},'All tasks'),
+            Object.entries(BEDSIDE_TASK_LABEL).sort((a,b)=>a[1].localeCompare(b[1])).map(([k,l])=>h('option',{key:k,value:k},l)))),
           h(ApplyFilterButton,{dirty,onApply:apply})),
         loadError&&h('div',{className:'message error',style:{marginTop:'8px'}},loadError),
         h('div',{className:'bedside-cards'},
-          [['Doses checked',shown.length],['Bed verified',count('verified')],['Not scanned',count('not_scanned')],['Wrong bed',count('wrong_bed')],['Unknown sticker',count('unknown_tag')+count('no_bed')]]
+          [['Entries checked',shown.length],['Bed verified',count('verified')],['Not scanned',count('not_scanned')],['Wrong bed',count('wrong_bed')],['Unknown sticker',count('unknown_tag')+count('no_bed')]]
             .map(([l,n])=>h('div',{className:'bedside-card',key:l},h('b',null,n),h('small',null,l)))),
         staff.length>0&&h('details',{open:true},h('summary',null,'By staff'),
-          h('table',null,h('thead',null,h('tr',null,h('th',null,'Staff'),h('th',null,'Doses'),h('th',null,'Verified'),h('th',null,'Not scanned'),h('th',null,'Problems'))),
+          h('table',null,h('thead',null,h('tr',null,h('th',null,'Staff'),h('th',null,'Entries'),h('th',null,'Verified'),h('th',null,'Not scanned'),h('th',null,'Problems'))),
             h('tbody',null,staff.map(s=>h('tr',{key:s.name},h('td',null,s.name),h('td',null,s.total),h('td',null,`${s.verified} (${pct(s.verified,s.total)})`),h('td',null,s.not_scanned),h('td',null,s.problem)))))),
         loading?h('div',{className:'loading',style:{marginTop:'10px'}},'Loading…'):!shown.length?h('div',{className:'small-note',style:{marginTop:'10px'}},'No bedside checks for this filter.'):
-          h('table',{style:{marginTop:'10px'}},h('thead',null,h('tr',null,h('th',null,'Dose'),h('th',null,'Guest'),h('th',null,'Result'),h('th',null,'Staff'))),
+          h('table',{style:{marginTop:'10px'}},h('thead',null,h('tr',null,h('th',null,'Task'),h('th',null,'Guest'),h('th',null,'Result'),h('th',null,'Staff'))),
             h('tbody',null,shown.map(r=>{const p=pFor(r.patient_id);return h('tr',{key:r.id},
-              h('td',null,`${formatDateIN(r.scheduled_date)} ${String(r.scheduled_time||'').slice(0,5)}`),
+              h('td',null,`${formatDateIN(r.scheduled_date)} ${String(r.scheduled_time||'').slice(0,5)}`,h('small',{style:{display:'block'}},[BEDSIDE_TASK_LABEL[r.task_kind||'medicine']||r.task_kind,r.task_label].filter(Boolean).join(' · '))),
               h('td',null,`${formalName(p)||'Guest'} · Room ${r.guest_room_no||'—'}${r.guest_bed_no?`-${r.guest_bed_no}`:''}`),
               h('td',null,h('span',{className:`bedside-chip ${r.result}`},BEDSIDE_RESULT_LABEL[r.result]||r.result),
                 r.scanned_room_no&&r.result!=='verified'?h('small',{style:{display:'block'}},`Scanned: Room ${r.scanned_room_no}-${r.scanned_bed_no}`):null,
