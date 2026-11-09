@@ -68,6 +68,7 @@
         order_id:order.id,patient_id:order.patient_id,scheduled_date:today,scheduled_time:time,
         status,administered_at:new Date().toISOString(),administered_by:user.id,remarks
       });
+      if(!error)bedsideRecordTask({kind:'medicine',patientId:order.patient_id,refId:order.id,date:today,time,label:`${order.medicine_name||order.drug_name||'Medicine'} · ${status}`,reason:'Shift Tasks one-tap (no scan step)'}); // 2.19.94
       if(error)alert(error.message);else load()
     }
 
@@ -99,6 +100,7 @@
           completed_by:user.id,
           remarks
         },{onConflict:'care_order_id,care_date,shift'});
+        if(!error)bedsideRecordTask({kind:'care',patientId:careOrder.patient_id,refId:careOrder.id,date:today,label:`${careOrder.care_type||'Care'} · ${status}`,reason:'Shift Tasks one-tap (no scan step)'}); // 2.19.94
         if(error)alert(error.message);else await load();
       }catch(error){
         console.error('Care task save failed:',error);

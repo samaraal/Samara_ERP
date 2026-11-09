@@ -408,6 +408,7 @@
     }
     // 2.18.61: dateISO — a night-shift dose (e.g. 10 PM) may be recorded after midnight; it is saved under its own date.
     function openMar(order,time='',dateISO=today){
+      setBedsideScan(s=>s&&s.patientId===order?.patient_id?s:null); // 2.19.94: keep a scan only for the same Guest
       const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','Current administration is unavailable. Pre-departure records are retained for management review.');return}
       const scheduled=time||firstPendingTime(order);
       if(!scheduled){
@@ -624,6 +625,7 @@
       if(error&&marForm.status==='Not Given'&&/not_given|status_check|check constraint/i.test(error.message||'')){const text='“Not Given” needs the database update SQL 327. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&lateGivenMinutes&&/late_given/i.test(error.message||'')){const text='Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      bedsideRecordTask({kind:'medicine',patientId:marTarget.patient_id,refId:marTarget.id,date:marForm.scheduled_date||today,time:normalizeMedicationTime(marForm.scheduled_time),label:`${medicineLabel(marTarget)} · ${marForm.status==='Reschedule'?'Delayed':marForm.status}`,scan:bedsideScan}); // 2.19.94: separate record, never blocks
       if(marForm.status==='Not Given')showSamaraActionToast('success','Recorded as Not Given',`${marForm.not_given_reason}.${marForm.reschedule?' Re-medication time saved.':''}`);
       else if(marForm.status==='Withheld')showSamaraActionToast('success','Dose withheld','Recorded. Nursing Manager and Admin are alerted. Record the doctor\'s instruction as soon as it is received.');
       else if(lateGivenMinutes)showSamaraActionToast('success','Medication saved',`Recorded as given ${medicationDurationText(lateGivenMinutes)} late — ${marForm.late_given_reason}. The Nursing Manager has been informed.`);
@@ -911,7 +913,7 @@
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
           late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
         if(error)throw error;
-        bedsideRecordAfterGiven({order:item.order,date:item.date,time,scan:bedsideScan}); // 2.19.93: separate record, never blocks
+        bedsideRecordTask({kind:'medicine',patientId:item.order.patient_id,refId:item.order.id,date:item.date,time,label:`${medicineLabel(item.order)} · Given`,scan:bedsideScan}); // 2.19.93/94: separate record, never blocks
         const p=patientFor(item.order);
         showSamaraActionToast('success','Medicine given',`${medicineLabel(item.order)} · Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'} · ${formatTimeIN(now)}`);
         setConfirmTarget(null);
@@ -1283,6 +1285,7 @@
             !rescheduleLog&&marForm.status!=='Reschedule'&&currentIsLateEntry&&h('div',{className:'field span-2'},h('label',null,'Detailed Late Entry Justification'),h('textarea',{rows:3,value:marForm.late_entry_justification,onChange:e=>setMarForm({...marForm,late_entry_justification:e.target.value}),placeholder:'Explain why the medicine was not documented immediately, who administered it, and any verification performed.',required:true})),
             h('div',{className:'field span-2'},h('label',null,(rescheduleLog||marForm.status==='Reschedule')?'Reason for rescheduling (required)':(marForm.status==='Not Given'?(marForm.not_given_reason==='Other'?'Reason (required)':'Remarks (optional)'):['Given','Withheld'].includes(marForm.status)?'Clinical Remarks (optional)':'Reason / Clinical Remarks (required)')),h('textarea',{rows:4,value:marForm.remarks,onChange:e=>setMarForm({...marForm,remarks:e.target.value}),placeholder:rescheduleLog||marForm.status==='Reschedule'?'Explain why this medication dose needs a new time':marForm.status==='Given'?'Any observation after administration':marForm.status==='Withheld'?'Any further observation / action taken':'Enter the medicine exception reason and action taken',required:rescheduleLog||marForm.status==='Reschedule'||(marForm.status==='Not Given'?marForm.not_given_reason==='Other':!['Given','Withheld'].includes(marForm.status))}))
           ),
+          !rescheduleLog&&h(BedsideSafe,null,h(BedsideDosePanel,{patient:patientFor(marTarget),value:bedsideScan,onChange:setBedsideScan,disabled:marBusy})), // 2.19.94: shows nothing unless the QR trial is ON
           h('div',{className:'modal-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:closeMar,disabled:marBusy},'Cancel'),h('button',{className:'btn btn-primary',disabled:marBusy},marBusy?'Saving MAR…':(rescheduleLog||marForm.status==='Reschedule')?'Save Reschedule':'Save MAR'))
         )
       ),

@@ -367,8 +367,8 @@
   },
   {
    "file": "clinical/bedside-verification.js",
-   "about": "2.19.93 Bedside Verification (MAR): QR trial now, NFC later — OFF by default; scanner, MAR panel, Admin page (SQL 363)",
-   "lines": 336
+   "about": "2.19.93/94 Bedside Verification: QR trial now, NFC later — OFF by default; scanner, panel for MAR / procedures / daily care / vitals / meals, Admin page (SQL 363, 364)",
+   "lines": 355
   },
   {
    "file": "clinical/medicines.js",

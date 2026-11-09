@@ -168,6 +168,7 @@
     const [bevRows,setBevRows]=React.useState([]);
     const [bevReady,setBevReady]=React.useState(true);
     const [saving,setSaving]=React.useState(false);
+    const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.94: bedside QR trial (record-only, OFF by default)
     const [entryType,setEntryType]=React.useState('meal');
     const [patientId,setPatientId]=React.useState('');
     const blankMeal=()=>({meal_date:todayISOIndia(),meal_type:'Tiffin',items:[],custom:'',served_time:'',consumption_status:'Consumed fully',remarks:''});
@@ -271,6 +272,7 @@
         if(error.code==='23514'||/meal_records_valid_consumption_time/i.test(error.message||''))return alert(`${mealLabel(form.meal_type)} must be recorded between ${mealTimeGuide(form.meal_type)}.`);
         return alert(error.message);
       }
+      bedsideRecordTask({kind:'meal',patientId,date:form.meal_date,time:form.served_time,label:`${mealLabel(form.meal_type)} · ${form.consumption_status||''}`,scan:bedsideScan});setBedsideScan(null); // 2.19.94
       showSamaraActionToast('success','Meal saved',`${mealLabel(form.meal_type)} · ${items.join(', ')}`);
       setForm(f=>({...blankMeal(),meal_date:f.meal_date,meal_type:f.meal_type}));
       load();
@@ -301,6 +303,7 @@
         if(/beverage_records|does not exist|schema cache/i.test(error.message||'')){setBevReady(false);return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.')}
         return alert(error.message);
       }
+      bedsideRecordTask({kind:'beverage',patientId,date:bev.given_date,time:bev.given_time,label:bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage,scan:bedsideScan});setBedsideScan(null); // 2.19.94
       showSamaraActionToast('success','Beverage saved',`${bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage} at ${bev.given_time}`);
       setBev(b=>({...blankBev(),given_date:b.given_date}));
       load();
@@ -356,6 +359,7 @@
           h('div',{className:'fi-row'},miniSelect('Food consumed',form.consumption_status,INTAKE_OPTIONS,v=>setForm({...form,consumption_status:v}))),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each Guest on each date. Record beverages in ☕ Beverage.'),
+          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
           h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':`Save ${mealLabel(form.meal_type)} Entry`)
         ):h('form',{className:'fi-form',onSubmit:saveBeverage},
           !bevReady&&h('div',{className:'message error'},'Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase.'),
@@ -372,6 +376,7 @@
           h('div',{className:'fi-row'},miniSelect('Consumed',bev.consumption_status,BEVERAGE_INTAKE,v=>setBev({...bev,consumption_status:v}))),
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
+          h(BedsideSafe,null,h(BedsideDosePanel,{patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
           h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
           !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )
