@@ -1,3 +1,8 @@
+## 2.19.96 — 09-11-2026 — Nurses / Caregivers: bedside entries only from the phone — SQL 366
+- New Admin switch (Bedside Verification → Settings & test → **Block computers**), turned ON by SQL 366: Nurse and Caregiver logins (incl. Nursing Manager in Nurse mode) cannot save medicines (Administer now, MAR form), Daily Care / Nursing Procedures, Vital Signs, Meals, Beverages or Shift Tasks one-tap entries from a computer — only from a phone / tablet. Viewing is unchanged.
+- Admin and the Nursing Manager's own login can still enter from the station computer (emergency, e.g. phone not working).
+- Applies only while Bedside Verification is not OFF. Needs `supabase/sql/366_bedside_block_computer.sql`.
+
 ## 2.19.95 — 09-11-2026 — Nursing home page: 📷 Scan & Administer — SQL 365
 - Nurses, Nursing Manager and Caregivers: a big **Scan & Administer** button at the top of the Nursing Dashboard (shows only while the bedside QR trial is ON).
 - Scan the bed sticker → "✅ Bed verified · Room · Bed · Guest" and that Guest's open work for the shift (medicines due/late, vitals, nursing procedures, care, meals). Each button opens the usual screen with the Guest already chosen; the bed check is carried for 10 minutes (same Guest only), so entries save as bed-verified without scanning again. Caregivers do not see medicines.

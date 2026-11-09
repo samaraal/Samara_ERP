@@ -11,16 +11,36 @@
   const BEDSIDE_RESULT_LABEL={verified:'✅ Bed verified',wrong_bed:'⚠️ Wrong bed',unknown_tag:'⚠️ Unknown sticker',no_bed:'⚠️ Guest has no bed on record',not_scanned:'— Not scanned'};
 
   // Mode is read once a minute; any error → 'off'.
-  const bedsideModeCache={mode:'off',at:0};
+  const bedsideModeCache={mode:'off',block:false,at:0};
   async function bedsideLoadMode(force=false){
     if(!force&&bedsideModeCache.at&&Date.now()-bedsideModeCache.at<60000)return bedsideModeCache.mode;
-    let mode='off';
+    let mode='off',block=false;
     try{
-      const r=await client.from('bedside_verify_settings').select('mode').eq('id',1).maybeSingle();
-      if(!r.error&&r.data&&['off','qr_trial','nfc'].includes(r.data.mode))mode=r.data.mode;
+      const r=await client.from('bedside_verify_settings').select('*').eq('id',1).maybeSingle(); // '*' so a missing newer column never breaks it
+      if(!r.error&&r.data&&['off','qr_trial','nfc'].includes(r.data.mode)){mode=r.data.mode;block=r.data.block_computer===true}
     }catch(_){mode='off'}
-    bedsideModeCache.mode=mode;bedsideModeCache.at=Date.now();
+    bedsideModeCache.mode=mode;bedsideModeCache.block=block;bedsideModeCache.at=Date.now();
     return mode;
+  }
+  // 2.19.96: Nurse / Caregiver logins may save bedside entries only from a phone or tablet (SQL 366, Admin switch).
+  // Admin and the Nursing Manager's own login are never blocked (emergency entry from the station computer).
+  function bedsideIsComputer(){
+    try{
+      const ua=String(navigator.userAgent||'');
+      if(navigator.userAgentData&&navigator.userAgentData.mobile===true)return false;
+      if(/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua))return false;
+      if(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches&&!/Windows NT/i.test(ua))return false;
+      return /Windows NT|Macintosh|X11|CrOS|Linux x86_64/i.test(ua);
+    }catch(_){return false}
+  }
+  const BEDSIDE_COMPUTER_MSG='Bedside entries are made only from the Samara phone at the Guest\'s bed. This computer can view, but not save. (Emergency: ask the Nursing Manager or Admin.)';
+  function bedsideBlockedRole(profile){return ['Nurse','Caregiver'].includes(profile?.role)}
+  async function bedsideBlockedHere(profile){
+    try{
+      if(!bedsideBlockedRole(profile)||!bedsideIsComputer())return '';
+      const mode=await bedsideLoadMode();
+      return mode!=='off'&&bedsideModeCache.block?BEDSIDE_COMPUTER_MSG:'';
+    }catch(_){return ''}
   }
   function useBedsideMode(){
     const [mode,setMode]=React.useState(bedsideModeCache.mode);
@@ -129,7 +149,7 @@
   function BedsideCss(){return h('style',null,BEDSIDE_CSS)}
 
   // Shown inside the MAR "Administer now?" box. value = {code, check, reason}. Shows nothing unless the trial is ON.
-  function BedsideDosePanel({patient,value,onChange,disabled}){
+  function BedsideDosePanel({patient,value,onChange,disabled,profile}){
     const mode=useBedsideMode();
     const [scanning,setScanning]=React.useState(false),[checking,setChecking]=React.useState(false);
     // 2.19.95: arrived from Scan & Administer for this Guest → already bed-verified.
@@ -139,6 +159,7 @@
       if(s)onChange({code:s.code,check:s.check||null,reason:'',patientId:patient.id,fromScanFirst:true});
     },[mode,patient?.id]);
     if(mode!=='qr_trial'||!patient?.id)return null;
+    if(bedsideModeCache.block&&bedsideIsComputer()&&bedsideBlockedRole(profile))return h('div',{className:'bedside-box'},h(BedsideCss),h('div',{className:'bedside-res bad'},`🔒 ${BEDSIDE_COMPUTER_MSG}`));
     const v=value&&(!value.patientId||value.patientId===patient.id)?value:{};
     const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
     async function gotCode(code){
@@ -246,7 +267,7 @@
     const loadSettings=React.useCallback(async()=>{
       try{const r=await client.from('bedside_verify_settings').select('*').eq('id',1).maybeSingle();
         if(r.error){setInstalled(false);return}
-        setInstalled(true);setModeInfo(r.data||null);setMode(r.data?.mode||'off');bedsideModeCache.mode=r.data?.mode||'off';bedsideModeCache.at=Date.now();
+        setInstalled(true);setModeInfo(r.data||null);setMode(r.data?.mode||'off');bedsideModeCache.mode=r.data?.mode||'off';bedsideModeCache.block=r.data?.block_computer===true;bedsideModeCache.at=Date.now();
       }catch(_){setInstalled(false)}
     },[]);
     const loadBeds=React.useCallback(async()=>{
@@ -275,6 +296,14 @@
       setBusy('mode');
       try{const r=await client.rpc('set_bedside_verify_settings',{p_mode:next});if(r.error)throw r.error;await loadSettings();
         showSamaraActionToast('success','Bedside Verification',next==='qr_trial'?'QR trial is ON — nurses see "Scan bed QR" on bedside entry screens.':'Bedside Verification is OFF — every screen is exactly as before.');}
+      catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
+      finally{setBusy('')}
+    }
+    async function changeBlock(on){
+      if(!isAdmin||busy)return;
+      setBusy('block');
+      try{const r=await client.rpc('set_bedside_block_computer',{p_on:on});if(r.error)throw r.error;await loadSettings();bedsideModeCache.at=0;
+        showSamaraActionToast('success','Bedside Verification',on?'Computers blocked for Nurse / Caregiver bedside entries.':'Computers allowed again.');}
       catch(e){showSamaraActionToast('error','Could not change',e?.message||'Please try again.')}
       finally{setBusy('')}
     }
@@ -318,6 +347,12 @@
         h('div',{className:'bedside-tabs'},
           h('button',{type:'button',className:`btn ${mode==='off'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('off')},'OFF'),
           h('button',{type:'button',className:`btn ${mode==='qr_trial'?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||busy==='mode',onClick:()=>changeMode('qr_trial')},'QR trial (record-only)')),
+        h('h3',{style:{marginTop:'14px'}},'Computers (Nurse / Caregiver logins)'),
+        h('div',{className:'small-note'},'ON = Nurses and Caregivers can save bedside entries only from a phone / tablet. Admin and the Nursing Manager\'s own login can still enter from a computer.'),
+        h('div',{className:'bedside-tabs'},
+          h('button',{type:'button',className:`btn ${modeInfo?.block_computer?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||modeInfo?.block_computer===undefined||busy==='block',onClick:()=>changeBlock(true)},'Block computers'),
+          h('button',{type:'button',className:`btn ${modeInfo&&!modeInfo.block_computer?'btn-primary':'btn-secondary'}`,disabled:!isAdmin||!installed||modeInfo?.block_computer===undefined||busy==='block',onClick:()=>changeBlock(false)},'Allow computers')),
+        modeInfo&&modeInfo.block_computer===undefined&&h('div',{className:'small-note'},'Needs supabase/sql/366_bedside_block_computer.sql.'),
         h('h3',{style:{marginTop:'14px'}},'Test a sticker'),
         h('div',{className:'small-note'},'Scan any printed sticker to see which bed it belongs to. Nothing is saved.'),
         h('button',{type:'button',className:'btn btn-secondary',disabled:!installed,onClick:()=>{setTestResult(null);setTestScan(true)}},'📷 Test a sticker'),
