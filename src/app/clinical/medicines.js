@@ -679,6 +679,7 @@
         return;
       }
       setTab('Today’s MAR');
+      if(context.filter_only){clearTaskNavigationContext();return;} // 2.19.95: Scan & Administer — show this Guest's MAR only
       const target=state.orders.find(order=>order.id===context.order_id)
         ||state.orders.find(order=>order.patient_id===context.patient_id);
       if(target){

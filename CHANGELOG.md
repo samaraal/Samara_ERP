@@ -1,3 +1,8 @@
+## 2.19.95 — 09-11-2026 — Nursing home page: 📷 Scan & Administer — SQL 365
+- Nurses, Nursing Manager and Caregivers: a big **Scan & Administer** button at the top of the Nursing Dashboard (shows only while the bedside QR trial is ON).
+- Scan the bed sticker → "✅ Bed verified · Room · Bed · Guest" and that Guest's open work for the shift (medicines due/late, vitals, nursing procedures, care, meals). Each button opens the usual screen with the Guest already chosen; the bed check is carried for 10 minutes (same Guest only), so entries save as bed-verified without scanning again. Caregivers do not see medicines.
+- Needs `supabase/sql/365_bedside_scan_and_administer.sql` (1 read-only function).
+
 ## 2.19.94 — 09-11-2026 — Bedside Verification for ALL bedside entries — SQL 364
 - When the QR trial is ON, the **📷 Scan bed QR** box now also appears on: the full MAR form (late doses, sliding-scale insulin, Withheld / Not Given), **Daily Care** (incl. Nursing Procedures), **Vital Signs**, **Meals** and **Beverages**. Shift Tasks one-tap buttons are recorded as "Not scanned — Shift Tasks one-tap".
 - Register: new **Task** filter and task name under each entry; a scan is used only for the Guest it was made for.
