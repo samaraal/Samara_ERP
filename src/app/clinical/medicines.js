@@ -527,7 +527,7 @@
       e.preventDefault();
       setMarMessage('');
       if(!marTarget)return;
-      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);setMarMessage(_bb);return;}} // 2.19.96
+      {const _bb=await bedsideSaveCheck(profile,marTarget.patient_id,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);setMarMessage(_bb);return;}} // 2.19.96
       const fresh=await client.from('patients').select('is_active,admission_status').eq('id',marTarget.patient_id).single();
       if(fresh.error||!fresh.data||fresh.data.is_active===false||fresh.data.admission_status==='Discharged'){setMarMessage('Patient is discharged or status could not be verified. Refresh the medication list.');await load();return}
       if(!marForm.scheduled_time){const text='Please select the scheduled medicine time.';setMarMessage(text);showSamaraActionToast('error','Cannot save medication',text);return;}
@@ -899,7 +899,7 @@
     function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
-      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);setConfirmMessage(_bb);return;}} // 2.19.96
+      {const _bb=await bedsideSaveCheck(profile,item.order.patient_id,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);setConfirmMessage(_bb);return;}} // 2.19.96
       setConfirmBusy(true);setConfirmMessage('');
       try{
         const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();

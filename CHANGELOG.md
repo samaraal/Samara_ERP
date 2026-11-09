@@ -1,3 +1,8 @@
+## 2.19.97 — 09-11-2026 — Bedside QR scan COMPULSORY for Nurses / Caregivers — SQL 367
+- New mode **QR compulsory** (ADMIN → Bedside Verification → Settings & test), switched ON by SQL 367: Nurse and Caregiver logins cannot save medicines, procedures, daily care, vitals, meals, beverages or Shift Tasks one-tap entries until the Guest's own bed sticker is scanned (✅ verified) — on that screen or with Scan & Administer (10 min, same Guest). Wrong bed / unknown sticker → not saved.
+- Nursing Manager (own login) and Admin are never blocked — emergency entries (sticker / camera problem). "QR trial (record-only)" brings back the old behaviour instantly.
+- Needs `supabase/sql/367_bedside_qr_compulsory.sql`.
+
 ## 2.19.96 — 09-11-2026 — Nurses / Caregivers: bedside entries only from the phone — SQL 366
 - New Admin switch (Bedside Verification → Settings & test → **Block computers**), turned ON by SQL 366: Nurse and Caregiver logins (incl. Nursing Manager in Nurse mode) cannot save medicines (Administer now, MAR form), Daily Care / Nursing Procedures, Vital Signs, Meals, Beverages or Shift Tasks one-tap entries from a computer — only from a phone / tablet. Viewing is unchanged.
 - Admin and the Nursing Manager's own login can still enter from the station computer (emergency, e.g. phone not working).

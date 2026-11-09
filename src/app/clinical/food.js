@@ -253,7 +253,7 @@
     function moveItem(i,d){setForm(f=>{const a=[...f.items];const j=i+d;if(j<0||j>=a.length)return f;[a[i],a[j]]=[a[j],a[i]];return {...f,items:a}})}
     async function saveMeal(e){
       e.preventDefault();
-      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);return;}} // 2.19.96
+      {const _bb=await bedsideSaveCheck(profile,patientId,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.19.96
       if(!patientId)return alert('Select a Guest before entering food details.');
       const pending=form.custom.trim();
       const items=pending&&!form.items.some(x=>x.toLowerCase()===pending.toLowerCase())?[...form.items,pending]:form.items;
@@ -280,7 +280,7 @@
     }
     async function saveBeverage(e){
       e.preventDefault();
-      {const _bb=await bedsideBlockedHere(profile);if(_bb){showSamaraActionToast('error','Use the bedside phone',_bb);return;}} // 2.19.96
+      {const _bb=await bedsideSaveCheck(profile,patientId,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.19.96
       if(!bevReady)return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.');
       if(!patientId)return alert('Select a Guest before entering the beverage.');
       if(!bev.beverage)return alert('Choose the beverage: Tea, Coffee, Milk, Boost, Horlicks or Fresh Juice.');
