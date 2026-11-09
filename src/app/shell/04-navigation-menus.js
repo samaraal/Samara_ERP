@@ -175,6 +175,7 @@
       ['Received Indents / Used Balance','Received Indents / Used Balance','Confirm receipt, record use or return']
     ].filter(([target])=>allowedPagesForProfile(profile).includes(target)):[];
     return h(React.Fragment,null,
+      h(BedsideSafe,null,h(BedsideScanAdminister,{profile,onNavigate})), // 2.19.95: Scan & Administer — shows only when the bedside QR trial is ON
       nurseTasks.length>0&&h('section',{className:'nurse-workflow-actions','aria-label':'Nurse charges, requests and indents',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'8px',padding:'12px 16px'}},
         nurseTasks.map(([target,label,detail])=>h('button',{key:target,type:'button',className:'btn btn-secondary',onClick:()=>onNavigate(target),style:{minHeight:'70px',display:'grid',gap:'5px',alignContent:'center',textAlign:'left',whiteSpace:'normal'}},
           h('strong',null,label),h('small',{style:{fontWeight:400}},detail)))),

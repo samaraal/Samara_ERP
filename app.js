@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.94';
+  const APP_VERSION = '2.19.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '09-Nov-2026 Bedside Verification for all bedside entries';
+  const APP_BUILD_DATE = '09-Nov-2026 Scan & Administer (bedside QR first)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -16536,6 +16536,7 @@ https://samaraassistedliving.com/`;
       ['Received Indents / Used Balance','Received Indents / Used Balance','Confirm receipt, record use or return']
     ].filter(([target])=>allowedPagesForProfile(profile).includes(target)):[];
     return h(React.Fragment,null,
+      h(BedsideSafe,null,h(BedsideScanAdminister,{profile,onNavigate})), // 2.19.95: Scan & Administer — shows only when the bedside QR trial is ON
       nurseTasks.length>0&&h('section',{className:'nurse-workflow-actions','aria-label':'Nurse charges, requests and indents',style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'8px',padding:'12px 16px'}},
         nurseTasks.map(([target,label,detail])=>h('button',{key:target,type:'button',className:'btn btn-secondary',onClick:()=>onNavigate(target),style:{minHeight:'70px',display:'grid',gap:'5px',alignContent:'center',textAlign:'left',whiteSpace:'normal'}},
           h('strong',null,label),h('small',{style:{fontWeight:400}},detail)))),
@@ -37223,6 +37224,20 @@ function RoomsBeds({profile,onNavigate}){
     return mode;
   }
 
+  // 2.19.95: "Scan & Administer" — one scan at the bed opens that Guest's work; the scan is carried to each entry
+  // screen for 10 minutes (same Guest only), so every entry is saved as bed-verified.
+  const BEDSIDE_SESSION_KEY='samara_bedside_session';
+  function bedsideSessionGet(patientId){
+    try{
+      const s=JSON.parse(sessionStorage.getItem(BEDSIDE_SESSION_KEY)||'null');
+      if(!s||!s.code||!s.patientId||Date.now()-Number(s.at||0)>10*60*1000)return null;
+      if(patientId&&String(s.patientId)!==String(patientId))return null;
+      return s;
+    }catch(_){return null}
+  }
+  function bedsideSessionSet(s){try{sessionStorage.setItem(BEDSIDE_SESSION_KEY,JSON.stringify({...s,at:Date.now()}))}catch(_){}}
+  function bedsideSessionClear(){try{sessionStorage.removeItem(BEDSIDE_SESSION_KEY)}catch(_){}}
+
   // A crash inside any bedside piece shows nothing instead of breaking the screen around it.
   class BedsideSafe extends React.Component{
     constructor(props){super(props);this.state={failed:false}}
@@ -37313,6 +37328,12 @@ function RoomsBeds({profile,onNavigate}){
   function BedsideDosePanel({patient,value,onChange,disabled}){
     const mode=useBedsideMode();
     const [scanning,setScanning]=React.useState(false),[checking,setChecking]=React.useState(false);
+    // 2.19.95: arrived from Scan & Administer for this Guest → already bed-verified.
+    React.useEffect(()=>{
+      if(mode!=='qr_trial'||!patient?.id||value?.code)return;
+      const s=bedsideSessionGet(patient.id);
+      if(s)onChange({code:s.code,check:s.check||null,reason:'',patientId:patient.id,fromScanFirst:true});
+    },[mode,patient?.id]);
     if(mode!=='qr_trial'||!patient?.id)return null;
     const v=value&&(!value.patientId||value.patientId===patient.id)?value:{};
     const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
@@ -37547,6 +37568,113 @@ function RoomsBeds({profile,onNavigate}){
               h('td',null,r.recorded_by_name||'—',h('small',{style:{display:'block'}},`${formatDateIN(r.created_at)} ${formatTimeIN(r.created_at)}`)))}))));
     }
     return h('div',{className:'bedside-page'},h(BedsideCss),head,body);
+  }
+
+  // ── 2.19.95: NURSING DASHBOARD → 📷 SCAN & ADMINISTER (Nurse, Nursing Manager, Caregiver; SQL 365) ─────────────
+  // Scan the bed first → that Guest's open work for this shift (from the same task list as the nurse screensaver);
+  // each button opens the usual entry screen with the Guest already chosen and the bed already verified.
+  // Shows nothing unless the QR trial is ON. Nothing is saved here.
+  const BEDSIDE_SA_CSS=`.bsa{margin:12px 16px 4px;padding:14px;border-radius:16px;background:linear-gradient(135deg,#fff,#fde8f1);border:1px solid #f0cfe0}
+.bsa-start{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;border:0;border-radius:14px;background:linear-gradient(100deg,#b01264,#e03a7c);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 6px 16px rgba(176,18,100,.25)}
+.bsa-start small{display:block;font-size:12px;font-weight:600;opacity:.92}
+.bsa-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}.bsa-head b{font-size:17px;color:#7a1247;overflow-wrap:anywhere}.bsa-head small{display:block;color:#0a7a42;font-weight:800}
+.bsa-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}.bsa-task{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:#fff;border:1px solid #f0dce6}
+.bsa-task.overdue{border-color:#e8a0a0;background:#fff7f7}.bsa-task .bsa-ic{font-size:20px}.bsa-task .bsa-txt{flex:1;min-width:0;overflow-wrap:anywhere}.bsa-task .bsa-txt b{display:block;color:#3a1028;font-size:14px}.bsa-task .bsa-txt small{color:#5d1039}
+.bsa-task.overdue .bsa-txt small{color:#b42318;font-weight:700}.bsa-quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.bsa-quick .btn{flex:1 1 130px}`;
+
+  function BedsideScanAdminister({profile,onNavigate}){
+    const mode=useBedsideMode();
+    const isNM=isNursingManagerProfile(profile)||Boolean(profile?.__nurseMode);
+    const isCaregiver=profile?.role==='Caregiver';
+    const eligible=['Nurse','Caregiver'].includes(profile?.role)||isNM;
+    const allowed=React.useMemo(()=>{try{return allowedPagesForProfile(profile)||[]}catch(_){return []}},[profile]);
+    const [scanning,setScanning]=React.useState(false),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState('');
+    const [session,setSession]=React.useState(()=>bedsideSessionGet());
+    const [tasks,setTasks]=React.useState(null),[taskErr,setTaskErr]=React.useState('');
+    const [,tick]=React.useState(0);
+    React.useEffect(()=>{const t=setInterval(()=>{tick(x=>x+1);if(!bedsideSessionGet())setSession(null)},30000);return()=>clearInterval(t)},[]);
+    React.useEffect(()=>{
+      if(!session?.patientId){setTasks(null);return}
+      let live=true;setTasks(null);setTaskErr('');
+      (async()=>{
+        try{
+          const d=await loadNurseSaverTasks();
+          const pid=String(session.patientId);
+          const mine=[...(d?.overdue||[]),...(d?.next||[])].filter(x=>!x.nextShift&&!x.done&&(
+            String(x.patient?.id||'')===pid||(x.group==='meal'&&(x.pendingGuests||[]).some(p=>String(p?.id)===pid))));
+          if(live)setTasks(mine);
+        }catch(e){if(live){setTasks([]);setTaskErr('Could not load the due list — use the buttons below.')}}
+      })();
+      return()=>{live=false};
+    },[session?.patientId,session?.code]);
+    if(mode!=='qr_trial'||!eligible)return null;
+
+    async function gotCode(code){
+      setScanning(false);setBusy(true);setMsg('');
+      try{
+        const r=await client.rpc('bedside_resolve_tag',{p_code:code});
+        if(r.error)throw r.error;
+        const d=r.data||{};
+        if(d.result==='unknown_tag'){setMsg('⚠️ This sticker is not registered (or was replaced). Tell the Nursing Manager.');return}
+        if(d.result==='empty_bed'){setMsg(`⚠️ No active Guest is recorded in Room ${d.room_no} · Bed ${d.bed_no}. Check the bed in Patients.`);return}
+        if(d.result!=='ok'||!d.guests?.[0]){setMsg(`⚠️ More than one Guest is recorded in Room ${d.room_no} · Bed ${d.bed_no}. Tell the Nursing Manager.`);return}
+        const g=d.guests[0];
+        const s={code,patientId:g.id,name:formalName(g)||g.full_name||'Guest',guestCode:g.patient_id||'',room:d.room_no,bed:d.bed_no,
+          check:{result:'verified',scanned_room_no:d.room_no,scanned_bed_no:d.bed_no,guest_room_no:g.room_no,guest_bed_no:g.bed_no}};
+        bedsideSessionSet(s);setSession({...s,at:Date.now()});
+        try{navigator.vibrate?.([60,40,60])}catch(_){}
+      }catch(e){setMsg(`⚠️ ${e?.message||'Could not read the sticker.'} Try again.`)}
+      finally{setBusy(false)}
+    }
+    function open(page,ctx={}){
+      if(!session)return;
+      bedsideSessionSet(session); // keeps the bed check fresh for the next 10 minutes
+      saveTaskNavigationContext({page,return_page:'Clinical Dashboard',patient_id:session.patientId,...ctx});
+      onNavigate?.(page);
+    }
+    function end(){bedsideSessionClear();setSession(null);setTasks(null);setMsg('')}
+    const can=page=>allowed.includes(page);
+    const hhmm=d=>d instanceof Date&&!Number.isNaN(d.getTime())?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';
+    const dayOf=d=>{try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(_){return todayISOIndia()}};
+    const mealCode=l=>/break|tiffin/i.test(l||'')?'Tiffin':/lunch/i.test(l||'')?'Lunch':/dinner/i.test(l||'')?'Dinner':'';
+    function taskRow(x,i){
+      const when=x.anyTime?'Any time this shift':x.awaiting?'Awaiting approval':hhmm(x.at);
+      const late=x.state==='overdue';
+      let ic='🧼',title=x.title||'Care',page='Daily Care',ctx={care_type:x.title||'',scheduled_time:x.fixedTime||''},btn='Record';
+      if(x.group==='med'){ic='💊';title=`Medicines · ${x.meds?.length||''} due`.replace(/ · $/,'');page='Medicines';ctx={filter_only:true};btn='Give'}
+      else if(x.group==='vitals'){ic='🩺';title='Vital signs';page='Vital Signs';ctx={};btn='Record'}
+      else if(x.group==='meal'){ic='🍛';title=x.mealLabel||'Meal';page='Food & Diet';ctx={meal_type:mealCode(x.mealLabel),meal_date:dayOf(x.at)};btn='Record'}
+      else if(x.group==='proc'){ic='🩹'}
+      if(x.group==='med'&&isCaregiver)return null;
+      const sub=x.group==='med'?(x.medLine||''):(x.note||'');
+      const disabled=!can(page)||(x.awaiting&&x.group==='proc');
+      return h('div',{key:`${x.group}-${i}`,className:`bsa-task ${late?'overdue':''}`},
+        h('span',{className:'bsa-ic'},ic),
+        h('div',{className:'bsa-txt'},h('b',null,title),h('small',null,[late?`${when} · late`:when,sub].filter(Boolean).join(' · '))),
+        h('button',{type:'button',className:'btn btn-primary',disabled,onClick:()=>open(page,ctx)},disabled&&!can(page)?'Nurse mode':btn));
+    }
+    return h('div',{className:'bsa'},
+      h('style',null,BEDSIDE_SA_CSS),h(BedsideCss),
+      !session?h('button',{type:'button',className:'bsa-start',disabled:busy,onClick:()=>{setMsg('');setScanning(true)}},
+          h('span',{style:{fontSize:'26px'}},'📷'),h('span',null,busy?'Checking the sticker…':'Scan & Administer',h('small',null,'Medicines · Vitals · Procedures · Care · Meals — scan the bed sticker')))
+        :h('div',null,
+          h('div',{className:'bsa-head'},
+            h('div',null,h('b',null,`Room ${session.room} · Bed ${session.bed} — ${session.name}`),h('small',null,`✅ Bed verified ${hhmm(new Date(session.at||Date.now()))}${session.guestCode?` · ${session.guestCode}`:''}`)),
+            h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setMsg('');setScanning(true)}},'📷 Next bed'),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:end},'Done'))),
+          h('div',{className:'bsa-list'},
+            tasks===null?h('div',{className:'small-note'},'Loading this Guest\'s due work…'):
+            tasks.length?tasks.map(taskRow).filter(Boolean):h('div',{className:'small-note'},'Nothing due right now for this Guest in this shift.'),
+            taskErr&&h('div',{className:'small-note'},taskErr)),
+          h('div',{className:'small-note',style:{marginTop:'10px'}},'Something else for this Guest:'),
+          h('div',{className:'bsa-quick'},
+            !isCaregiver&&can('Medicines')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Medicines',{filter_only:true})},'💊 Medicines'),
+            can('Vital Signs')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Vital Signs')},'🩺 Vital signs'),
+            can('Daily Care')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Daily Care')},'🧼 Daily care / Procedure'),
+            can('Food & Diet')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Food & Diet')},'🍛 Meal / Beverage'))),
+      msg&&h('div',{className:'bedside-res bad',style:{marginTop:'10px'}},msg),
+      scanning&&h(BedsideQrScanner,{title:'Scan the bed sticker',onCode:gotCode,onClose:()=>setScanning(false)}));
   }
   // 2.18.60: sliding-scale / sugar-based insulin (no fixed dose on the prescription). Such doses are never part of
   // "Give checked": the nurse checks the sugar first and records the reading + units given in the MAR form.
@@ -38229,6 +38357,7 @@ function RoomsBeds({profile,onNavigate}){
         return;
       }
       setTab('Today’s MAR');
+      if(context.filter_only){clearTaskNavigationContext();return;} // 2.19.95: Scan & Administer — show this Guest's MAR only
       const target=state.orders.find(order=>order.id===context.order_id)
         ||state.orders.find(order=>order.patient_id===context.patient_id);
       if(target){
