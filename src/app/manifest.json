@@ -366,6 +366,11 @@
    "about": "2.18.60 Medication History: dose-wise record by Guest / period / status, grouped date → time → Guest; Print, PDF, Excel"
   },
   {
+   "file": "clinical/bedside-verification.js",
+   "about": "2.19.93 Bedside Verification (MAR): QR trial now, NFC later — OFF by default; scanner, MAR panel, Admin page (SQL 363)",
+   "lines": 336
+  },
+  {
    "file": "clinical/medicines.js",
    "about": "Medicines: MAR time buttons for the current shift (Administer now + confirm), prescriptions, doctor review (+ discharge medication review)",
    "lines": 808

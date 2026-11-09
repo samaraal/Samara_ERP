@@ -137,7 +137,7 @@
   });
   const NAV_SECTIONS = [
     { title:'OVERVIEW', items:['Dashboard','MIS & Audit','Daily Report','Notifications'] }, // 2.19.11: MIS & Audit — Admin / Directors only · 2.19.75: Daily Report — Admin + Nursing Manager
-    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health'] }, // 2.16.43: System Health (Admin)
+    { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health','Bedside Verification'] }, // 2.16.43: System Health (Admin) · 2.19.93: Bedside Verification (Admin + Nursing Manager)
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
     { title:'HR', items:['HR Dashboard','Employees','Employee Register','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
@@ -204,7 +204,7 @@
       'Outside Nursing Dashboard','Outside Samara Nursing Procedures','Admission Register','Physiotherapy','Physiotherapy Dashboard',
       'Clinical Dashboard','Nursing Notes','Talk to Guest','Notifications','Rooms','Care Packages','Employees','Staff Leave Calendar','My Leave & Permission',
       'Enquiry Register','Spot Assessment','Admissions','Patients','Discharge','Documents','My To-Do List','Clinical Alerts','Approval Requests','Charge Approvals','Charge Register', // 2.17.6: Bills & Charges (raise outside bills)
-      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Daily Report','Intelligent Reports','Medication Errors','Recovery Timeline',
+      'Duty Assignment','Duty Calendar','Staff Duty Assignment','Clinical Escalations','Reports','Daily Report','Intelligent Reports','Medication Errors','Recovery Timeline','Bedside Verification',
       'Patient Consumables','Stores','Receive from Vendor','Stock Report','Stores In-charge Assignment','Consumables','Pharmacy','Housekeeping & General','Kitchen / Food Stores','Petty Cash','Biomedical Equipment','Oxygen Cylinders','Temporary Duty Swap','Leave Cover','Additional Duty Assignment','Staff Leave Calendar','Food & Diet','WhatsApp Inbox','WhatsApp Logs','My Profile'
     ];
     const pages=[...(ROLE_NAV[profile?.role]||['Dashboard'])];
