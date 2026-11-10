@@ -197,7 +197,7 @@
   // other leave unpaid). Days come from the Duty Roster + approved leave, editable; overtime / incentives typed by Admin.
   function payCalc(d,opening,avail=30){
     const sal=Number(d.monthly_salary)||0,dw=Math.max(0,Number(d.days_worked)||0),wo=Math.max(0,Number(d.weekly_offs)||0),clu=Math.max(0,Number(d.cl_used)||0);
-    const av=Math.max(1,Number(avail)||30),clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(av,dw+Math.min(wo,4)+clp);
+    const av=Math.max(1,Number(avail)||30),clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),plop=Math.min(15,Math.max(0,Number(d.permission_lop)||0)),paid=Math.max(0,Math.min(av,dw+Math.min(wo,4)+clp)-plop); // 2.19.98: permissions beyond 2 a month
     const earned=Math.round(sal*paid/30);
     const add=['overtime','incentives','other_earnings'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
     const less=['advance_deduction','other_deduction'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
@@ -228,7 +228,9 @@
       // 2.19.32: a mid-month joiner gets only the days from joining (30-day month); weekly offs pro-rated
       
       setD({monthly_salary:x.salary!=null?String(x.salary):'',
-        days_worked:String(onRoster?Number(x.roster_days):0),
+        // 2.19.98: each approved half-day leave date = ½ day worked (the other ½ is the leave); permissions beyond 2 a month = ½ day loss of pay each
+        days_worked:String((onRoster?Number(x.roster_days):0)+0.5*(Number(x.roster_half)||0)),
+        permission_lop:String(0.5*Math.max(0,(Number(x.perm_count)||0)-2)),
         weekly_offs:String(onRoster?Number(x.roster_offs):0),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
         overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:'',deduction_note:'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
       window.scrollTo({top:0,behavior:'smooth'});
@@ -243,8 +245,8 @@
         if(c.net<0)throw new Error('Deductions are more than the salary earned.');
         if(!d.paid_on||d.paid_on<month)throw new Error(`Choose the paid-on date (on or after 01-${month.slice(5,7)}-${month.slice(0,4)}).`);
         // 2.19.37: empty number boxes are sent as 0 (blank text made the database refuse the save)
-        const nums={};['monthly_salary','days_worked','weekly_offs','cl_used','other_leave','overtime','incentives','other_earnings','advance_deduction','other_deduction'].forEach(k=>{const v=String(d[k]??'').trim();nums[k]=v===''?'0':v});
-        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,absent:emp.roster_absent,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
+        const nums={};['monthly_salary','days_worked','weekly_offs','cl_used','other_leave','permission_lop','overtime','incentives','other_earnings','advance_deduction','other_deduction'].forEach(k=>{const v=String(d[k]??'').trim();nums[k]=v===''?'0':v});
+        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,absent:emp.roster_absent,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries,half_days:emp.roster_half,perm_count:emp.perm_count,permission_lop:Number(nums.permission_lop)||0}}});
         if(r.error)throw r.error;
         showSamaraActionToast('success','Salary saved',`${emp.name} · Net ${npMoney(r.data?.net_pay)} — counted in Net Profit.`);
         // 2.19.47: the payslip goes out on WhatsApp automatically as soon as the salary is saved (Admin, 01-11-2026).
@@ -266,7 +268,7 @@
       if(r.error)setMsg(r.error.message);else{setMsg('✓ Salary voided. You can enter it again.');await load();onChanged&&onChanged()}
     }
     const num=(k,label,hint,extra={})=>h('div',{className:'field',style:{margin:0}},h('label',null,label),
-      h('input',{type:'number',inputMode:'decimal',min:'0',step:extra.step||'0.5',value:emp?.saved?String(emp.saved[k]??''):d[k],disabled:!!emp?.saved,onChange:e=>setD({...d,[k]:e.target.value}),style:{fontWeight:700}}),
+      h('input',{type:'number',inputMode:'decimal',min:'0',step:extra.step||'0.5',value:emp?.saved?String(emp.saved[k]??emp.saved.roster?.[k]??''):d[k],disabled:!!emp?.saved,onChange:e=>setD({...d,[k]:e.target.value}),style:{fontWeight:700}}),
       hint?h('small',{style:{color:'#8a5a70'}},hint):null);
     const box={border:'1px solid #f3c2d8',borderRadius:'14px',padding:'14px',background:'#fff'};
     const line=(k,v,strong)=>h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px dashed #f3d6e4',fontWeight:strong?800:500}},h('span',null,k),h('span',null,v));
@@ -280,7 +282,7 @@
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
           :end>=today?h('div',{className:'message error'},`⚠ ${npMonthLabel(month)} is not over yet. Days below include duties planned for the rest of the month, so they are not final. Salary can be saved from ${formatDateIN(npAddDay(end))}.`)
           :h('div',{className:'notice'},onRoster
-            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid) · every other day = loss of pay. Correct any number before saving.`
+            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid)${Number(emp.roster_half)>0?` · half-day leave ${emp.roster_half} date(s) (½ worked each, added to days worked)`:''}${Number(emp.perm_count)>0?` · permissions ${emp.perm_count}${Number(emp.perm_count)>2?` (${Number(emp.perm_count)-2} beyond 2 → ${0.5*(Number(emp.perm_count)-2)} day loss of pay)`:' (within 2 free)'}`:''} · every other day = loss of pay. Correct any number before saving.`
             :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
         Number(emp.avail_days)<30&&h('div',{className:'notice',style:{marginTop:6}},`Joined on ${formatDateIN(emp.joined)}${emp.joining_known?'':' (date of joining not entered in HR — taken as the day added to the ERP)'} · salary only for ${emp.avail_days} of 30 days this month.`),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
@@ -290,7 +292,8 @@
               num('days_worked','Days worked',onRoster?`Roster: ${emp.roster_days}`:'Not on roster'),
               num('weekly_offs','Weekly offs','Paid up to 4'+(onRoster?` · roster ${emp.roster_offs}`:'')),
               num('cl_used','Casual leave taken',`Available ${c.clav} (carried ${Number(emp.cl_opening)||0} + 1)`),
-              num('other_leave','Other leave (unpaid)',`Approved: ${emp.leave_other}`))),
+              num('other_leave','Other leave (unpaid)',`Approved: ${emp.leave_other}`),
+              num('permission_lop','Permission loss of pay (days)',`Approved permissions: ${Number(emp.perm_count)||0} · 2 free, ½ day each beyond`))),
           h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'2. Overtime, incentives & deductions'),
             h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
               num('overtime','Overtime (₹)',null,{step:'1'}),num('incentives','Incentives (₹)',null,{step:'1'}),
