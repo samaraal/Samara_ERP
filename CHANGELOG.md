@@ -1,3 +1,6 @@
+## 2.20.3 — 10-11-2026 — Clinical Escalations register fits the screen
+- Escalation Register: no horizontal scrolling — fixed column widths, text wraps (Reason / Resolution), Open Source + Acknowledge buttons stacked in a narrow Action column. Phones still get the normal layout. Frontend only.
+
 ## 2.20.2 — 10-11-2026 — Alert sound + Tamil voice always ON for Nurses / Caregivers (Windows)
 - Nurse and Caregiver logins (also the Nursing Manager in Nurse mode) can no longer switch the clinical alert sound / voice off: the Clinical Alerts button shows **🔒 Sound Always On** (disabled). A stored "off" left on the computer by another login is ignored and reset for them.
 - Sound still switches itself on at the first tap / key anywhere (browser rule). If the station computer's Chrome allows sound for the ERP site (autoplay allow-list), it now switches on at once on load with no tap.

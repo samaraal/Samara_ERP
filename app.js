@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.2';
+  const APP_VERSION = '2.20.3';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -5969,7 +5969,9 @@ https://samaraassistedliving.com/`;
         ),
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
       ),
-      h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Open source item, review corrective action, and close only after resolution',
+      // 2.20.3: Escalation Register fits the screen — no horizontal scrolling, text wraps.
+      h('style',null,'.table-wrap:has(> table.esc-fit-table){overflow-x:visible}table.esc-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.esc-fit-table th,table.esc-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.esc-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px}table.esc-fit-table .employee-actions .btn{white-space:normal;padding:6px 8px;font-size:13px;width:100%}table.esc-fit-table th:nth-child(1){width:118px}table.esc-fit-table th:nth-child(2){width:72px}table.esc-fit-table th:nth-child(3){width:10%}table.esc-fit-table th:nth-child(4){width:11%}table.esc-fit-table th:nth-child(5){width:8%}table.esc-fit-table th:nth-child(6){width:7%}table.esc-fit-table th:nth-child(7){width:10%}table.esc-fit-table th:nth-child(8){width:7%}table.esc-fit-table th:nth-child(10){width:14%}@media(max-width:760px){table.esc-fit-table{table-layout:auto}}'),
+      h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Open source item, review corrective action, and close only after resolution',className:'esc-fit-table',
         heads:['Action','Status','Type','Patient','Room / Bed','Priority','Escalated At','Elapsed','Reason','Resolution'], // 2.19.20: Action first — no sideways scrolling to find it
         rows:visible.map(r=>{
           const p=patients[r.patient_id]||{};
