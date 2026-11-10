@@ -1,3 +1,8 @@
+## 2.19.98 — 10-11-2026 — Half-day leave & Permission rules (roster + payroll) — SQL 368
+- **Half-day leave** (My Leave & Permission → Shift / Day = Half Day — First / Second Half): one date only. Duty Roster no longer locks the whole day — the cell shows **½L** and her Day / Night duty stays editable; On Duty Today, Guest nurse assignment and the duty list treat her as on duty. Payroll: ½ day worked + ½ day leave (casual = paid, other = loss of pay), whatever order roster / leave were entered.
+- **Permission**: at most **2 hours** each (blocked above that — apply half-day leave instead); **2 a month free**; every approved permission beyond the 2nd = **½ day loss of pay** (new "Permission loss of pay" box in Payroll, auto-filled). The form shows the duration and how many free permissions are left; cards show "3rd this month — ½ day loss of pay"; roster cell P shows the time on hover.
+- Needs `supabase/sql/368_half_day_leave_and_permission.sql` (request checks + payroll patch, same safe in-place method as 335).
+
 ## 2.19.97 — 09-11-2026 — Bedside QR scan COMPULSORY for Nurses / Caregivers — SQL 367
 - New mode **QR compulsory** (ADMIN → Bedside Verification → Settings & test), switched ON by SQL 367: Nurse and Caregiver logins cannot save medicines, procedures, daily care, vitals, meals, beverages or Shift Tasks one-tap entries until the Guest's own bed sticker is scanned (✅ verified) — on that screen or with Scan & Administer (10 min, same Guest). Wrong bed / unknown sticker → not saved.
 - Nursing Manager (own login) and Admin are never blocked — emergency entries (sticker / camera problem). "QR trial (record-only)" brings back the old behaviour instantly.

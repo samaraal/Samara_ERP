@@ -88,7 +88,7 @@
     else{
       const byId={};data.staff.forEach(s=>{byId[s.id]=s});
       const onLeave=new Map();
-      data.leave.filter(l=>!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
+      data.leave.filter(l=>!/half/i.test(String(l.shift_part||''))&&!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
       // 2.19.53: a Cancelled / Rejected roster row is not a duty (e.g. Day changed to Night showed her 'On duty now').
       const liveDuty=data.duty.filter(d=>!['Cancelled','Rejected'].includes(d.status));
       const todays=liveDuty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);

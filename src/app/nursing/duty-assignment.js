@@ -408,7 +408,7 @@ function ShiftManagement({profile}){
     };
     const effectiveDutyStatus=row=>{
       const leave=loadedDutyLeaveConflict(row);
-      return leave?.status==='approved'?'Leave granted':(row.status||'Assigned');
+      return leave?.status==='approved'&&leave.request_type!=='Permission'&&!/half/i.test(String(leave.shift_part||''))?'Leave granted':(row.status||'Assigned'); // 2.19.98
     };
     const leaveForStaffDate=(staffRow,date)=>{
       const ids=new Set(employeeIdentityIds(staffRow.id));
@@ -417,7 +417,7 @@ function ShiftManagement({profile}){
     async function findDutyLeaveConflict(employeeId,dutyDate){
       if(!employeeId||!dutyDate)return {conflict:null,error:null};
       const {data,error}=await client.from('absence_requests')
-        .select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to')
+        .select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to,shift_part')
         .in('employee_id',employeeIdentityIds(employeeId))
         .in('status',['approved','pending_superior','pending_management']);
       if(error)return {conflict:null,error};
@@ -559,7 +559,7 @@ function ShiftManagement({profile}){
       // 2.15.91: a weekly assignment no longer fails because part of the week is on approved leave
       // (e.g. back on duty mid-week): approved-leave days are skipped and the other days are assigned.
       // A single-date edit on an approved-leave day is still refused. Approved permission (a few hours) is a warning only.
-      const isApprovedLeave=item=>item.conflict.status==='approved'&&item.conflict.request_type!=='Permission';
+      const isApprovedLeave=item=>item.conflict.status==='approved'&&item.conflict.request_type!=='Permission'&&!/half/i.test(String(item.conflict.shift_part||'')); // 2.19.98: half-day leave = she still works half
       const leaveDays=new Set(leaveConflicts.filter(isApprovedLeave).map(item=>item.date));
       if(editing&&leaveDays.size)throw new Error(`Approved leave on ${formatDateIN(form.duty_date)}. Change the date, or mark the staff Back on Duty in Staff Leave Calendar first.`);
       if(!editing&&workingDates.length&&workingDates.every(date=>leaveDays.has(date)))throw new Error(`${formalName(staffFor(form.employee_id))||'This employee'} is on approved leave on every working day of this week. Nothing was assigned.`);

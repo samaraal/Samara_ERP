@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.97';
+  const APP_VERSION = '2.19.98';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '09-Nov-2026 QR scan compulsory (Nurse, Caregiver)';
+  const APP_BUILD_DATE = '10-Nov-2026 Half-day leave & Permission rules';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -13468,7 +13468,7 @@ https://samaraassistedliving.com/`;
     else{
       const byId={};data.staff.forEach(s=>{byId[s.id]=s});
       const onLeave=new Map();
-      data.leave.filter(l=>!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
+      data.leave.filter(l=>!/half/i.test(String(l.shift_part||''))&&!(l.return_to_duty_date&&String(l.return_to_duty_date).slice(0,10)<=data.date)).forEach(l=>onLeave.set(l.employee_id,l));
       // 2.19.53: a Cancelled / Rejected roster row is not a duty (e.g. Day changed to Night showed her 'On duty now').
       const liveDuty=data.duty.filter(d=>!['Cancelled','Rejected'].includes(d.status));
       const todays=liveDuty.filter(d=>String(d.duty_date).slice(0,10)===data.date&&byId[d.employee_id]);
@@ -21667,6 +21667,25 @@ Thank you.`;
     const [submitBusy,setSubmitBusy]=React.useState(false),[modalMsg,setModalMsg]=React.useState(''),[submitted,setSubmitted]=React.useState(false);
     const empty={request_type:'Leave',leave_type:'Casual Leave',from_date:todayISOIndia(),to_date:todayISOIndia(),shift_part:'Full Day',permission_date:todayISOIndia(),permission_from:'',permission_to:'',reason:'',handover_remarks:'',contact_during_absence:''};
     const [form,setForm]=React.useState(empty);
+    // 2.19.98 (Admin 10-11-2026): Permission = max 2 hours each; 2 a month free; each one beyond the 2nd = ½ day loss of pay.
+    // Half-day leave = one date only (First Half / Second Half of her rostered shift); Payroll counts ½ worked + ½ leave.
+    const PERM_MAX_MINS=120,PERM_FREE=2;
+    const isHalfPart=x=>/half/i.test(String(x||''));
+    function permMins(from,to){
+      const m=t=>{const x=String(t||'').match(/^(\d{1,2}):(\d{2})/);return x?Number(x[1])*60+Number(x[2]):null};
+      const a=m(from),b=m(to);if(a==null||b==null)return null;let d=b-a;if(d<=0)d+=1440;return d;
+    }
+    const minsText=n=>n==null?'':`${Math.floor(n/60)?`${Math.floor(n/60)} h`:''}${n%60?` ${n%60} min`:''}`.trim();
+    // Position of a permission among the employee's permissions of that month (approved + pending, by date then request no.)
+    function permRank(r){
+      if(!r||r.request_type!=='Permission'||!r.permission_date)return 0;
+      const mon=String(r.permission_date).slice(0,7);
+      const list=(rows||[]).filter(x=>x.request_type==='Permission'&&x.employee_id===r.employee_id&&String(x.permission_date||'').slice(0,7)===mon&&!['rejected','cancelled'].includes(x.status))
+        .sort((a,b)=>String(a.permission_date).localeCompare(String(b.permission_date))||(Number(a.id)-Number(b.id)));
+      return list.findIndex(x=>x.id===r.id)+1;
+    }
+    const ordinal=n=>`${n}${n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th'}`;
+    const permLopNote=r=>{const k=permRank(r);return k>PERM_FREE?` · ${ordinal(k)} this month — ½ day loss of pay`:''};
     const [calendarSearch,setCalendarSearch]=React.useState('');
     const [calendarDate,setCalendarDate]=React.useState(todayISOIndia());
     const [calendarStatusFilter,setCalendarStatusFilter]=React.useState('');
@@ -21722,10 +21741,21 @@ Thank you.`;
     async function submit(e){
       e.preventDefault();
       if(submitBusy||submitted)return;
+      if(form.request_type==='Permission'){
+        const mins=permMins(form.permission_from,form.permission_to);
+        if(mins==null){setModalMsg('Enter the permission From and To time.');return}
+        if(mins>PERM_MAX_MINS){setModalMsg(`Permission can be at most 2 hours (this one is ${minsText(mins)}). For longer, apply for half-day leave.`);return}
+        const mon=String(form.permission_date||'').slice(0,7);
+        const already=(rows||[]).filter(x=>x.employee_id===profile.id&&x.request_type==='Permission'&&String(x.permission_date||'').slice(0,7)===mon&&!['rejected','cancelled'].includes(x.status)).length;
+        if(already>=PERM_FREE){
+          const ok=await samaraAsk({title:'Permission beyond 2 this month',message:`You already have ${already} permission(s) in this month. Only ${PERM_FREE} are allowed; this one (the ${ordinal(already+1)}) will be counted as ½ day loss of pay in salary once approved. Submit anyway?`,okLabel:'Submit — ½ day loss of pay',cancelLabel:'Cancel'});
+          if(!ok)return;
+        }
+      }else if(isHalfPart(form.shift_part)&&form.from_date!==form.to_date){setModalMsg('Half-day leave is for one date only. Apply a separate request for each date.');return}
       setSubmitBusy(true);setModalMsg('Submitting request…');setMsg('');
       try{
         const payload={request_type:form.request_type,reason:form.reason.trim(),handover_remarks:form.handover_remarks.trim()||null,contact_during_absence:form.contact_during_absence.trim()||null};
-        if(form.request_type==='Leave')Object.assign(payload,{leave_type:form.leave_type,from_date:form.from_date,to_date:form.to_date,shift_part:form.shift_part});
+        if(form.request_type==='Leave')Object.assign(payload,{leave_type:form.leave_type,from_date:form.from_date,to_date:isHalfPart(form.shift_part)?form.from_date:form.to_date,shift_part:form.shift_part});
         else Object.assign(payload,{permission_date:form.permission_date,permission_from:form.permission_from,permission_to:form.permission_to});
         const {error}=await client.from('absence_requests').insert(payload);if(error)throw error;
         await writeAuditEvent('Submitted','Leave / Permission',null,{type:form.request_type});
@@ -21780,7 +21810,7 @@ Thank you.`;
       setBusy(false);
     }
     function duration(r){
-      if(r.request_type==='Permission')return [r.permission_from,r.permission_to].filter(Boolean).join(' – ');
+      if(r.request_type==='Permission'){const t=[r.permission_from,r.permission_to].filter(Boolean).map(x=>String(x).slice(0,5)).join(' – ');const m=permMins(r.permission_from,r.permission_to);return `${t}${m!=null?` (${minsText(m)})`:''}`}
       if(r.return_to_duty_date&&r.return_to_duty_date===r.from_date)return '0 days · Returned before taking leave';
       if(!r.from_date||!r.to_date)return '—';
       const days=Math.floor((new Date(r.to_date+'T00:00:00')-new Date(r.from_date+'T00:00:00'))/86400000)+1;
@@ -21800,7 +21830,7 @@ Thank you.`;
       return h('div',{className:'absence-card',key:r.id},
         h('div',{className:'absence-card-head'},h('div',null,h('strong',null,isApprovals?(formalName(emp)||r.employee_name||'Employee'):`${r.request_type} Request`),h('small',null,`REQ-${String(r.id).padStart(5,'0')} · ${fmt(r.created_at)}`)),h('span',{className:`badge ${statusClass(r.status)}`},statusLabel(r.status))),
         h('div',{className:'absence-grid'},
-          h('div',null,h('small',null,'Type'),h('strong',null,r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
+          h('div',null,h('small',null,'Type'),h('strong',null,r.request_type==='Leave'?`${r.leave_type||'Leave'}${isHalfPart(r.shift_part)?' · Half Day':''}`:`Permission${permLopNote(r)}`)),
           h('div',null,h('small',null,r.request_type==='Leave'?(r.approval_modified?'Approved Period':'Period'):'Date / Time'),h('strong',null,r.request_type==='Leave'?duration(r):`${formatDateIN(r.permission_date)} · ${duration(r)}`)),
           r.request_type==='Leave'&&r.approval_modified?h('div',null,h('small',null,'Originally Requested'),h('strong',null,`${formatDateIN(r.requested_from_date)} – ${formatDateIN(r.requested_to_date)}`)):null,
           h('div',null,h('small',null,'Reporting Superior'),h('strong',null,formalName(superior)||'Manager / Admin directly')),
@@ -21847,7 +21877,7 @@ Thank you.`;
           h('span',{className:'calendar-absence-chevron'},expanded?'⌃':'⌄')
         ),
         expanded?h('div',{className:'absence-grid calendar-absence-details'},
-          h('div',null,h('small',null,'Type'),h('strong',null,r.request_type==='Leave'?(r.leave_type||'Leave'):'Permission')),
+          h('div',null,h('small',null,'Type'),h('strong',null,r.request_type==='Leave'?`${r.leave_type||'Leave'}${isHalfPart(r.shift_part)?' · Half Day':''}`:`Permission${permLopNote(r)}`)),
           h('div',null,h('small',null,r.request_type==='Leave'?'Period':'Date / Time'),h('strong',null,r.request_type==='Leave'?duration(r):`${formatDateIN(r.permission_date)} · ${duration(r)}`)),
           h('div',null,h('small',null,'Employee'),h('strong',null,formalName(emp)||r.employee_name||'Employee')),
           h('div',null,h('small',null,'Position'),h('strong',null,[emp.designation||emp.position,emp.department].filter(Boolean).join(' · ')||'—')),
@@ -21873,9 +21903,17 @@ Thank you.`;
         h('div',{className:'field'},h('label',null,'Request Type'),h('select',{value:form.request_type,onChange:e=>setForm({...form,request_type:e.target.value})},['Leave','Permission'].map(x=>h('option',{key:x},x)))),
         form.request_type==='Leave'?h(React.Fragment,null,
           h('div',{className:'field'},h('label',null,'Leave Type'),h('select',{value:form.leave_type,onChange:e=>setForm({...form,leave_type:e.target.value})},['Casual Leave','Sick Leave','Emergency Leave','Compensatory Off','Leave Without Pay','Other'].map(x=>h('option',{key:x},x)))),
-          miniInput('From Date',form.from_date,v=>setForm({...form,from_date:v}),true,'date'),miniInput('To Date',form.to_date,v=>setForm({...form,to_date:v}),true,'date'),
-          h('div',{className:'field'},h('label',null,'Shift / Day'),h('select',{value:form.shift_part,onChange:e=>setForm({...form,shift_part:e.target.value})},['Full Day','Day Shift','Night Shift','First Half','Second Half'].map(x=>h('option',{key:x},x))))
-        ):h(React.Fragment,null,miniInput('Permission Date',form.permission_date,v=>setForm({...form,permission_date:v}),true,'date'),miniInput('From Time',form.permission_from,v=>setForm({...form,permission_from:v}),true,'time'),miniInput('To Time',form.permission_to,v=>setForm({...form,permission_to:v}),true,'time')),
+          miniInput(isHalfPart(form.shift_part)?'Date':'From Date',form.from_date,v=>setForm({...form,from_date:v,...(isHalfPart(form.shift_part)?{to_date:v}:{})}),true,'date'),
+          isHalfPart(form.shift_part)?null:miniInput('To Date',form.to_date,v=>setForm({...form,to_date:v}),true,'date'),
+          h('div',{className:'field'},h('label',null,'Shift / Day'),h('select',{value:form.shift_part,onChange:e=>{const v=e.target.value;setForm({...form,shift_part:v,...(isHalfPart(v)?{to_date:form.from_date}:{})})}},
+            [['Full Day','Full Day'],['Day Shift','Day Shift'],['Night Shift','Night Shift'],['First Half','Half Day — First Half'],['Second Half','Half Day — Second Half']].map(([v,l])=>h('option',{key:v,value:v},l)))),
+          isHalfPart(form.shift_part)?h('div',{className:'field span-2'},h('small',{style:{color:'#8a5a70'}},`Half day = half of your rostered shift on this date — Day shift: First Half 07:00–13:00 · Second Half 13:00–19:00; Night shift: First Half 19:00–01:00 · Second Half 01:00–07:00. Salary counts ½ day worked + ½ day ${form.leave_type==='Casual Leave'?'casual leave (paid)':/without pay/i.test(form.leave_type)?'leave without pay (loss of pay)':'leave'}.`)):null
+        ):h(React.Fragment,null,miniInput('Permission Date',form.permission_date,v=>setForm({...form,permission_date:v}),true,'date'),miniInput('From Time',form.permission_from,v=>setForm({...form,permission_from:v}),true,'time'),miniInput('To Time',form.permission_to,v=>setForm({...form,permission_to:v}),true,'time'),
+          (()=>{const mins=permMins(form.permission_from,form.permission_to);const mon=String(form.permission_date||'').slice(0,7);
+            const already=(rows||[]).filter(x=>x.employee_id===profile.id&&x.request_type==='Permission'&&String(x.permission_date||'').slice(0,7)===mon&&!['rejected','cancelled'].includes(x.status)).length;
+            const over=mins!=null&&mins>PERM_MAX_MINS,lop=already>=PERM_FREE;
+            return h('div',{className:'field span-2'},h('small',{style:{color:over||lop?'#b00020':'#8a5a70',fontWeight:over||lop?700:400}},
+              `${mins!=null?`Duration ${minsText(mins)}${over?' — more than 2 hours is not allowed (apply half-day leave instead)':''}. `:''}Maximum 2 hours per permission · 2 permissions a month. This month you have ${already}${lop?` — this one will be ½ day loss of pay`:` · ${PERM_FREE-already} free left`}.`))})()),
         h('div',{className:'field span-2'},h('label',null,'Reason'),h('textarea',{required:true,rows:3,value:form.reason,onChange:e=>setForm({...form,reason:e.target.value}),placeholder:'Enter the reason for leave / permission'})),
         h('div',{className:'field span-2'},h('label',null,'Handover / Duty Arrangement'),h('textarea',{rows:2,value:form.handover_remarks,onChange:e=>setForm({...form,handover_remarks:e.target.value}),placeholder:'Mention duty handover or replacement arrangement, if applicable'})),
         miniInput('Contact During Absence',form.contact_during_absence,v=>setForm({...form,contact_during_absence:v}),false,'tel')
@@ -32900,9 +32938,9 @@ Samara Assisted Living`;
           const empIds=[...nurseIds,...Object.keys(alias)];
           const [{data:duty},{data:leave}]=await Promise.all([
             client.from('duty_assignments').select('employee_id,shift,status,is_weekly_off').eq('duty_date',now.dutyDate).in('employee_id',empIds),
-            client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date').eq('status','approved').eq('request_type','Leave').lte('from_date',now.dutyDate).gte('to_date',now.dutyDate).in('employee_id',empIds)
+            client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date,shift_part').eq('status','approved').eq('request_type','Leave').lte('from_date',now.dutyDate).gte('to_date',now.dutyDate).in('employee_id',empIds)
           ]);
-          const onLeave=new Set((leave||[]).map(l=>alias[String(l.employee_id)]||String(l.employee_id)));
+          const onLeave=new Set((leave||[]).filter(l=>!/half/i.test(String(l.shift_part||''))).map(l=>alias[String(l.employee_id)]||String(l.employee_id)));
           (duty||[]).forEach(r=>{const id=alias[String(r.employee_id)]||String(r.employee_id);if(rosterShiftKind(r)===now.shift&&!onLeave.has(id))onDuty.add(`${id}|${now.shift}`)});
         }
         Object.assign(GUEST_SCOPE,{assign:assign||[],onDuty,shift:now.shift,dutyDate:now.dutyDate,loadedAt:Date.now(),ready:true});
@@ -33026,13 +33064,13 @@ Samara Assisted Living`;
           client.from('guest_nurse_assignments').select('*').is('ended_at',null),
           client.from('profiles').select('id,auth_user_id,title,full_name,designation,role,department,is_active').order('full_name'),
           client.from('duty_assignments').select('employee_id,duty_date,shift,status,is_weekly_off').eq('duty_date',today),
-          client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date').eq('status','approved').eq('request_type','Leave').lte('from_date',today).gte('to_date',today),
+          client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date,shift_part').eq('status','approved').eq('request_type','Leave').lte('from_date',today).gte('to_date',today),
           client.from('guest_cover_records').select('*').gte('duty_date',(()=>{const x=new Date(`${today}T00:00:00Z`);x.setUTCDate(x.getUTCDate()-30);return x.toISOString().slice(0,10)})()).order('created_at',{ascending:false}).limit(300)
         ]);
         if(a.error)throw new Error(/does not exist|schema cache/i.test(a.error.message||'')?'Run supabase/sql/336_guest_nurse_assignment.sql in Supabase → SQL Editor first.':a.error.message);
         setAssign(a.data||[]);
         setNurses((pr.data||[]).filter(x=>x.is_active!==false&&(String(x.role||'')==='Nurse'||isNursingManagerProfile(x))));
-        setDuty(d.data||[]);setLeave(l.data||[]);setCovers(c.data||[]);
+        setDuty(d.data||[]);setLeave((l.data||[]).filter(l=>!/half/i.test(String(l.shift_part||''))));setCovers(c.data||[]);
       }catch(e){setError(e.message||String(e))}
     }
     React.useEffect(()=>{load()},[]);
@@ -42722,7 +42760,7 @@ function ShiftManagement({profile}){
     };
     const effectiveDutyStatus=row=>{
       const leave=loadedDutyLeaveConflict(row);
-      return leave?.status==='approved'?'Leave granted':(row.status||'Assigned');
+      return leave?.status==='approved'&&leave.request_type!=='Permission'&&!/half/i.test(String(leave.shift_part||''))?'Leave granted':(row.status||'Assigned'); // 2.19.98
     };
     const leaveForStaffDate=(staffRow,date)=>{
       const ids=new Set(employeeIdentityIds(staffRow.id));
@@ -42731,7 +42769,7 @@ function ShiftManagement({profile}){
     async function findDutyLeaveConflict(employeeId,dutyDate){
       if(!employeeId||!dutyDate)return {conflict:null,error:null};
       const {data,error}=await client.from('absence_requests')
-        .select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to')
+        .select('id,employee_id,employee_name,request_type,status,leave_type,from_date,to_date,permission_date,permission_from,permission_to,shift_part')
         .in('employee_id',employeeIdentityIds(employeeId))
         .in('status',['approved','pending_superior','pending_management']);
       if(error)return {conflict:null,error};
@@ -42873,7 +42911,7 @@ function ShiftManagement({profile}){
       // 2.15.91: a weekly assignment no longer fails because part of the week is on approved leave
       // (e.g. back on duty mid-week): approved-leave days are skipped and the other days are assigned.
       // A single-date edit on an approved-leave day is still refused. Approved permission (a few hours) is a warning only.
-      const isApprovedLeave=item=>item.conflict.status==='approved'&&item.conflict.request_type!=='Permission';
+      const isApprovedLeave=item=>item.conflict.status==='approved'&&item.conflict.request_type!=='Permission'&&!/half/i.test(String(item.conflict.shift_part||'')); // 2.19.98: half-day leave = she still works half
       const leaveDays=new Set(leaveConflicts.filter(isApprovedLeave).map(item=>item.date));
       if(editing&&leaveDays.size)throw new Error(`Approved leave on ${formatDateIN(form.duty_date)}. Change the date, or mark the staff Back on Duty in Staff Leave Calendar first.`);
       if(!editing&&workingDates.length&&workingDates.every(date=>leaveDays.has(date)))throw new Error(`${formalName(staffFor(form.employee_id))||'This employee'} is on approved leave on every working day of this week. Nothing was assigned.`);
@@ -43275,6 +43313,8 @@ function ShiftManagement({profile}){
       .rg-ack{position:absolute;top:2px;right:4px;font-size:10px;color:#11643a}
       .rg-N .rg-ack{color:#9ff0c0}
       .rg-flag{position:absolute;top:2px;left:4px;font-size:10px}
+      .rg-flag-half{color:#b42318;font-weight:800}
+      .rg-cell.rg-half{background-image:linear-gradient(135deg,transparent 50%,rgba(253,226,226,.95) 50%)}
       .rg-total{font-size:12px;color:#5d4a54;padding:4px 2px!important;white-space:normal!important}
       .rg-table col.rg-c-name{width:170px}.rg-table col.rg-c-total{width:78px}
       .rg-s{display:none}.rg-compact .rg-l{display:none}.rg-compact .rg-s{display:inline}
@@ -43342,7 +43382,7 @@ function ShiftManagement({profile}){
         const [a,e,l,rosterOff]=await Promise.all([
           pages(()=>client.from('duty_assignments').select('*').gte('duty_date',from).lte('duty_date',end).order('id')),
           pages(()=>client.from('profiles').select('id,auth_user_id,title,full_name,employee_id,role,department,designation,is_active,date_of_joining,created_at').order('id')),
-          pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date').in('status',['approved','pending_superior','pending_management']).order('id')),
+          pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,leave_type,from_date,to_date,permission_date,shift_part,permission_from,permission_to').in('status',['approved','pending_superior','pending_management']).order('id')),
           loadDutyRosterExclusions()
         ]);
         if(g!==gen.current)return;
@@ -43382,8 +43422,13 @@ function ShiftManagement({profile}){
     const leaveFor=(s,date)=>{
       const ids=new Set(idsOf(s));
       const m=leave.filter(l=>ids.has(String(l.employee_id))&&(l.request_type==='Permission'?l.permission_date===date:(l.from_date&&l.to_date&&l.from_date<=date&&l.to_date>=date)));
-      return m.find(l=>l.status==='approved'&&l.request_type!=='Permission')||m.find(l=>l.status==='approved')||m[0]||null;
+      // 2.19.98: an approved FULL leave wins; a half-day leave or permission only flags the cell (duty stays editable)
+      return m.find(l=>l.status==='approved'&&l.request_type!=='Permission'&&!isHalfLeave(l))||m.find(l=>l.status==='approved'&&isHalfLeave(l))||m.find(l=>l.status==='approved')||m[0]||null;
     };
+    const isHalfLeave=l=>!!l&&l.request_type!=='Permission'&&/half/i.test(String(l.shift_part||''));
+    const hhmm=t=>String(t||'').slice(0,5);
+    const flagOf=lv=>!lv?null:lv.status!=='approved'?'⚠':isHalfLeave(lv)?'½L':'P';
+    const lvTitle=lv=>!lv?'':lv.status!=='approved'?'Leave / permission pending approval':isHalfLeave(lv)?`Half-day leave approved (${lv.shift_part}, ${lv.leave_type||'Leave'}) — Payroll: ½ day worked + ½ day leave. Set her Day / Night duty for this date as usual.`:`Approved permission ${hhmm(lv.permission_from)}–${hhmm(lv.permission_to)}`;
     const codeOf=r=>{
       if(!r)return '';
       if(r.status===ROSTER_ABSENT||r.shift===ROSTER_ABSENT)return 'A';
@@ -43394,7 +43439,7 @@ function ShiftManagement({profile}){
     };
     function cellInfo(s,date){
       const k=`${s.id}|${date}`;const existing=byKey.get(k)||[];const lv=leaveFor(s,date);
-      const onLeave=lv&&lv.status==='approved'&&lv.request_type!=='Permission';
+      const onLeave=lv&&lv.status==='approved'&&lv.request_type!=='Permission'&&!isHalfLeave(lv);
       const saved=existing.length===1?codeOf(existing[0]):existing.length>1?'MULTI':'';
       const value=Object.prototype.hasOwnProperty.call(draft,k)?draft[k]:saved;
       const pastOpen=pastMode&&date<today&&date>='2026-08-27'&&!existing.length;
@@ -43441,7 +43486,7 @@ function ShiftManagement({profile}){
       try{
         // Re-read so nobody else's change is overwritten.
         const fresh=await pages(()=>client.from('duty_assignments').select('*').gte('duty_date',start).lte('duty_date',end).order('id'));
-        const freshLeave=await pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,from_date,to_date,permission_date').eq('status','approved').order('id'));
+        const freshLeave=await pages(()=>client.from('absence_requests').select('id,employee_id,request_type,status,from_date,to_date,permission_date,shift_part').eq('status','approved').order('id'));
         const people=new Map();staff.forEach(s=>idsOf(s).forEach(id=>people.set(id,s)));
         const freshBy=new Map();fresh.forEach(r=>{if(r.status==='Cancelled')return;const s=people.get(String(r.employee_id));const k=`${s?.id||r.employee_id}|${r.duty_date}`;freshBy.set(k,[...(freshBy.get(k)||[]),r])});
         const {data:{user}}=await client.auth.getUser();
@@ -43452,7 +43497,7 @@ function ShiftManagement({profile}){
           const before=(byKey.get(k)||[]).map(r=>`${r.id}:${r.updated_at||''}`).join(',');
           const nowRows=freshBy.get(k)||[];
           if(nowRows.map(r=>`${r.id}:${r.updated_at||''}`).join(',')!==before){problems.push(`${formalName(s)} ${formatDateIN(date)} was changed by someone else`);continue}
-          if(code&&code!=='O'&&freshLeave.some(l=>idsOf(s).includes(String(l.employee_id))&&l.request_type!=='Permission'&&l.from_date<=date&&l.to_date>=date)){problems.push(`${formalName(s)} is on approved leave on ${formatDateIN(date)}`);continue}
+          if(code&&code!=='O'&&freshLeave.some(l=>idsOf(s).includes(String(l.employee_id))&&l.request_type!=='Permission'&&!/half/i.test(String(l.shift_part||''))&&l.from_date<=date&&l.to_date>=date)){problems.push(`${formalName(s)} is on approved leave on ${formatDateIN(date)}`);continue}
           const off=code==='O';
           const fields=code==='A'?{shift:ROSTER_ABSENT,duty_type:ROSTER_ABSENT,status:ROSTER_ABSENT,is_weekly_off:false,week_start:monday(date),weekly_off_day:null}:code?{shift:off?'Weekly Off':code==='D'?ROSTER_DAY:ROSTER_NIGHT,duty_type:off?'Weekly Off':'General Duty',status:off?'Weekly Off':'Assigned',is_weekly_off:off,week_start:monday(date),weekly_off_day:off?(parse(date).getUTCDay()+6)%7:null}:null;
           const existing=nowRows[0];
@@ -43509,7 +43554,7 @@ function ShiftManagement({profile}){
         h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
-        h('span',null,'⚠ Leave pending · P Permission · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
+        h('span',null,'⚠ Leave pending · P Permission (time on hover) · ½L Half-day leave (½ worked + ½ leave) · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
           h('input',{type:'number',min:0,value:minCover.N||'',onChange:e=>setMinCover({...minCover,N:e.target.value}),style:{width:'52px',padding:'2px 4px'}}))),
@@ -43531,10 +43576,10 @@ function ShiftManagement({profile}){
                 if(c.value==='D')D++;else if(c.value==='N')N++;else if(c.value==='O')O++;else if(c.value==='A')A++;
                 const ack=c.existing.length===1&&c.existing[0].status==='Acknowledged'&&!c.changed;
                 const code=c.onLeave?'L':c.saved==='MULTI'?'M':c.value;
-                const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':c.pastAbsent?'Past day: tap to change Day / Night / Absent (reason asked on save)':date<today?'Past date (view only)':c.lv?(c.lv.status==='approved'?'Approved permission':'Leave / permission pending approval'):'Tap: Day → Night → Off → Absent → empty';
-                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
+                const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':c.pastAbsent?'Past day: tap to change Day / Night / Absent (reason asked on save)':date<today?`Past date (view only)${c.lv?` · ${lvTitle(c.lv)}`:''}`:c.lv?`${lvTitle(c.lv)} · Tap: Day → Night → Off → Absent → empty`:'Tap: Day → Night → Off → Absent → empty';
+                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${!c.onLeave&&isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-half':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
                   c.joinDay?h('span',{className:'rg-join',title:`Joined on ${formatDateIN(date)}`},'Joined'):null,
-                  !c.onLeave&&c.lv?h('span',{className:'rg-flag'},c.lv.status==='approved'?'P':'⚠'):null,
+                  !c.onLeave&&c.lv?h('span',{className:`rg-flag ${isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-flag-half':''}`},flagOf(c.lv)):null,
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
                   c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null));
@@ -54372,7 +54417,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   // other leave unpaid). Days come from the Duty Roster + approved leave, editable; overtime / incentives typed by Admin.
   function payCalc(d,opening,avail=30){
     const sal=Number(d.monthly_salary)||0,dw=Math.max(0,Number(d.days_worked)||0),wo=Math.max(0,Number(d.weekly_offs)||0),clu=Math.max(0,Number(d.cl_used)||0);
-    const av=Math.max(1,Number(avail)||30),clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),paid=Math.min(av,dw+Math.min(wo,4)+clp);
+    const av=Math.max(1,Number(avail)||30),clav=(Number(opening)||0)+1,clp=Math.min(clu,clav),plop=Math.min(15,Math.max(0,Number(d.permission_lop)||0)),paid=Math.max(0,Math.min(av,dw+Math.min(wo,4)+clp)-plop); // 2.19.98: permissions beyond 2 a month
     const earned=Math.round(sal*paid/30);
     const add=['overtime','incentives','other_earnings'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
     const less=['advance_deduction','other_deduction'].reduce((t,k)=>t+Math.max(0,Number(d[k])||0),0);
@@ -54403,7 +54448,9 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       // 2.19.32: a mid-month joiner gets only the days from joining (30-day month); weekly offs pro-rated
       
       setD({monthly_salary:x.salary!=null?String(x.salary):'',
-        days_worked:String(onRoster?Number(x.roster_days):0),
+        // 2.19.98: each approved half-day leave date = ½ day worked (the other ½ is the leave); permissions beyond 2 a month = ½ day loss of pay each
+        days_worked:String((onRoster?Number(x.roster_days):0)+0.5*(Number(x.roster_half)||0)),
+        permission_lop:String(0.5*Math.max(0,(Number(x.perm_count)||0)-2)),
         weekly_offs:String(onRoster?Number(x.roster_offs):0),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
         overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:'',deduction_note:'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
       window.scrollTo({top:0,behavior:'smooth'});
@@ -54418,8 +54465,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         if(c.net<0)throw new Error('Deductions are more than the salary earned.');
         if(!d.paid_on||d.paid_on<month)throw new Error(`Choose the paid-on date (on or after 01-${month.slice(5,7)}-${month.slice(0,4)}).`);
         // 2.19.37: empty number boxes are sent as 0 (blank text made the database refuse the save)
-        const nums={};['monthly_salary','days_worked','weekly_offs','cl_used','other_leave','overtime','incentives','other_earnings','advance_deduction','other_deduction'].forEach(k=>{const v=String(d[k]??'').trim();nums[k]=v===''?'0':v});
-        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,absent:emp.roster_absent,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries}}});
+        const nums={};['monthly_salary','days_worked','weekly_offs','cl_used','other_leave','permission_lop','overtime','incentives','other_earnings','advance_deduction','other_deduction'].forEach(k=>{const v=String(d[k]??'').trim();nums[k]=v===''?'0':v});
+        const r=await client.rpc('samara_payroll_rpc',{p_action:'save',p:{...d,...nums,employee_id:emp.id,month,roster:{days:emp.roster_days,offs:emp.roster_offs,absent:emp.roster_absent,cl:emp.leave_cl,other:emp.leave_other,entries:emp.roster_entries,half_days:emp.roster_half,perm_count:emp.perm_count,permission_lop:Number(nums.permission_lop)||0}}});
         if(r.error)throw r.error;
         showSamaraActionToast('success','Salary saved',`${emp.name} · Net ${npMoney(r.data?.net_pay)} — counted in Net Profit.`);
         // 2.19.47: the payslip goes out on WhatsApp automatically as soon as the salary is saved (Admin, 01-11-2026).
@@ -54441,7 +54488,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       if(r.error)setMsg(r.error.message);else{setMsg('✓ Salary voided. You can enter it again.');await load();onChanged&&onChanged()}
     }
     const num=(k,label,hint,extra={})=>h('div',{className:'field',style:{margin:0}},h('label',null,label),
-      h('input',{type:'number',inputMode:'decimal',min:'0',step:extra.step||'0.5',value:emp?.saved?String(emp.saved[k]??''):d[k],disabled:!!emp?.saved,onChange:e=>setD({...d,[k]:e.target.value}),style:{fontWeight:700}}),
+      h('input',{type:'number',inputMode:'decimal',min:'0',step:extra.step||'0.5',value:emp?.saved?String(emp.saved[k]??emp.saved.roster?.[k]??''):d[k],disabled:!!emp?.saved,onChange:e=>setD({...d,[k]:e.target.value}),style:{fontWeight:700}}),
       hint?h('small',{style:{color:'#8a5a70'}},hint):null);
     const box={border:'1px solid #f3c2d8',borderRadius:'14px',padding:'14px',background:'#fff'};
     const line=(k,v,strong)=>h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px dashed #f3d6e4',fontWeight:strong?800:500}},h('span',null,k),h('span',null,v));
@@ -54455,7 +54502,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
           :end>=today?h('div',{className:'message error'},`⚠ ${npMonthLabel(month)} is not over yet. Days below include duties planned for the rest of the month, so they are not final. Salary can be saved from ${formatDateIN(npAddDay(end))}.`)
           :h('div',{className:'notice'},onRoster
-            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid) · every other day = loss of pay. Correct any number before saving.`
+            ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid)${Number(emp.roster_half)>0?` · half-day leave ${emp.roster_half} date(s) (½ worked each, added to days worked)`:''}${Number(emp.perm_count)>0?` · permissions ${emp.perm_count}${Number(emp.perm_count)>2?` (${Number(emp.perm_count)-2} beyond 2 → ${0.5*(Number(emp.perm_count)-2)} day loss of pay)`:' (within 2 free)'}`:''} · every other day = loss of pay. Correct any number before saving.`
             :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
         Number(emp.avail_days)<30&&h('div',{className:'notice',style:{marginTop:6}},`Joined on ${formatDateIN(emp.joined)}${emp.joining_known?'':' (date of joining not entered in HR — taken as the day added to the ERP)'} · salary only for ${emp.avail_days} of 30 days this month.`),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
@@ -54465,7 +54512,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
               num('days_worked','Days worked',onRoster?`Roster: ${emp.roster_days}`:'Not on roster'),
               num('weekly_offs','Weekly offs','Paid up to 4'+(onRoster?` · roster ${emp.roster_offs}`:'')),
               num('cl_used','Casual leave taken',`Available ${c.clav} (carried ${Number(emp.cl_opening)||0} + 1)`),
-              num('other_leave','Other leave (unpaid)',`Approved: ${emp.leave_other}`))),
+              num('other_leave','Other leave (unpaid)',`Approved: ${emp.leave_other}`),
+              num('permission_lop','Permission loss of pay (days)',`Approved permissions: ${Number(emp.perm_count)||0} · 2 free, ½ day each beyond`))),
           h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'2. Overtime, incentives & deductions'),
             h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}},
               num('overtime','Overtime (₹)',null,{step:'1'}),num('incentives','Incentives (₹)',null,{step:'1'}),

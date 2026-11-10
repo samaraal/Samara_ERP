@@ -46,9 +46,9 @@
           const empIds=[...nurseIds,...Object.keys(alias)];
           const [{data:duty},{data:leave}]=await Promise.all([
             client.from('duty_assignments').select('employee_id,shift,status,is_weekly_off').eq('duty_date',now.dutyDate).in('employee_id',empIds),
-            client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date').eq('status','approved').eq('request_type','Leave').lte('from_date',now.dutyDate).gte('to_date',now.dutyDate).in('employee_id',empIds)
+            client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date,shift_part').eq('status','approved').eq('request_type','Leave').lte('from_date',now.dutyDate).gte('to_date',now.dutyDate).in('employee_id',empIds)
           ]);
-          const onLeave=new Set((leave||[]).map(l=>alias[String(l.employee_id)]||String(l.employee_id)));
+          const onLeave=new Set((leave||[]).filter(l=>!/half/i.test(String(l.shift_part||''))).map(l=>alias[String(l.employee_id)]||String(l.employee_id)));
           (duty||[]).forEach(r=>{const id=alias[String(r.employee_id)]||String(r.employee_id);if(rosterShiftKind(r)===now.shift&&!onLeave.has(id))onDuty.add(`${id}|${now.shift}`)});
         }
         Object.assign(GUEST_SCOPE,{assign:assign||[],onDuty,shift:now.shift,dutyDate:now.dutyDate,loadedAt:Date.now(),ready:true});
@@ -172,13 +172,13 @@
           client.from('guest_nurse_assignments').select('*').is('ended_at',null),
           client.from('profiles').select('id,auth_user_id,title,full_name,designation,role,department,is_active').order('full_name'),
           client.from('duty_assignments').select('employee_id,duty_date,shift,status,is_weekly_off').eq('duty_date',today),
-          client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date').eq('status','approved').eq('request_type','Leave').lte('from_date',today).gte('to_date',today),
+          client.from('absence_requests').select('employee_id,request_type,status,from_date,to_date,shift_part').eq('status','approved').eq('request_type','Leave').lte('from_date',today).gte('to_date',today),
           client.from('guest_cover_records').select('*').gte('duty_date',(()=>{const x=new Date(`${today}T00:00:00Z`);x.setUTCDate(x.getUTCDate()-30);return x.toISOString().slice(0,10)})()).order('created_at',{ascending:false}).limit(300)
         ]);
         if(a.error)throw new Error(/does not exist|schema cache/i.test(a.error.message||'')?'Run supabase/sql/336_guest_nurse_assignment.sql in Supabase → SQL Editor first.':a.error.message);
         setAssign(a.data||[]);
         setNurses((pr.data||[]).filter(x=>x.is_active!==false&&(String(x.role||'')==='Nurse'||isNursingManagerProfile(x))));
-        setDuty(d.data||[]);setLeave(l.data||[]);setCovers(c.data||[]);
+        setDuty(d.data||[]);setLeave((l.data||[]).filter(l=>!/half/i.test(String(l.shift_part||''))));setCovers(c.data||[]);
       }catch(e){setError(e.message||String(e))}
     }
     React.useEffect(()=>{load()},[]);
