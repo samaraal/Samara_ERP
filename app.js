@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.99';
+  const APP_VERSION = '2.20.1';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4205,7 +4205,8 @@ https://samaraassistedliving.com/`;
     const geminiVoiceCache=React.useRef(new Map());
     const geminiVoiceInflight=React.useRef(new Map());
     const geminiVoicePauseUntil=React.useRef(0);
-    const currentVoiceSource=React.useRef(null);
+    const currentVoiceSources=React.useRef([]);
+    const voicePlayToken=React.useRef(0);
 
     // 2.19.26: browsers allow sound only after a tap on the page. After every reload / update the sound was
     // silent until someone found "Enable Alert Sound". Now the FIRST tap / key anywhere on this device turns
@@ -4766,58 +4767,104 @@ https://samaraassistedliving.com/`;
         .replace(/\[\[LETTER:([^\]]+)\]\]/g,'$1.')
         .replace(/\s+/g,' ').trim();
     }
-    async function fetchGeminiTamilVoice(text){
-      const cache=geminiVoiceCache.current;
-      if(cache.has(text))return cache.get(text);
-      if(geminiVoiceInflight.current.has(text))return await geminiVoiceInflight.current.get(text);
-      if(Date.now()<geminiVoicePauseUntil.current)throw new Error('Gemini Tamil voice paused after an error; retrying shortly');
-      const job=(async()=>{
+    // 2.20.1: STREAMING Gemini voice — the Edge Function passes Gemini's audio on piece by piece
+    // (raw 16-bit PCM, 24 kHz). Playback starts with the first piece (~1–2 s) instead of waiting
+    // ~10 s for the whole file. One "job" per sentence: the pre-fetch started during the chime and
+    // the player share it, and the finished audio is kept so a repeated alert plays at once.
+    function startGeminiVoiceJob(text){
+      const existing=geminiVoiceInflight.current.get(text);
+      if(existing)return existing;
+      const job={chunks:[],done:false,error:null,listeners:new Set(),rate:24000};
+      const notify=()=>job.listeners.forEach(fn=>{try{fn()}catch(_){}});
+      geminiVoiceInflight.current.set(text,job);
+      (async()=>{
+        if(Date.now()<geminiVoicePauseUntil.current)throw new Error('Gemini Tamil voice paused after an error; retrying shortly');
         const {data:{session}}=await client.auth.getSession();
         if(!session)throw new Error('Not signed in');
-        const ctl=new AbortController();const t=window.setTimeout(()=>ctl.abort(),20000);
-        let r;
-        try{
-          r=await fetch(`${cfg.supabaseUrl}/functions/v1/clinical-alert-voice`,{
-            method:'POST',signal:ctl.signal,
-            headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},
-            body:JSON.stringify({text})
-          });
-        }finally{window.clearTimeout(t)}
-        if(!r.ok){
+        const ctl=new AbortController();let timer=window.setTimeout(()=>ctl.abort(),15000);
+        const r=await fetch(`${cfg.supabaseUrl}/functions/v1/clinical-alert-voice`,{
+          method:'POST',signal:ctl.signal,
+          headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},
+          body:JSON.stringify({text,stream:true})
+        });
+        if(!r.ok||!r.body){
+          window.clearTimeout(timer);
           if(r.status>=500||r.status===429)geminiVoicePauseUntil.current=Date.now()+120000;
           const j=await r.json().catch(()=>({}));
           throw new Error(j.error||`Tamil voice service error ${r.status}`);
         }
-        const buf=await r.arrayBuffer();
-        cache.set(text,buf);
+        job.rate=Number(r.headers.get('x-sample-rate')||24000)||24000;
+        const reader=r.body.getReader();let carry=null;
+        while(true){
+          window.clearTimeout(timer);timer=window.setTimeout(()=>ctl.abort(),15000); // stall guard
+          const {value,done}=await reader.read();
+          if(done)break;
+          let bytes=value;
+          if(carry){const m=new Uint8Array(carry.length+bytes.length);m.set(carry);m.set(bytes,carry.length);bytes=m;carry=null}
+          if(bytes.length%2){carry=bytes.slice(bytes.length-1);bytes=bytes.slice(0,bytes.length-1)}
+          if(bytes.length){job.chunks.push(bytes);notify()}
+        }
+        window.clearTimeout(timer);
+        if(!job.chunks.length)throw new Error('Tamil voice service sent no audio');
+        const total=job.chunks.reduce((n,c)=>n+c.length,0),all=new Uint8Array(total);let o=0;
+        job.chunks.forEach(c=>{all.set(c,o);o+=c.length});
+        const cache=geminiVoiceCache.current;
+        cache.set(text,{pcm:all,rate:job.rate});
         while(cache.size>40)cache.delete(cache.keys().next().value);
-        return buf;
-      })();
-      geminiVoiceInflight.current.set(text,job);
-      try{return await job}finally{geminiVoiceInflight.current.delete(text)}
+      })().catch(error=>{job.error=error}).finally(()=>{
+        job.done=true;geminiVoiceInflight.current.delete(text);notify();
+      });
+      return job;
+    }
+    function pcmToAudioBuffer(ctx,bytes,rate){
+      const n=Math.floor(bytes.length/2),view=new DataView(bytes.buffer,bytes.byteOffset,n*2);
+      const buffer=ctx.createBuffer(1,Math.max(1,n),rate);const ch=buffer.getChannelData(0);
+      for(let i=0;i<n;i++)ch[i]=view.getInt16(i*2,true)/32768;
+      return buffer;
     }
     function stopClinicalVoice(){
-      try{currentVoiceSource.current?.stop()}catch(_){}
-      currentVoiceSource.current=null;
+      voicePlayToken.current++;
+      (currentVoiceSources.current||[]).forEach(src=>{try{src.stop()}catch(_){}});
+      currentVoiceSources.current=[];
       try{window.speechSynthesis?.cancel()}catch(_){}
     }
+    // Resolves true as soon as the first piece of Tamil audio is playing; rejects if Gemini fails
+    // before any audio arrives (then the device Tamil voice is tried).
     async function playGeminiTamilVoice(text){
       const Ctx=window.AudioContext||window.webkitAudioContext;
       if(!Ctx)throw new Error('AudioContext not supported');
       const ctx=audioContext.current||(audioContext.current=new Ctx());
       if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
-      const buf=await fetchGeminiTamilVoice(text);
-      const audio=await ctx.decodeAudioData(buf.slice(0));
-      if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
       stopClinicalVoice();
-      const src=ctx.createBufferSource();
-      const gain=ctx.createGain();gain.gain.value=1;
-      src.buffer=audio;src.connect(gain);gain.connect(ctx.destination);
-      src.onended=()=>{if(currentVoiceSource.current===src)currentVoiceSource.current=null};
-      currentVoiceSource.current=src;
-      src.start();
-      console.info('Samara clinical voice',{engine:'Gemini Tamil',seconds:Math.round(audio.duration)});
-      return true;
+      const token=voicePlayToken.current;
+      let nextAt=0;
+      const schedule=(bytes,rate)=>{
+        if(token!==voicePlayToken.current)return;
+        const src=ctx.createBufferSource();
+        src.buffer=pcmToAudioBuffer(ctx,bytes,rate);src.connect(ctx.destination);
+        const at=Math.max(nextAt,ctx.currentTime+.08);
+        src.start(at);nextAt=at+src.buffer.duration;
+        currentVoiceSources.current.push(src);
+        src.onended=()=>{currentVoiceSources.current=currentVoiceSources.current.filter(x=>x!==src)};
+      };
+      const cached=geminiVoiceCache.current.get(text);
+      if(cached){schedule(cached.pcm,cached.rate);console.info('Samara clinical voice',{engine:'Gemini Tamil',source:'cache'});return true;}
+      const job=startGeminiVoiceJob(text);
+      return await new Promise((resolve,reject)=>{
+        let played=0,started=false;
+        const pump=()=>{
+          if(token!==voicePlayToken.current){job.listeners.delete(pump);if(!started)resolve(false);return;}
+          while(played<job.chunks.length){
+            // A small lead on the first piece absorbs network gaps between pieces.
+            if(!started)nextAt=ctx.currentTime+.25;
+            schedule(job.chunks[played++],job.rate);
+            if(!started){started=true;console.info('Samara clinical voice',{engine:'Gemini Tamil',source:'stream'});resolve(true);}
+          }
+          if(job.done){job.listeners.delete(pump);if(!started)reject(job.error||new Error('No Tamil audio'));}
+        };
+        job.listeners.add(pump);
+        pump();
+      });
     }
     async function playClinicalVoiceNow(a){
       try{
@@ -4854,12 +4901,12 @@ https://samaraassistedliving.com/`;
       if(isAdminDirectorViewer(profile))return;
       if(!settings.voice_enabled||!soundUnlocked)return;
       stopClinicalVoice();
-      // 2.19.99: Gemini Tamil voice. Start fetching now so the audio is ready when the chime ends.
-      try{fetchGeminiTamilVoice(clinicalVoiceTextForGemini(a)).catch(()=>{})}catch(_){}
+      // 2.20.1: start streaming the Gemini Tamil voice now; playback joins the same stream (no 2.3 s wait).
+      try{const t=clinicalVoiceTextForGemini(a);if(!geminiVoiceCache.current.has(t))startGeminiVoiceJob(t)}catch(_){}
       window.setTimeout(async()=>{
         if(!settings.voice_enabled||!soundUnlocked)return;
         try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
-      },2300);
+      },400);
     }
     async function refreshPushEnabled(){
       try{

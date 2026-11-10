@@ -1,4 +1,4 @@
-// Samara Care ERP 2.19.99 — Clinical Alert voice in TAMIL ONLY (Edge Function: clinical-alert-voice).
+// Samara Care ERP 2.20.1 — Clinical Alert voice in TAMIL ONLY (Edge Function: clinical-alert-voice).
 // The ERP builds the Tamil announcement text (Guest name, room, medicine, overdue time …) and sends it here.
 // Gemini text-to-speech reads it aloud in a natural Tamil voice and returns a WAV file that the
 // nurses' station plays. No English voice is ever produced. Nothing is stored.
@@ -11,7 +11,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Expose-Headers": "x-voice-model",
+  "Access-Control-Expose-Headers": "x-voice-model, x-sample-rate",
 };
 const out = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -111,6 +111,77 @@ function audioFrom(j: any): Uint8Array | null {
   return pcmToWav(bytes, rate);
 }
 
+// ---------- 2.20.1: STREAMING (voice starts in ~1–2 s instead of ~10 s) ----------
+// Client sends {stream:true}. Gemini streamGenerateContent (SSE) sends the audio in pieces; each piece
+// of raw 16-bit PCM (24 kHz mono) is passed straight on to the ERP, which plays it while the rest arrives.
+const pcmCache = new Map<string, Uint8Array>();
+function rememberPcm(key: string, pcm: Uint8Array) {
+  pcmCache.set(key, pcm);
+  while (pcmCache.size > 80) pcmCache.delete(pcmCache.keys().next().value as string);
+}
+async function openGeminiStream(text: string): Promise<{ r: Response; model: string }> {
+  const key = Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("Gemini key missing");
+  const voiceName = Deno.env.get("CLINICAL_VOICE_NAME") || "Kore";
+  const call = (model: string, withLang: boolean) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+    method: "POST",
+    headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: promptFor(text) }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: withLang ? { languageCode: "ta-IN", voiceConfig: { prebuiltVoiceConfig: { voiceName } } } : { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+      },
+    }),
+  });
+  let last = "no model";
+  for (const model of modelList()) {
+    let r = await call(model, true);
+    if (r.status === 400) {
+      const msg = await r.clone().text().catch(() => "");
+      if (/language/i.test(msg)) r = await call(model, false);
+      else if (/not supported|not found|modalit/i.test(msg)) { last = `${model} 400`; console.error("clinical-alert-voice stream model unavailable", model, msg.slice(0, 120)); continue; }
+    }
+    if (r.status === 404) { last = `${model} 404`; continue; }
+    if (!r.ok || !r.body) { const msg = await r.text().catch(() => ""); console.error("clinical-alert-voice stream", model, r.status, msg.slice(0, 160)); last = `${model} ${r.status}`; if (r.status === 400) continue; throw new Error("Gemini HTTP " + r.status); }
+    if (ttsModel !== model) { ttsModel = model; console.log("clinical-alert-voice streaming with", model); }
+    return { r, model };
+  }
+  throw new Error("No Gemini voice model available (" + last + ")");
+}
+function streamResponse(text: string, upstream: Response): Response {
+  const parts: Uint8Array[] = [];
+  let skippedHeader = false;
+  const body = new ReadableStream<Uint8Array>({
+    async start(ctrl) {
+      const reader = upstream.body!.getReader(); const dec = new TextDecoder(); let buf = "";
+      const handle = (line: string) => {
+        if (!line.startsWith("data:")) return;
+        let j: any; try { j = JSON.parse(line.slice(5).trim()); } catch { return; }
+        for (const p of (j?.candidates?.[0]?.content?.parts || [])) {
+          if (!p?.inlineData?.data) continue;
+          let bytes = b64ToBytes(String(p.inlineData.data));
+          // A model that wraps the first piece in a WAV header: drop the 44-byte header.
+          if (!skippedHeader && bytes.length > 44 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF") bytes = bytes.slice(44);
+          skippedHeader = true;
+          if (bytes.length) { parts.push(bytes); ctrl.enqueue(bytes); }
+        }
+      };
+      try {
+        while (true) {
+          const { value, done } = await reader.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i; while ((i = buf.indexOf("\n")) >= 0) { handle(buf.slice(0, i).replace(/\r$/, "")); buf = buf.slice(i + 1); }
+        }
+        if (buf) handle(buf);
+        const total = parts.reduce((n, p) => n + p.length, 0);
+        if (total > 0) { const all = new Uint8Array(total); let o = 0; for (const p of parts) { all.set(p, o); o += p.length; } rememberPcm(text, all); }
+        ctrl.close();
+      } catch (e) { console.error("clinical-alert-voice stream broke", String((e as Error)?.message || e)); ctrl.error(e); }
+    },
+  });
+  return new Response(body, { headers: { ...CORS, "Content-Type": "audio/L16; rate=24000; channels=1", "x-sample-rate": "24000", "Cache-Control": "no-store", "x-voice-model": ttsModel } });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return out({ error: "POST only" }, 405);
@@ -130,6 +201,13 @@ Deno.serve(async (req) => {
     if (!text || text.length > 1500) return out({ error: "Invalid alert text." }, 400);
     // Tamil only: the announcement must be written in Tamil script.
     if (!/[஀-௿]/.test(text)) return out({ error: "Clinical alert voice is Tamil only." }, 400);
+
+    if (j?.stream) {
+      const cached = pcmCache.get(text);
+      if (cached) return new Response(cached, { headers: { ...CORS, "Content-Type": "audio/L16; rate=24000; channels=1", "x-sample-rate": "24000", "Cache-Control": "no-store", "x-voice-model": ttsModel } });
+      const { r } = await openGeminiStream(text);
+      return streamResponse(text, r);
+    }
 
     let wav = cache.get(text);
     if (!wav) { wav = await tamilSpeech(text); remember(text, wav); }

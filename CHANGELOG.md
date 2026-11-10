@@ -1,3 +1,8 @@
+## 2.20.1 — 10-11-2026 — Clinical Alert Tamil voice starts faster (streaming)
+- The Gemini Tamil voice is now **streamed**: the Edge Function `clinical-alert-voice` passes Gemini's audio on piece by piece and the ERP starts speaking with the first piece (about 1–2 s) instead of waiting ~10 s for the whole recording. The rest keeps arriving while it speaks.
+- The voice download starts while the chime is playing, and the extra 2.3 s wait after the chime is cut to 0.4 s. A repeated alert with the same words plays at once from memory.
+- Needs the updated Edge Function `supabase/functions/clinical-alert-voice` redeployed (older ERP pages still work with it). No SQL.
+
 ## 2.19.99 — 10-11-2026 — Clinical Alert voice: TAMIL ONLY, read by Gemini AI — new Edge Function
 - Clinical alert announcements (medicine due / overdue, vitals, daily care, physiotherapy, meals, nursing notes) are now spoken **only in Tamil**. The Tamil sentence is read by **Gemini AI text-to-speech** (new Edge Function `clinical-alert-voice`) and played through the alert speaker — it no longer depends on a Tamil voice being installed on the nurses' station computer (before, a PC without a Tamil voice spoke the alert in English).
 - If Gemini cannot answer, the computer's own Tamil voice is used if it has one; otherwise only the chime + pop-up. **No English voice is ever spoken** (the English fallback and the English "Samara voice enabled" / "English voice test" lines are removed). Voice words now say "கெஸ்ட் பெயர்" instead of "நோயாளியின் பெயர்".
