@@ -1,3 +1,9 @@
+## 2.20.5 — 10-11-2026 — Rent Account (Samara · Hostel · Director House) + "Zenset" renamed "Genset"
+- New **ACCOUNTS → Rent Account** (Admin / Directors): three accounts — Samara, Hostel, Director House — shown as tabs, each with its own **Deposit / Advance** (refundable, not an expense), monthly rent, month-by-month Paid / Part paid / Due / Overdue status and entries list, exactly like the generator account. Rent recorded here goes to Expenses automatically under its own head (Rent - Samara / Rent - Hostel / Rent - Director House) so it counts in Net Profit once. Owner name, monthly rent, GST %, due day and "Track rent from" are set in ⚙ Account details.
+- **Zenset → Genset** everywhere: menu "Genset Account", expense head "Genset Rental" (existing entries renamed, amounts unchanged).
+- Expenses: Rent and Genset heads can no longer be typed by hand (they come from the Rent / Genset accounts) — avoids counting twice.
+- Database: `351_rent_accounts_genset_rename.sql` (run after 350).
+
 ## 2.20.4 — 10-11-2026 — Escalation Register: Action buttons kept inside their column
 - Open Source / Acknowledge buttons were wider than the Action column and spilled over Status; now they shrink to the column (140 px) and stack. Frontend only.
 

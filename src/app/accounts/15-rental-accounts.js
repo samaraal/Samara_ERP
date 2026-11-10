@@ -1,11 +1,15 @@
-  // 2.19.78: ZENSET (GENERATOR) ACCOUNT — Admin / Directors only (SQL 350 rental_account_rpc).
-  // Refundable deposit with the vendor (not an expense) + monthly rent (₹13,549 + 18% GST = ₹15,988, due by the 10th).
-  // Rent is recorded once here and is added to Expenses automatically under "Zenset Rental" (so it counts in Net Profit).
+  // 2.19.78: GENSET (GENERATOR) ACCOUNT — Admin / Directors only (SQL 350 rental_account_rpc).
+  // 2.20.5: same page also serves the RENT ACCOUNT (Samara · Hostel · Director House — SQL 351); "Zenset" spelling corrected to "Genset".
+  // Refundable deposit / advance (not an expense) + monthly rent. Rent is recorded once here and is added to Expenses
+  // automatically under the account's own head (Genset Rental / Rent - Samara / Rent - Hostel / Rent - Director House).
   const ZA_STATUS={Paid:['#e8f6ee','#13643a'],'Part paid':['#fff6e0','#8a5a00'],Due:['#eef3ff','#2b4c9a'],Overdue:['#fdecee','#b4232f']};
   const zaMonthLabel=iso=>{if(!iso)return '—';const [y,m]=String(iso).slice(0,7).split('-').map(Number);return new Date(Date.UTC(y,m-1,1)).toLocaleDateString('en-GB',{month:'short',year:'numeric',timeZone:'UTC'})};
   const zaAddMonths=(iso,n)=>{const [y,m]=String(iso).slice(0,7).split('-').map(Number);const d=new Date(Date.UTC(y,m-1+n,1));return d.toISOString().slice(0,10)};
-  function ZensetAccount({profile,onNavigate}){
+  function RentalAccountPage({profile,onNavigate,category}){
+    const isRent=category==='Rent';
+    const pageTitle=isRent?'Rent Account':'Genset Account';
     const isAdmin=profile?.role==='Admin';
+    const [accountId,setAccountId]=React.useState('');
     const today=todayISOIndia();
     const [data,setData]=React.useState(null),[loading,setLoading]=React.useState(true),[msg,setMsg]=React.useState(''),[busy,setBusy]=React.useState(false);
     const [panel,setPanel]=React.useState('');const [form,setForm]=React.useState({});
@@ -13,12 +17,14 @@
     const [flt,setFlt]=React.useState({kind:'All',month:today.slice(0,7),from:today.slice(0,8)+'01',to:today});
     async function load(){
       setLoading(true);
-      try{const r=await client.rpc('rental_account_rpc',{p_action:'load',p:{}});if(r.error)throw r.error;setData(r.data);setMsg(m=>m.startsWith('✓')?m:'')}
-      catch(e){setMsg(/rental_account_rpc|function/i.test(e.message||'')?'The Zenset Account is not set up yet — run SQL 350 in Supabase.':(e.message||String(e)))}
+      try{const r=await client.rpc('rental_account_rpc',{p_action:'load',p:{category,account_id:accountId||''}});if(r.error)throw r.error;
+        if(isRent&&(!(r.data?.accounts||[]).length||r.data?.account?.category!=='Rent'))throw new Error('The Rent Account is not set up yet — run SQL 351 in Supabase.');
+        setData(r.data);setMsg(m=>m.startsWith('✓')?m:'')}
+      catch(e){setMsg(/rental_account_rpc|function/i.test(e.message||'')?`The ${pageTitle} is not set up yet — run SQL 351 in Supabase.`:(e.message||String(e)))}
       finally{setLoading(false)}
     }
-    React.useEffect(()=>{if(isAdmin)load()},[]);
-    if(!isAdmin)return h(Section,{title:'Zenset Account'},h('p',null,'Admin / Directors only.'));
+    React.useEffect(()=>{if(isAdmin)load()},[accountId,category]);
+    if(!isAdmin)return h(Section,{title:pageTitle},h('p',null,'Admin / Directors only.'));
     const acc=data?.account,t=data?.totals||{},months=data?.months||[],entries=data?.entries||[];
     const depositHeld=Number(t.deposit_paid||0)-Number(t.deposit_refunded||0);
     const thisMonth=months.find(m=>String(m.month).slice(0,7)===today.slice(0,7));
@@ -31,6 +37,8 @@
       setForm({month:String(m).slice(0,10),date:today,rent_amount:String(rent||''),gst_amount:String(gst||''),mode:'Bank Transfer',reference:'',note:'',no_bill:false,no_bill_reason:'',confirm_again:false});
       setBill(null);upload.current=null;setPanel('rent');setMsg('');
     }
+    const depLabel=k=>k==='Deposit paid'?'Deposit / Advance paid':k==='Deposit refunded'?'Deposit / Advance refunded':k;
+    const party=isRent?'owner':'vendor';
     function openDeposit(kind){setForm({kind,date:today,amount:'',mode:'Bank Transfer',reference:'',note:''});setBill(null);upload.current=null;setPanel('deposit');setMsg('')}
     function openSettings(){setForm({id:acc.id,vendor_name:acc.vendor_name||'',vendor_phone:acc.vendor_phone||'',vendor_gstin:acc.vendor_gstin||'',monthly_rent:String(acc.monthly_rent??''),gst_percent:String(acc.gst_percent??18),due_day:String(acc.due_day??10),rent_from:String(acc.rent_from||today).slice(0,7),notes:acc.notes||''});setPanel('settings');setMsg('')}
     async function uploadBill(dateIso){
@@ -70,7 +78,7 @@
         if(!form.date||form.date>today)throw new Error('Choose the date (not in the future).');
         setBusy(true);const path=await uploadBill(form.date);setBusy(false);
         await call('deposit',{account_id:acc.id,kind:form.kind,date:form.date,amount:Number(form.amount),mode:form.mode,reference:form.reference,note:form.note,bill_path:path},
-          `${form.kind} ${npMoney(form.amount)} recorded (not an expense — it is Samara's money with the vendor).`);
+          `${depLabel(form.kind)} ${npMoney(form.amount)} recorded (not an expense — it is Samara's money with the ${party}).`);
       }catch(err){setBusy(false);setMsg(err.message||String(err))}
     }
     function saveSettings(e){
@@ -78,7 +86,7 @@
       call('save_account',{...form,rent_from:form.rent_from?form.rent_from+'-01':''},'Account details saved.');
     }
     function removeEntry(r){
-      const reason=window.prompt(`Remove "${r.kind} · ${npMoney(r.amount)}"${r.kind==='Rent payment'?' (its Expenses entry is removed too)':''}? Give the reason:`);
+      const reason=window.prompt(`Remove "${depLabel(r.kind)} · ${npMoney(r.amount)}"${r.kind==='Rent payment'?' (its Expenses entry is removed too)':''}? Give the reason:`);
       if(reason==null)return;call('void',{id:r.id,reason},'Entry removed.');
     }
 
@@ -106,23 +114,35 @@
     const monthPaid=form.month&&months.find(m=>String(m.month).slice(0,7)===String(form.month).slice(0,7));
     const rentMonthOptions=[...new Set([...months.map(m=>String(m.month).slice(0,10)),zaAddMonths(today,1)])].sort().reverse();
 
+    const accounts=data?.accounts||[];
+    const rentNotSet=acc&&!(Number(acc.monthly_rent)>0&&acc.rent_from);
     return h(React.Fragment,null,
-      h(Section,{title:'Zenset Account',subtitle:acc?`${acc.item||'Generator on hire'} · ${acc.vendor_name||'vendor name not set'} · ${npMoney(acc.monthly_rent)} + GST ${Number(acc.gst_percent)}% a month, due by the ${acc.due_day}th · Admin / Directors only`:'Generator (genset) on hire — deposit and monthly rent',
+      // 2.20.5: Rent — one tab per place (Samara · Hostel · Director House), each with its own deposit / advance and rent
+      isRent&&accounts.length>0&&h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:'12px',marginBottom:'12px'}},
+        accounts.map(x=>{const on=acc&&x.id===acc.id;const due=Number(x.monthly_rent||0)+Math.round(Number(x.monthly_rent||0)*Number(x.gst_percent||0)/100);
+          return h('button',{key:x.id,type:'button',onClick:()=>{setPanel('');setAccountId(x.id)},style:{textAlign:'left',cursor:'pointer',borderRadius:'16px',padding:'14px 16px',display:'grid',gap:'4px',
+            border:on?'2px solid #a80d4f':'1px solid #f3c2d8',background:on?'linear-gradient(135deg,#a80d4f,#d6338a)':'linear-gradient(160deg,#fff,#fff6fa)',color:on?'#fff':'#5d1740'}},
+            h('strong',{style:{fontSize:'18px'}},'🏠 '+x.name),
+            h('small',null,due>0?`Rent ${npMoney(due)} / month`:'Rent not set yet'),
+            h('small',null,`Deposit / Advance held ${npMoney(x.deposit_held)}`),
+            h('small',null,due>0?(Number(x.this_month_paid)>=due-1?'This month: Paid':`This month: ${npMoney(x.this_month_paid)} paid`):''))})),
+      h(Section,{title:isRent?`Rent Account${acc?' · '+acc.name:''}`:pageTitle,subtitle:acc?`${acc.item||(isRent?'Rent':'Generator on hire')} · ${acc.vendor_name||(isRent?'owner name not set':'vendor name not set')} · ${Number(acc.monthly_rent)>0?`${npMoney(acc.monthly_rent)}${Number(acc.gst_percent)>0?` + GST ${Number(acc.gst_percent)}%`:''} a month, due by the ${acc.due_day}th`:'monthly rent not set'} · Admin / Directors only`:(isRent?'Rent — Samara · Hostel · Director House':'Generator (genset) on hire — deposit and monthly rent'),
         actions:h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate&&onNavigate('Monthly Expenses')},'Expenses →'),
           acc&&h('button',{type:'button',className:'btn btn-secondary',onClick:openSettings},'⚙ Account details'))},
         loading&&!data&&h('p',null,'Loading…'),
         msg&&h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg),
+        rentNotSet&&!panel&&h('div',{className:'message',style:{background:'#fff6e0',color:'#8a5a00'}},'Set the monthly rent and "Track rent from" in ⚙ Account details to see the month-by-month rent status.'),
         acc&&!panel&&h(React.Fragment,null,
           h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:'12px',margin:'4px 0 14px'}},
-            tile('Deposit with vendor',npMoney(depositHeld),'refundable · not an expense','#7a1247'),
+            tile(isRent?'Deposit / Advance with owner':'Deposit / Advance with vendor',npMoney(depositHeld),'refundable · not an expense','#7a1247'),
             tile(`This month · ${zaMonthLabel(today)}`,thisMonth?thisMonth.status:'—',thisMonth?`${npMoney(thisMonth.paid)} of ${npMoney(thisMonth.due)} · due ${formatDateIN(thisMonth.due_date)}`:'',thisMonth?ZA_STATUS[thisMonth.status]?.[1]||'#5d1740':'#5d1740',thisMonth&&thisMonth.status!=='Paid'?()=>openRent(thisMonth.month):null),
             tile('Overdue',overdue.length?npMoney(overdueAmt):'None',overdue.length?`${overdue.length} month${overdue.length>1?'s':''} · ${overdue.map(m=>m.label).join(', ')}`:'all rent up to date',overdue.length?'#b4232f':'#13643a'),
             tile('Rent paid (all months)',npMoney(t.rent_paid),`incl. GST ${npMoney(t.rent_paid_gst)} · in Expenses`,'#2e7d4f')),
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'6px'}},
             h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>openRent()},'＋ Record rent payment'),
-            h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openDeposit('Deposit paid')},'＋ Deposit paid'),
-            depositHeld>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openDeposit('Deposit refunded')},'↩ Deposit refunded'))),
+            h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openDeposit('Deposit paid')},'＋ Deposit / Advance paid'),
+            depositHeld>0&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openDeposit('Deposit refunded')},'↩ Deposit / Advance refunded'))),
 
         panel==='rent'&&h('form',{onSubmit:saveRent,style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'12px',alignItems:'end',border:'1.5px solid #f0d2df',borderRadius:'16px',padding:'14px',background:'#fffafd'}},
           h('strong',{style:{gridColumn:'1/-1',color:'#a80d4f',fontSize:'17px'}},'Record rent payment — also goes to Expenses as "'+acc.expense_head+'"'),
@@ -139,20 +159,20 @@
           h('div',{style:{gridColumn:'1/-1',display:'flex',gap:'8px'}},h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save rent payment'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setMsg('')}},'Cancel'))),
 
         panel==='deposit'&&h('form',{onSubmit:saveDeposit,style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'12px',alignItems:'end',border:'1.5px solid #f0d2df',borderRadius:'16px',padding:'14px',background:'#fffafd'}},
-          h('strong',{style:{gridColumn:'1/-1',color:'#a80d4f',fontSize:'17px'}},form.kind==='Deposit paid'?'Deposit paid to the vendor (refundable — not an expense)':`Deposit refunded by the vendor (held now ${npMoney(depositHeld)})`),
+          h('strong',{style:{gridColumn:'1/-1',color:'#a80d4f',fontSize:'17px'}},form.kind==='Deposit paid'?`Deposit / Advance paid to the ${party}${isRent?' — '+acc.name:''} (refundable — not an expense)`:`Deposit / Advance refunded by the ${party} (held now ${npMoney(depositHeld)})`),
           fld('Amount ₹ *',h('input',{type:'number',min:'0.01',step:'0.01',value:form.amount,onChange:e=>setForm({...form,amount:e.target.value}),required:true,style:{fontSize:'18px',fontWeight:700}})),
-          fld('Date *',h(StrictDateInput,{value:form.date,min:'2025-01-01',max:today,onChange:e=>setForm({...form,date:e.target.value}),required:true})),
+          fld('Date *',h(StrictDateInput,{value:form.date,min:'2020-01-01',max:today,onChange:e=>setForm({...form,date:e.target.value}),required:true})),
           fld(form.kind==='Deposit paid'?'Paid by':'Received by',h('select',{value:form.mode,onChange:e=>setForm({...form,mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x)))),
           fld('UTR / Reference No.',h('input',{value:form.reference,onChange:e=>setForm({...form,reference:e.target.value}),placeholder:'optional'})),
-          fld('Note',h('input',{value:form.note,onChange:e=>setForm({...form,note:e.target.value}),placeholder:'e.g. security deposit for the 62.5 kVA genset'}),true),
+          fld('Note',h('input',{value:form.note,onChange:e=>setForm({...form,note:e.target.value}),placeholder:isRent?'e.g. rental advance as per agreement':'e.g. security deposit for the 62.5 kVA genset'}),true),
           billPicker(false),
           h('div',{style:{gridColumn:'1/-1',display:'flex',gap:'8px'}},h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setMsg('')}},'Cancel'))),
 
         panel==='settings'&&h('form',{onSubmit:saveSettings,style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:'12px',alignItems:'end',border:'1.5px solid #f0d2df',borderRadius:'16px',padding:'14px',background:'#fffafd'}},
           h('strong',{style:{gridColumn:'1/-1',color:'#a80d4f',fontSize:'17px'}},'Account details'),
-          fld('Vendor name',h('input',{value:form.vendor_name,onChange:e=>setForm({...form,vendor_name:e.target.value}),placeholder:'Zenset vendor / company'})),
-          fld('Vendor phone',h('input',{value:form.vendor_phone,inputMode:'tel',onChange:e=>setForm({...form,vendor_phone:e.target.value})})),
-          fld('Vendor GSTIN',h('input',{value:form.vendor_gstin,onChange:e=>setForm({...form,vendor_gstin:e.target.value.toUpperCase()})})),
+          fld(isRent?'Owner name':'Vendor name',h('input',{value:form.vendor_name,onChange:e=>setForm({...form,vendor_name:e.target.value}),placeholder:isRent?'House owner / landlord':'Genset vendor / company'})),
+          fld(isRent?'Owner phone':'Vendor phone',h('input',{value:form.vendor_phone,inputMode:'tel',onChange:e=>setForm({...form,vendor_phone:e.target.value})})),
+          fld(isRent?'Owner GSTIN (if any)':'Vendor GSTIN',h('input',{value:form.vendor_gstin,onChange:e=>setForm({...form,vendor_gstin:e.target.value.toUpperCase()})})),
           fld('Monthly rent ₹ (before GST) *',h('input',{type:'number',min:'0',step:'0.01',value:form.monthly_rent,onChange:e=>setForm({...form,monthly_rent:e.target.value}),required:true})),
           fld('GST %',h('input',{type:'number',min:'0',max:'28',step:'0.01',value:form.gst_percent,onChange:e=>setForm({...form,gst_percent:e.target.value})})),
           fld('Due by (day of month)',h('input',{type:'number',min:'1',max:'28',value:form.due_day,onChange:e=>setForm({...form,due_day:e.target.value})})),
@@ -161,7 +181,7 @@
           h('div',{style:{gridColumn:'1/-1',display:'flex',gap:'8px'}},h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save details'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setMsg('')}},'Cancel')))
       ),
 
-      acc&&!panel&&h(Section,{title:'Rent month by month',subtitle:`${npMoney(t.monthly_due)} a month (${npMoney(acc.monthly_rent)} + GST) · due by the ${acc.due_day}th`},
+      acc&&!panel&&h(Section,{title:'Rent month by month',subtitle:`${npMoney(t.monthly_due)} a month${Number(acc.gst_percent)>0?` (${npMoney(acc.monthly_rent)} + GST)`:''} · due by the ${acc.due_day}th`},
         h('div',{className:'table-wrap'},h('table',{className:'table',style:{minWidth:0}},
           h('thead',null,h('tr',null,['Month','Due','Paid','Paid on','Status',''].map((x,i)=>h('th',{key:i,style:i===1||i===2?{textAlign:'right'}:{}},x)))),
           h('tbody',null,months.length?months.map(m=>{const c=ZA_STATUS[m.status]||['#fff','#5d1740'];return h('tr',{key:m.month},
@@ -170,18 +190,18 @@
             h('td',null,h('span',{style:{background:c[0],color:c[1],borderRadius:'999px',padding:'3px 10px',fontWeight:800,fontSize:'12.5px'}},m.status)),
             h('td',null,m.status!=='Paid'&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>openRent(m.month)},'Pay')))}):h('tr',null,h('td',{colSpan:6,className:'empty-cell'},'No months yet — set "Track rent from" in Account details.')))))),
 
-      acc&&!panel&&h(Section,{title:'Account entries',subtitle:'Deposits and rent payments · rent entries are also in Expenses (Zenset Rental)'},
+      acc&&!panel&&h(Section,{title:'Account entries',subtitle:`Deposits / advances and rent payments · rent entries are also in Expenses (${acc.expense_head})`},
         h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center',marginBottom:'10px'}},
           ['All','Today','This Week','Month','Period'].map(chip),
           flt.kind==='Month'&&h('input',{type:'month',value:flt.month,max:today.slice(0,7),onChange:e=>setFlt({...flt,month:e.target.value})}),
           flt.kind==='Period'&&h(React.Fragment,null,h(StrictDateInput,{value:flt.from,max:today,onChange:e=>setFlt({...flt,from:e.target.value})}),h('span',null,'to'),h(StrictDateInput,{value:flt.to,max:today,onChange:e=>setFlt({...flt,to:e.target.value})}))),
         periodBad?h('div',{className:'message error'},'"From" must be on or before "To".'):h(React.Fragment,null,
-          h('p',{style:{margin:'0 0 8px',color:'#5d1740',fontWeight:700}},`Rent paid ${npMoney(sumKind('Rent payment'))} · Deposit paid ${npMoney(sumKind('Deposit paid'))} · Deposit refunded ${npMoney(sumKind('Deposit refunded'))}`),
+          h('p',{style:{margin:'0 0 8px',color:'#5d1740',fontWeight:700}},`Rent paid ${npMoney(sumKind('Rent payment'))} · Deposit / Advance paid ${npMoney(sumKind('Deposit paid'))} · Deposit / Advance refunded ${npMoney(sumKind('Deposit refunded'))}`),
           h('div',{className:'table-wrap'},h('table',{className:'table',style:{minWidth:0}},
             h('thead',null,h('tr',null,['Date','Entry','Month','Amount','Paid by','Ref.','Bill','By',''].map((x,i)=>h('th',{key:i,style:i===3?{textAlign:'right'}:{}},x)))),
             h('tbody',null,shown.length?shown.map(r=>h('tr',{key:r.id,style:r.voided_at?{opacity:.5,textDecoration:'line-through'}:null},
               h('td',{style:{whiteSpace:'nowrap'}},formatDateIN(r.entry_date)),
-              h('td',null,h('strong',null,r.kind),r.note&&h('small',{style:{display:'block',color:'#8a5a70'}},r.note),r.voided_at&&h('small',{style:{display:'block',color:'#b4232f',textDecoration:'none'}},`Removed: ${r.void_reason||''}`)),
+              h('td',null,h('strong',null,depLabel(r.kind)),r.note&&h('small',{style:{display:'block',color:'#8a5a70'}},r.note),r.voided_at&&h('small',{style:{display:'block',color:'#b4232f',textDecoration:'none'}},`Removed: ${r.void_reason||''}`)),
               h('td',null,r.period_month?zaMonthLabel(r.period_month):'—'),
               h('td',{style:{textAlign:'right',whiteSpace:'nowrap',fontWeight:700,color:r.kind==='Deposit refunded'?'#13643a':'#5d1740'}},npMoney(r.amount),r.gst_amount>0&&h('small',{style:{display:'block',color:'#8a5a70',fontWeight:500}},`${npMoney(r.rent_amount)} + GST ${npMoney(r.gst_amount)}`)),
               h('td',null,r.paid_mode||'—'),h('td',null,r.reference||'—'),
@@ -191,3 +211,6 @@
               :h('tr',null,h('td',{colSpan:9,className:'empty-cell'},loading?'Loading…':'No entries in this period.')))))))
     );
   }
+  // 2.20.5: menu pages
+  function GensetAccount(props){return h(RentalAccountPage,{...props,category:'Genset'})}
+  function RentAccount(props){return h(RentalAccountPage,{...props,category:'Rent'})}

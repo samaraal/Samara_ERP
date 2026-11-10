@@ -582,8 +582,8 @@
    "about": "ACCOUNTS / BILLING → Razorpay Statement (Admin only): live Razorpay received, fees + GST, paid to bank (UTR), still with Razorpay, checks; Print/PDF, Excel (2.19.61)"
   },
   {
-   "file": "accounts/15-zenset-account.js",
-   "about": "ACCOUNTS → Zenset Account (generator on hire): refundable deposit + monthly rent, rent posts to Expenses (Admin only)",
+   "file": "accounts/15-rental-accounts.js",
+   "about": "ACCOUNTS → Genset Account (generator on hire) + Rent Account (Samara · Hostel · Director House): refundable deposit / advance + monthly rent, rent posts to Expenses (Admin only)",
    "lines": 193
   },
   {

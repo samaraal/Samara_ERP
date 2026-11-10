@@ -3,7 +3,7 @@
   // Expenses = every ERP source (stock receipts, food vendor, kitchen, petty cash, outsourced physio, outside bills)
   // + Monthly Expenses entered here (salaries paid, rent, electricity …). Equipment purchases count in full
   // in the month bought, on their own line: Operating Profit (before equipment) and Net Profit (after).
-  const NP_HEADS=['Salaries','Facility Development (Furniture & Setup)','Daily Wages','Rent','Zenset Rental','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
+  const NP_HEADS=['Salaries','Facility Development (Furniture & Setup)','Daily Wages','Rent','Rent - Samara','Rent - Hostel','Rent - Director House','Genset Rental','Zenset Rental','Electricity','Water','Internet & Phone','Maintenance & Repairs','Housekeeping & Cleaning','Laundry','Marketing & Advertising','Professional Fees (CA / Legal)','Licences & Fees','Transport & Fuel','Insurance','Bank Charges','Office & Stationery','Other'];
   const NP_MODES=['Cash','UPI','Bank Transfer','Cheque','Card'];
   const npMoney=v=>`₹${(Number(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const npMonthStart=iso=>`${String(iso).slice(0,7)}-01`;
@@ -138,7 +138,7 @@
   const EXP_BILL_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
   const EXP_HEAD_WORDS=[
     // 2.19.77: generator (genset) hire — Rs.13,549 + 18% GST = Rs.15,988 a month from Oct 2026, paid before the 10th; checked before Rent so "genset rental" is not filed as Rent
-    ['Zenset Rental',/(zen ?set|gen ?set|generator|ஜென்செட்|ஜெனரேட்டர்)/i],
+    ['Genset Rental',/(zen ?set|gen ?set|generator|ஜென்செட்|ஜெனரேட்டர்)/i],
     ['Daily Wages',/(daily wage|day wage|wages|coolie|cooly|labour|labor|கூலி|சம்பளம் நாள்)/i],
     // 2.18.184: new facility — cots, chairs, curtains, furniture, heaters etc.
     ['Facility Development (Furniture & Setup)',/(\b(cots?|beds?|mattress(es)?|pillows?|bedsheets?|chairs?|tables?|curtains?|furniture|almirah|cupboards?|wardrobes?|racks?|shelf|shelves|sofas?|fans?|heaters?|geysers?|interiors?|facility development|new facility|setup)\b|கட்டில்|நாற்காலி|சேர்|திரைச்சீலை|ஸ்கிரீன்|மெத்தை|பீரோ|மேசை|டேபிள்)/i],
@@ -388,7 +388,8 @@
       try{
         if(!form.date||form.date<'2026-08-27'||form.date>today)throw new Error('Choose a date between 27-08-2026 and today.');
         if(!(Number(form.amount)>0))throw new Error('Enter the amount spent.');
-        if(form.head==='Zenset Rental')throw new Error('Zenset rent is recorded in Accounts → Zenset Account (it adds the Expense here by itself). Open Zenset Account to record it, so it is not counted twice.'); // 2.19.78
+        if(/^(Genset|Zenset) Rental$/.test(form.head))throw new Error('Genset rent is recorded in Accounts → Genset Account (it adds the Expense here by itself). Open Genset Account to record it, so it is not counted twice.'); // 2.19.78
+        if(/^Rent( - |$)/.test(form.head))throw new Error('Rent (Samara · Hostel · Director House) is recorded in Accounts → Rent Account (it adds the Expense here by itself). Open Rent Account to record it, so it is not counted twice.'); // 2.20.5
         if(!bill&&!form.no_bill)throw new Error('Add a photo of the bill, or tick "No bill" and give the reason.');
         if(form.no_bill&&String(form.no_bill_reason).trim().length<3)throw new Error('Give the reason there is no bill (e.g. auto fare, small shop without bill).');
         let path='';
@@ -465,7 +466,7 @@
         h('form',{onSubmit:save,style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:'12px',alignItems:'end'}},
           h(ExpenseVoice,{onResult:v=>setForm(fm=>({...fm,...Object.fromEntries(Object.entries(v).filter(([,x])=>x))}))}),
           f('Amount (₹)',h('input',{type:'number',inputMode:'decimal',min:'0.01',step:'0.01',value:form.amount,onChange:e=>setForm({...form,amount:e.target.value}),required:true,style:{fontSize:'18px',fontWeight:700}})),
-          f('Expense Head *',h('select',{value:form.head,onChange:e=>setForm({...form,head:e.target.value})},NP_HEADS.filter(x=>x!=='Salaries').map(x=>h('option',{key:x},x)))),
+          f('Expense Head *',h('select',{value:form.head,onChange:e=>setForm({...form,head:e.target.value})},NP_HEADS.filter(x=>x!=='Salaries'&&!/^(Rent( - |$)|Genset Rental|Zenset Rental)/.test(x)).map(x=>h('option',{key:x},x)))),
           f('Date',h(StrictDateInput,{value:form.date,min:'2026-08-27',max:today,onChange:e=>setForm({...form,date:e.target.value}),required:true})),
           f('Paid By',h('select',{value:form.mode,onChange:e=>setForm({...form,mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x)))),
           f('Paid To',h('input',{value:form.paid_to,onChange:e=>setForm({...form,paid_to:e.target.value}),placeholder:'e.g. TNEB, plumber, shop name'})),
