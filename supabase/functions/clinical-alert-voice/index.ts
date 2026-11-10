@@ -11,6 +11,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Expose-Headers": "x-voice-model",
 };
 const out = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -45,9 +46,13 @@ function pcmToWav(pcm: Uint8Array, rate = 24000, channels = 1) {
   return wav;
 }
 
-const STYLE = "Read the following Tamil clinical alert aloud for nurses at a care home in Chennai. " +
-  "Speak ONLY in Tamil with natural Tamil Nadu pronunciation, in a clear, calm, warm female nurse's voice, at a steady, slightly slow pace. " +
-  "Pronounce people's names, room numbers and medicine names clearly. Read it exactly as written — do not translate, add, explain or skip any word, and do not read this instruction:";
+// Only the Tamil words are sent — no English instruction in the prompt (in testing, Gemini read an
+// English style instruction aloud before the Tamil). Language is fixed by speechConfig.languageCode = ta-IN.
+// Optional short Tamil style cue via CLINICAL_VOICE_STYLE (leave unset normally).
+const promptFor = (text: string) => {
+  const style = (Deno.env.get("CLINICAL_VOICE_STYLE") || "").trim();
+  return style ? `${style}: ${text}` : text;
+};
 
 async function tamilSpeech(text: string): Promise<Uint8Array> {
   const key = Deno.env.get("GEMINI_API_KEY"); if (!key) throw new Error("Gemini key missing");
@@ -58,7 +63,7 @@ async function tamilSpeech(text: string): Promise<Uint8Array> {
       method: "POST",
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: `${STYLE}\n\n${text}` }] }],
+        contents: [{ role: "user", parts: [{ text: promptFor(text) }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: { languageCode: "ta-IN", voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
@@ -73,7 +78,7 @@ async function tamilSpeech(text: string): Promise<Uint8Array> {
         method: "POST",
         headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: `${STYLE}\n\n${text}` }] }],
+          contents: [{ role: "user", parts: [{ text: promptFor(text) }] }],
           generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } } },
         }),
       });
@@ -128,7 +133,7 @@ Deno.serve(async (req) => {
 
     let wav = cache.get(text);
     if (!wav) { wav = await tamilSpeech(text); remember(text, wav); }
-    return new Response(wav, { headers: { ...CORS, "Content-Type": "audio/wav", "Cache-Control": "no-store" } });
+    return new Response(wav, { headers: { ...CORS, "Content-Type": "audio/wav", "Cache-Control": "no-store", "x-voice-model": ttsModel } });
   } catch (e) {
     console.error("clinical-alert-voice failed", String((e as Error)?.message || e));
     return out({ error: "Tamil voice is not available right now." }, 502);
