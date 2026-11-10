@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.6';
+  const APP_VERSION = '2.20.7';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '10-Nov-2026 Half-day leave & Permission rules';
+  const APP_BUILD_DATE = '10-Nov-2026 Rent receipts from owners';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -55134,10 +55134,12 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
   }
   // 2.19.78: GENSET (GENERATOR) ACCOUNT — Admin / Directors only (SQL 350 rental_account_rpc).
   // 2.20.5: same page also serves the RENT ACCOUNT (Samara · Hostel · Director House — SQL 351); "Zenset" spelling corrected to "Genset".
+  // 2.20.7: Rent — printable owner's Rent Receipt per rent / deposit payment (owner signs) + upload of the signed copy (SQL 369 rent_receipt_rpc).
   // Refundable deposit / advance (not an expense) + monthly rent. Rent is recorded once here and is added to Expenses
   // automatically under the account's own head (Genset Rental / Rent - Samara / Rent - Hostel / Rent - Director House).
   const ZA_STATUS={Paid:['#e8f6ee','#13643a'],'Part paid':['#fff6e0','#8a5a00'],Due:['#eef3ff','#2b4c9a'],Overdue:['#fdecee','#b4232f']};
   const zaMonthLabel=iso=>{if(!iso)return '—';const [y,m]=String(iso).slice(0,7).split('-').map(Number);return new Date(Date.UTC(y,m-1,1)).toLocaleDateString('en-GB',{month:'short',year:'numeric',timeZone:'UTC'})};
+  const RR_NO_BILL='Owner gives no bill — Samara rent receipt to be signed by the owner and uploaded';
   const zaAddMonths=(iso,n)=>{const [y,m]=String(iso).slice(0,7).split('-').map(Number);const d=new Date(Date.UTC(y,m-1+n,1));return d.toISOString().slice(0,10)};
   function RentalAccountPage({profile,onNavigate,category}){
     const isRent=category==='Rent';
@@ -55148,6 +55150,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
     const [data,setData]=React.useState(null),[loading,setLoading]=React.useState(true),[msg,setMsg]=React.useState(''),[busy,setBusy]=React.useState(false);
     const [panel,setPanel]=React.useState('');const [form,setForm]=React.useState({});
     const [bill,setBill]=React.useState(null);const upload=React.useRef(null);
+    const [pendingOnly,setPendingOnly]=React.useState(false);
     const [flt,setFlt]=React.useState({kind:'All',month:today.slice(0,7),from:today.slice(0,8)+'01',to:today});
     async function load(){
       setLoading(true);
@@ -55168,13 +55171,13 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
     function openRent(monthIso){
       const m=monthIso||(months.slice().reverse().find(x=>x.status!=='Paid')?.month)||(today.slice(0,8)+'01');
       const rent=Number(acc?.monthly_rent||0),gst=Math.round(rent*Number(acc?.gst_percent||0)/100); // GST to the whole rupee, as on the bill (13,549 + 2,439 = 15,988)
-      setForm({month:String(m).slice(0,10),date:today,rent_amount:String(rent||''),gst_amount:String(gst||''),mode:'Bank Transfer',reference:'',note:'',no_bill:false,no_bill_reason:'',confirm_again:false});
+      setForm({month:String(m).slice(0,10),date:today,rent_amount:String(rent||''),gst_amount:String(gst||''),mode:'Bank Transfer',reference:'',note:'',no_bill:isRent,no_bill_reason:isRent?RR_NO_BILL:'',confirm_again:false});
       setBill(null);upload.current=null;setPanel('rent');setMsg('');
     }
     const depLabel=k=>k==='Deposit paid'?'Deposit / Advance paid':k==='Deposit refunded'?'Deposit / Advance refunded':k;
     const party=isRent?'owner':'vendor';
     function openDeposit(kind){setForm({kind,date:today,amount:'',mode:'Bank Transfer',reference:'',note:''});setBill(null);upload.current=null;setPanel('deposit');setMsg('')}
-    function openSettings(){setForm({id:acc.id,vendor_name:acc.vendor_name||'',vendor_phone:acc.vendor_phone||'',vendor_gstin:acc.vendor_gstin||'',monthly_rent:String(acc.monthly_rent??''),gst_percent:String(acc.gst_percent??18),due_day:String(acc.due_day??10),rent_from:String(acc.rent_from||today).slice(0,7),notes:acc.notes||''});setPanel('settings');setMsg('')}
+    function openSettings(){setForm({id:acc.id,vendor_name:acc.vendor_name||'',vendor_phone:acc.vendor_phone||'',vendor_gstin:acc.vendor_gstin||'',monthly_rent:String(acc.monthly_rent??''),gst_percent:String(acc.gst_percent??18),due_day:String(acc.due_day??10),rent_from:String(acc.rent_from||today).slice(0,7),notes:acc.notes||'',property_address:acc.property_address||'',owner_pan:acc.owner_pan||''});setPanel('settings');setMsg('')}
     async function uploadBill(dateIso){
       if(!bill)return '';
       if(upload.current?.file===bill)return upload.current.path;
@@ -55202,7 +55205,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
         const total=Number(form.rent_amount)+Number(form.gst_amount||0);
         await call('pay_rent',{account_id:acc.id,month:form.month,date:form.date,rent_amount:Number(form.rent_amount),gst_amount:Number(form.gst_amount||0),mode:form.mode,reference:form.reference,note:form.note,
           bill_path:path,no_bill_reason:form.no_bill?form.no_bill_reason:'',confirm_again:!!form.confirm_again},
-          `${zaMonthLabel(form.month)} rent ${npMoney(total)} recorded — also added to Expenses as "${acc.expense_head}".`);
+          `${zaMonthLabel(form.month)} rent ${npMoney(total)} recorded — also added to Expenses as "${acc.expense_head}".${isRent?' Print the owner\'s receipt (🖨) from Account entries below, get it signed and upload it there.':''}`);
       }catch(err){setBusy(false);setMsg(err.message||String(err))}
     }
     async function saveDeposit(e){
@@ -55215,9 +55218,83 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
           `${depLabel(form.kind)} ${npMoney(form.amount)} recorded (not an expense — it is Samara's money with the ${party}).`);
       }catch(err){setBusy(false);setMsg(err.message||String(err))}
     }
-    function saveSettings(e){
+    async function saveSettings(e){
       e.preventDefault();
+      if(isRent&&form.owner_pan&&!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(form.owner_pan).trim().toUpperCase())){setMsg('Owner PAN looks wrong — 10 characters like ABCDE1234F (or leave it empty).');return}
+      if(isRent){
+        // 2.20.7: property address + PAN (printed on the owner's rent receipt) — SQL 369
+        try{const r=await client.rpc('rent_receipt_rpc',{p_action:'owner_details',p:{id:form.id,property_address:form.property_address,owner_pan:form.owner_pan}});if(r.error)throw r.error}
+        catch(err){setMsg(/rent_receipt_rpc|function/i.test(err.message||'')?'Run SQL 369 in Supabase first (owner address / PAN for the rent receipt).':(err.message||String(err)));return}
+      }
       call('save_account',{...form,rent_from:form.rent_from?form.rent_from+'-01':''},'Account details saved.');
+    }
+
+    // 2.20.7: OWNER'S RENT RECEIPT — printed from the ERP, signed by the owner, signed copy uploaded back to the same entry.
+    const canReceipt=r=>isRent&&!r.voided_at&&(r.kind==='Rent payment'||r.kind==='Deposit paid');
+    async function printReceipt(r){
+      const win=samaraPrintBar(window.open('','_blank','width=900,height=1000'));if(!win){setMsg('Please allow pop-ups to print the receipt.');return}
+      win.document.write('<p style="font-family:Arial;padding:20px">Preparing the receipt…</p>');
+      let no=r.receipt_no;
+      try{if(!no){const x=await client.rpc('rent_receipt_rpc',{p_action:'receipt_no',p:{id:r.id}});if(x.error)throw x.error;no=x.data?.receipt_no}}
+      catch(err){try{win.close()}catch(_){};setMsg(/rent_receipt_rpc|function/i.test(err.message||'')?'Run SQL 369 in Supabase first — then the receipt can be printed.':(err.message||String(err)));return}
+      const e=escapeHtml,m=v=>e(npMoney(v));
+      const isDep=r.kind==='Deposit paid';
+      const owner=acc.vendor_name||'';
+      const purpose=isDep?'refundable rental advance / security deposit':`rent for the month of <b>${e(zaMonthLabel(r.period_month))}</b>`;
+      const mode=[r.paid_mode,r.reference?`Ref. / UTR ${r.reference}`:''].filter(Boolean).join(' · ');
+      const split=!isDep&&Number(r.gst_amount)>0?`<tr><td>Rent</td><td class="n">${m(r.rent_amount)}</td></tr><tr><td>GST</td><td class="n">${m(r.gst_amount)}</td></tr>`:'';
+      win.document.open();
+      win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Rent Receipt ${e(no||'')}</title><style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:24px;font-size:14px}
+        .rc{border:2px solid #333;padding:22px 26px;max-width:720px;margin:0 auto}
+        h1{text-align:center;margin:0 0 4px;font-size:24px;letter-spacing:3px;text-decoration:underline}
+        .meta{display:flex;justify-content:space-between;margin:14px 0 18px;font-size:13px}
+        p.body{line-height:2;text-align:justify;margin:0 0 12px}
+        .blank{display:inline-block;min-width:160px;border-bottom:1px dotted #555}
+        table{border-collapse:collapse;margin:6px 0 10px;min-width:280px}td{border:1px solid #aaa;padding:5px 10px}.n{text-align:right;white-space:nowrap}.tot td{font-weight:700}
+        .sign{display:flex;justify-content:space-between;align-items:flex-end;margin-top:34px;gap:20px}
+        .stamp{width:96px;height:110px;border:1px dashed #777;font-size:10px;color:#666;display:flex;align-items:center;justify-content:center;text-align:center;padding:4px}
+        .sig{text-align:center;min-width:250px}.sig .line{border-top:1px solid #333;margin-top:58px;padding-top:6px;font-weight:700}
+        .foot{margin-top:18px;font-size:10.5px;color:#777;text-align:center}@media print{body{margin:12mm}}
+      </style></head><body><div class="rc">
+        <h1>RENT RECEIPT</h1>
+        <div class="meta"><span>Receipt No.: <b>${e(no||'')}</b></span><span>Date: <b>${e(formatDateIN(r.entry_date))}</b></span></div>
+        <p class="body">Received with thanks from <b>Samara Health Care LLP</b> a sum of <b>${m(r.amount)}</b>
+          (<i>${e(billAmountInWords(r.amount))}</i>) ${mode?`by <b>${e(mode)}</b> `:''}paid on <b>${e(formatDateIN(r.entry_date))}</b>,
+          towards ${purpose} for the premises
+          ${acc.property_address?`at <b>${e(acc.property_address)}</b>`:`<span class="blank">&nbsp;</span>`} (${e(acc.item||acc.name)}).</p>
+        ${split?`<table>${split}<tr class="tot"><td>Total received</td><td class="n">${m(r.amount)}</td></tr></table>`:''}
+        <p class="body">Name of the owner: ${owner?`<b>${e(owner)}</b>`:'<span class="blank">&nbsp;</span>'}
+          &nbsp;&nbsp; PAN: ${acc.owner_pan?`<b>${e(acc.owner_pan)}</b>`:'<span class="blank" style="min-width:120px">&nbsp;</span>'}
+          ${acc.vendor_phone?`&nbsp;&nbsp; Phone: <b>${e(acc.vendor_phone)}</b>`:''}</p>
+        <div class="sign">
+          <div class="stamp">Revenue stamp ₹1<br>(cash payment above ₹5,000)</div>
+          <div class="sig"><div class="line">Signature of the owner</div><div style="font-size:12px;margin-top:4px">${owner?e(owner):'Name: ____________________'}</div></div>
+        </div>
+        <p style="margin-top:22px;font-size:13px">Place: ____________________ &nbsp;&nbsp;&nbsp; Date: ____________________</p>
+        <p class="foot">Receipt format prepared by Samara Health Care LLP (Samara Care ERP) · ${e(no||'')} · ${e(acc.name)} · please sign and return the signed copy</p>
+      </div></body></html>`);
+      win.document.close();
+      if(!r.receipt_no)load();
+    }
+    async function uploadSigned(r,file){
+      if(!file||busy)return;
+      const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','application/pdf':'pdf'}[file.type];
+      if(!ext){setMsg('Choose a photo (JPG / PNG) or a PDF of the signed receipt.');return}
+      setBusy(true);setMsg('');
+      try{
+        const path=`rent-receipts/${String(r.entry_date).slice(0,7)}/${crypto.randomUUID()}.${ext}`;
+        const up=await client.storage.from('expense-bills').upload(path,file,{contentType:file.type,upsert:false});if(up.error)throw new Error(up.error.message);
+        const x=await client.rpc('rent_receipt_rpc',{p_action:'attach_signed',p:{id:r.id,path}});if(x.error)throw x.error;
+        setMsg(`✓ Signed receipt uploaded — ${depLabel(r.kind)} ${npMoney(r.amount)}${r.period_month?' · '+zaMonthLabel(r.period_month):''}.`);
+        if(typeof showSamaraActionToast==='function')showSamaraActionToast('success','Saved','Signed rent receipt uploaded.');
+        await load();
+      }catch(err){setMsg(/rent_receipt_rpc|function/i.test(err.message||'')?'Run SQL 369 in Supabase first — then the signed receipt can be uploaded.':(err.message||String(err)))}
+      finally{setBusy(false)}
+    }
+    function removeSigned(r){
+      if(!window.confirm('Remove the uploaded signed receipt from this entry (to upload a better copy)?'))return;
+      (async()=>{setBusy(true);try{const x=await client.rpc('rent_receipt_rpc',{p_action:'remove_signed',p:{id:r.id}});if(x.error)throw x.error;setMsg('✓ Signed receipt removed — upload the new copy.');await load()}catch(err){setMsg(err.message||String(err))}finally{setBusy(false)}})();
     }
     function removeEntry(r){
       const reason=window.prompt(`Remove "${depLabel(r.kind)} · ${npMoney(r.amount)}"${r.kind==='Rent payment'?' (its Expenses entry is removed too)':''}? Give the reason:`);
@@ -55228,7 +55305,8 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
     const weekStart=(()=>{const d=parseISODateUTC(today);const k=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-k);return d.toISOString().slice(0,10)})();
     const inFilter=r=>{const d=String(r.entry_date);if(flt.kind==='Today')return d===today;if(flt.kind==='This Week')return d>=weekStart&&d<=today;
       if(flt.kind==='Month')return d.slice(0,7)===flt.month;if(flt.kind==='Period')return d>=flt.from&&d<=flt.to;return true};
-    const shown=entries.filter(inFilter);
+    const receiptPending=entries.filter(r=>canReceipt(r)&&!r.signed_receipt_path);
+    const shown=entries.filter(inFilter).filter(r=>!pendingOnly||(canReceipt(r)&&!r.signed_receipt_path));
     const live=shown.filter(r=>!r.voided_at);
     const sumKind=k=>live.filter(r=>r.kind===k).reduce((s,r)=>s+Number(r.amount),0);
     const periodBad=flt.kind==='Period'&&flt.from>flt.to;
@@ -55243,7 +55321,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
         h('label',{className:'btn btn-primary',style:{cursor:'pointer',margin:0}},'📷 Take photo',h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},onChange:e=>{setBill(e.target.files&&e.target.files[0]||null);e.target.value=''}})),
         h('label',{className:'btn btn-secondary',style:{cursor:'pointer',margin:0}},'🖼 Choose photo / PDF',h('input',{type:'file',accept:'image/jpeg,image/png,image/webp,application/pdf',style:{display:'none'},onChange:e=>{setBill(e.target.files&&e.target.files[0]||null);e.target.value=''}})),
         bill&&h('span',{style:{color:'#2e7d4f',fontWeight:700}},`✓ ${bill.name}`),
-        required&&h('label',{style:{display:'flex',gap:'6px',alignItems:'center',fontWeight:700,color:'#5d1740'}},h('input',{type:'checkbox',checked:!!form.no_bill,onChange:e=>setForm({...form,no_bill:e.target.checked})}),'No bill')),
+        required&&h('label',{style:{display:'flex',gap:'6px',alignItems:'center',fontWeight:700,color:'#5d1740'}},h('input',{type:'checkbox',checked:!!form.no_bill,onChange:e=>setForm({...form,no_bill:e.target.checked})}),isRent?'No bill (owner signs Samara receipt)':'No bill')),
       required&&form.no_bill&&h('input',{style:{marginTop:'8px',width:'100%'},value:form.no_bill_reason||'',placeholder:'Why is there no bill? (e.g. bill to come from vendor)',onChange:e=>setForm({...form,no_bill_reason:e.target.value})}));
     const monthPaid=form.month&&months.find(m=>String(m.month).slice(0,7)===String(form.month).slice(0,7));
     // 2.20.6: every month from Aug 2026 (Samara opened 27-08-2026) to next month can be chosen — past months can be recorded
@@ -55275,7 +55353,8 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
             tile(isRent?'Deposit / Advance with owner':'Deposit / Advance with vendor',npMoney(depositHeld),'refundable · not an expense','#7a1247'),
             tile(`This month · ${zaMonthLabel(today)}`,thisMonth?thisMonth.status:'—',thisMonth?`${npMoney(thisMonth.paid)} of ${npMoney(thisMonth.due)} · due ${formatDateIN(thisMonth.due_date)}`:'',thisMonth?ZA_STATUS[thisMonth.status]?.[1]||'#5d1740':'#5d1740',thisMonth&&thisMonth.status!=='Paid'?()=>openRent(thisMonth.month):null),
             tile('Overdue',overdue.length?npMoney(overdueAmt):'None',overdue.length?`${overdue.length} month${overdue.length>1?'s':''} · ${overdue.map(m=>m.label).join(', ')}`:'all rent up to date',overdue.length?'#b4232f':'#13643a'),
-            tile('Rent paid (all months)',npMoney(t.rent_paid),`incl. GST ${npMoney(t.rent_paid_gst)} · in Expenses`,'#2e7d4f')),
+            tile('Rent paid (all months)',npMoney(t.rent_paid),`incl. GST ${npMoney(t.rent_paid_gst)} · in Expenses`,'#2e7d4f'),
+            isRent&&tile('Signed owner receipts pending',receiptPending.length?String(receiptPending.length):'None',receiptPending.length?(pendingOnly?'showing only these — tap to show all':'tap to list them'):'all receipts signed & uploaded',receiptPending.length?'#b4232f':'#13643a',receiptPending.length||pendingOnly?()=>setPendingOnly(v=>!v):null)),
           h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginBottom:'6px'}},
             h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>openRent()},'＋ Record rent payment'),
             h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>openDeposit('Deposit paid')},'＋ Deposit / Advance paid'),
@@ -55314,6 +55393,8 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
           fld('GST %',h('input',{type:'number',min:'0',max:'28',step:'0.01',value:form.gst_percent,onChange:e=>setForm({...form,gst_percent:e.target.value})})),
           fld('Due by (day of month)',h('input',{type:'number',min:'1',max:'28',value:form.due_day,onChange:e=>setForm({...form,due_day:e.target.value})})),
           fld('Track rent from (month)',h('input',{type:'month',value:form.rent_from,onChange:e=>setForm({...form,rent_from:e.target.value})})),
+          isRent&&fld('Owner PAN (printed on receipt)',h('input',{value:form.owner_pan,maxLength:10,placeholder:'ABCDE1234F',onChange:e=>setForm({...form,owner_pan:e.target.value.toUpperCase()})})),
+          isRent&&fld('Address of the rented premises (printed on receipt)',h('input',{value:form.property_address,onChange:e=>setForm({...form,property_address:e.target.value}),placeholder:'Door no., street, area, city, PIN'}),true),
           fld('Notes',h('input',{value:form.notes,onChange:e=>setForm({...form,notes:e.target.value})}),true),
           h('div',{style:{gridColumn:'1/-1',display:'flex',gap:'8px'}},h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save details'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPanel('');setMsg('')}},'Cancel')))
       ),
@@ -55335,7 +55416,7 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
         periodBad?h('div',{className:'message error'},'"From" must be on or before "To".'):h(React.Fragment,null,
           h('p',{style:{margin:'0 0 8px',color:'#5d1740',fontWeight:700}},`Rent paid ${npMoney(sumKind('Rent payment'))} · Deposit / Advance paid ${npMoney(sumKind('Deposit paid'))} · Deposit / Advance refunded ${npMoney(sumKind('Deposit refunded'))}`),
           h('div',{className:'table-wrap'},h('table',{className:'table',style:{minWidth:0}},
-            h('thead',null,h('tr',null,['Date','Entry','Month','Amount','Paid by','Ref.','Bill','By',''].map((x,i)=>h('th',{key:i,style:i===3?{textAlign:'right'}:{}},x)))),
+            h('thead',null,h('tr',null,['Date','Entry','Month','Amount','Paid by','Ref.','Bill',...(isRent?['Owner receipt']:[]),'By',''].map((x,i)=>h('th',{key:i,style:i===3?{textAlign:'right'}:{}},x)))),
             h('tbody',null,shown.length?shown.map(r=>h('tr',{key:r.id,style:r.voided_at?{opacity:.5,textDecoration:'line-through'}:null},
               h('td',{style:{whiteSpace:'nowrap'}},formatDateIN(r.entry_date)),
               h('td',null,h('strong',null,depLabel(r.kind)),r.note&&h('small',{style:{display:'block',color:'#8a5a70'}},r.note),r.voided_at&&h('small',{style:{display:'block',color:'#b4232f',textDecoration:'none'}},`Removed: ${r.void_reason||''}`)),
@@ -55343,9 +55424,16 @@ ${(data.checks||[]).length?`<h3>Checks</h3><ul>${data.checks.map(c=>`<li>${esc(f
               h('td',{style:{textAlign:'right',whiteSpace:'nowrap',fontWeight:700,color:r.kind==='Deposit refunded'?'#13643a':'#5d1740'}},npMoney(r.amount),r.gst_amount>0&&h('small',{style:{display:'block',color:'#8a5a70',fontWeight:500}},`${npMoney(r.rent_amount)} + GST ${npMoney(r.gst_amount)}`)),
               h('td',null,r.paid_mode||'—'),h('td',null,r.reference||'—'),
               h('td',null,r.bill_path?h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{const er=await openSamaraStorageFile('expense-bills',r.bill_path,300,'Bill');if(er)setMsg(er)}},'🧾'):r.no_bill_reason?h('small',null,'No bill'):'—'),
+              isRent&&h('td',null,canReceipt(r)&&h('div',{style:{display:'grid',gap:'4px',minWidth:'110px'}},
+                h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>printReceipt(r),title:'Print the receipt for the owner to sign'},'🖨 Print'),
+                r.signed_receipt_path
+                  ?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-secondary',style:{color:'#13643a',fontWeight:800},onClick:async()=>{const er=await openSamaraStorageFile('expense-bills',r.signed_receipt_path,300,'Signed rent receipt');if(er)setMsg(er)}},'✓ Signed'),
+                     h('button',{type:'button',className:'btn btn-secondary',disabled:busy,style:{fontSize:'11px',padding:'2px 6px'},onClick:()=>removeSigned(r)},'Replace'))
+                  :h('label',{className:'btn btn-primary',style:{cursor:busy?'wait':'pointer',margin:0,textAlign:'center'}},'⬆ Upload signed',h('input',{type:'file',accept:'image/*,application/pdf',disabled:busy,style:{display:'none'},onChange:e=>{const f=e.target.files&&e.target.files[0];e.target.value='';uploadSigned(r,f)}})),
+                r.receipt_no&&h('small',{style:{color:'#8a5a70'}},r.receipt_no))),
               h('td',null,r.created_by_name||'—'),
               h('td',null,!r.voided_at&&h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>removeEntry(r)},'Remove'))))
-              :h('tr',null,h('td',{colSpan:9,className:'empty-cell'},loading?'Loading…':'No entries in this period.')))))))
+              :h('tr',null,h('td',{colSpan:isRent?10:9,className:'empty-cell'},loading?'Loading…':pendingOnly?'No signed receipts pending in this period.':'No entries in this period.')))))))
     );
   }
   // 2.20.5: menu pages

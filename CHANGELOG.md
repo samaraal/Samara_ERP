@@ -1,3 +1,8 @@
+## 2.20.7 — 10-11-2026 — Rent Account: owner's Rent Receipt (print → sign → upload)
+- Rent Account (Samara · Hostel · Director House): each rent payment and deposit / advance paid now has **🖨 Print** (a ready Rent Receipt for the owner to sign — receipt no. RR/SAM/2026-27/001 etc., amount in words, month, mode / UTR, premises address, owner name / PAN, revenue-stamp box) and **⬆ Upload signed** (photo / PDF of the signed copy, kept against that entry; ✓ Signed opens it, Replace swaps it).
+- New tile **Signed owner receipts pending** (tap to list only those). ⚙ Account details: owner PAN + address of the rented premises (printed on the receipt). New rent payments default to "No bill (owner signs Samara receipt)".
+- Database: `369_rent_owner_receipts.sql` (run after 351) — new columns only + `rent_receipt_rpc`; nothing existing changed.
+
 ## 2.20.6 — 10-11-2026 — Rent / Genset: record payments for past months
 - "Rent for month" now always lists every month from Aug 2026 to next month, so Aug / Sep / Oct rent can be recorded even before "Track rent from" and the monthly rent are set. Frontend only.
 
