@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.19.98';
+  const APP_VERSION = '2.19.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -4201,6 +4201,11 @@ https://samaraassistedliving.com/`;
     // playback starts when the alert queue is otherwise idle.
     const speechKeepAlive=React.useRef([]);
     const speechPrimed=React.useRef(false);
+    // 2.19.99: Gemini Tamil voice — audio cache (same alert repeats), in-flight requests, playing source.
+    const geminiVoiceCache=React.useRef(new Map());
+    const geminiVoiceInflight=React.useRef(new Map());
+    const geminiVoicePauseUntil=React.useRef(0);
+    const currentVoiceSource=React.useRef(null);
 
     // 2.19.26: browsers allow sound only after a tap on the page. After every reload / update the sound was
     // silent until someone found "Enable Alert Sound". Now the FIRST tap / key anywhere on this device turns
@@ -4266,11 +4271,12 @@ https://samaraassistedliving.com/`;
       // are issued back-to-back on an otherwise idle speech engine.
       try{synth.getVoices?.()}catch(_){}
       if(speechPrimed.current)return true;
-      const u=new SpeechSynthesisUtterance('Samara voice enabled');
-      u.lang='en-IN';
+      // 2.19.99: Tamil only — silent Tamil primer (no English words spoken).
+      const u=new SpeechSynthesisUtterance('சமரா');
+      u.lang='ta-IN';
       u.rate=1;
       u.pitch=1;
-      u.volume=.18;
+      u.volume=0;
       speechKeepAlive.current.push(u);
       const release=()=>{
         speechKeepAlive.current=speechKeepAlive.current.filter(x=>x!==u);
@@ -4300,7 +4306,7 @@ https://samaraassistedliving.com/`;
     async function toggleSound(){
       if(soundUnlocked){
         try{
-          if(window.speechSynthesis)window.speechSynthesis.cancel();
+          stopClinicalVoice();
           const ctx=audioContext.current;
           if(ctx&&ctx.state==='running')await ctx.suspend();
         }catch(_){}
@@ -4316,7 +4322,7 @@ https://samaraassistedliving.com/`;
     }
     function clinicalVoiceData(a){
       const title=String(a?.title||a?.alert_type||'').toLowerCase();
-      const patient=String(a?.patient_name||a?.patient||'நோயாளர்').trim();
+      const patient=String(a?.patient_name||a?.patient||'கெஸ்ட்').trim();
       const room=String(a?.room_label||a?.room||'').trim();
       const details=String(a?.description||a?.details||'').trim();
       const overdue=actualOverdueMinutes(a);
@@ -4563,7 +4569,7 @@ https://samaraassistedliving.com/`;
         /\b(?:MOG|UUID|PATIENTS?|CARE_PATIENTS?|SOURCE|RECORD|ROW)\b/i.test(value)||
         (value.match(/[0-9]/g)||[]).length>=4;
 
-      return looksTechnical?'நோயாளர்':value;
+      return looksTechnical?'கெஸ்ட்':value;
     }
     function medicineForSpeech(details){
       let value=String(details||'மருந்து').trim();
@@ -4695,7 +4701,7 @@ https://samaraassistedliving.com/`;
       if(d.isMedication){
         const parts=['சமராவின் அவசர வேண்டுகோள்.'];
         if(d.room) parts.push(`அறை எண் ${roomForSpeech(d.room)}.`);
-        if(d.patient) parts.push(`நோயாளியின் பெயர் ${patientForSpeech(d.patient)}.`);
+        if(d.patient) parts.push(`கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}.`);
 
         // v2.9.45: medication escalation speech must never lose the medicine name.
         // Current alert rows commonly keep the brand in title ("Medicine Due: Dolo")
@@ -4740,73 +4746,104 @@ https://samaraassistedliving.com/`;
         return [{text:`${staffPrefix} நர்சிங் நோட்ஸ் பெண்டிங். கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. தயவு செய்து நர்சிங் நோட் எழுதவும். நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
       if(d.isVitals){
-        return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+        return [{text:`${staffPrefix} வைட்டல்ஸ் பெண்டிங். கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
       if(d.isCare){
-        return [{text:`${staffPrefix} டெய்லி கேர் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+        return [{text:`${staffPrefix} டெய்லி கேர் பெண்டிங். கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
       if(d.isPhysio){
-        return [{text:`${staffPrefix} பிசியோதெரபி பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+        return [{text:`${staffPrefix} பிசியோதெரபி பெண்டிங். கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
       }
-      return [{text:`${staffPrefix} கிளினிக்கல் டாஸ்க் பெண்டிங். நோயாளியின் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
+      return [{text:`${staffPrefix} கிளினிக்கல் டாஸ்க் பெண்டிங். கெஸ்ட் பெயர் ${patientForSpeech(d.patient)}. அறை எண் ${roomForSpeech(d.room)}. நன்றி.`,lang:'ta-IN',rate:.84,pause:0}];
     }
-    function englishClinicalVoiceSegments(a){
-      const d=clinicalVoiceData(a);
-      const patient=String(d.patient||'patient').trim()||'patient';
-      const room=String(d.room||'').trim();
-      const roomText=room?` Room ${room}.`:'';
-      if(d.isMedication){
-        const titleMedicine=String(d.title||'').replace(/^\s*(?:Medicine|Medication)\s+Due\s*:\s*/i,'').trim();
-        const medicine=[titleMedicine,String(d.details||'').trim()].filter(Boolean).join(' ')||'medicine';
-        const overdue=d.overdue>0?` It is ${englishOverdueLabel(d.overdue)}.`:'';
-        return [{text:`Samara urgent request. Patient ${patient}.${roomText} Medication ${medicine} is due.${overdue} Please attend immediately and record after giving the medicine. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
-      }
-      if(d.isMealPoor){
-        const what=String(d.title||'').replace(/^\s*Poor Meal Intake\s*:\s*/i,'').replace(/\s*—\s*/,' ').trim()||'meal poor intake';
-        return [{text:`Dear staff. Poor meal intake for Guest ${patient}.${roomText} ${what}. Please review. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
-      }
-      if(d.isMeal){
-        const meal=String(d.title||'').replace(/^\s*Meal Due\s*:\s*/i,'').trim()||'Meal';
-        return [{text:`Dear staff. ${meal} is not yet recorded for Guest ${patient}.${roomText} Please serve and record. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
-      }
-      if(d.isNoteAlert){
-        const what=String(d.title||'').replace(/^\s*Nursing Note\s*:\s*/i,'').trim()||'Important note';
-        return [{text:`Dear staff. Nursing note alert: ${what} recorded for Guest ${patient}.${roomText} Please review now. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
-      }
-      if(d.isNotes)return [{text:`Dear staff. Nursing notes are pending for ${patient}.${roomText} Please write the nursing note. Thank you.`,lang:'en-IN',rate:.84,pause:0}];
-      const label=d.isVitals?'Vitals':d.isCare?'Daily care':d.isPhysio?'Physiotherapy':'Clinical task';
-      return [{text:`Dear staff. ${label} is pending for ${patient}.${roomText} Thank you.`,lang:'en-IN',rate:.84,pause:0}];
+    // 2.19.99: TAMIL ONLY clinical voice. The Tamil announcement is read by Gemini AI (Edge Function
+    // clinical-alert-voice) and played through the already-unlocked alert AudioContext — so it no longer
+    // depends on a Tamil voice being installed on the nurses' station PC. If Gemini cannot answer, the
+    // device's own Tamil voice is used when one exists; otherwise no voice (chime + pop-up still show).
+    // An English voice is never spoken any more.
+    function clinicalVoiceTextForGemini(a){
+      return humanisedClinicalVoiceSegments(a).map(s=>String(s?.text||'')).join(' ')
+        .replace(/\[\[LETTER:([^\]]+)\]\]/g,'$1.')
+        .replace(/\s+/g,' ').trim();
+    }
+    async function fetchGeminiTamilVoice(text){
+      const cache=geminiVoiceCache.current;
+      if(cache.has(text))return cache.get(text);
+      if(geminiVoiceInflight.current.has(text))return await geminiVoiceInflight.current.get(text);
+      if(Date.now()<geminiVoicePauseUntil.current)throw new Error('Gemini Tamil voice paused after an error; retrying shortly');
+      const job=(async()=>{
+        const {data:{session}}=await client.auth.getSession();
+        if(!session)throw new Error('Not signed in');
+        const ctl=new AbortController();const t=window.setTimeout(()=>ctl.abort(),20000);
+        let r;
+        try{
+          r=await fetch(`${cfg.supabaseUrl}/functions/v1/clinical-alert-voice`,{
+            method:'POST',signal:ctl.signal,
+            headers:{'Authorization':`Bearer ${session.access_token}`,'apikey':cfg.supabasePublishableKey,'Content-Type':'application/json'},
+            body:JSON.stringify({text})
+          });
+        }finally{window.clearTimeout(t)}
+        if(!r.ok){
+          if(r.status>=500||r.status===429)geminiVoicePauseUntil.current=Date.now()+120000;
+          const j=await r.json().catch(()=>({}));
+          throw new Error(j.error||`Tamil voice service error ${r.status}`);
+        }
+        const buf=await r.arrayBuffer();
+        cache.set(text,buf);
+        while(cache.size>40)cache.delete(cache.keys().next().value);
+        return buf;
+      })();
+      geminiVoiceInflight.current.set(text,job);
+      try{return await job}finally{geminiVoiceInflight.current.delete(text)}
+    }
+    function stopClinicalVoice(){
+      try{currentVoiceSource.current?.stop()}catch(_){}
+      currentVoiceSource.current=null;
+      try{window.speechSynthesis?.cancel()}catch(_){}
+    }
+    async function playGeminiTamilVoice(text){
+      const Ctx=window.AudioContext||window.webkitAudioContext;
+      if(!Ctx)throw new Error('AudioContext not supported');
+      const ctx=audioContext.current||(audioContext.current=new Ctx());
+      if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
+      const buf=await fetchGeminiTamilVoice(text);
+      const audio=await ctx.decodeAudioData(buf.slice(0));
+      if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
+      stopClinicalVoice();
+      const src=ctx.createBufferSource();
+      const gain=ctx.createGain();gain.gain.value=1;
+      src.buffer=audio;src.connect(gain);gain.connect(ctx.destination);
+      src.onended=()=>{if(currentVoiceSource.current===src)currentVoiceSource.current=null};
+      currentVoiceSource.current=src;
+      src.start();
+      console.info('Samara clinical voice',{engine:'Gemini Tamil',seconds:Math.round(audio.duration)});
+      return true;
     }
     async function playClinicalVoiceNow(a){
+      try{
+        return await playGeminiTamilVoice(clinicalVoiceTextForGemini(a));
+      }catch(error){console.warn('Gemini Tamil voice unavailable, trying device Tamil voice:',error?.message||error)}
       const synth=window.speechSynthesis;
       if(!synth)return false;
       try{synth.resume?.()}catch(_){}
       const voices=await waitForSpeechVoices(3500);
+      if(!hasTamilSpeechVoice(voices)){console.warn('No Tamil voice available — voice skipped (Tamil only, no English fallback).');return false;}
       try{synth.resume?.()}catch(_){}
-      const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
-      return speakUtteranceSequence(segments,voices);
+      return speakUtteranceSequence(humanisedClinicalVoiceSegments(a),voices);
     }
-    // v2.11.20: Voice-test buttons must start speech while the browser still
-    // considers the click a live user gesture. Do not await voiceschanged here:
-    // Chrome/Edge can otherwise silently block speech after the async delay.
-    // If the voice list has not loaded yet, speak the English fallback immediately
-    // with the device default voice; later automatic alerts may still use Tamil.
+    // Voice-test buttons: resume the alert AudioContext while the click is still a live user
+    // gesture, then play the same Tamil-only voice as real alerts.
     function playClinicalVoiceFromUserGesture(a){
-      const synth=window.speechSynthesis;
-      if(!synth||typeof window.SpeechSynthesisUtterance!=='function'){
-        alert('Voice playback is not available in this browser. Please use Chrome or Edge on Windows.');
-        return false;
-      }
-      try{synth.resume?.()}catch(_){}
-      // No cancel() here: back-to-back cancel/speak is the root of a Chromium
-      // silent-playback failure on an idle speech engine. The test buttons are
-      // independent of patients, alerts and Supabase rows.
-      let voices=[];
-      try{voices=synth.getVoices?.()||[]}catch(_){}
-      const segments=hasTamilSpeechVoice(voices)?humanisedClinicalVoiceSegments(a):englishClinicalVoiceSegments(a);
-      const ok=speakUtteranceSequence(segments,voices);
-      if(!ok)console.warn('Clinical voice did not start. speechSynthesis state:',{speaking:synth.speaking,pending:synth.pending,paused:synth.paused,voices:voices.length});
-      return ok;
+      try{
+        const Ctx=window.AudioContext||window.webkitAudioContext;
+        const ctx=audioContext.current||(audioContext.current=Ctx?new Ctx():null);
+        if(ctx&&ctx.state==='suspended')ctx.resume().catch(()=>{});
+      }catch(_){}
+      primeSpeechSynthesisFromGesture();
+      playClinicalVoiceNow(a).then(ok=>{
+        if(!ok)alert('Tamil voice could not be played. Please check the internet connection and speaker, then try again.');
+      }).catch(error=>console.warn('Clinical voice did not start:',error));
+      return true;
     }
     async function speakLocalClinicalVoice(a){
       return await playClinicalVoiceNow(a);
@@ -4816,10 +4853,9 @@ https://samaraassistedliving.com/`;
       // 2.19.49: no spoken voice alerts for Admin / Directors (chime, pop-up and notifications stay as before).
       if(isAdminDirectorViewer(profile))return;
       if(!settings.voice_enabled||!soundUnlocked)return;
-      try{window.speechSynthesis?.cancel()}catch(_){}
-      // v2.9.14: local/offline voice path only. Azure/remote TTS is intentionally
-      // disabled. Human-recorded phrase clips can be added later without changing
-      // the alert/escalation timing logic.
+      stopClinicalVoice();
+      // 2.19.99: Gemini Tamil voice. Start fetching now so the audio is ready when the chime ends.
+      try{fetchGeminiTamilVoice(clinicalVoiceTextForGemini(a)).catch(()=>{})}catch(_){}
       window.setTimeout(async()=>{
         if(!settings.voice_enabled||!soundUnlocked)return;
         try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
@@ -5022,26 +5058,20 @@ https://samaraassistedliving.com/`;
         report.beep='failed: '+(error?.message||String(error));
       }
 
-      // Plain English Web Speech test. No Tamil, no patient, no clinical formatter.
+      // 2.19.99: voice list (information only) + the real Gemini Tamil voice test. No English speech.
       try{
         const synth=window.speechSynthesis;
-        if(!synth||typeof window.SpeechSynthesisUtterance!=='function')throw new Error('Speech synthesis is not supported');
-        try{synth.resume?.()}catch(_){}
-        let voices=[]; try{voices=synth.getVoices?.()||[]}catch(_){}
+        let voices=[]; try{voices=synth?.getVoices?.()||[]}catch(_){}
         report.voices=voices.length;
         report.tamilVoices=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith('ta')).length;
         report.englishIndiaVoices=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith('en-in')).length;
-        const u=new SpeechSynthesisUtterance('Samara audio diagnostic. English voice test.');
-        u.lang='en-US'; u.rate=.92; u.pitch=1; u.volume=1;
-        const english=voices.find(v=>String(v.lang||'').toLowerCase().startsWith('en-us'))||voices.find(v=>String(v.lang||'').toLowerCase().startsWith('en'))||voices[0];
-        if(english)u.voice=english;
-        speechKeepAlive.current.push(u);
-        const release=()=>{speechKeepAlive.current=speechKeepAlive.current.filter(x=>x!==u)};
-        u.onstart=()=>{report.speech='started'};
-        u.onend=()=>{report.speech='completed';release()};
-        u.onerror=(event)=>{report.speech='failed';report.speechError=String(event?.error||'unknown speech error');release()};
-        synth.speak(u);
-        if(report.speech==='not tested')report.speech='queued';
+      }catch(_){}
+      try{
+        await Promise.race([
+          playGeminiTamilVoice('சமரா ஆடியோ சோதனை. தமிழ் குரல் சரியாக கேட்கிறது. நன்றி.'),
+          new Promise((_,reject)=>window.setTimeout(()=>reject(new Error('no answer in 20 seconds')),20000))
+        ]);
+        report.speech='played';
       }catch(error){report.speech='failed';report.speechError=error?.message||String(error)}
 
       window.setTimeout(()=>{
@@ -5057,9 +5087,8 @@ https://samaraassistedliving.com/`;
             '',
             `Speech synthesis supported: ${report.speechSynthesis&&report.utteranceSupport?'YES':'NO'}`,
             `Voices detected: ${report.voices}`,
-            `Tamil voices: ${report.tamilVoices}`,
-            `English India voices: ${report.englishIndiaVoices}`,
-            `Simple English speech: ${report.speech}`,
+            `Device Tamil voices (backup): ${report.tamilVoices}`,
+            `Gemini Tamil voice: ${report.speech}`,
             report.speechError?`Speech error: ${report.speechError}`:'',
             '',
             `Browser speech state: speaking=${!!synth?.speaking}, pending=${!!synth?.pending}, paused=${!!synth?.paused}`,
@@ -5182,7 +5211,7 @@ https://samaraassistedliving.com/`;
       if(!clinicalAlertsAllowedFor(profile)){
         setAlerts([]);
         try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
-        try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+        try{stopClinicalVoice()}catch(_){}
         return;
       }
       const {data,error}=await client.rpc('get_current_clinical_alerts');
@@ -5373,7 +5402,7 @@ https://samaraassistedliving.com/`;
       if(!clinicalAlertsAllowedFor(profile)){
         setAlerts([]);
         try{document.querySelectorAll('.samara-clinical-alert-overlay').forEach(node=>node.remove())}catch(_){}
-        try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+        try{stopClinicalVoice()}catch(_){}
         return;
       }
       refresh();const timer=setInterval(refresh,60000);
