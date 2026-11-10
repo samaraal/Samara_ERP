@@ -1,3 +1,6 @@
+## 2.20.6 — 10-11-2026 — Rent / Genset: record payments for past months
+- "Rent for month" now always lists every month from Aug 2026 to next month, so Aug / Sep / Oct rent can be recorded even before "Track rent from" and the monthly rent are set. Frontend only.
+
 ## 2.20.5 — 10-11-2026 — Rent Account (Samara · Hostel · Director House) + "Zenset" renamed "Genset"
 - New **ACCOUNTS → Rent Account** (Admin / Directors): three accounts — Samara, Hostel, Director House — shown as tabs, each with its own **Deposit / Advance** (refundable, not an expense), monthly rent, month-by-month Paid / Part paid / Due / Overdue status and entries list, exactly like the generator account. Rent recorded here goes to Expenses automatically under its own head (Rent - Samara / Rent - Hostel / Rent - Director House) so it counts in Net Profit once. Owner name, monthly rent, GST %, due day and "Track rent from" are set in ⚙ Account details.
 - **Zenset → Genset** everywhere: menu "Genset Account", expense head "Genset Rental" (existing entries renamed, amounts unchanged).

@@ -32,7 +32,7 @@
     const overdueAmt=overdue.reduce((s,m)=>s+Math.max(0,Number(m.due)-Number(m.paid)),0);
 
     function openRent(monthIso){
-      const m=monthIso||(months.slice().reverse().find(x=>x.status!=='Paid')?.month)||zaAddMonths(today,0);
+      const m=monthIso||(months.slice().reverse().find(x=>x.status!=='Paid')?.month)||(today.slice(0,8)+'01');
       const rent=Number(acc?.monthly_rent||0),gst=Math.round(rent*Number(acc?.gst_percent||0)/100); // GST to the whole rupee, as on the bill (13,549 + 2,439 = 15,988)
       setForm({month:String(m).slice(0,10),date:today,rent_amount:String(rent||''),gst_amount:String(gst||''),mode:'Bank Transfer',reference:'',note:'',no_bill:false,no_bill_reason:'',confirm_again:false});
       setBill(null);upload.current=null;setPanel('rent');setMsg('');
@@ -112,7 +112,10 @@
         required&&h('label',{style:{display:'flex',gap:'6px',alignItems:'center',fontWeight:700,color:'#5d1740'}},h('input',{type:'checkbox',checked:!!form.no_bill,onChange:e=>setForm({...form,no_bill:e.target.checked})}),'No bill')),
       required&&form.no_bill&&h('input',{style:{marginTop:'8px',width:'100%'},value:form.no_bill_reason||'',placeholder:'Why is there no bill? (e.g. bill to come from vendor)',onChange:e=>setForm({...form,no_bill_reason:e.target.value})}));
     const monthPaid=form.month&&months.find(m=>String(m.month).slice(0,7)===String(form.month).slice(0,7));
-    const rentMonthOptions=[...new Set([...months.map(m=>String(m.month).slice(0,10)),zaAddMonths(today,1)])].sort().reverse();
+    // 2.20.6: every month from Aug 2026 (Samara opened 27-08-2026) to next month can be chosen — past months can be recorded
+    // even before "Track rent from" / monthly rent are set.
+    const allMonths=[];for(let m='2026-08-01';m<=zaAddMonths(today,1);m=zaAddMonths(m,1))allMonths.push(m);
+    const rentMonthOptions=[...new Set([...months.map(m=>String(m.month).slice(0,10)),...allMonths])].sort().reverse();
 
     const accounts=data?.accounts||[];
     const rentNotSet=acc&&!(Number(acc.monthly_rent)>0&&acc.rent_from);
