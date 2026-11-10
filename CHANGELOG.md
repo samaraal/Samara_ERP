@@ -1,3 +1,6 @@
+## 2.20.4 — 10-11-2026 — Escalation Register: Action buttons kept inside their column
+- Open Source / Acknowledge buttons were wider than the Action column and spilled over Status; now they shrink to the column (140 px) and stack. Frontend only.
+
 ## 2.20.3 — 10-11-2026 — Clinical Escalations register fits the screen
 - Escalation Register: no horizontal scrolling — fixed column widths, text wraps (Reason / Resolution), Open Source + Acknowledge buttons stacked in a narrow Action column. Phones still get the normal layout. Frontend only.
 
