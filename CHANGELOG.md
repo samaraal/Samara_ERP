@@ -1,3 +1,8 @@
+## 2.20.2 — 10-11-2026 — Alert sound + Tamil voice always ON for Nurses / Caregivers (Windows)
+- Nurse and Caregiver logins (also the Nursing Manager in Nurse mode) can no longer switch the clinical alert sound / voice off: the Clinical Alerts button shows **🔒 Sound Always On** (disabled). A stored "off" left on the computer by another login is ignored and reset for them.
+- Sound still switches itself on at the first tap / key anywhere (browser rule). If the station computer's Chrome allows sound for the ERP site (autoplay allow-list), it now switches on at once on load with no tap.
+- Nursing Manager (own login) and Admin keep the on/off button. No SQL, no Edge Function change.
+
 ## 2.20.1 — 10-11-2026 — Clinical Alert Tamil voice starts faster (streaming)
 - The Gemini Tamil voice is now **streamed**: the Edge Function `clinical-alert-voice` passes Gemini's audio on piece by piece and the ERP starts speaking with the first piece (about 1–2 s) instead of waiting ~10 s for the whole recording. The rest keeps arriving while it speaks.
 - The voice download starts while the chime is playing, and the extra 2.3 s wait after the chime is cut to 0.4 s. A repeated alert with the same words plays at once from memory.

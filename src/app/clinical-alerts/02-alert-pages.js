@@ -233,8 +233,9 @@
             border:engine.soundUnlocked?'1px solid #b9dfc4':'1px solid #f3bcbc'
           },
           onClick:engine.toggleSound,
-          title:engine.soundUnlocked?'Click to disable alert sound and automatic voice':'Click to enable alert sound and automatic voice'
-        },engine.soundUnlocked?'✓ Sound Enabled':'Enable Sound'),
+          disabled:!!(engine.soundLockedOn&&engine.soundUnlocked),
+          title:engine.soundLockedOn&&engine.soundUnlocked?'Alert sound and Tamil voice are always on for Nurses / Caregivers':engine.soundUnlocked?'Click to disable alert sound and automatic voice':'Click to enable alert sound and automatic voice'
+        },engine.soundLockedOn&&engine.soundUnlocked?'🔒 Sound Always On':engine.soundUnlocked?'✓ Sound Enabled':'Enable Sound'),
           h('div',{
             style:{
               display:'grid',

@@ -160,16 +160,33 @@
     // silent until someone found "Enable Alert Sound". Now the FIRST tap / key anywhere on this device turns
     // the alert sound + voice on again automatically (unless staff switched it off on this device).
     const SOUND_PREF_KEY='samara_alert_sound';
+    // 2.20.2: Nurse and Caregiver logins (incl. Nursing Manager in Nurse mode) — alert sound + Tamil voice are
+    // ALWAYS ON and cannot be switched off. A stored "off" from another login on this computer is ignored and reset.
+    const soundLockedOn=['Nurse','Caregiver'].includes(String(profile?.role||'').trim());
     React.useEffect(()=>{
       if(soundUnlocked||isMobileClinicalDevice())return;
       let pref='on';try{pref=localStorage.getItem(SOUND_PREF_KEY)||'on'}catch(_){}
+      if(soundLockedOn&&pref==='off'){pref='on';try{localStorage.setItem(SOUND_PREF_KEY,'on')}catch(_){}}
       if(pref==='off')return;
+      // 2.20.2: if Chrome already allows sound on this site (e.g. the station computer's Chrome autoplay
+      // allow-list), switch sound on straight away — no tap needed.
+      try{
+        const Ctx=window.AudioContext||window.webkitAudioContext;
+        if(Ctx){
+          const ctx=audioContext.current||(audioContext.current=new Ctx());
+          if(ctx.state==='running'){
+            setSettings(st=>({...st,sound_enabled:true,voice_enabled:true}));
+            setSoundUnlocked(true);
+            return;
+          }
+        }
+      }catch(_){}
       let done=false;
       const events=['pointerdown','keydown','touchstart'];
       const once=()=>{if(done)return;done=true;events.forEach(ev=>window.removeEventListener(ev,once,true));unlockSound()};
       events.forEach(ev=>window.addEventListener(ev,once,true));
       return()=>events.forEach(ev=>window.removeEventListener(ev,once,true));
-    },[soundUnlocked]);
+    },[soundUnlocked,soundLockedOn]);
     function playClinicalTone(priority='Routine',force=false){
       if(isMobileClinicalDevice())return;
       if(!force&&(!settings.sound_enabled||!soundUnlocked))return;
@@ -253,6 +270,8 @@
       }catch(error){console.warn('Sound unavailable',error)}
     }
     async function toggleSound(){
+      // 2.20.2: Nurses / Caregivers cannot switch the alert sound off.
+      if(soundLockedOn&&soundUnlocked)return;
       if(soundUnlocked){
         try{
           stopClinicalVoice();
@@ -1412,6 +1431,6 @@
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,pushEnabled,unlockSound,toggleSound,requestNotifications,disableNotifications,refreshPushEnabled,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,soundUnlocked,soundLockedOn,pushEnabled,unlockSound,toggleSound,requestNotifications,disableNotifications,refreshPushEnabled,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
   }
 
