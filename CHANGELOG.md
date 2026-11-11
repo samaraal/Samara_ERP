@@ -1,3 +1,5 @@
+## 2.20.11 — 11-11-2026 — HR letters: signatory is always Dr. Krishnan Chellammal (Director), whichever Admin is signed in (Edge Function hr-letters only).
+
 ## 2.20.10 — 11-11-2026 — Probation, Exit & HR Letters (Admin)
 - Personnel File → new **Probation, Exit & HR Letters** section: probation 3 months, **Confirm as Permanent** (Confirmation Letter), notice **1 month on probation / 2 months after confirmation** (per-employee override for older letters), Appointment Letter.
 - Exit flows: **Resignation** (record → accept → last working day → login closes automatically next day), **Show Cause → Terminate** (termination only after a show-cause notice), **Left Without Notice** (report-to-duty notice → abandonment of service), **Suspend / Reinstate** (Suspension Order + login block), **Full & Final** statement (2-working-day pay-by), **Relieving & Experience Letter**.

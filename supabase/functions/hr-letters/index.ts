@@ -1,4 +1,4 @@
-// ERP 2.20.9 — HR letters: PDF + WhatsApp to the employee (Admin / Directors only).
+// ERP 2.20.11 — HR letters (signatory fixed: Dr. Krishnan Chellammal): PDF + WhatsApp to the employee (Admin / Directors only).
 // Letter rows live in public.hr_letters (SQL 370); this function only renders and sends them.
 // Actions (POST JSON, ERP sign-in):
 //   pdf   {letter_id}  -> application/pdf (view / print / download)
@@ -14,6 +14,9 @@ const json=(b:any,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...c
 const env=(n:string)=>Deno.env.get(n)||'';
 const admin=createClient(env('SUPABASE_URL'),env('SUPABASE_SERVICE_ROLE_KEY'),{auth:{persistSession:false}});
 const TEMPLATE='samara_hr_letter';
+// Signing authority for ALL HR letters (Admin, 11-11-2026) — whichever Admin is signed in when the letter is made.
+const SIGNATORY_NAME='Dr. Krishnan Chellammal';
+const SIGNATORY_DESIGNATION='Director';
 const TEMPLATE_NOT_READY=[132000,132001,132005,132007,132012,132015,132016];
 const GRAPH='https://graph.facebook.com/v25.0';
 const inr=(n:any)=>Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -164,7 +167,7 @@ async function letterPdf(L:any){
   }
   need(120);y-=14;
   T('For SAMARA HEALTH CARE LLP',M,y,10.5,B,mag);y-=48;
-  T('Authorised Signatory',M,y,10,B);y-=13;if(d.issued_by){T(d.issued_by,M,y,9.5,R,grey);y-=12;}T(d.signatory_designation||'Director',M,y,9.5,R,grey);
+  T('Authorised Signatory',M,y,10,B);y-=13;T(SIGNATORY_NAME,M,y,9.5,B,ink);y-=12;T(SIGNATORY_DESIGNATION,M,y,9.5,R,grey);
   if(sign!=='issuer'){
     need(110);y-=30;page.drawLine({start:{x:M,y:y+12},end:{x:W-M,y:y+12},thickness:.6,color:line});
     T(sign==='issuer+accept'?'ACCEPTANCE BY THE EMPLOYEE':'ACKNOWLEDGEMENT BY THE EMPLOYEE',M,y-4,10,B,mag);y-=20;
