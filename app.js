@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.22';
+  const APP_VERSION = '2.20.23';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Opening balance details';
+  const APP_BUILD_DATE = '11-Nov-2026 Biometric Attendance (easy TimePro)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -1731,7 +1731,7 @@ function initSamaraInaugurationInvitation(){
     { title:'OVERVIEW', items:['Dashboard','MIS & Audit','Daily Report','Notifications'] }, // 2.19.11: MIS & Audit — Admin / Directors only · 2.19.75: Daily Report — Admin + Nursing Manager
     { title:'ADMIN', items:['Temporary Duty Swap','Additional Duty Assignment','Rooms','Care Packages','Shift Management','Stores Master','Charge Master','Form Field Settings','Audit Trail','Alert Settings','System Maintenance','System Health','Bedside Verification'] }, // 2.16.43: System Health (Admin) · 2.19.93: Bedside Verification (Admin + Nursing Manager)
     { title:'CHARGE MASTER', items:['Charge Master',...CHARGE_MASTER_PAGES] },
-    { title:'HR', items:['HR Dashboard','Employees','Employee Register','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
+    { title:'HR', items:['HR Dashboard','Employees','Employee Register','Biometric Attendance','Duty Assignment','Duty Calendar','Staff Leave Calendar','My Leave & Permission','Leave Approvals','Career Applications','Interviews'] },
     { title:"DIRECTOR'S OFFICE", items:["Director's Office",'Enquiry Register','Enquiries & Feedback'] },
     { title:'ADMISSION', items:['Spot Assessment','Admissions','Admission Register'] }, // 2.15.67: Enquiries moved to DIRECTOR'S OFFICE → Enquiry Register
     { title:'PATIENTS', items:['Patients','Discharge','Documents','Recovery Timeline','Intelligent Reports','Family Communication','Incidents','Medication Errors'] }, // 2.15.58: Guest Ledger / Final Billing live only under ACCOUNTS
@@ -16025,6 +16025,7 @@ https://samaraassistedliving.com/`;
           page==='HR Dashboard'&&h(HRDashboard,{profile,onNavigate:setPage}),
           page==='Employees'&&h(Employees,{profile,onNavigate:setPage}),
           page==='Employee Register'&&h(Employees,{profile,onNavigate:setPage,register:true}),
+          page==='Biometric Attendance'&&h(BiometricAttendance,{profile}),
           page==='My Profile'&&h(MyProfile,{profile:window.SamaraDutySwap.regularProfile(realProfile),onProfileUpdate:p=>{setProfile({...p,...(realProfile.__dutyContext?{role:realProfile.role,designation:realProfile.designation,department:realProfile.department,__dutyContext:realProfile.__dutyContext}:{})});dutyContext.refresh()}}),
           page==='My To-Do List'&&h(NursePersonalTodoList,{profile}),
           page==="Director's Office"&&h(DirectorOfficeDashboard,{profile,onNavigate:setPage}),
@@ -24162,6 +24163,150 @@ Thank you.`;
   }
 
 
+  // ===== 2.20.23: HR → Biometric Attendance (Admin / Directors + Nursing Manager) =====
+  // Punches come from easy TimePro (eSSL / ZKTeco machine at Samara) through the Edge Function
+  // "attendance-push" (SQL 371). Staff are matched by the machine's Employee ID to the ERP employee
+  // list — the names stored in easy TimePro are only shown for reference (they are out of date).
+  const BIO_TEMPLATE='[{"emp_code":"{emp_code}","first_name":"{first_name}","last_name":"{last_name}","punch_datetime":"{punch_datetime}","punch_date":"{punch_date}","punch_time":"{punch_time}","punch_state":"{punch_state}","verify_type":"{verify_type}","terminal_sn":"{terminal_sn}","terminal_alias":"{terminal_alias}","area_name":"{area_name}","upload_time":"{upload_time}"}]';
+  async function bioRpc(action,p={}){
+    const {data,error}=await client.rpc('attendance_rpc',{p_action:action,p});
+    if(error)throw new Error(/function .*attendance_rpc/i.test(error.message||'')?'Biometric Attendance needs SQL 371 to be run in Supabase first.':(error.message||'Could not load attendance.'));
+    return data;
+  }
+  const bioISO=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  function bioPeriod(kind,month,from,to){
+    const t=new Date(`${todayISOIndia()}T00:00:00`);
+    if(kind==='Today')return [bioISO(t),bioISO(t)];
+    if(kind==='Yesterday'){const y=new Date(t);y.setDate(y.getDate()-1);return [bioISO(y),bioISO(y)];}
+    if(kind==='This Week'){const s=new Date(t);s.setDate(s.getDate()-((s.getDay()+6)%7));return [bioISO(s),bioISO(t)];}
+    if(kind==='Month'){const [y,m]=String(month||bioISO(t).slice(0,7)).split('-').map(Number);return [bioISO(new Date(y,m-1,1)),bioISO(new Date(y,m,0))];}
+    return [from||bioISO(t),to||from||bioISO(t)];
+  }
+  const bioTime=v=>{try{return new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'})}catch(_){return '—'}};
+  const bioCopy=async(text,label)=>{try{await navigator.clipboard.writeText(text);alert(`${label} copied.`)}catch(_){window.prompt(`Copy the ${label}:`,text)}};
+
+  function BiometricAttendance({profile}){
+    const isAdmin=profile?.role==='Admin';
+    const [tab,setTab]=React.useState('Punches');
+    const [status,setStatus]=React.useState(null),[codes,setCodes]=React.useState([]),[emps,setEmps]=React.useState([]);
+    const [err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
+    const [draft,setDraft]=React.useState({kind:'Today',month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia(),employee:''});
+    const [filter,setFilter]=React.useState(draft);
+    const [punches,setPunches]=React.useState([]),[open,setOpen]=React.useState('');
+    const [picks,setPicks]=React.useState({});
+    async function loadBase(){
+      try{
+        setErr('');
+        const [st,cd,em]=await Promise.all([bioRpc('status'),bioRpc('codes'),client.from('profiles').select('id,title,full_name,employee_id,designation,is_active,active').order('full_name')]);
+        setStatus(st);setCodes(cd.codes||[]);setEmps((em.data||[]).filter(e=>e.full_name));
+      }catch(e){setErr(e.message)}
+    }
+    async function loadPunches(f=filter){
+      try{const [a,b]=bioPeriod(f.kind,f.month,f.from,f.to);if(b<a)throw new Error('The "To" date is before the "From" date.');
+        setBusy(true);const r=await bioRpc('punches',{from:a,to:b,employee_id:f.employee||''});setPunches(r.punches||[]);setErr('');}
+      catch(e){setErr(e.message)}finally{setBusy(false)}
+    }
+    React.useEffect(()=>{loadBase();loadPunches(filter);},[]);
+    const empById=React.useMemo(()=>Object.fromEntries(emps.map(e=>[String(e.id),e])),[emps]);
+    const empName=e=>e?`${[e.title,e.full_name].filter(Boolean).join(' ')}${e.employee_id?` (${e.employee_id})`:''}`:'';
+    const activeEmps=emps.filter(e=>Boolean(e.is_active??e.active)).sort((a,b)=>String(a.full_name).localeCompare(String(b.full_name)));
+    const unlinked=codes.filter(c=>!c.employee_id&&!c.ignore);
+    const pushUrl=status?.push?.push_key?`${cfg.supabaseUrl}/functions/v1/attendance-push?key=${status.push.push_key}`:'';
+
+    // Day summary: one row per person per day (first / last punch), click shows every punch.
+    const rows=React.useMemo(()=>{
+      const m=new Map();
+      punches.forEach(p=>{const k=`${p.employee_id||'code:'+p.emp_code}|${p.punch_date}`;if(!m.has(k))m.set(k,{key:k,employee_id:p.employee_id,emp_code:p.emp_code,date:p.punch_date,device_name:p.device_name,list:[]});m.get(k).list.push(p);});
+      return [...m.values()].map(r=>{const first=r.list[0],last=r.list[r.list.length-1];const mins=r.list.length>1?Math.round((new Date(last.punch_at)-new Date(first.punch_at))/60000):0;
+        return {...r,first,last,hours:mins?`${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m`:'—',name:r.employee_id?empName(empById[String(r.employee_id)]):`Machine code ${r.emp_code} — not linked`};})
+        .sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.name).localeCompare(String(b.name)));
+    },[punches,empById]);
+
+    async function saveLink(c,ignore=false){
+      const employee_id=ignore?'':(picks[c.emp_code]??c.employee_id??'');
+      if(!ignore&&!employee_id){alert('Choose the ERP employee for this machine code.');return;}
+      try{setBusy(true);await bioRpc('map',{emp_code:c.emp_code,employee_id,ignore});await loadBase();await loadPunches();}
+      catch(e){alert(e.message)}finally{setBusy(false)}
+    }
+    const lastPush=status?.push?.last_push_at;
+    const receiverOk=lastPush&&(Date.now()-new Date(lastPush).getTime()<15*60000);
+
+    return h('div',{className:'page bio-att'},
+      h('style',null,`.bio-att .bio-status{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;border:1px solid #f0bfd6;background:linear-gradient(135deg,#ffe4f0,#fff6fa)}
+        .bio-att .bio-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+        .bio-att .bio-setup{margin-top:12px;padding:14px;border-radius:14px;border:1px dashed #e3b6cb;background:#fff}
+        .bio-att .bio-setup code{display:block;white-space:pre-wrap;word-break:break-all;background:#fff4f9;border:1px solid #f0bfd6;border-radius:10px;padding:8px 10px;margin:4px 0 8px;font-size:12.5px}
+        .bio-att .bio-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px}
+        .bio-att .bio-filters label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;font-weight:700;color:#5b1235}
+        .bio-att table td,.bio-att table th{white-space:normal;word-break:break-word}
+        .bio-att tr.bio-row{cursor:pointer}.bio-att tr.bio-row:hover{background:#fff1f7}
+        .bio-att .bio-detail{background:#fff8fb;padding:8px 12px;border-radius:10px}`),
+      h('div',{className:'page-header'},h('div',null,h('h2',null,'Biometric Attendance'),h('p',{className:'muted'},'Punches from the ZKTeco machine (easy TimePro), matched to the ERP employee list.'))),
+      err?h('div',{className:'message error'},err):null,
+      h('div',{className:'bio-status'},
+        h('span',{className:`badge ${receiverOk?'':'warn'}`},lastPush?`Last data from easy TimePro: ${formatDateIN(lastPush)} ${bioTime(lastPush)}`:'No data received from easy TimePro yet'),
+        h('span',{className:'badge'},`Punches stored: ${status?.total_punches??'—'}`),
+        status?.last_punch_at?h('span',{className:'badge'},`Latest punch: ${formatDateIN(status.last_punch_at)} ${bioTime(status.last_punch_at)}`):null,
+        unlinked.length?h('span',{className:'badge warn'},`${unlinked.length} machine code(s) not linked to an employee`):null,
+        status?.push?.last_push_error?h('span',{className:'badge off',style:{background:'#fde2e2',color:'#a3122a'}},`Last error: ${status.push.last_push_error}`):null),
+      h('div',{className:'bio-tabs'},['Punches','Link Staff',...(isAdmin?['Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
+
+      tab==='Punches'&&h('section',{className:'card'},
+        h('div',{className:'bio-filters'},
+          h('label',null,'Period',h('select',{value:draft.kind,onChange:e=>setDraft({...draft,kind:e.target.value})},['Today','Yesterday','This Week','Month','Period'].map(k=>h('option',{key:k},k)))),
+          draft.kind==='Month'?h('label',null,'Month',h('input',{type:'month',value:draft.month,min:'2026-08',onChange:e=>setDraft({...draft,month:e.target.value})})):null,
+          draft.kind==='Period'?h('label',null,'From',h(StrictDateInput,{value:draft.from,onChange:e=>setDraft({...draft,from:e.target.value})})):null,
+          draft.kind==='Period'?h('label',null,'To',h(StrictDateInput,{value:draft.to,onChange:e=>setDraft({...draft,to:e.target.value})})):null,
+          h('label',null,'Employee',h('select',{value:draft.employee,onChange:e=>setDraft({...draft,employee:e.target.value})},h('option',{value:''},'All employees'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e))))),
+          h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Date','Employee','First punch','Last punch','Time between','Punches'].map(c=>h('th',{key:c},c)))),
+          h('tbody',null,rows.length?rows.flatMap(r=>[
+            h('tr',{key:r.key,className:'bio-row',onClick:()=>setOpen(open===r.key?'':r.key)},
+              h('td',{'data-label':'Date'},formatDateIN(r.date)),
+              h('td',{'data-label':'Employee'},r.employee_id?r.name:h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
+              h('td',{'data-label':'First punch'},bioTime(r.first.punch_at)),
+              h('td',{'data-label':'Last punch'},r.list.length>1?bioTime(r.last.punch_at):'—'),
+              h('td',{'data-label':'Time between'},r.hours),
+              h('td',{'data-label':'Punches'},String(r.list.length))),
+            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:6},h('div',{className:'bio-detail'},
+              h('strong',null,`All punches — machine code ${r.emp_code}${r.device_name?` (name in machine: ${r.device_name})`:''}`),
+              h('ul',{style:{margin:'6px 0 0 18px'}},r.list.map(p=>h('li',{key:p.id},`${bioTime(p.punch_at)} · ${p.punch_state||'Punch'}${p.verify_type?` · ${p.verify_type}`:''}${p.terminal_alias?` · ${p.terminal_alias}`:''}`)))))):null
+          ]):h('tr',null,h('td',{colSpan:6,className:'empty'},busy?'Loading…':'No punches for this period.')))))),
+
+      tab==='Link Staff'&&h('section',{className:'card'},
+        h('p',{className:'muted'},'Each staff member has a number on the machine (Employee ID in easy TimePro). Link each number once to the right ERP employee. The name stored in the machine is shown only to help you.'),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Machine code','Name in machine','Last punch','ERP employee','Action'].map(c=>h('th',{key:c},c)))),
+          h('tbody',null,codes.length?codes.map(c=>h('tr',{key:c.emp_code,className:c.ignore?'employee-disabled':''},
+            h('td',{'data-label':'Machine code'},h('strong',null,c.emp_code)),
+            h('td',{'data-label':'Name in machine'},c.device_name||'—'),
+            h('td',{'data-label':'Last punch'},c.last_punch_at?`${formatDateIN(c.last_punch_at)} ${bioTime(c.last_punch_at)}`:'—'),
+            h('td',{'data-label':'ERP employee'},h('select',{value:picks[c.emp_code]??c.employee_id??'',onChange:e=>setPicks({...picks,[c.emp_code]:e.target.value})},
+              h('option',{value:''},c.ignore?'— ignored —':'— choose employee —'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e)))),
+              c.employee_id&&c.mapped_by_name?h('div',{className:'small-note'},`Linked by ${c.mapped_by_name} on ${formatDateIN(c.mapped_at)}`):null),
+            h('td',{'data-label':'Action'},h('div',{className:'employee-actions'},
+              h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>saveLink(c)},'Save'),
+              c.ignore?null:h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(window.confirm(`Ignore machine code ${c.emp_code} (test / visitor / ex-staff)?`))saveLink(c,true)}},'Ignore')))))
+          :h('tr',null,h('td',{colSpan:5,className:'empty'},'No machine codes yet — they appear here automatically when the first punches arrive from easy TimePro.')))))),
+
+      tab==='Setup (easy TimePro)'&&isAdmin&&h('section',{className:'card'},
+        h('h3',null,'Connect easy TimePro (one time, on the PC where easy TimePro runs)'),
+        h('ol',null,
+          h('li',null,'Open easy TimePro → System → Configuration → Api Settings.'),
+          h('li',null,'User Name / Password: leave as they are (easy TimePro\'s own login).'),
+          h('li',null,'API URL — paste this (keep it private):',pushUrl?h('code',null,pushUrl):h('div',{className:'muted'},'Run SQL 371 first.'),pushUrl?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>bioCopy(pushUrl,'API URL')},'Copy API URL'):null),
+          h('li',null,'Data Template — paste this exactly:',h('code',null,BIO_TEMPLATE),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>bioCopy(BIO_TEMPLATE,'Data Template')},'Copy Data Template')),
+          h('li',null,'Interval Time: 1 (minute). To send older punches too, set Last Api Time to 01-11-2026 00:00 (or the date you want to start from).'),
+          h('li',null,'Tick Enable and press Submit. Within 1–2 minutes "Last data from easy TimePro" above should show the time.')),
+        h('div',{className:'bio-setup'},
+          h('strong',null,'Recent data received (latest 5)'),
+          (status?.recent_log||[]).length?h('ul',{style:{margin:'6px 0 0 18px'}},(status.recent_log||[]).map((l,i)=>h('li',{key:i},`${formatDateIN(l.received_at)} ${bioTime(l.received_at)} — ${l.ok?'OK':'ERROR'} · ${l.rows_in} punch(es) read, ${l.rows_saved} new${l.error?` · ${l.error}`:''}`,l.body?h('code',null,l.body):null))):h('div',{className:'muted'},'Nothing received yet.'),
+          h('div',{className:'employee-actions',style:{marginTop:8}},
+            h('button',{type:'button',className:'btn btn-secondary',onClick:loadBase},'↻ Check again'),
+            h('button',{type:'button',className:'btn btn-secondary',onClick:async()=>{if(!window.confirm('Make a new private key? The old API URL stops working — paste the new URL into easy TimePro.'))return;try{await bioRpc('rotate_key');await loadBase();}catch(e){alert(e.message)}}},'New key'))))
+    );
+  }
   // 2.15.67: Samara Enquiry Register (Director's Office). One register for every admission enquiry:
   // Website / Family Portal and WhatsApp arrive automatically (SQL 196); STD (Akshi), Admin and Manager add
   // Walk-in / Phone enquiries, record follow-ups, set the next follow-up date, assign and close.

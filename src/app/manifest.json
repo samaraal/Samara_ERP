@@ -279,6 +279,11 @@
    "lines": 1374
   },
   {
+   "file": "hr/biometric-attendance.js",
+   "about": "HR → Biometric Attendance: punches from easy TimePro (ZKTeco), machine code ↔ ERP employee links, setup",
+   "lines": 0
+  },
+  {
    "file": "patients/enquiries.js",
    "about": "Enquiry Register page (Director's Office)",
    "lines": 49

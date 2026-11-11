@@ -1,3 +1,8 @@
+## 2.20.23 — 11-11-2026 — Biometric Attendance (step 1: punches into the ERP)
+- New HR → **Biometric Attendance** (Admin / Directors, Nursing Manager): punches from the ZKTeco machine arrive from **easy TimePro** (its Api Settings push every minute) through the new Edge Function **attendance-push** (private key in the URL; Verify JWT OFF).
+- **Link Staff**: each machine Employee ID is linked once to the ERP employee (ERP names are used; easy TimePro names shown for reference only). **Punches**: day-wise first / last punch and time between, filters Today / Yesterday / This Week / Month / Period + employee; click a row for every punch. **Setup** (Admin): API URL + Data Template to paste into easy TimePro, recent data received.
+- Database: `371_biometric_attendance_punches.sql` (new tables + `attendance_rpc`; nothing existing changed). Next step: roster vs. attendance, shift-start alerts, daily confirmation, Payroll from attendance.
+
 ## 2.20.22 — 11-11-2026 — Reports ledger row details: new Opening Balance section — charges, paid / advance, discount and refund before the period start, the resulting opening balance, and a "Show earlier entries" list of every transaction before the period. Frontend only.
 
 ## 2.20.21 — 11-11-2026 — Reports: tapping a row in the Patient / Outside Invoice Financial Ledger opens full details — admission date, opening / charges / paid / discount / refund / closing balance, charges by category, and every transaction of the period (date, type, category, mode, amount, reference / description). Rows in the Detailed Transaction Register open their full details too (incl. entered by). Frontend only.
