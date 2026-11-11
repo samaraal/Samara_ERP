@@ -155,13 +155,13 @@
         h('h4',null,`Staff as sent to the machine (${staffList.length})`),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['Machine no.','ERP ID','Name','Department','Status on machine','Reason'].map(c=>h('th',{key:c},c)))),
-          h('tbody',null,staffList.length?staffList.map(x=>h('tr',{key:x.profile_id||x.emp_code,className:x.status==='active'?'':'employee-disabled'},
+          h('tbody',null,staffList.length?staffList.map(x=>h('tr',{key:x.profile_id||x.emp_code,className:x.status==='active'?'':'bio-blocked-row',style:x.status==='active'?null:{background:'#fdecec'}},
             h('td',{'data-label':'Machine no.'},x.emp_code?h('strong',null,x.emp_code):h('span',{className:'badge warn'},'Not on machine yet — will be added')),
             h('td',{'data-label':'ERP ID'},x.employee_id||'—'),
             h('td',{'data-label':'Name'},[x.title,x.name].filter(Boolean).join(' ')),
             h('td',{'data-label':'Department'},x.department||'Mogappair (no ERP department)'),
-            h('td',{'data-label':'Status on machine'},h('span',{className:`badge ${x.status==='active'?'':'warn'}`},BIO_SYNC_LABEL[x.status]||x.status)),
-            h('td',{'data-label':'Reason'},x.reason||'—')))
+            h('td',{'data-label':'Status on machine'},h('span',{className:'badge',style:x.status==='active'?null:{background:'#c8102e',color:'#fff',borderColor:'#c8102e'}},BIO_SYNC_LABEL[x.status]||x.status)),
+            h('td',{'data-label':'Reason'},x.reason?h('span',{style:x.status==='active'?null:{color:'#b00020',fontWeight:700}},x.reason):'—')))
           :h('tr',null,h('td',{colSpan:6,className:'empty'},syncErr?'—':'Loading…'))))),
         h('h4',{style:{marginTop:16}},'Recent sync runs with changes'),
         (sync?.runs||[]).length?h('div',{className:'table-wrap'},h('table',{className:'table'},
