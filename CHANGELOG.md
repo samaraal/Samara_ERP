@@ -1,3 +1,8 @@
+## 2.20.8 — 11-11-2026 — Employees: safe Disable + Active / Inactive buttons
+- **Fix:** repeated clicks on **Disable** were disabling other employees (the disabled row vanishes and the next employee's Disable button moves under the mouse). Disable / Enable now asks for confirmation naming the employee (name · Employee ID · Login), runs one at a time, and ignores further clicks while it is working ("Disabling…").
+- Employees page: new **Active Employees (n)** and **Inactive Employees (n)** buttons open the Employee Register pre-filtered; tap a row for the full Personnel File. Inactive rows have an **Enable** button (with confirmation) to restore a login switched off by mistake.
+- Frontend only, no database changes. Disable never deleted anyone — it only blocks sign-in; all records stay.
+
 ## 2.20.7 — 10-11-2026 — Rent Account: owner's Rent Receipt (print → sign → upload)
 - Rent Account (Samara · Hostel · Director House): each rent payment and deposit / advance paid now has **🖨 Print** (a ready Rent Receipt for the owner to sign — receipt no. RR/SAM/2026-27/001 etc., amount in words, month, mode / UTR, premises address, owner name / PAN, revenue-stamp box) and **⬆ Upload signed** (photo / PDF of the signed copy, kept against that entry; ✓ Signed opens it, Replace swaps it).
 - New tile **Signed owner receipts pending** (tap to list only those). ⚙ Account details: owner PAN + address of the rented premises (printed on the receipt). New rent payments default to "No bill (owner signs Samara receipt)".

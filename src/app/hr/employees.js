@@ -105,7 +105,9 @@
     const [employmentActions,setEmploymentActions]=React.useState([]);
     // 2.18.156: Employee Register — every employee, Active and Disabled (Admin only).
     const regBlank={status:'All',department:'All',search:''};
-    const [regDraft,setRegDraft]=React.useState(regBlank),[regFilter,setRegFilter]=React.useState(regBlank);
+    // 2.20.8: Active / Inactive buttons on the Employees page open the Register pre-filtered.
+    const regStart=(()=>{try{const v=sessionStorage.getItem('samaraEmployeeRegisterStatus');if(v)sessionStorage.removeItem('samaraEmployeeRegisterStatus');return ['Active','Disabled'].includes(v)?{...regBlank,status:v}:regBlank;}catch(_){return regBlank;}});
+    const [regDraft,setRegDraft]=React.useState(regStart),[regFilter,setRegFilter]=React.useState(()=>regDraft);
     const [regDisabledOn,setRegDisabledOn]=React.useState({});
     const [regBusy,setRegBusy]=React.useState(false);
     React.useEffect(()=>{
@@ -451,7 +453,27 @@
       setBusy(false);
     }
 
-    async function toggle(row){try{await adminRequest({action:'toggle',user_id:row.id,is_active:!(row.is_active??row.active)});await load()}catch(error){alert(error.message||'Unable to update employee')}}
+    // 2.20.8: Disable/Enable safety — one employee at a time, confirmation naming the employee,
+    // and repeated clicks ignored while a change is running (the list shifts after a disable,
+    // so extra clicks used to land on the NEXT employee's Disable button).
+    const toggleLockRef=React.useRef(false);
+    const [toggleBusyId,setToggleBusyId]=React.useState('');
+    async function toggle(row,opts={}){
+      if(toggleLockRef.current)return;
+      const enabling=!(row.is_active??row.active);
+      if(!opts.confirmed){
+        const who=`${formalName(row)}${row.employee_id?` (${row.employee_id})`:''}${row.login_id?` · Login: ${row.login_id}`:''}`;
+        const text=enabling?`ENABLE this employee?\n\n${who}\n\nShe will be able to sign in to the ERP again.`:`DISABLE this employee?\n\n${who}\n\nHer login will be blocked. All records stay saved, and she can be enabled again from the Employee Register.`;
+        if(!window.confirm(text))return;
+      }
+      toggleLockRef.current=true;setToggleBusyId(String(row.id));
+      try{
+        await adminRequest({action:'toggle',user_id:row.id,is_active:enabling});
+        await load();
+        showEmployeeToast('success',`${formalName(row)} ${enabling?'enabled':'disabled'}.`);
+      }catch(error){alert(error.message||'Unable to update employee')}
+      finally{toggleLockRef.current=false;setToggleBusyId('');}
+    }
     function employeeWelcomeSent(row){
       const number=normalizeWhatsAppRecipient(row?.mobile||'');
       return Boolean(number&&welcomeSentNumbers.has(number));
@@ -1002,7 +1024,7 @@
         h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
         h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
-        h('td',{'data-label':'Actions'},fullHRAccess?h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,whatsappWelcomeUrl(r)?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener noreferrer'},'Send Login Details'):null,h('button',{className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked,onClick:()=>toggle(r)},enabled?'Disable':'Enable'),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')):h('div',{className:'employee-actions',onClick:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'View Personnel File')))
+        h('td',{'data-label':'Actions'},fullHRAccess?h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,whatsappWelcomeUrl(r)?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener noreferrer'},'Send Login Details'):null,h('button',{type:'button',className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked||Boolean(toggleBusyId),onClick:()=>toggle(r)},toggleBusyId===String(r.id)?(enabled?'Disabling…':'Enabling…'):(enabled?'Disable':'Enable')),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')):h('div',{className:'employee-actions',onClick:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'View Personnel File')))
       )}),effectiveRows.length===0?h('tr',null,h('td',{colSpan:9,className:'empty'},'No active employees found in this selection.')):null))
     );
 
@@ -1029,7 +1051,7 @@
             h('td',{'data-label':'Created'},fmt(r.created_at)),
             h('td',{'data-label':'Action'},h('button',{type:'button',className:enabled?'btn btn-danger':'btn btn-secondary',onClick:()=>{
               const action=enabled?'disable':'enable';
-              if(window.confirm(`${action==='disable'?'Disable':'Enable'} login “${r.login_id||r.full_name}”?${enabled?' This will block sign-in but preserve the audit record.':''}`))toggle(r);
+              if(window.confirm(`${action==='disable'?'Disable':'Enable'} login “${r.login_id||r.full_name}”?${enabled?' This will block sign-in but preserve the audit record.':''}`))toggle(r,{confirmed:true});
             }},enabled?'Disable Login':'Enable Login'))
           );
         }))
@@ -1449,7 +1471,7 @@
             h('button',{type:'button',className:'btn btn-secondary',onClick:downloadExcel,disabled:!list.length||regBusy},regBusy?'Preparing…':'Excel'))),
         msg?h('div',{className:'message error'},msg):null,
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:'10px',margin:'4px 0 12px'}},
-          statCard('All Employees',all.length,'All'),statCard('Active',activeCount,'Active'),statCard('Disabled',disabledCount,'Disabled')),
+          statCard('All Employees',all.length,'All'),statCard('Active',activeCount,'Active'),statCard('Inactive (Disabled)',disabledCount,'Disabled')),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:'10px',marginBottom:'12px',alignItems:'end'}},
           h('div',{className:'field',style:{margin:0}},h('label',null,'Status'),h('select',{value:regDraft.status,onChange:e=>setRegDraft({...regDraft,status:e.target.value})},['All','Active','Disabled'].map(x=>h('option',{key:x,value:x},x)))),
           h('div',{className:'field',style:{margin:0}},h('label',null,'Department'),h('select',{value:regDraft.department,onChange:e=>setRegDraft({...regDraft,department:e.target.value})},h('option',{value:'All'},'All'),depts.map(d=>h('option',{key:d,value:d},d)))),
@@ -1457,11 +1479,12 @@
           h(ApplyFilterButton,{dirty,onApply:()=>setRegFilter(regDraft)}),
           h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setRegDraft(regBlank);setRegFilter(regBlank);}},'Clear Filters')),
         h('div',{className:'table-wrap'},h('table',{className:'table employee-register-table'},
-          h('thead',null,h('tr',null,cols.map(c=>h('th',{key:c},c)))),
+          h('thead',null,h('tr',null,cols.map(c=>h('th',{key:c},c)),h('th',null,'Action'))),
           h('tbody',null,list.length?list.map((r,i)=>h('tr',{key:r.id,className:`employee-row-touch ${isOn(r)?'employee-active':'employee-disabled'}`,role:'button',tabIndex:0,title:'Tap to open Employee Personnel File',style:{cursor:'pointer'},
               onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
-              cells(r,i).map((v,j)=>h('td',{key:j,'data-label':cols[j]},j===7?h('span',{className:`badge ${isOn(r)?'':'off'}`},v):v))))
-            :h('tr',null,h('td',{colSpan:cols.length,className:'empty'},rows.length?'No employees match this selection.':'Loading employees…')))))
+              cells(r,i).map((v,j)=>h('td',{key:j,'data-label':cols[j]},j===7?h('span',{className:`badge ${isOn(r)?'':'off'}`},v):v)),
+              h('td',{'data-label':'Action',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},!isOn(r)&&!isSamaraAdministratorAccount(r)?h('button',{type:'button',className:'btn btn-primary',disabled:Boolean(toggleBusyId),onClick:()=>toggle(r)},toggleBusyId===String(r.id)?'Enabling…':'Enable'):null)))
+            :h('tr',null,h('td',{colSpan:cols.length+1,className:'empty'},rows.length?'No employees match this selection.':'Loading employees…')))))
       );
     }
     if(register){
@@ -1474,7 +1497,7 @@
           h('button',{type:'button','aria-label':'Close notification',onClick:()=>setEmployeeToast(null)},'×')));
     }
     return h(React.Fragment,null,
-      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,departmentViewOnly?'Nursing HR Dashboard':employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,departmentViewOnly?'Nursing employee cards and personnel files — strictly view only.':employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),fullHRAccess?h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employee Register')},'Employee Register (incl. Disabled)'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')):h('span',{className:'badge'},'VIEW ONLY')),msg&&!show?h('div',{className:'message error'},msg):null,!departmentViewOnly&&employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,!departmentViewOnly&&departmentDashboard,departmentViewOnly?nursingCards:(employeeDepartmentFilter?table:null),unlinkedLoginRegister),
+      h('div',{className:'card panel'},h('div',{className:'panel-head'},h('div',null,h('h3',null,departmentViewOnly?'Nursing HR Dashboard':employeeDepartmentFilter?`${employeeDepartmentFilter==='__ALL__'?'All':employeeDepartmentFilter} Employees`:'Employee Dashboard'),h('small',null,departmentViewOnly?'Nursing employee cards and personnel files — strictly view only.':employeeDepartmentFilter?'Tap an employee to open the Personnel File':'Select a department to view active employees')),fullHRAccess?h('div',{className:'employee-actions'},h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('HR Dashboard')},'← HR Dashboard'),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{try{sessionStorage.setItem('samaraEmployeeRegisterStatus','Active')}catch(_){}onNavigate('Employee Register')}},`Active Employees (${employeeRows.filter(r=>Boolean(r.is_active??r.active)).length})`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{try{sessionStorage.setItem('samaraEmployeeRegisterStatus','Disabled')}catch(_){}onNavigate('Employee Register')}},`Inactive Employees (${employeeRows.filter(r=>!(r.is_active??r.active)).length})`),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>onNavigate('Employee Register')},'Employee Register (All)'),h('button',{className:'btn btn-primary',onClick:()=>{setShow(true);setMsg('')}},'Create Employee')):h('span',{className:'badge'},'VIEW ONLY')),msg&&!show?h('div',{className:'message error'},msg):null,!departmentViewOnly&&employeeDepartmentFilter?h('button',{type:'button',className:'btn btn-secondary employee-back-departments',onClick:()=>setEmployeeDepartmentFilter('')},'← Departments'):null,!departmentViewOnly&&departmentDashboard,departmentViewOnly?nursingCards:(employeeDepartmentFilter?table:null),unlinkedLoginRegister),
       fullHRAccess?createModal:null,detailsModal,fullHRAccess?employmentActionModal():null,fullHRAccess?resetModal:null,fullHRAccess?repairModal:null,
       cameraConfig?h(CameraCaptureModal,{config:cameraConfig,onClose:()=>setCameraConfig(null)}):null,
       employeeToast&&h('div',{className:`samara-toast ${employeeToast.type}`,role:'status','aria-live':'polite'},
