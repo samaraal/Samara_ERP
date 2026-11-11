@@ -225,10 +225,12 @@
 .mh .mh-chip{font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}.mh .mh-chip.ok{background:#e8f6ee;color:#0a7a42}.mh .mh-chip.warn{background:#fff4dd;color:#8a5a00}.mh .mh-chip.held{background:#fdecec;color:#b42318}.mh .mh-chip.miss{background:#f2ecef;color:#6d5963}.mh .mh-chip.late{background:#fff4dd;color:#8a5a00}.mh .mh-when{font-size:12px;color:#6d5963;white-space:nowrap}
 @media(max-width:700px){.mh .mh-line{flex-direction:column;align-items:flex-start;padding-left:10px}.mh .mh-line .mh-right{justify-content:flex-start;text-align:left}}`;
 
-  function MedicationHistory({profile,orders,patients,onBack}){
+  function MedicationHistory({profile,orders,patients,onBack,focus=null}){
     const today=todayISOIndia();
-    const [guestId,setGuestId]=React.useState(''),[search,setSearch]=React.useState('');
-    const [period,setPeriod]=React.useState('today'),[date,setDate]=React.useState(today),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
+    // 2.20.18: focus = {patient_id,date,log_id} — opened from a Clinical Alert's "View Record": that Guest, that day, that dose's details
+    const focusDate=focus&&/^\d{4}-\d{2}-\d{2}$/.test(String(focus.date||''))&&focus.date<=today?focus.date:'';
+    const [guestId,setGuestId]=React.useState(focus?.patient_id||''),[search,setSearch]=React.useState('');
+    const [period,setPeriod]=React.useState(focusDate?'date':'today'),[date,setDate]=React.useState(focusDate||today),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
     const [status,setStatus]=React.useState('all'),[medicine,setMedicine]=React.useState('');
     const fa=useAppliedFilters({guestId,search,period,date,month,from,to,status,medicine});const A=fa.applied;
     const [rawFrom,rawTo]=srPeriodBounds(A);
@@ -249,6 +251,13 @@
     },[]);
     const staffName=id=>{if(!id)return '';const s=staff[id];return s?(formalName(s)||s.full_name||s.login_id||''):''};
     const data=logs?buildMedicationHistory({orders,patients,logs,from:pFrom,to:pTo,A}):null;
+    const focusDone=React.useRef(false);
+    React.useEffect(()=>{
+      if(focusDone.current||!focus?.log_id||!data)return;
+      focusDone.current=true;
+      const hit=data.rows.find(r=>String(r.log?.id||'')===String(focus.log_id));
+      if(hit)setDetail(hit);
+    },[data]);
     const groups=data?mhGroups(data.rows):[];
     const title=mhTitle(A,patients);
     const who=formalName(profile)||profile?.full_name||profile?.login_id||'Staff';

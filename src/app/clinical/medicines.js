@@ -666,6 +666,7 @@
       return()=>{clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
+    const [historyFocus,setHistoryFocus]=React.useState(null); // 2.20.18
     React.useEffect(()=>{
       if(state.loading||taskNavigationHandled.current)return;
       const context=readTaskNavigationContext('Medicines');
@@ -673,6 +674,12 @@
       taskNavigationHandled.current=true;
       setReturnPage(context.return_page||'');
       setPatientFilter(context.patient_id||'');
+      if(context.view_log_id){ // 2.20.18: alert "View Record" for a dose already recorded (Given Late / Not Given)
+        setHistoryFocus({patient_id:context.patient_id||'',date:context.view_date||'',log_id:context.view_log_id});
+        setTab('Medication History');setShowHistoryMobile(true);
+        clearTaskNavigationContext();
+        return;
+      }
       if(context.doctor_review){
         setTab('Prescription History');
         openMedicationReview(context.patient_id||'');
@@ -1018,7 +1025,7 @@
     let table=null;
     if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleActive)});
     if(tab==='Today’s MAR')table=marTodayView;
-    if(tab==='Medication History')table=h(MedicationHistory,{profile,orders:state.orders,patients:state.patients});
+    if(tab==='Medication History')table=h(MedicationHistory,{key:historyFocus?.log_id||'mh',profile,orders:state.orders,patients:state.patients,focus:historyFocus});
 
     if(tab==='Prescription History'){
       const historyOrders=visibleHistory.sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
@@ -1131,7 +1138,7 @@
         !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},count===null?name:`${name} (${count})`)))
       ),
       !patientFilter&&h(DischargeMedicationReview),
-      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{profile,orders:state.orders,patients:state.patients,onBack:()=>setShowHistoryMobile(false)}):marTodayView):table),
+      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{key:historyFocus?.log_id||'mhm',profile,orders:state.orders,patients:state.patients,focus:historyFocus,onBack:()=>setShowHistoryMobile(false)}):marTodayView):table),
       confirmTarget&&(()=>{
         const item=confirmTarget,p=patientFor(item.order),minutes=marMinutes(item);
         return h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!confirmBusy)setConfirmTarget(null)}},

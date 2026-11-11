@@ -1,3 +1,5 @@
+## 2.20.18 — 11-11-2026 — Clinical Alerts "View Record" (and Open Task / Escalation Register "Open Source") for Medicine Given Late / Not Given now opens Medicines → Medication History for that Guest and day with that dose's full details open, instead of a blank give-dose form for another medicine. Frontend only.
+
 ## 2.20.17 — 11-11-2026 — Clinical Alerts: Active Alerts and period Alerts tables fit the screen — no horizontal scrolling, text wraps, action buttons stacked in the last column. Frontend only.
 
 ## 2.20.16 — 11-11-2026 — Clinical Alerts (Manager / Admin): doses already recorded by the nurse as Given Late or Not Given now show "RECORDED" with a **✓ Acknowledge** button (plus View Record) instead of "ESCALATED" / "Complete / Record"; they no longer count as Escalated or Due now — new "To acknowledge" tile / filter. Acknowledge closes the escalation with remark, time and name kept for audit (same as the Escalation Register). Frontend only.

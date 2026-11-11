@@ -122,6 +122,10 @@
     };
 
     function openClinicalTask(a){
+      // 2.20.18: Given Late / Not Given — source_id is the recorded dose entry, so open it in Medication History
+      if(escIsInfo(a.alert_type)&&/^medicine/i.test(String(a.alert_type||''))){
+        openRecordedDose(a);setPage('Medicines');return;
+      }
       const page=a.target_page||'Clinical Alerts';
       if(page==='Clinical Alerts'){setPage(page);return;}
       const context={
@@ -420,6 +424,12 @@
   // 2.19.20: one-tap "Acknowledge" for Manager / Admin. Info alerts (Medicine Given Late, Meal Intake, Nursing Note)
   // are already recorded by the nurse — the Manager only reviews and closes them. Works from the pop-up and the register.
   const ESC_INFO_TYPES=['medicine late','medicine not given','meal intake','nursing note alert'];
+  // 2.20.18: navigation context that opens an already-recorded dose (Medicine Late / Not Given) in Medication History
+  function openRecordedDose(a){
+    let day='';
+    try{if(a.due_at)day=new Date(a.due_at).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(_){}
+    saveTaskNavigationContext({page:'Medicines',return_page:'Clinical Alerts',patient_id:a.patient_id||'',view_log_id:a.source_id||'',view_date:day,alert_type:a.alert_type||''});
+  }
   const escIsInfo=t=>ESC_INFO_TYPES.includes(String(t||'').toLowerCase());
   async function acknowledgeClinicalEscalation({id,alertKey,sourceId,alertType}){
     let escId=id;
@@ -519,7 +529,7 @@
           const elapsed=Math.max(0,Math.floor((Date.now()-new Date(r.created_at).getTime())/60000));
           return [
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
+              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Medicines'&&escIsInfo(r.alert_type))openRecordedDose(r);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
               !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},escIsInfo(r.alert_type)?'✓ Acknowledge':'Mark Resolved'),
               !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             ),

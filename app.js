@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.17';
+  const APP_VERSION = '2.20.18';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Clinical Alerts fit to screen';
+  const APP_BUILD_DATE = '11-Nov-2026 View Record opens the recorded dose';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -5672,6 +5672,10 @@ https://samaraassistedliving.com/`;
     };
 
     function openClinicalTask(a){
+      // 2.20.18: Given Late / Not Given — source_id is the recorded dose entry, so open it in Medication History
+      if(escIsInfo(a.alert_type)&&/^medicine/i.test(String(a.alert_type||''))){
+        openRecordedDose(a);setPage('Medicines');return;
+      }
       const page=a.target_page||'Clinical Alerts';
       if(page==='Clinical Alerts'){setPage(page);return;}
       const context={
@@ -5970,6 +5974,12 @@ https://samaraassistedliving.com/`;
   // 2.19.20: one-tap "Acknowledge" for Manager / Admin. Info alerts (Medicine Given Late, Meal Intake, Nursing Note)
   // are already recorded by the nurse — the Manager only reviews and closes them. Works from the pop-up and the register.
   const ESC_INFO_TYPES=['medicine late','medicine not given','meal intake','nursing note alert'];
+  // 2.20.18: navigation context that opens an already-recorded dose (Medicine Late / Not Given) in Medication History
+  function openRecordedDose(a){
+    let day='';
+    try{if(a.due_at)day=new Date(a.due_at).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(_){}
+    saveTaskNavigationContext({page:'Medicines',return_page:'Clinical Alerts',patient_id:a.patient_id||'',view_log_id:a.source_id||'',view_date:day,alert_type:a.alert_type||''});
+  }
   const escIsInfo=t=>ESC_INFO_TYPES.includes(String(t||'').toLowerCase());
   async function acknowledgeClinicalEscalation({id,alertKey,sourceId,alertType}){
     let escId=id;
@@ -6069,7 +6079,7 @@ https://samaraassistedliving.com/`;
           const elapsed=Math.max(0,Math.floor((Date.now()-new Date(r.created_at).getTime())/60000));
           return [
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
+              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Medicines'&&escIsInfo(r.alert_type))openRecordedDose(r);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
               !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},escIsInfo(r.alert_type)?'✓ Acknowledge':'Mark Resolved'),
               !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             ),
@@ -37739,10 +37749,12 @@ function RoomsBeds({profile,onNavigate}){
 .mh .mh-chip{font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:10px;white-space:nowrap}.mh .mh-chip.ok{background:#e8f6ee;color:#0a7a42}.mh .mh-chip.warn{background:#fff4dd;color:#8a5a00}.mh .mh-chip.held{background:#fdecec;color:#b42318}.mh .mh-chip.miss{background:#f2ecef;color:#6d5963}.mh .mh-chip.late{background:#fff4dd;color:#8a5a00}.mh .mh-when{font-size:12px;color:#6d5963;white-space:nowrap}
 @media(max-width:700px){.mh .mh-line{flex-direction:column;align-items:flex-start;padding-left:10px}.mh .mh-line .mh-right{justify-content:flex-start;text-align:left}}`;
 
-  function MedicationHistory({profile,orders,patients,onBack}){
+  function MedicationHistory({profile,orders,patients,onBack,focus=null}){
     const today=todayISOIndia();
-    const [guestId,setGuestId]=React.useState(''),[search,setSearch]=React.useState('');
-    const [period,setPeriod]=React.useState('today'),[date,setDate]=React.useState(today),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
+    // 2.20.18: focus = {patient_id,date,log_id} — opened from a Clinical Alert's "View Record": that Guest, that day, that dose's details
+    const focusDate=focus&&/^\d{4}-\d{2}-\d{2}$/.test(String(focus.date||''))&&focus.date<=today?focus.date:'';
+    const [guestId,setGuestId]=React.useState(focus?.patient_id||''),[search,setSearch]=React.useState('');
+    const [period,setPeriod]=React.useState(focusDate?'date':'today'),[date,setDate]=React.useState(focusDate||today),[month,setMonth]=React.useState(today.slice(0,7)),[from,setFrom]=React.useState(''),[to,setTo]=React.useState('');
     const [status,setStatus]=React.useState('all'),[medicine,setMedicine]=React.useState('');
     const fa=useAppliedFilters({guestId,search,period,date,month,from,to,status,medicine});const A=fa.applied;
     const [rawFrom,rawTo]=srPeriodBounds(A);
@@ -37763,6 +37775,13 @@ function RoomsBeds({profile,onNavigate}){
     },[]);
     const staffName=id=>{if(!id)return '';const s=staff[id];return s?(formalName(s)||s.full_name||s.login_id||''):''};
     const data=logs?buildMedicationHistory({orders,patients,logs,from:pFrom,to:pTo,A}):null;
+    const focusDone=React.useRef(false);
+    React.useEffect(()=>{
+      if(focusDone.current||!focus?.log_id||!data)return;
+      focusDone.current=true;
+      const hit=data.rows.find(r=>String(r.log?.id||'')===String(focus.log_id));
+      if(hit)setDetail(hit);
+    },[data]);
     const groups=data?mhGroups(data.rows):[];
     const title=mhTitle(A,patients);
     const who=formalName(profile)||profile?.full_name||profile?.login_id||'Staff';
@@ -39100,6 +39119,7 @@ function RoomsBeds({profile,onNavigate}){
       return()=>{clearInterval(timer);window.removeEventListener('focus',load);client.removeChannel(ch)};
     },[]);
 
+    const [historyFocus,setHistoryFocus]=React.useState(null); // 2.20.18
     React.useEffect(()=>{
       if(state.loading||taskNavigationHandled.current)return;
       const context=readTaskNavigationContext('Medicines');
@@ -39107,6 +39127,12 @@ function RoomsBeds({profile,onNavigate}){
       taskNavigationHandled.current=true;
       setReturnPage(context.return_page||'');
       setPatientFilter(context.patient_id||'');
+      if(context.view_log_id){ // 2.20.18: alert "View Record" for a dose already recorded (Given Late / Not Given)
+        setHistoryFocus({patient_id:context.patient_id||'',date:context.view_date||'',log_id:context.view_log_id});
+        setTab('Medication History');setShowHistoryMobile(true);
+        clearTaskNavigationContext();
+        return;
+      }
       if(context.doctor_review){
         setTab('Prescription History');
         openMedicationReview(context.patient_id||'');
@@ -39452,7 +39478,7 @@ function RoomsBeds({profile,onNavigate}){
     let table=null;
     if(tab==='Active Prescriptions')table=h(LogTable,{className:'medication-log-table',title:'Active Prescription Register',subtitle:'Current medicines transcribed during admission or patient update',heads:['Patient','Medicine / Strength','Route','Frequency','Duration','Time','Food','Special instruction','Latest MAR','Action'],rows:prescriptionRows(visibleActive)});
     if(tab==='Today’s MAR')table=marTodayView;
-    if(tab==='Medication History')table=h(MedicationHistory,{profile,orders:state.orders,patients:state.patients});
+    if(tab==='Medication History')table=h(MedicationHistory,{key:historyFocus?.log_id||'mh',profile,orders:state.orders,patients:state.patients,focus:historyFocus});
 
     if(tab==='Prescription History'){
       const historyOrders=visibleHistory.sort((a,b)=>String(b.effective_from||b.created_at||'').localeCompare(String(a.effective_from||a.created_at||'')));
@@ -39565,7 +39591,7 @@ function RoomsBeds({profile,onNavigate}){
         !useFrontlinePriority&&h('div',{className:'time-chip-list',style:{marginTop:'12px'}},tabs.map(([name,count])=>h('button',{type:'button',key:name,className:`btn ${tab===name?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(name)},count===null?name:`${name} (${count})`)))
       ),
       !patientFilter&&h(DischargeMedicationReview),
-      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{profile,orders:state.orders,patients:state.patients,onBack:()=>setShowHistoryMobile(false)}):marTodayView):table),
+      state.loading&&!state.orders.length?h('div',{className:'card panel loading'},'Loading medication register…'):(useFrontlinePriority?(showHistoryMobile?h(MedicationHistory,{key:historyFocus?.log_id||'mhm',profile,orders:state.orders,patients:state.patients,focus:historyFocus,onBack:()=>setShowHistoryMobile(false)}):marTodayView):table),
       confirmTarget&&(()=>{
         const item=confirmTarget,p=patientFor(item.order),minutes=marMinutes(item);
         return h('div',{className:'modal-backdrop',onClick:e=>{if(e.target===e.currentTarget&&!confirmBusy)setConfirmTarget(null)}},
