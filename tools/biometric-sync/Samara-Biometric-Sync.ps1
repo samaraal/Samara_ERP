@@ -78,9 +78,15 @@ function Connect-TpWebSession($base, $user, $pass) {
   $script:TpScheme = 'Web'
   return @{ 'X-CSRFToken' = $csrf; Referer = ($base + '/'); Accept = 'application/json' }
 }
+function Get-PlainUser($cred) {
+  # the Windows login box can return "\admin" or "PC\admin" - easy TimePro wants just "admin"
+  $u = [string]$cred.GetNetworkCredential().UserName
+  if (-not $u) { $u = [string]$cred.UserName }
+  return ($u -replace '^.*\\', '').Trim()
+}
 function Get-TpAuthHeader($cfg) {
   $cred = Import-Clixml $CredPath
-  $user = $cred.UserName
+  $user = Get-PlainUser $cred
   $pass = $cred.GetNetworkCredential().Password
   $script:TpSession = $null
   try { return (Connect-TpWebSession $cfg.TimeProUrl.TrimEnd('/') $user $pass) } catch { $webErr = $_.Exception.Message }
@@ -379,8 +385,11 @@ function Invoke-Setup {
   $tp = (Read-Host 'easy TimePro address [press Enter for http://127.0.0.1:8081]').Trim()
   if (-not $tp) { $tp = 'http://127.0.0.1:8081' }
   Write-Host 'Step 2. Enter the easy TimePro login (the one you use to open easy TimePro, e.g. admin).'
-  $cred = Get-Credential -Message 'easy TimePro login (saved encrypted for this Windows user only)'
-  if (-not $cred) { throw 'No login entered.' }
+  $tpUser = (Read-Host 'easy TimePro user name [press Enter for admin]').Trim()
+  if (-not $tpUser) { $tpUser = 'admin' }
+  $tpPass = Read-Host 'easy TimePro password (hidden while you type)' -AsSecureString
+  if (-not $tpPass -or $tpPass.Length -eq 0) { throw 'No password entered.' }
+  $cred = New-Object System.Management.Automation.PSCredential($tpUser, $tpPass)
   $cred | Export-Clixml -Path $CredPath
   $old = Read-Config
   $cfg = [ordered]@{
@@ -427,7 +436,7 @@ function Invoke-Uninstall {
 function Invoke-Diagnose {
   $cfg = Read-Config; if (-not $cfg) { throw 'Not set up yet.' }
   $cred = Import-Clixml $CredPath
-  $user = $cred.UserName; $pass = $cred.GetNetworkCredential().Password
+  $user = Get-PlainUser $cred; $pass = $cred.GetNetworkCredential().Password
   $base = $cfg.TimeProUrl.TrimEnd('/')
   $json = ConvertTo-JsonBody @{ username = $user; password = $pass }
   $form = 'username=' + [Uri]::EscapeDataString($user) + '&password=' + [Uri]::EscapeDataString($pass)
