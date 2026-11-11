@@ -1,3 +1,5 @@
+## 2.20.12 — 11-11-2026 — HR Letters table shows the real WhatsApp result (Delivered ✓✓ / Read ✓✓ / Not delivered + reason) from the delivery reports, instead of only "Sent". Frontend only.
+
 ## 2.20.11 — 11-11-2026 — HR letters: signatory is always Dr. Krishnan Chellammal (Director), whichever Admin is signed in (Edge Function hr-letters only).
 
 ## 2.20.10 — 11-11-2026 — Probation, Exit & HR Letters (Admin)

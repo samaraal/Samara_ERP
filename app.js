@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.10';
+  const APP_VERSION = '2.20.12';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -22125,11 +22125,19 @@ Thank you.`;
   function EmployeeExitPanel({employee,employmentActions=[],onChanged,setLogin,toast}){
     const [info,setInfo]=React.useState(null),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
     const [step,setStep]=React.useState(null);   // inline form: {kind, ...fields}
+    const [waStatus,setWaStatus]=React.useState({});   // letter id -> latest WhatsApp delivery status (from the webhook)
     const emp=employee;
-    async function reload(){try{setErr('');setInfo(await hrRpc('load',{employee_id:emp.id}));}catch(e){setErr(e.message);}}
+    async function reload(){try{setErr('');const d=await hrRpc('load',{employee_id:emp.id});setInfo(d);loadWaStatus((d.letters||[]).map(l=>l.id));}catch(e){setErr(e.message);}}
+    async function loadWaStatus(ids){
+      if(!ids.length){setWaStatus({});return;}
+      try{
+        const {data}=await client.from('hr_whatsapp_communications').select('status,error_message,created_at,message_payload').eq('template_name','samara_hr_letter').in('message_payload->>hr_letter_id',ids.map(String)).order('created_at',{ascending:false}).limit(500);
+        const m={};(data||[]).forEach(r=>{const id=String(r.message_payload?.hr_letter_id||'');if(id&&!m[id])m[id]=r;});setWaStatus(m);
+      }catch(_){}
+    }
     React.useEffect(()=>{setInfo(null);setStep(null);if(emp?.id)reload();},[emp?.id]);
     const say=(type,text)=>{try{toast?toast(type,text):alert(text);}catch(_){}};
-    const sentText=r=>r.sent?`${r.ref_no} sent on WhatsApp.`:`${r.ref_no} saved, but WhatsApp failed: ${r.error||'unknown error'} — use Resend below.`;
+    const sentText=r=>r.sent?`${r.ref_no} handed to WhatsApp — see Delivered / Not delivered in HR Letters below.`:`${r.ref_no} saved, but WhatsApp failed: ${r.error||'unknown error'} — use Resend below.`;
     async function run(fn){if(busy)return;setBusy(true);try{await fn();await reload();onChanged&&onChanged();}catch(e){say('error',e.message||'Could not save.');}finally{setBusy(false);}}
 
     if(err)return h('section',{className:'employee-info-section hr-exit-section'},h('h4',null,'Probation, Exit & HR Letters'),h('div',{className:'message error'},err));
@@ -22389,7 +22397,14 @@ Thank you.`;
             h('td',{'data-label':'Date'},formatDateIN(l.letter_date)),
             h('td',{'data-label':'Letter'},l.letter_type,l.voided_at?h('span',{className:'badge off',style:{marginLeft:6}},'Voided'):null),
             h('td',{'data-label':'Ref No.'},l.ref_no),
-            h('td',{'data-label':'WhatsApp'},l.sent_at?h('span',{className:'badge'},`Sent ${formatDateIN(l.sent_at)}`):h('span',{className:'badge warn',title:l.send_error||''},l.send_error?'Failed':'Not sent')),
+            h('td',{'data-label':'WhatsApp'},(()=>{
+              const w=waStatus[String(l.id)],st=String(w?.status||'').toLowerCase();
+              if(st==='failed'||st==='undelivered')return h('div',null,h('span',{className:'badge off',style:{background:'#fde2e2',color:'#a3122a'}},'Not delivered'),h('div',{className:'small-note',style:{color:'#a3122a',marginTop:3}},w.error_message||'WhatsApp could not deliver it.'));
+              if(st==='read')return h('span',{className:'badge'},'Read ✓✓');
+              if(st==='delivered')return h('span',{className:'badge'},'Delivered ✓✓');
+              if(l.sent_at)return h('span',{className:'badge warn',title:'WhatsApp accepted it; waiting for the delivery report.'},`Sent ${formatDateIN(l.sent_at)} · awaiting delivery`);
+              return h('span',{className:'badge warn',title:l.send_error||''},l.send_error?'Failed':'Not sent');
+            })()),
             h('td',{'data-label':'Actions'},l.voided_at?null:h('div',{className:'employee-actions'},
               btn('View PDF',()=>hrOpenLetterPdf(l.id)),
               btn(l.sent_at?'Resend':'Send',()=>resend(l),'btn btn-whatsapp'),
