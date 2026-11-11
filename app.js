@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.24';
+  const APP_VERSION = '2.20.25';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24310,7 +24310,7 @@ Thank you.`;
 
       tab==='Staff Sync'&&h('section',{className:'card'},
         h('h3',null,'Staff Sync — ERP employee list → easy TimePro → machine'),
-        h('p',{className:'muted'},'Every 5 minutes the Samara PC program reads this list and updates easy TimePro: new employees are added; a Suspension blocks the person on the machine (fingerprint / face kept, restored on Reinstatement); Resignation / Termination / Left without notice / Disable blocks the person and marks them Resigned in easy TimePro (from the day the ERP login closes). Machine number = number part of the ERP Employee ID (EMP-0025 → 25). Staff in easy TimePro who are not in the ERP are only reported, never changed.'),
+        h('p',{className:'muted'},'Every 5 minutes the Samara PC program reads this list and updates easy TimePro: new employees are added; a Suspension blocks the person on the machine (fingerprint / face kept, restored on Reinstatement); Resignation / Termination / Left without notice / Disable blocks the person and marks them Resigned in easy TimePro (from the day the ERP login closes). Machine number = number part of the ERP Employee ID (EMP-0025 → 25); department = the ERP department (created in easy TimePro when missing). Staff in easy TimePro who are not in the ERP are only reported, never changed.'),
         syncErr?h('div',{className:'message error'},syncErr):null,
         h('div',{className:'bio-status',style:{marginBottom:12}},
           h('span',{className:`badge ${syncFresh?'':'warn'}`},lastSync?`Last sync: ${formatDateIN(lastSync)} ${bioTime(lastSync)}`:'No sync received yet — install the PC program (Admin, steps below)'),
@@ -24319,14 +24319,15 @@ Thank you.`;
           h('button',{type:'button',className:'btn btn-secondary',onClick:loadSync},'↻ Refresh')),
         h('h4',null,`Staff as sent to the machine (${staffList.length})`),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Machine no.','ERP ID','Name','Status on machine','Reason'].map(c=>h('th',{key:c},c)))),
+          h('thead',null,h('tr',null,['Machine no.','ERP ID','Name','Department','Status on machine','Reason'].map(c=>h('th',{key:c},c)))),
           h('tbody',null,staffList.length?staffList.map(x=>h('tr',{key:x.emp_code,className:x.status==='active'?'':'employee-disabled'},
             h('td',{'data-label':'Machine no.'},h('strong',null,x.emp_code)),
             h('td',{'data-label':'ERP ID'},x.employee_id||'—'),
             h('td',{'data-label':'Name'},[x.title,x.name].filter(Boolean).join(' ')),
+            h('td',{'data-label':'Department'},x.department||'Mogappair (no ERP department)'),
             h('td',{'data-label':'Status on machine'},h('span',{className:`badge ${x.status==='active'?'':'warn'}`},BIO_SYNC_LABEL[x.status]||x.status)),
             h('td',{'data-label':'Reason'},x.reason||'—')))
-          :h('tr',null,h('td',{colSpan:5,className:'empty'},syncErr?'—':'Loading…'))))),
+          :h('tr',null,h('td',{colSpan:6,className:'empty'},syncErr?'—':'Loading…'))))),
         h('h4',{style:{marginTop:16}},'Recent sync runs with changes'),
         (sync?.runs||[]).length?h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['When','Result','Changes'].map(c=>h('th',{key:c},c)))),

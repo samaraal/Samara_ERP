@@ -8,6 +8,8 @@
     • resigned / terminated / disabled     → blocked and marked Resigned in easy TimePro
     • reinstated / enabled again           → restored automatically
   Machine Employee ID = number part of the ERP Employee ID (EMP-0025 -> 25).
+  Department = the employee's ERP department (created in easy TimePro when missing; staff are
+  moved when their ERP department changes). No ERP department -> Mogappair.
   Staff in easy TimePro that the ERP does not know are only reported, never changed.
 
   First time (on the PC where easy TimePro runs): right-click this file -> Run with PowerShell,
@@ -117,6 +119,29 @@ function Get-TpAll([string]$path) {
   return ,$all
 }
 function Get-AreaIds($emp) { return @($emp.area | Where-Object { $null -ne $_ } | ForEach-Object { if ($_ -is [System.Management.Automation.PSCustomObject]) { [int]$_.id } else { [int]$_ } }) }
+function Get-DeptId($name, [bool]$dry) {
+  # easy TimePro department for an ERP department name (matched by name; created when missing)
+  $n = ([string]$name).Trim()
+  if (-not $n) { return [int]$script:FallbackDept.id }
+  $key = $n.ToLower()
+  if ($script:DeptCache.ContainsKey($key)) { return $script:DeptCache[$key] }
+  $d = $script:DeptList | Where-Object { ([string]$_.dept_name).Trim().ToLower() -eq $key } | Select-Object -First 1
+  if ($d) { $script:DeptCache[$key] = [int]$d.id; return [int]$d.id }
+  $codes = @($script:DeptList | ForEach-Object { $c = 0; if ([int]::TryParse([string]$_.dept_code, [ref]$c)) { $c } })
+  $next = 10; if ($codes.Count -gt 0) { $next = [Math]::Max(10, ($codes | Measure-Object -Maximum).Maximum + 1) }
+  if ($dry) {
+    Write-Log ("  (test) would create department {0} '{1}' in easy TimePro" -f $next, $n)
+    $fake = -1000 - $script:DeptCache.Count
+    $script:DeptList += [pscustomobject]@{ id = $fake; dept_code = [string]$next; dept_name = $n }
+    $script:DeptCache[$key] = $fake; return $fake
+  }
+  Invoke-Tp 'Post' '/personnel/api/departments/' @{ dept_code = [string]$next; dept_name = $n } | Out-Null
+  Write-Log ("  Created department {0} '{1}' in easy TimePro" -f $next, $n)
+  $script:DeptList = Get-TpAll '/personnel/api/departments/'
+  $d = $script:DeptList | Where-Object { ([string]$_.dept_name).Trim().ToLower() -eq $key } | Select-Object -First 1
+  if (-not $d) { throw "Could not create department '$n' in easy TimePro." }
+  $script:DeptCache[$key] = [int]$d.id; return [int]$d.id
+}
 function Get-ShortName($name) { $n = ([string]$name).Trim(); return $n.Substring(0, [Math]::Min(25, $n.Length)) }
 function Ensure-Area([string]$code, [string]$name, [bool]$dry) {
   $a = $script:Areas | Where-Object { [string]$_.area_code -eq $code } | Select-Object -First 1
@@ -163,6 +188,9 @@ function Invoke-Sync([bool]$dry) {
         if (-not $dept) { throw 'Could not create the Mogappair department in easy TimePro.' }
       }
     }
+    $script:DeptList = @($depts)
+    $script:DeptCache = @{}
+    $script:FallbackDept = $dept
     $pos = $positions | Where-Object { [string]$_.position_code -eq [string]$script:Cfg.PositionCode } | Select-Object -First 1
     $activeArea  = Ensure-Area ([string]$script:Cfg.ActiveAreaCode)  ([string]$script:Cfg.ActiveAreaName)  $dry
     $blockedArea = Ensure-Area ([string]$script:Cfg.BlockedAreaCode) ([string]$script:Cfg.BlockedAreaName) $dry
@@ -196,7 +224,7 @@ function Invoke-Sync([bool]$dry) {
               if (-not $e) { throw 'Reinstated, but the employee was not found afterwards.' }
             }
             if (-not $e) {
-              $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = [int]$dept.id; area = @($activeArea) }
+              $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptId $s.department $dry); area = @($activeArea) }
               if ($pos) { $body.position = [int]$pos.id }
               if ($s.date_of_joining) { $body.hire_date = [string]$s.date_of_joining }
               if ($s.gender) { $body.gender = [string]$s.gender }
@@ -222,9 +250,12 @@ function Invoke-Sync([bool]$dry) {
             $patch = @{}
             if ([string]$e.first_name -ne $want) { $patch.first_name = $want }
             if ($s.mobile -and [string]$e.mobile -ne [string]$s.mobile) { $patch.mobile = [string]$s.mobile }
+            $wantDept = Get-DeptId $s.department $dry
+            $haveDept = $null; if ($e.department -is [System.Management.Automation.PSCustomObject]) { $haveDept = [int]$e.department.id } elseif ($e.department) { $haveDept = [int]$e.department }
+            if ($haveDept -ne $wantDept) { $patch.department = $wantDept }
             if ($patch.Count -gt 0) {
               if (-not $dry) { Invoke-Tp 'Patch' ("/personnel/api/employees/{0}/" -f $e.id) $patch | Out-Null }
-              $what = ($patch.Keys | Sort-Object) -join ', '
+              $what = ($patch.Keys | Sort-Object | ForEach-Object { if ($_ -eq 'department') { "department -> $($s.department)" } else { $_ } }) -join ', '
               [void]$actions.Add(@{ type = 'updated'; emp_code = $code; name = $s.name; note = ('Updated ' + $what) })
               $summary.updated++; $changed = $true
               Write-Log "UPDATED   $label ($what)"
