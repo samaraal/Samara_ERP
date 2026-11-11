@@ -57,10 +57,29 @@ function ConvertTo-JsonBody($obj) {
   $json = $obj | ConvertTo-Json -Depth 6 -Compress
   return ,([Text.Encoding]::UTF8.GetBytes($json))   # the comma keeps it one byte[] (PowerShell would unroll it)
 }
+function Connect-TpWebSession($base, $user, $pass) {
+  # The same sign-in as the easy TimePro page in the browser (sees every department / area / employee).
+  $sess = $null
+  $page = Invoke-WebRequest -Uri ($base + '/login/') -SessionVariable sess -UseBasicParsing -TimeoutSec 30
+  $m = [regex]::Match($page.Content, 'name=["'']csrfmiddlewaretoken["''][^>]*value=["'']([^"'']+)')
+  if (-not $m.Success) { $m = [regex]::Match($page.Content, 'value=["'']([^"'']+)["''][^>]*name=["'']csrfmiddlewaretoken') }
+  if (-not $m.Success) { throw 'login page without form key' }
+  $form = @{ csrfmiddlewaretoken = $m.Groups[1].Value; username = $user; password = $pass; template10 = ''; login_type = 'pwd' }
+  Invoke-WebRequest -Uri ($base + '/login/') -Method Post -Body $form -WebSession $sess -Headers @{ Referer = ($base + '/login/') } -UseBasicParsing -TimeoutSec 30 | Out-Null
+  $test = Invoke-WebRequest -Uri ($base + '/personnel/api/departments/') -WebSession $sess -Headers @{ Accept = 'application/json' } -UseBasicParsing -TimeoutSec 30
+  if ($test.Content -notmatch '^\s*\{') { throw 'browser-style sign-in was not accepted (check the user name / password)' }
+  $csrf = ''
+  foreach ($c in $sess.Cookies.GetCookies([Uri]($base + '/'))) { if ($c.Name -eq 'csrftoken') { $csrf = $c.Value } }
+  $script:TpSession = $sess
+  $script:TpScheme = 'Web'
+  return @{ 'X-CSRFToken' = $csrf; Referer = ($base + '/'); Accept = 'application/json' }
+}
 function Get-TpAuthHeader($cfg) {
   $cred = Import-Clixml $CredPath
   $user = $cred.UserName
   $pass = $cred.GetNetworkCredential().Password
+  $script:TpSession = $null
+  try { return (Connect-TpWebSession $cfg.TimeProUrl.TrimEnd('/') $user $pass) } catch { $webErr = $_.Exception.Message }
   $body = ConvertTo-JsonBody @{ username = $user; password = $pass }
   $form = 'username=' + [Uri]::EscapeDataString($user) + '&password=' + [Uri]::EscapeDataString($pass)
   foreach ($try in @(@{ path = '/jwt-api-token-auth/'; scheme = 'JWT'; form = $false }, @{ path = '/jwt-api-token-auth/'; scheme = 'JWT'; form = $true }, @{ path = '/api-token-auth/'; scheme = 'Token'; form = $false })) {
@@ -70,11 +89,12 @@ function Get-TpAuthHeader($cfg) {
       if ($r.token) { $script:TpScheme = $try.scheme; return @{ Authorization = ('{0} {1}' -f $try.scheme, $r.token) } }
     } catch { $last = $_.Exception.Message }
   }
-  throw "easy TimePro login failed ($last). Check that easy TimePro is open at $($cfg.TimeProUrl) and run setup again if the password changed."
+  throw "easy TimePro login failed ($webErr; $last). Check that easy TimePro is open at $($cfg.TimeProUrl) and run setup again if the password changed."
 }
 function Invoke-Tp($method, [string]$path, $body = $null) {
   $uri = $script:Cfg.TimeProUrl.TrimEnd('/') + $path
   $p = @{ Method = $method; Uri = $uri; Headers = $script:TpAuth; TimeoutSec = 60 }
+  if ($script:TpSession) { $p.WebSession = $script:TpSession }
   if ($null -ne $body) { $p.Body = (ConvertTo-JsonBody $body); $p.ContentType = 'application/json; charset=utf-8' }
   try { return Invoke-RestMethod @p }
   catch {
@@ -328,6 +348,16 @@ function Invoke-Diagnose {
   $tests = @(@{ n = 'JWT json'; p = '/jwt-api-token-auth/'; s = 'JWT'; b = $json; c = 'application/json' },
              @{ n = 'JWT form'; p = '/jwt-api-token-auth/'; s = 'JWT'; b = $form; c = 'application/x-www-form-urlencoded' },
              @{ n = 'Token json'; p = '/api-token-auth/'; s = 'Token'; b = $json; c = 'application/json' })
+  Write-Host ''
+  Write-Host ("--- browser-style sign-in as '{0}'" -f $user) -ForegroundColor Magenta
+  try {
+    $wh = Connect-TpWebSession $base $user $pass
+    foreach ($path in '/personnel/api/departments/', '/personnel/api/areas/', '/personnel/api/employees/?page_size=100') {
+      $d = Invoke-RestMethod -Method Get -Uri ($base + $path) -Headers $wh -WebSession $script:TpSession -TimeoutSec 30
+      $items = @($d.data) | ForEach-Object { if ($_.dept_code) { "$($_.dept_code)=$($_.dept_name)" } elseif ($_.area_code) { "$($_.area_code)=$($_.area_name)" } else { "$($_.emp_code)" } }
+      Write-Host ("  {0}: count={1} -> {2}" -f $path, $d.count, ($items -join ', '))
+    }
+  } catch { Write-Host "  FAILED: $($_.Exception.Message)" }
   foreach ($t in $tests) {
     Write-Host ''
     Write-Host ("--- login {0} ({1}) as '{2}'" -f $t.n, $t.p, $user) -ForegroundColor Magenta
