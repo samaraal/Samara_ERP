@@ -18,6 +18,15 @@
     return [from||bioISO(t),to||from||bioISO(t)];
   }
   const bioTime=v=>{try{return new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'})}catch(_){return '—'}};
+  // 2.20.24: Staff Sync — the ERP employee list drives who can use the machine (SQL 372, Edge Function
+  // "biometric-staff-sync", PC program tools/biometric-sync/Samara-Biometric-Sync.ps1 every 5 minutes).
+  async function bioSyncRpc(action,p={}){
+    const {data,error}=await client.rpc('biometric_staff_sync_rpc',{p_action:action,p});
+    if(error)throw new Error(/function .*biometric_staff_sync_rpc/i.test(error.message||'')?'Staff Sync needs SQL 372 to be run in Supabase first.':(error.message||'Could not load Staff Sync.'));
+    return data;
+  }
+  const BIO_SYNC_LABEL={active:'Active — on the machine',suspended:'Suspended — blocked (fingerprint kept)',exited:'Left — blocked & marked Resigned'};
+  const BIO_ACTION_LABEL={added:'Added',restored:'Restored',blocked:'Blocked',resigned:'Resigned',updated:'Updated',not_in_erp:'Not in ERP'};
   const bioCopy=async(text,label)=>{try{await navigator.clipboard.writeText(text);alert(`${label} copied.`)}catch(_){window.prompt(`Copy the ${label}:`,text)}};
 
   function BiometricAttendance({profile}){
@@ -29,6 +38,8 @@
     const [filter,setFilter]=React.useState(draft);
     const [punches,setPunches]=React.useState([]),[open,setOpen]=React.useState('');
     const [picks,setPicks]=React.useState({});
+    const [sync,setSync]=React.useState(null),[syncErr,setSyncErr]=React.useState(''),[runOpen,setRunOpen]=React.useState('');
+    async function loadSync(){try{setSync(await bioSyncRpc('status'));setSyncErr('');}catch(e){setSyncErr(e.message)}}
     async function loadBase(){
       try{
         setErr('');
@@ -41,12 +52,18 @@
         setBusy(true);const r=await bioRpc('punches',{from:a,to:b,employee_id:f.employee||''});setPunches(r.punches||[]);setErr('');}
       catch(e){setErr(e.message)}finally{setBusy(false)}
     }
-    React.useEffect(()=>{loadBase();loadPunches(filter);},[]);
+    React.useEffect(()=>{loadBase();loadPunches(filter);loadSync();},[]);
     const empById=React.useMemo(()=>Object.fromEntries(emps.map(e=>[String(e.id),e])),[emps]);
     const empName=e=>e?`${[e.title,e.full_name].filter(Boolean).join(' ')}${e.employee_id?` (${e.employee_id})`:''}`:'';
     const activeEmps=emps.filter(e=>Boolean(e.is_active??e.active)).sort((a,b)=>String(a.full_name).localeCompare(String(b.full_name)));
     const unlinked=codes.filter(c=>!c.employee_id&&!c.ignore);
     const pushUrl=status?.push?.push_key?`${cfg.supabaseUrl}/functions/v1/attendance-push?key=${status.push.push_key}`:'';
+    const syncUrl=status?.push?.push_key?`${cfg.supabaseUrl}/functions/v1/biometric-staff-sync?key=${status.push.push_key}`:'';
+    const syncScript='tools/biometric-sync/Samara-Biometric-Sync.ps1';
+    const syncSetupCmd="Set-ExecutionPolicy -Scope Process Bypass -Force; $f=Join-Path (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path 'Samara-Biometric-Sync.ps1'; Unblock-File $f; & $f -Setup";
+    const lastSync=sync?.sync?.last_at;
+    const syncFresh=lastSync&&(Date.now()-new Date(lastSync).getTime()<20*60000);
+    const staffList=sync?.staff||[];
 
     // Day summary: one row per person per day (first / last punch), click shows every punch.
     const rows=React.useMemo(()=>{
@@ -83,8 +100,9 @@
         h('span',{className:'badge'},`Punches stored: ${status?.total_punches??'—'}`),
         status?.last_punch_at?h('span',{className:'badge'},`Latest punch: ${formatDateIN(status.last_punch_at)} ${bioTime(status.last_punch_at)}`):null,
         unlinked.length?h('span',{className:'badge warn'},`${unlinked.length} machine code(s) not linked to an employee`):null,
+        sync?h('span',{className:`badge ${syncFresh&&sync?.sync?.ok!==false?'':'warn'}`},lastSync?`Staff sync: ${formatDateIN(lastSync)} ${bioTime(lastSync)}${sync?.sync?.ok===false?' — error':''}`:'Staff sync not set up yet'):null,
         status?.push?.last_push_error?h('span',{className:'badge off',style:{background:'#fde2e2',color:'#a3122a'}},`Last error: ${status.push.last_push_error}`):null),
-      h('div',{className:'bio-tabs'},['Punches','Link Staff',...(isAdmin?['Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
+      h('div',{className:'bio-tabs'},['Punches','Link Staff','Staff Sync',...(isAdmin?['Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
 
       tab==='Punches'&&h('section',{className:'card'},
         h('div',{className:'bio-filters'},
@@ -124,6 +142,49 @@
               h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>saveLink(c)},'Save'),
               c.ignore?null:h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>{if(window.confirm(`Ignore machine code ${c.emp_code} (test / visitor / ex-staff)?`))saveLink(c,true)}},'Ignore')))))
           :h('tr',null,h('td',{colSpan:5,className:'empty'},'No machine codes yet — they appear here automatically when the first punches arrive from easy TimePro.')))))),
+
+      tab==='Staff Sync'&&h('section',{className:'card'},
+        h('h3',null,'Staff Sync — ERP employee list → easy TimePro → machine'),
+        h('p',{className:'muted'},'Every 5 minutes the Samara PC program reads this list and updates easy TimePro: new employees are added; a Suspension blocks the person on the machine (fingerprint / face kept, restored on Reinstatement); Resignation / Termination / Left without notice / Disable blocks the person and marks them Resigned in easy TimePro (from the day the ERP login closes). Machine number = number part of the ERP Employee ID (EMP-0025 → 25). Staff in easy TimePro who are not in the ERP are only reported, never changed.'),
+        syncErr?h('div',{className:'message error'},syncErr):null,
+        h('div',{className:'bio-status',style:{marginBottom:12}},
+          h('span',{className:`badge ${syncFresh?'':'warn'}`},lastSync?`Last sync: ${formatDateIN(lastSync)} ${bioTime(lastSync)}`:'No sync received yet — install the PC program (Admin, steps below)'),
+          sync?.sync?.ok===false?h('span',{className:'badge off',style:{background:'#fde2e2',color:'#a3122a'}},`Last error: ${sync.sync.error||'see runs below'}`):null,
+          lastSync&&!syncFresh?h('span',{className:'badge warn'},'No sync in the last 20 minutes — is the Samara PC on and easy TimePro open?'):null,
+          h('button',{type:'button',className:'btn btn-secondary',onClick:loadSync},'↻ Refresh')),
+        h('h4',null,`Staff as sent to the machine (${staffList.length})`),
+        h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['Machine no.','ERP ID','Name','Status on machine','Reason'].map(c=>h('th',{key:c},c)))),
+          h('tbody',null,staffList.length?staffList.map(x=>h('tr',{key:x.emp_code,className:x.status==='active'?'':'employee-disabled'},
+            h('td',{'data-label':'Machine no.'},h('strong',null,x.emp_code)),
+            h('td',{'data-label':'ERP ID'},x.employee_id||'—'),
+            h('td',{'data-label':'Name'},[x.title,x.name].filter(Boolean).join(' ')),
+            h('td',{'data-label':'Status on machine'},h('span',{className:`badge ${x.status==='active'?'':'warn'}`},BIO_SYNC_LABEL[x.status]||x.status)),
+            h('td',{'data-label':'Reason'},x.reason||'—')))
+          :h('tr',null,h('td',{colSpan:5,className:'empty'},syncErr?'—':'Loading…'))))),
+        h('h4',{style:{marginTop:16}},'Recent sync runs with changes'),
+        (sync?.runs||[]).length?h('div',{className:'table-wrap'},h('table',{className:'table'},
+          h('thead',null,h('tr',null,['When','Result','Changes'].map(c=>h('th',{key:c},c)))),
+          h('tbody',null,(sync.runs||[]).flatMap((r,i)=>{const k=String(i);const acts=(r.actions||[]).filter(a=>a.type!=='not_in_erp');const s=r.summary||{};
+            return [h('tr',{key:k,className:'bio-row',onClick:()=>setRunOpen(runOpen===k?'':k)},
+              h('td',{'data-label':'When'},`${formatDateIN(r.at)} ${bioTime(r.at)}`),
+              h('td',{'data-label':'Result'},h('span',{className:`badge ${r.ok?'':'warn'}`},r.dry_run?'Test run (nothing changed)':r.ok?'OK':'Error')),
+              h('td',{'data-label':'Changes'},['added','restored','blocked','resigned','updated'].filter(t=>s[t]).map(t=>`${BIO_ACTION_LABEL[t]} ${s[t]}`).join(' · ')||(r.errors||[]).length&&`${r.errors.length} error(s)`||'—')),
+              runOpen===k?h('tr',{key:k+'-d'},h('td',{colSpan:3},h('div',{className:'bio-detail'},
+                h('ul',{style:{margin:'0 0 0 18px'}},
+                  acts.map((a,j)=>h('li',{key:'a'+j},`${BIO_ACTION_LABEL[a.type]||a.type}: ${a.name||''} (machine ${a.emp_code}) — ${a.note||''}`)),
+                  (r.actions||[]).filter(a=>a.type==='not_in_erp').map((a,j)=>h('li',{key:'n'+j,style:{color:'#8a5a00'}},`In easy TimePro but not in the ERP: machine ${a.emp_code} ${a.name||''} — left unchanged`)),
+                  (r.errors||[]).map((e,j)=>h('li',{key:'e'+j,style:{color:'#a3122a'}},`Error${e.name?` (${e.name})`:''}: ${e.message}`)))))):null];})))):h('div',{className:'muted'},'None yet.'),
+        isAdmin&&h('div',{className:'bio-setup',style:{marginTop:16}},
+          h('strong',null,'Install the sync program (one time, on the Samara PC where easy TimePro runs)'),
+          h('ol',null,
+            h('li',null,'On that PC open the ERP, come here and press ',h('a',{href:syncScript,download:'Samara-Biometric-Sync.ps1'},'Download sync program'),' (saved to Downloads).'),
+            h('li',null,'Press Copy Staff Sync URL (keep it private — it has the same key as the punch API URL):',syncUrl?h('code',null,syncUrl):h('div',{className:'muted'},'Run SQL 371 first.'),syncUrl?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>bioCopy(syncUrl,'Staff Sync URL')},'Copy Staff Sync URL'):null),
+            h('li',null,'Press the Windows key, type PowerShell, open it, paste this command and press Enter:',h('code',null,syncSetupCmd),h('button',{type:'button',className:'btn btn-secondary',onClick:()=>bioCopy(syncSetupCmd,'setup command')},'Copy setup command')),
+            h('li',null,'Paste the Staff Sync URL when asked, then enter the easy TimePro login (e.g. admin and its password — saved encrypted on that PC only).'),
+            h('li',null,'It shows a test run (nothing changed). Check it, type Y — it applies the changes and from then on runs every 5 minutes and when Windows starts. Results appear above.'),
+            h('li',null,'In easy TimePro: put the biometric machine in the area "Samara Mogappair" (Device → Device → Area). Never put a machine in "Blocked - No Access".')),
+          h('div',{className:'small-note'},'The PC is switched off at night: changes made after that reach the machine the next morning. For an urgent block at night, delete the person directly on the machine.'))),
 
       tab==='Setup (easy TimePro)'&&isAdmin&&h('section',{className:'card'},
         h('h3',null,'Connect easy TimePro (one time, on the PC where easy TimePro runs)'),

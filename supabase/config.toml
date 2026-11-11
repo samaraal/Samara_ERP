@@ -12,3 +12,11 @@ verify_jwt = false
 [functions.razorpay-reconcile]
 # Cron only: checks x-cron-secret itself (SQL 313).
 verify_jwt = false
+
+[functions.attendance-push]
+# easy TimePro push: private key in the URL (SQL 371).
+verify_jwt = false
+
+[functions.biometric-staff-sync]
+# Samara PC sync program: private key in the URL (SQL 372).
+verify_jwt = false
