@@ -65,7 +65,7 @@ function Get-TpAuthHeader($cfg) {
   foreach ($try in @(@{ path = '/jwt-api-token-auth/'; scheme = 'JWT' }, @{ path = '/api-token-auth/'; scheme = 'Token' })) {
     try {
       $r = Invoke-RestMethod -Method Post -Uri ($cfg.TimeProUrl.TrimEnd('/') + $try.path) -Body $body -ContentType 'application/json; charset=utf-8' -TimeoutSec 30
-      if ($r.token) { return @{ Authorization = ('{0} {1}' -f $try.scheme, $r.token) } }
+      if ($r.token) { $script:TpScheme = $try.scheme; return @{ Authorization = ('{0} {1}' -f $try.scheme, $r.token) } }
     } catch { $last = $_.Exception.Message }
   }
   throw "easy TimePro login failed ($last). Check that easy TimePro is open at $($cfg.TimeProUrl) and run setup again if the password changed."
@@ -86,6 +86,8 @@ function Get-TpAll([string]$path) {
   while ($true) {
     $sep = '?'; if ($path.Contains('?')) { $sep = '&' }
     $r = Invoke-Tp 'Get' ("{0}{1}page={2}&page_size=100" -f $path, $sep, $page)
+    if ($null -ne $r.code -and [string]$r.code -ne '0' -and -not $r.data) { throw ("easy TimePro {0}: {1} (code {2})" -f $path, $r.msg, $r.code) }
+    if ($null -eq $r.data -and $null -eq $r.count) { throw ("easy TimePro {0} gave an unexpected answer: {1}" -f $path, (($r | ConvertTo-Json -Depth 3 -Compress) -replace '\s+',' ').Substring(0, [Math]::Min(300, (($r | ConvertTo-Json -Depth 3 -Compress)).Length))) }
     if ($r.data) { $all += @($r.data) }
     if (-not $r.next -or $page -gt 100) { break }
     $page++
@@ -126,7 +128,11 @@ function Invoke-Sync([bool]$dry) {
     $depts = Get-TpAll '/personnel/api/departments/'
     $positions = Get-TpAll '/personnel/api/positions/'
     $dept = $depts | Where-Object { [string]$_.dept_code -eq [string]$script:Cfg.DepartmentCode } | Select-Object -First 1
-    if (-not $dept) { throw "Department code $($script:Cfg.DepartmentCode) not found in easy TimePro." }
+    if (-not $dept) { $dept = $depts | Where-Object { [string]$_.dept_name -eq 'Mogappair' } | Select-Object -First 1 }
+    if (-not $dept) {
+      $seen = ($depts | ForEach-Object { '{0}={1}' -f $_.dept_code, $_.dept_name }) -join ', '
+      throw ("Department code {0} not found in easy TimePro (login type {1}; departments seen: {2})." -f $script:Cfg.DepartmentCode, $script:TpScheme, $(if ($seen) { $seen } else { 'none' }))
+    }
     $pos = $positions | Where-Object { [string]$_.position_code -eq [string]$script:Cfg.PositionCode } | Select-Object -First 1
     $activeArea  = Ensure-Area ([string]$script:Cfg.ActiveAreaCode)  ([string]$script:Cfg.ActiveAreaName)  $dry
     $blockedArea = Ensure-Area ([string]$script:Cfg.BlockedAreaCode) ([string]$script:Cfg.BlockedAreaName) $dry
