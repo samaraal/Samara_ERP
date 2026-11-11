@@ -1,3 +1,5 @@
+## 2.20.22 — 11-11-2026 — Reports ledger row details: new Opening Balance section — charges, paid / advance, discount and refund before the period start, the resulting opening balance, and a "Show earlier entries" list of every transaction before the period. Frontend only.
+
 ## 2.20.21 — 11-11-2026 — Reports: tapping a row in the Patient / Outside Invoice Financial Ledger opens full details — admission date, opening / charges / paid / discount / refund / closing balance, charges by category, and every transaction of the period (date, type, category, mode, amount, reference / description). Rows in the Detailed Transaction Register open their full details too (incl. entered by). Frontend only.
 
 ## 2.20.20 — 11-11-2026 — Clinical alerts: the ✓ Acknowledge button (alert pop-up, Clinical Alerts page, row details, Escalation Register) is shown only to the Nursing Manager and Admin / Directors; other Manager logins see "Awaiting Nursing Manager / Admin". Frontend only.

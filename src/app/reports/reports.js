@@ -383,6 +383,17 @@ function Reports(){
     ledgerDetail&&(()=>{
       const d=ledgerDetail,p=d.patient||{};
       const txns=periodRows.filter(r=>r.patient_id===p.id).slice().sort((a,b)=>String(a.transaction_date||'').localeCompare(String(b.transaction_date||'')));
+      // 2.20.22: how the Opening balance is made up — every entry before the period start
+      const prior=filters.from?balanceBase.filter(r=>r.patient_id===p.id&&dateOnly(r.transaction_date)<filters.from).slice().sort((a,b)=>String(a.transaction_date||'').localeCompare(String(b.transaction_date||''))):[];
+      const pSum=t=>prior.filter(r=>t.includes(r.transaction_type)).reduce((a,r)=>a+Number(r.amount||0),0);
+      const pCharges=pSum(['Charge']),pPaid=pSum(['Payment','Advance']),pDisc=pSum(['Discount']),pRef=pSum(['Refund']);
+      const pCalc=pCharges-pPaid-pDisc+pRef;
+      const txnTable=(list,cls)=>h('div',{style:{overflowX:'visible'}},h('table',{className:'table ledger-detail-fit'},
+            h('thead',null,h('tr',null,['Date','Type','Category','Mode','Amount','Reference / Description'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,list.length?list.map((r,i)=>h('tr',{key:r.id||i},
+              h('td',null,transactionDate(r)),h('td',null,r.transaction_type||'—'),h('td',null,r.category||'—'),h('td',null,r.payment_mode||'—'),
+              h('td',null,h('strong',{style:{color:r.transaction_type==='Charge'||r.transaction_type==='Refund'?'#b42318':'#067647'}},money(r.amount))),
+              h('td',null,[r.payment_reference,r.description].filter(Boolean).join(' · ')||'—'))):h('tr',null,h('td',{colSpan:6,className:'empty'},'No transactions')))));
       const cats={};txns.filter(r=>r.transaction_type==='Charge').forEach(r=>{const k=r.category||'Other';cats[k]=(cats[k]||0)+Number(r.amount||0)});
       const bal=v=>v<-0.009?money(-v)+' Advance':money(v);
       const status=Math.abs(d.balance)<=0.009?'Paid':d.balance<0?'Advance Held':d.paid>0?'Partially Paid':'Outstanding';
@@ -390,19 +401,21 @@ function Reports(){
         fields:[['Admission date',p.admission_date?formatDateIN(p.admission_date):''],['Status',status],
           ['Opening balance',bal(d.opening)],['Charges (this period)',money(d.charges)],['Paid / Advance',money(d.paid)],
           ['Discount',money(d.discount)],['Refund',money(d.refund)],['Closing balance',bal(d.balance)]]},
+        filters.from&&h('div',{style:{marginTop:'12px',padding:'10px 12px',borderRadius:'12px',background:'#fff5fa',border:'1px solid #f3d3e3'}},
+          h('strong',null,`Opening balance as on ${formatDateIN(filters.from)}: ${bal(d.opening)}`),
+          h('div',{className:'small-note',style:{margin:'4px 0 6px'}},`Everything up to ${formatDateIN(dayBefore)} (${prior.length} entr${prior.length===1?'y':'ies'})`),
+          h('div',{className:'row-detail-grid'},
+            [['Charges before',money(pCharges)],['Paid / Advance before',money(pPaid)],['Discount before',money(pDisc)],['Refund before',money(pRef)],['Charges − Paid − Discount + Refund',bal(pCalc)]]
+              .map(([k,v])=>h('div',{key:k,className:'row-detail-field'},h('small',null,k),h('strong',null,v)))),
+          Math.abs(pCalc-d.opening)>0.5&&h('div',{className:'small-note',style:{marginTop:'6px',color:'#9a6700'}},`Note: the ledger's opening balance (${bal(d.opening)}) is worked out the same way as the Accounts Dashboard and differs by ${money(Math.abs(pCalc-d.opening))} from this simple total.`),
+          prior.length>0&&h('details',{style:{marginTop:'8px'}},h('summary',{style:{cursor:'pointer',fontWeight:700,color:'#7a1247'}},`Show the ${prior.length} earlier entr${prior.length===1?'y':'ies'}`),txnTable(prior))),
         Object.keys(cats).length>0&&h('div',{style:{marginTop:'12px'}},
           h('strong',null,'Charges by category'),
           h('div',{className:'row-detail-grid',style:{marginTop:'6px'}},Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>h('div',{key:k,className:'row-detail-field'},h('small',null,k),h('strong',null,money(v)))))),
         h('div',{style:{marginTop:'12px'}},
           h('strong',null,`Transactions in this period (${txns.length})`),
           h('style',null,'table.ledger-detail-fit{width:100%;table-layout:fixed;min-width:0!important}table.ledger-detail-fit th,table.ledger-detail-fit td{white-space:normal!important;overflow-wrap:anywhere;vertical-align:top;padding:6px 5px;font-size:13px}table.ledger-detail-fit th:nth-child(1){width:15%}table.ledger-detail-fit th:nth-child(2){width:10%}table.ledger-detail-fit th:nth-child(3){width:13%}table.ledger-detail-fit th:nth-child(4){width:10%}table.ledger-detail-fit th:nth-child(5){width:11%}'),
-          h('div',{style:{overflowX:'visible'}},h('table',{className:'table ledger-detail-fit'},
-            h('thead',null,h('tr',null,['Date','Type','Category','Mode','Amount','Reference / Description'].map(x=>h('th',{key:x},x)))),
-            h('tbody',null,txns.length?txns.map((r,i)=>h('tr',{key:r.id||i},
-              h('td',null,transactionDate(r)),h('td',null,r.transaction_type||'—'),h('td',null,r.category||'—'),h('td',null,r.payment_mode||'—'),
-              h('td',null,h('strong',{style:{color:r.transaction_type==='Charge'||r.transaction_type==='Refund'?'#b42318':'#067647'}},money(r.amount))),
-              h('td',null,[r.payment_reference,r.description].filter(Boolean).join(' · ')||'—'))):h('tr',null,h('td',{colSpan:6,className:'empty'},'No transactions in this period')))
-          ))));
+          txnTable(txns)));
     })(),
     txnDetail&&h(RowDetailModal,{title:`${txnDetail.transaction_type||'Transaction'} · ${money(txnDetail.amount)}`,subtitle:formalName(txnDetail.patients||{})||txnDetail.patients?.full_name||'',onClose:()=>setTxnDetail(null),
       fields:[['Date',transactionDate(txnDetail)],['Guest',formalName(txnDetail.patients||{})||txnDetail.patients?.full_name||''],['Patient / Invoice ID',txnDetail.patients?.patient_id||''],
