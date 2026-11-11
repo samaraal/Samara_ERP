@@ -61,6 +61,26 @@ function ConvertTo-JsonBody($obj) {
   $json = $obj | ConvertTo-Json -Depth 6 -Compress
   return ,([Text.Encoding]::UTF8.GetBytes($json))   # the comma keeps it one byte[] (PowerShell would unroll it)
 }
+function Get-ZkEncrypt([string]$data, [string]$key) {
+  # easy TimePro login scrambling (RC4 with the form key, then Base64) - same as zkEncrypt() in easy-login.min.js
+  $s = New-Object int[] 256
+  for ($i = 0; $i -lt 256; $i++) { $s[$i] = $i }
+  $j = 0
+  for ($i = 0; $i -lt 256; $i++) {
+    $j = ($j + $s[$i] + [int][char]$key[$i % $key.Length]) % 256
+    $t = $s[$i]; $s[$i] = $s[$j]; $s[$j] = $t
+  }
+  $i = 0; $j = 0
+  $out = New-Object byte[] $data.Length
+  for ($r = 0; $r -lt $data.Length; $r++) {
+    $i = ($i + 1) % 256
+    $j = ($j + $s[$i]) % 256
+    $t = $s[$i]; $s[$i] = $s[$j]; $s[$j] = $t
+    $out[$r] = [byte](([int][char]$data[$r] -bxor $s[($s[$i] + $s[$j]) % 256]) -band 0xFF)
+  }
+  return [Convert]::ToBase64String($out)
+}
+function ConvertTo-FormValue([string]$v) { return ([Uri]::EscapeDataString($v) -replace '%20', '+') }
 function Connect-TpWebSession($base, $user, $pass) {
   # The same sign-in as the easy TimePro page in the browser (sees every department / area / employee).
   $sess = $null
@@ -68,8 +88,17 @@ function Connect-TpWebSession($base, $user, $pass) {
   $m = [regex]::Match($page.Content, 'name=["'']csrfmiddlewaretoken["''][^>]*value=["'']([^"'']+)')
   if (-not $m.Success) { $m = [regex]::Match($page.Content, 'value=["'']([^"'']+)["''][^>]*name=["'']csrfmiddlewaretoken') }
   if (-not $m.Success) { throw 'login page without form key' }
-  $form = @{ csrfmiddlewaretoken = $m.Groups[1].Value; username = $user; password = $pass; template10 = ''; login_type = 'pwd' }
-  Invoke-WebRequest -Uri ($base + '/login/') -Method Post -Body $form -WebSession $sess -Headers @{ Referer = ($base + '/login/') } -UseBasicParsing -TimeoutSec 30 | Out-Null
+  $formKey = $m.Groups[1].Value
+  # easy TimePro's login page scrambles the whole form with its form key before sending (see Get-ZkEncrypt)
+  $plain = 'csrfmiddlewaretoken=' + (ConvertTo-FormValue $formKey) + '&username=' + (ConvertTo-FormValue $user) +
+           '&password=' + (ConvertTo-FormValue $pass) + '&template10=&login_type=pwd'
+  $body = 'encrypt_data=' + [Uri]::EscapeDataString((Get-ZkEncrypt $plain $formKey)) + '&csrfmiddlewaretoken=' + [Uri]::EscapeDataString($formKey)
+  $cookieKey = $formKey
+  foreach ($c in $sess.Cookies.GetCookies([Uri]($base + '/'))) { if ($c.Name -eq 'csrftoken') { $cookieKey = $c.Value } }
+  $resp = Invoke-WebRequest -Uri ($base + '/login/') -Method Post -Body $body -ContentType 'application/x-www-form-urlencoded; charset=UTF-8' -WebSession $sess `
+    -Headers @{ Referer = ($base + '/login/'); 'X-Requested-With' = 'XMLHttpRequest'; 'X-CSRFToken' = $cookieKey; Accept = 'application/json, text/javascript, */*; q=0.01' } -UseBasicParsing -TimeoutSec 30
+  try { $ans = $resp.Content | ConvertFrom-Json } catch { $ans = $null }
+  if ($ans -and $null -ne $ans.ret -and [string]$ans.ret -ne '0') { throw ("easy TimePro said: {0}" -f $ans.message) }
   $test = Invoke-WebRequest -Uri ($base + '/personnel/api/departments/') -WebSession $sess -Headers @{ Accept = 'application/json' } -UseBasicParsing -TimeoutSec 30
   if ($test.Content -notmatch '^\s*\{') { throw 'browser-style sign-in was not accepted (check the user name / password)' }
   $csrf = ''
