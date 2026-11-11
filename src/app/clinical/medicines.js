@@ -7,6 +7,22 @@
     return /sliding\s*scale|as\s+per\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)|according\s+to\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)|depend(s|ing)?\s+on\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)/i.test(text)
       ||/insulin|actrapid|lantus|novorapid|mixtard|humulin|tresiba|basalog|glargine/i.test(String(order?.medicine_name||''));
   }
+  // 2.20.27 (SQL 374): nebulisation is recorded ONLY in the MAR. A nebulisation medicine (route Inhalation / name "NEB…",
+  // not an inhaler / rotacap / MDI) marked Given = one session (two medicines at the same time = one session); the database
+  // raises and posts the charge — Samara nebulizer (NUR-0001) or Guest's own nebulizer (NUR-0006), remembered per Guest.
+  // Same rule as public.samara_is_nebulisation (SQL 374).
+  function marIsNeb(order){
+    const name=String(order?.medicine_name||'');
+    return (/(inhal|nebul)/i.test(String(order?.route||''))||/^\s*neb/i.test(name))&&!/(inhaler|rotacap|rotahaler|turbuhaler|\bmdi\b|\bdpi\b|puff|spray|\bpatch\b)/i.test(name);
+  }
+  const MAR_NEB_TYPES=[['Samara Nebulizer','Samara nebulizer'],['Own Nebulizer',"Guest's own nebulizer"]];
+  function MarNebChooser({value,onChange,disabled}){
+    return h('div',{className:'field span-2',style:{marginTop:'8px'}},
+      h('label',null,'Nebulizer used (charged automatically)'),
+      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},MAR_NEB_TYPES.map(([v,label])=>h('button',{key:v,type:'button',disabled,
+        className:value===v?'btn btn-primary':'btn btn-secondary',onClick:()=>onChange(v)},(value===v?'✓ ':'')+label))),
+      !value&&h('small',{style:{color:'#b42318'}},'Choose the nebulizer — it is remembered for this Guest.'));
+  }
   function DischargeMedicationReview(){
     const [rows,setRows]=React.useState([]),[target,setTarget]=React.useState(null),[note,setNote]=React.useState(''),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
     async function load(){const r=await client.rpc('discharge_medication_review_list');if(r.error)setError(r.error.message);else setRows(r.data||[])}
@@ -52,6 +68,8 @@
     const [confirmBusy,setConfirmBusy]=React.useState(false);
     const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.93: bedside QR trial (record-only, OFF by default)
     const [confirmMessage,setConfirmMessage]=React.useState('');
+    const [confirmNeb,setConfirmNeb]=React.useState(''); // 2.20.27
+    const [marNeb,setMarNeb]=React.useState(''); // 2.20.27
     const [doseDetail,setDoseDetail]=React.useState(null);
     // 2.18.85: correct the actual "given at" time of a dose recorded TODAY (reason compulsory, audit kept)
     const [timeFix,setTimeFix]=React.useState(null);
@@ -409,6 +427,7 @@
     // 2.18.61: dateISO — a night-shift dose (e.g. 10 PM) may be recorded after midnight; it is saved under its own date.
     function openMar(order,time='',dateISO=today){
       setBedsideScan(s=>s&&s.patientId===order?.patient_id?s:null); // 2.19.94: keep a scan only for the same Guest
+      setMarNeb(patientFor(order).nebulizer_type||''); // 2.20.27
       const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','Current administration is unavailable. Pre-departure records are retained for management review.');return}
       const scheduled=time||firstPendingTime(order);
       if(!scheduled){
@@ -588,6 +607,8 @@
       if(early&&!marForm.early_given_reason){const text=`This medicine is being given ${medicationDurationText(early.minutes)} before its time (${medicationTimeLabel(early.dueTime)}). Select the reason for giving it early.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(early&&marForm.early_given_reason==='Other'&&!String(marForm.early_given_details||'').trim()){const text='Write the reason for giving the medicine early.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       const earlyNote=early?`Given early (${medicationDurationText(early.minutes)} before ${medicationTimeLabel(early.dueTime)}): ${marForm.early_given_reason}${String(marForm.early_given_details||'').trim()?' — '+String(marForm.early_given_details).trim():''}`:'';
+      const nebDose=marForm.status==='Given'&&!isRescheduleAction&&marIsNeb(marTarget); // 2.20.27
+      if(nebDose&&!marNeb){const text='Choose the nebulizer used: Samara nebulizer or the Guest\'s own nebulizer.';setMarMessage(text);showSamaraActionToast('error','Nebulizer needed',text);return;}
       const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time,marForm.scheduled_date||today);
       if(alreadyRecorded&&isFrontlineClinical){
         const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
@@ -612,6 +633,7 @@
         rescheduled_time:canReschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
         reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null,
         ...(marForm.status==='Not Given'?{not_given_reason:marForm.not_given_reason}:{}),
+        ...(nebDose?{nebulizer_type:marNeb}:{}),
         ...(lateGivenMinutes?{late_given_reason:marForm.late_given_reason,late_given_details:String(marForm.late_given_details||'').trim()||null}:{}),
         ...(marForm.status==='Withheld'?{
           withhold_reason:marForm.withhold_reason,
@@ -624,6 +646,7 @@
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error&&marForm.status==='Withheld'&&/withhold_|doctor_informed|column/i.test(error.message||'')){const text='Withholding needs the database update SQL 167. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&marForm.status==='Not Given'&&/not_given|status_check|check constraint/i.test(error.message||'')){const text='“Not Given” needs the database update SQL 327. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      if(error&&nebDose&&/nebulizer_type/i.test(error.message||'')){const text='Nebulisation needs the database update SQL 374. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&lateGivenMinutes&&/late_given/i.test(error.message||'')){const text='Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       bedsideRecordTask({kind:'medicine',patientId:marTarget.patient_id,refId:marTarget.id,date:marForm.scheduled_date||today,time:normalizeMedicationTime(marForm.scheduled_time),label:`${medicineLabel(marTarget)} · ${marForm.status==='Reschedule'?'Delayed':marForm.status}`,scan:bedsideScan}); // 2.19.94: separate record, never blocks
@@ -903,10 +926,11 @@
     const roomText=p=>p?.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—';
     const marDateNote=date=>date!==today?` (${formatDateIN(date)})`:'';
     function openWithhold(item){openMar(item.order,item.time,item.date);setMarForm(cur=>({...cur,status:'Withheld'}));}
-    function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
+    function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmNeb(patientFor(item.order).nebulizer_type||'');setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
       {const _bb=await bedsideSaveCheck(profile,item.order.patient_id,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);setConfirmMessage(_bb);return;}} // 2.19.96
+      if(marIsNeb(item.order)&&!confirmNeb){const t='Choose the nebulizer used: Samara nebulizer or the Guest\'s own nebulizer.';setConfirmMessage(t);showSamaraActionToast('error','Nebulizer needed',t);return;} // 2.20.27
       setConfirmBusy(true);setConfirmMessage('');
       try{
         const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();
@@ -921,7 +945,8 @@
         const now=new Date().toISOString();
         const {error}=await client.from('medication_administrations').insert({order_id:item.order.id,patient_id:item.order.patient_id,scheduled_date:item.date,scheduled_time:time,status:'Given',
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
-          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
+          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null,...(marIsNeb(item.order)?{nebulizer_type:confirmNeb}:{})});
+        if(error&&/nebulizer_type/i.test(error.message||''))throw new Error('Nebulisation needs the database update SQL 374. Please ask Admin to run it, then try again.');
         if(error)throw error;
         bedsideRecordTask({kind:'medicine',patientId:item.order.patient_id,refId:item.order.id,date:item.date,time,label:`${medicineLabel(item.order)} · Given`,scan:bedsideScan}); // 2.19.93/94: separate record, never blocks
         const p=patientFor(item.order);
@@ -1150,6 +1175,7 @@
             h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
             h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
             minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
+            marIsNeb(item.order)&&h(MarNebChooser,{value:confirmNeb,onChange:setConfirmNeb,disabled:confirmBusy}), // 2.20.27
             h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
@@ -1261,6 +1287,7 @@
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
             h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Not Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            marForm.status==='Given'&&!rescheduleLog&&marIsNeb(marTarget)&&h(MarNebChooser,{value:marNeb,onChange:setMarNeb,disabled:marBusy}), // 2.20.27
             marForm.status==='Not Given'&&h('div',{className:'field'},h('label',null,'Reason not given'),h('select',{required:true,value:marForm.not_given_reason||'',onChange:e=>setMarForm({...marForm,not_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_NOT_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'message warning span-2'},'Sliding-scale insulin: check the blood sugar first, then enter the reading and the units you are giving (as per the doctor\'s scale).'),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Blood sugar reading (mg/dL)'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,required:true,value:marForm.sugar_reading,placeholder:'e.g. 186',onChange:e=>setMarForm({...marForm,sugar_reading:e.target.value})})),

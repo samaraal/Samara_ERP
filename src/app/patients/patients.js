@@ -319,10 +319,14 @@
       dashboard.nursing_procedures_payload={proc_order_ids:[...procIds],
         plan:procOrders.filter(o=>o.is_active!==false).map(o=>({id:o.id,procedure_name:o.care_type,shift:o.shift,frequency:o.frequency,scheduled_times:o.scheduled_times||null,instruction:o.instruction,start_date:o.start_date})),
         records:procLogRecords};
-      const procRequestsReady=client.from('nursing_procedure_requests').select('id,procedure_name,category,status,started_at,scheduled_at,requested_at')
+      // 2.20.27 (SQL 374): the preview uses the SAME database function as the Family Portal (nebulisation from the MAR,
+      // no double counting); the older local build below is only a fallback until SQL 374 is run.
+      const procRequestsReady=client.rpc('erp_family_preview_nursing_procedures',{p_patient:selected.id}).then(({data,error})=>{
+        if(!error&&data&&Array.isArray(data.records)){dashboard.nursing_procedures_payload=data;return}
+        return client.from('nursing_procedure_requests').select('id,procedure_name,category,status,started_at,scheduled_at,requested_at')
         .eq('patient_id',selected.id).eq('status','Started').gte('requested_at',new Date(Date.now()-120*86400000).toISOString())
-        .then(({data,error})=>{if(error)return;dashboard.nursing_procedures_payload.records=[...procLogRecords,...(data||[]).filter(r=>(r.category||'Nursing Procedures')==='Nursing Procedures').map(r=>({id:`req-${r.id}`,procedure_name:r.procedure_name,status:'Done',completed_at:r.started_at||r.scheduled_at||r.requested_at,details:null}))];})
-        .catch(()=>{});
+        .then(({data,error})=>{if(error)return;dashboard.nursing_procedures_payload.records=[...procLogRecords,...(data||[]).filter(r=>(r.category||'Nursing Procedures')==='Nursing Procedures').map(r=>({id:`req-${r.id}`,procedure_name:r.procedure_name,status:'Done',completed_at:r.started_at||r.scheduled_at||r.requested_at,details:null}))];});
+      }).catch(()=>{});
       // 2.18.89: Intake / Output history for the preview — same shape as family_portal_io_history (SQL 278),
       // last 93 chart days; the Family Portal filters the period locally in Admin Preview.
       const ioHistoryReady=(async()=>{

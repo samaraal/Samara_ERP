@@ -59,7 +59,9 @@
       if(categories.length===1&&!form.category)setForm(f=>({...f,category:categories[0]}));
     },[categories]);
     const equipmentItems=equipment.filter(x=>x.status==='Available'&&!x.fault_reported).map(x=>({id:x.id,charge_code:x.asset_no,service_name:x.equipment_name}));
-    const itemsForCategory=isEquipment?equipmentItems:catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
+    // 2.20.27 (SQL 374): nebulisation is recorded only in Medicines (MAR) — not requested here
+    const isNebItem=x=>(x?.category||'Nursing Procedures')==='Nursing Procedures'&&/nebul/i.test(String(x?.service_name||x?.procedure_name||''));
+    const itemsForCategory=isEquipment?equipmentItems:catalog.filter(x=>x.category===form.category&&!isNebItem(x)).sort((a,b)=>alpha(a.service_name,b.service_name));
     const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}${!isEquipment&&p.requires_nm_approval?' · needs Nursing Manager approval':''}`;
     // 2.18.150 (SQL 303): items with "Nursing Manager Approval Needed: No" are approved automatically on request
     const needsApproval=item=>isEquipment||item?.requires_nm_approval===true;
@@ -92,7 +94,7 @@
         setForm({...emptyForm});setShowRequest(false);setBox(auto?'Approved':'Requested');await load();
         // 2.19.18: approved automatically → offer to start it now (avoids raising the same request again)
         if(auto&&!isEquipment&&res.data){
-          const now=await samaraConfirm({title:'Approved — ready to start',message:'No Nursing Manager approval is needed, so it is already under "Ready to Start".\n\nIs it being done now? Start it now (the charge is raised for Accounts).',okLabel:'Start now',cancelLabel:'Later'});
+          const now=await samaraConfirm({title:'Approved — ready to start',message:'No Nursing Manager approval is needed, so it is already under "Ready to Start".\n\nIs it being done now? Start it now (the charge is posted to the Guest’s account).',okLabel:'Start now',cancelLabel:'Later'});
           if(now){const one=await client.from('nursing_procedure_requests').select('*').eq('id',res.data).maybeSingle();if(one.data){await startItem(one.data,true);return}}
           showSamaraActionToast('success','Ready to start','Open it under "Ready to Start" and tap Confirm & Start when done. Do not raise it again.');
         }else showSamaraActionToast('success',auto?'Ready to start':'Request sent',auto?'No Nursing Manager approval needed — open it under "Ready to Start" and tap Confirm & Start.':'Sent to the Nursing Manager for approval.');
@@ -115,7 +117,7 @@
 
     async function startItem(row,skipConfirm=false){
       if(!canStart||(busy&&!skipConfirm))return;
-      if(!skipConfirm&&!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
+      if(!skipConfirm&&!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':(categoryOf(row)==='Nursing Procedures'?'This posts the charge to the Guest\'s account.':'This raises the matching charge for Accounts to verify.')}`))return;
       setBusy(true);
       let res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);
@@ -132,7 +134,7 @@
       }
       if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
       await writeAuditEvent('Start Approved Item','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row),charge_request_id:res.data?.charge_request_id});
-      showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
+      showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:categoryOf(row)==='Nursing Procedures'?`${row.procedure_name} started. The charge is posted to the Guest's account (no Accounts approval needed).`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
       load();
     }
 
@@ -178,6 +180,7 @@
             h('div',{className:'field'},h('label',null,isEquipment?'Equipment piece':'Item'),h('select',{value:form.tariff_id,onChange:e=>setForm({...form,tariff_id:e.target.value}),required:true,disabled:!form.category},
               h('option',{value:''},form.category?`Select item (${itemsForCategory.length})`:'Select a category first'),
               itemsForCategory.map(p=>h('option',{key:p.id,value:p.id},codeLabel(p))))),
+            form.category==='Nursing Procedures'&&h('div',{className:'small-note span-2',style:{color:'#a91360'}},'Nebulisation is not requested here: give the nebulisation medicine in Medicines (MAR) and choose Samara / own nebulizer — the charge is posted automatically.'), // 2.20.27
             h('div',{className:'field'},h('label',null,'Scheduled Date / Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
             h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:selectedIsOther?'Required for "Others": write the item name':'Any additional notes for the Nursing Manager'}))
           ),

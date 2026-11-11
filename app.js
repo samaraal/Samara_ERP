@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.26';
+  const APP_VERSION = '2.20.27';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Biometric Attendance (easy TimePro)';
+  const APP_BUILD_DATE = '11-Nov-2026 Nebulisation from MAR + auto-posted nursing charges';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -30794,10 +30794,14 @@ Please keep these login details confidential.`;
       dashboard.nursing_procedures_payload={proc_order_ids:[...procIds],
         plan:procOrders.filter(o=>o.is_active!==false).map(o=>({id:o.id,procedure_name:o.care_type,shift:o.shift,frequency:o.frequency,scheduled_times:o.scheduled_times||null,instruction:o.instruction,start_date:o.start_date})),
         records:procLogRecords};
-      const procRequestsReady=client.from('nursing_procedure_requests').select('id,procedure_name,category,status,started_at,scheduled_at,requested_at')
+      // 2.20.27 (SQL 374): the preview uses the SAME database function as the Family Portal (nebulisation from the MAR,
+      // no double counting); the older local build below is only a fallback until SQL 374 is run.
+      const procRequestsReady=client.rpc('erp_family_preview_nursing_procedures',{p_patient:selected.id}).then(({data,error})=>{
+        if(!error&&data&&Array.isArray(data.records)){dashboard.nursing_procedures_payload=data;return}
+        return client.from('nursing_procedure_requests').select('id,procedure_name,category,status,started_at,scheduled_at,requested_at')
         .eq('patient_id',selected.id).eq('status','Started').gte('requested_at',new Date(Date.now()-120*86400000).toISOString())
-        .then(({data,error})=>{if(error)return;dashboard.nursing_procedures_payload.records=[...procLogRecords,...(data||[]).filter(r=>(r.category||'Nursing Procedures')==='Nursing Procedures').map(r=>({id:`req-${r.id}`,procedure_name:r.procedure_name,status:'Done',completed_at:r.started_at||r.scheduled_at||r.requested_at,details:null}))];})
-        .catch(()=>{});
+        .then(({data,error})=>{if(error)return;dashboard.nursing_procedures_payload.records=[...procLogRecords,...(data||[]).filter(r=>(r.category||'Nursing Procedures')==='Nursing Procedures').map(r=>({id:`req-${r.id}`,procedure_name:r.procedure_name,status:'Done',completed_at:r.started_at||r.scheduled_at||r.requested_at,details:null}))];});
+      }).catch(()=>{});
       // 2.18.89: Intake / Output history for the preview — same shape as family_portal_io_history (SQL 278),
       // last 93 chart days; the Family Portal filters the period locally in Admin Preview.
       const ioHistoryReady=(async()=>{
@@ -38764,6 +38768,22 @@ function RoomsBeds({profile,onNavigate}){
     return /sliding\s*scale|as\s+per\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)|according\s+to\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)|depend(s|ing)?\s+on\s+(the\s+)?(blood\s*)?(sugar|grbs|cbg|rbs)/i.test(text)
       ||/insulin|actrapid|lantus|novorapid|mixtard|humulin|tresiba|basalog|glargine/i.test(String(order?.medicine_name||''));
   }
+  // 2.20.27 (SQL 374): nebulisation is recorded ONLY in the MAR. A nebulisation medicine (route Inhalation / name "NEB…",
+  // not an inhaler / rotacap / MDI) marked Given = one session (two medicines at the same time = one session); the database
+  // raises and posts the charge — Samara nebulizer (NUR-0001) or Guest's own nebulizer (NUR-0006), remembered per Guest.
+  // Same rule as public.samara_is_nebulisation (SQL 374).
+  function marIsNeb(order){
+    const name=String(order?.medicine_name||'');
+    return (/(inhal|nebul)/i.test(String(order?.route||''))||/^\s*neb/i.test(name))&&!/(inhaler|rotacap|rotahaler|turbuhaler|\bmdi\b|\bdpi\b|puff|spray|\bpatch\b)/i.test(name);
+  }
+  const MAR_NEB_TYPES=[['Samara Nebulizer','Samara nebulizer'],['Own Nebulizer',"Guest's own nebulizer"]];
+  function MarNebChooser({value,onChange,disabled}){
+    return h('div',{className:'field span-2',style:{marginTop:'8px'}},
+      h('label',null,'Nebulizer used (charged automatically)'),
+      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},MAR_NEB_TYPES.map(([v,label])=>h('button',{key:v,type:'button',disabled,
+        className:value===v?'btn btn-primary':'btn btn-secondary',onClick:()=>onChange(v)},(value===v?'✓ ':'')+label))),
+      !value&&h('small',{style:{color:'#b42318'}},'Choose the nebulizer — it is remembered for this Guest.'));
+  }
   function DischargeMedicationReview(){
     const [rows,setRows]=React.useState([]),[target,setTarget]=React.useState(null),[note,setNote]=React.useState(''),[busy,setBusy]=React.useState(false),[error,setError]=React.useState('');
     async function load(){const r=await client.rpc('discharge_medication_review_list');if(r.error)setError(r.error.message);else setRows(r.data||[])}
@@ -38809,6 +38829,8 @@ function RoomsBeds({profile,onNavigate}){
     const [confirmBusy,setConfirmBusy]=React.useState(false);
     const [bedsideScan,setBedsideScan]=React.useState(null); // 2.19.93: bedside QR trial (record-only, OFF by default)
     const [confirmMessage,setConfirmMessage]=React.useState('');
+    const [confirmNeb,setConfirmNeb]=React.useState(''); // 2.20.27
+    const [marNeb,setMarNeb]=React.useState(''); // 2.20.27
     const [doseDetail,setDoseDetail]=React.useState(null);
     // 2.18.85: correct the actual "given at" time of a dose recorded TODAY (reason compulsory, audit kept)
     const [timeFix,setTimeFix]=React.useState(null);
@@ -39166,6 +39188,7 @@ function RoomsBeds({profile,onNavigate}){
     // 2.18.61: dateISO — a night-shift dose (e.g. 10 PM) may be recorded after midnight; it is saved under its own date.
     function openMar(order,time='',dateISO=today){
       setBedsideScan(s=>s&&s.patientId===order?.patient_id?s:null); // 2.19.94: keep a scan only for the same Guest
+      setMarNeb(patientFor(order).nebulizer_type||''); // 2.20.27
       const p=patientFor(order);if(!p.id||p.is_active===false||p.admission_status==='Discharged'||order.discharge_closed_at){showSamaraActionToast('error','Patient discharged','Current administration is unavailable. Pre-departure records are retained for management review.');return}
       const scheduled=time||firstPendingTime(order);
       if(!scheduled){
@@ -39345,6 +39368,8 @@ function RoomsBeds({profile,onNavigate}){
       if(early&&!marForm.early_given_reason){const text=`This medicine is being given ${medicationDurationText(early.minutes)} before its time (${medicationTimeLabel(early.dueTime)}). Select the reason for giving it early.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(early&&marForm.early_given_reason==='Other'&&!String(marForm.early_given_details||'').trim()){const text='Write the reason for giving the medicine early.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       const earlyNote=early?`Given early (${medicationDurationText(early.minutes)} before ${medicationTimeLabel(early.dueTime)}): ${marForm.early_given_reason}${String(marForm.early_given_details||'').trim()?' — '+String(marForm.early_given_details).trim():''}`:'';
+      const nebDose=marForm.status==='Given'&&!isRescheduleAction&&marIsNeb(marTarget); // 2.20.27
+      if(nebDose&&!marNeb){const text='Choose the nebulizer used: Samara nebulizer or the Guest\'s own nebulizer.';setMarMessage(text);showSamaraActionToast('error','Nebulizer needed',text);return;}
       const alreadyRecorded=doseStatus(marTarget,marForm.scheduled_time,marForm.scheduled_date||today);
       if(alreadyRecorded&&isFrontlineClinical){
         const text=`This dose has already been recorded as ${alreadyRecorded.status||'completed'}. It cannot be administered twice.`;
@@ -39369,6 +39394,7 @@ function RoomsBeds({profile,onNavigate}){
         rescheduled_time:canReschedule?normalizeMedicationTime(marForm.rescheduled_time):null,
         reschedule_reason:canReschedule?String(marForm.remarks||'').trim():null,
         ...(marForm.status==='Not Given'?{not_given_reason:marForm.not_given_reason}:{}),
+        ...(nebDose?{nebulizer_type:marNeb}:{}),
         ...(lateGivenMinutes?{late_given_reason:marForm.late_given_reason,late_given_details:String(marForm.late_given_details||'').trim()||null}:{}),
         ...(marForm.status==='Withheld'?{
           withhold_reason:marForm.withhold_reason,
@@ -39381,6 +39407,7 @@ function RoomsBeds({profile,onNavigate}){
       const {error}=await client.from('medication_administrations').insert(payload);
       if(error&&marForm.status==='Withheld'&&/withhold_|doctor_informed|column/i.test(error.message||'')){const text='Withholding needs the database update SQL 167. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&marForm.status==='Not Given'&&/not_given|status_check|check constraint/i.test(error.message||'')){const text='“Not Given” needs the database update SQL 327. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
+      if(error&&nebDose&&/nebulizer_type/i.test(error.message||'')){const text='Nebulisation needs the database update SQL 374. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error&&lateGivenMinutes&&/late_given/i.test(error.message||'')){const text='Giving late needs the database update SQL 276. Please ask Admin to run it, then try again.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       if(error){const text=error.message||'Unable to save the Medication Administration Record.';setMarMessage(text);showSamaraActionToast('error','Medication save failed',text);setMarBusy(false);return;}
       bedsideRecordTask({kind:'medicine',patientId:marTarget.patient_id,refId:marTarget.id,date:marForm.scheduled_date||today,time:normalizeMedicationTime(marForm.scheduled_time),label:`${medicineLabel(marTarget)} · ${marForm.status==='Reschedule'?'Delayed':marForm.status}`,scan:bedsideScan}); // 2.19.94: separate record, never blocks
@@ -39660,10 +39687,11 @@ function RoomsBeds({profile,onNavigate}){
     const roomText=p=>p?.room_no?`${p.room_no}${p.bed_no?`-${p.bed_no}`:''}`:'—';
     const marDateNote=date=>date!==today?` (${formatDateIN(date)})`:'';
     function openWithhold(item){openMar(item.order,item.time,item.date);setMarForm(cur=>({...cur,status:'Withheld'}));}
-    function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmTarget(item);}
+    function askAdminister(item){setConfirmMessage('');setBedsideScan(null);setConfirmNeb(patientFor(item.order).nebulizer_type||'');setConfirmTarget(item);}
     async function administerNow(){
       const item=confirmTarget;if(!item||confirmBusy)return;
       {const _bb=await bedsideSaveCheck(profile,item.order.patient_id,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);setConfirmMessage(_bb);return;}} // 2.19.96
+      if(marIsNeb(item.order)&&!confirmNeb){const t='Choose the nebulizer used: Samara nebulizer or the Guest\'s own nebulizer.';setConfirmMessage(t);showSamaraActionToast('error','Nebulizer needed',t);return;} // 2.20.27
       setConfirmBusy(true);setConfirmMessage('');
       try{
         const fresh=await client.from('patients').select('is_active,admission_status').eq('id',item.order.patient_id).single();
@@ -39678,7 +39706,8 @@ function RoomsBeds({profile,onNavigate}){
         const now=new Date().toISOString();
         const {error}=await client.from('medication_administrations').insert({order_id:item.order.id,patient_id:item.order.patient_id,scheduled_date:item.date,scheduled_time:time,status:'Given',
           administered_at:now,administered_by:user?.id||profile?.auth_user_id||profile?.id,remarks:'',entry_recorded_at:now,late_entry:false,entry_delay_minutes:0,
-          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null});
+          late_entry_reason:null,late_entry_justification:null,rescheduled_time:null,reschedule_reason:null,...(marIsNeb(item.order)?{nebulizer_type:confirmNeb}:{})});
+        if(error&&/nebulizer_type/i.test(error.message||''))throw new Error('Nebulisation needs the database update SQL 374. Please ask Admin to run it, then try again.');
         if(error)throw error;
         bedsideRecordTask({kind:'medicine',patientId:item.order.patient_id,refId:item.order.id,date:item.date,time,label:`${medicineLabel(item.order)} · Given`,scan:bedsideScan}); // 2.19.93/94: separate record, never blocks
         const p=patientFor(item.order);
@@ -39907,6 +39936,7 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'mar-confirm-guest',style:{marginTop:'8px'}},`Room ${roomText(p)} · ${formalName(p)||p.full_name||'Guest'}`),
             h('div',{className:'small-note'},`Scheduled ${medicationTimeLabel(item.time)}${marDateNote(item.date)} · will be saved as Given at ${formatTimeIN(new Date().toISOString())}`),
             minutes<-30&&h('div',{className:'message warning',style:{marginTop:'10px'}},`This is ${-minutes} min before the scheduled time. Give early only if intended.`),
+            marIsNeb(item.order)&&h(MarNebChooser,{value:confirmNeb,onChange:setConfirmNeb,disabled:confirmBusy}), // 2.20.27
             h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:p,value:bedsideScan,onChange:setBedsideScan,disabled:confirmBusy})), // 2.19.93: shows nothing unless the QR trial is ON
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
@@ -40018,6 +40048,7 @@ function RoomsBeds({profile,onNavigate}){
               h('span',null,h('strong',null,'Check before giving: '),withholdSuggestion.text),
               h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setMarForm(current=>({...current,status:'Withheld',withhold_reason:withholdSuggestion.reason,withhold_reading:withholdSuggestion.reading}))},'Withhold this dose')),
             h('div',{className:'field'},h('label',null,'Status'),rescheduleLog?h('input',{value:`Reschedule · original status: ${rescheduleLog.status}`,readOnly:true}):h('select',{value:marForm.status,onChange:e=>setMarForm({...marForm,status:e.target.value,reschedule:e.target.value==='Reschedule'||marForm.reschedule})},['Given','Not Given','Delayed','Refused','Missed','Withheld','Reschedule'].map(status=>h('option',{key:status,value:status},status==='Withheld'?'Withheld (clinical — inform doctor)':status)))),
+            marForm.status==='Given'&&!rescheduleLog&&marIsNeb(marTarget)&&h(MarNebChooser,{value:marNeb,onChange:setMarNeb,disabled:marBusy}), // 2.20.27
             marForm.status==='Not Given'&&h('div',{className:'field'},h('label',null,'Reason not given'),h('select',{required:true,value:marForm.not_given_reason||'',onChange:e=>setMarForm({...marForm,not_given_reason:e.target.value})},h('option',{value:''},'Select reason'),MEDICATION_NOT_GIVEN_REASONS.map(r=>h('option',{key:r,value:r},r)))),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'message warning span-2'},'Sliding-scale insulin: check the blood sugar first, then enter the reading and the units you are giving (as per the doctor\'s scale).'),
             marForm.status==='Given'&&marIsVariableDose(marTarget)&&h('div',{className:'field'},h('label',null,'Blood sugar reading (mg/dL)'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,required:true,value:marForm.sugar_reading,placeholder:'e.g. 186',onChange:e=>setMarForm({...marForm,sugar_reading:e.target.value})})),
@@ -42884,7 +42915,9 @@ function RoomsBeds({profile,onNavigate}){
       if(categories.length===1&&!form.category)setForm(f=>({...f,category:categories[0]}));
     },[categories]);
     const equipmentItems=equipment.filter(x=>x.status==='Available'&&!x.fault_reported).map(x=>({id:x.id,charge_code:x.asset_no,service_name:x.equipment_name}));
-    const itemsForCategory=isEquipment?equipmentItems:catalog.filter(x=>x.category===form.category).sort((a,b)=>alpha(a.service_name,b.service_name));
+    // 2.20.27 (SQL 374): nebulisation is recorded only in Medicines (MAR) — not requested here
+    const isNebItem=x=>(x?.category||'Nursing Procedures')==='Nursing Procedures'&&/nebul/i.test(String(x?.service_name||x?.procedure_name||''));
+    const itemsForCategory=isEquipment?equipmentItems:catalog.filter(x=>x.category===form.category&&!isNebItem(x)).sort((a,b)=>alpha(a.service_name,b.service_name));
     const codeLabel=p=>`${p.charge_code?`${p.charge_code} · `:''}${p.service_name}${!isEquipment&&p.requires_nm_approval?' · needs Nursing Manager approval':''}`;
     // 2.18.150 (SQL 303): items with "Nursing Manager Approval Needed: No" are approved automatically on request
     const needsApproval=item=>isEquipment||item?.requires_nm_approval===true;
@@ -42917,7 +42950,7 @@ function RoomsBeds({profile,onNavigate}){
         setForm({...emptyForm});setShowRequest(false);setBox(auto?'Approved':'Requested');await load();
         // 2.19.18: approved automatically → offer to start it now (avoids raising the same request again)
         if(auto&&!isEquipment&&res.data){
-          const now=await samaraConfirm({title:'Approved — ready to start',message:'No Nursing Manager approval is needed, so it is already under "Ready to Start".\n\nIs it being done now? Start it now (the charge is raised for Accounts).',okLabel:'Start now',cancelLabel:'Later'});
+          const now=await samaraConfirm({title:'Approved — ready to start',message:'No Nursing Manager approval is needed, so it is already under "Ready to Start".\n\nIs it being done now? Start it now (the charge is posted to the Guest’s account).',okLabel:'Start now',cancelLabel:'Later'});
           if(now){const one=await client.from('nursing_procedure_requests').select('*').eq('id',res.data).maybeSingle();if(one.data){await startItem(one.data,true);return}}
           showSamaraActionToast('success','Ready to start','Open it under "Ready to Start" and tap Confirm & Start when done. Do not raise it again.');
         }else showSamaraActionToast('success',auto?'Ready to start':'Request sent',auto?'No Nursing Manager approval needed — open it under "Ready to Start" and tap Confirm & Start.':'Sent to the Nursing Manager for approval.');
@@ -42940,7 +42973,7 @@ function RoomsBeds({profile,onNavigate}){
 
     async function startItem(row,skipConfirm=false){
       if(!canStart||(busy&&!skipConfirm))return;
-      if(!skipConfirm&&!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':'This raises the matching charge for Accounts to verify.'}`))return;
+      if(!skipConfirm&&!confirm(`Confirm and start "${itemLabel(row)}" (${categoryOf(row)}) for ${patientName(row.patient_id)}? ${row.category==='Biomedical Equipment'?'This issues the approved equipment to the resident. Charges remain in the equipment billing workflow.':(categoryOf(row)==='Nursing Procedures'?'This posts the charge to the Guest\'s account.':'This raises the matching charge for Accounts to verify.')}`))return;
       setBusy(true);
       let res=await client.rpc('start_nursing_procedure',{p_request_id:row.id});
       setBusy(false);
@@ -42957,7 +42990,7 @@ function RoomsBeds({profile,onNavigate}){
       }
       if(res.error)return showSamaraActionToast('error','Approval Request',res.error.message);
       await writeAuditEvent('Start Approved Item','NursingProcedureRequest',row.id,{patient_id:row.patient_id,category:categoryOf(row),charge_request_id:res.data?.charge_request_id});
-      showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
+      showSamaraActionToast('success','Started',row.category==='Biomedical Equipment'?`${row.procedure_name} started and recorded in the equipment register.`:categoryOf(row)==='Nursing Procedures'?`${row.procedure_name} started. The charge is posted to the Guest's account (no Accounts approval needed).`:`${row.procedure_name} started. The charge has been raised for Accounts verification.`);
       load();
     }
 
@@ -43003,6 +43036,7 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'field'},h('label',null,isEquipment?'Equipment piece':'Item'),h('select',{value:form.tariff_id,onChange:e=>setForm({...form,tariff_id:e.target.value}),required:true,disabled:!form.category},
               h('option',{value:''},form.category?`Select item (${itemsForCategory.length})`:'Select a category first'),
               itemsForCategory.map(p=>h('option',{key:p.id,value:p.id},codeLabel(p))))),
+            form.category==='Nursing Procedures'&&h('div',{className:'small-note span-2',style:{color:'#a91360'}},'Nebulisation is not requested here: give the nebulisation medicine in Medicines (MAR) and choose Samara / own nebulizer — the charge is posted automatically.'), // 2.20.27
             h('div',{className:'field'},h('label',null,'Scheduled Date / Time'),h('input',{type:'datetime-local',value:form.scheduled_at,onChange:e=>setForm({...form,scheduled_at:e.target.value})})),
             h('div',{className:'field span-2'},h('label',null,'Remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:selectedIsOther?'Required for "Others": write the item name':'Any additional notes for the Nursing Manager'}))
           ),
