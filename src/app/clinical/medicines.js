@@ -669,7 +669,7 @@
     React.useEffect(()=>{
       if(state.loading||taskNavigationHandled.current)return;
       const context=readTaskNavigationContext('Medicines');
-      if(!context)return;
+      if(!context){const g=bedsideCurrentGuest();if(g){taskNavigationHandled.current=true;setPatientFilter(g);}return;} // 2.20.13: Guest scanned at the bed
       taskNavigationHandled.current=true;
       setReturnPage(context.return_page||'');
       setPatientFilter(context.patient_id||'');

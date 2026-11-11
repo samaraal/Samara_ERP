@@ -80,6 +80,9 @@
   }
   function bedsideSessionSet(s){try{sessionStorage.setItem(BEDSIDE_SESSION_KEY,JSON.stringify({...s,at:Date.now()}))}catch(_){}}
   function bedsideSessionClear(){try{sessionStorage.removeItem(BEDSIDE_SESSION_KEY)}catch(_){}}
+  // 2.20.13: the Guest whose bed was scanned in the last 10 minutes — entry screens opened from the bottom bar
+  // (Meds / Vitals / Care / Meals) pick this Guest automatically, so the nurse need not choose her again.
+  function bedsideCurrentGuest(){const s=bedsideSessionGet();return s?.patientId?String(s.patientId):'';}
 
   // A crash inside any bedside piece shows nothing instead of breaking the screen around it.
   class BedsideSafe extends React.Component{

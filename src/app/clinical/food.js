@@ -233,7 +233,7 @@
     // also the meal and its date, so the nurse only adds the food items, time and intake.
     React.useEffect(()=>{
       const context=readTaskNavigationContext('Food & Diet');
-      if(!context)return;
+      if(!context){const g=bedsideCurrentGuest();if(g)setPatientId(g);return;} // 2.20.13: Guest scanned at the bed
       clearTaskNavigationContext();
       setEntryType('meal');
       if(context.patient_id)setPatientId(context.patient_id);

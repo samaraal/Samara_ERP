@@ -1,3 +1,5 @@
+## 2.20.13 — 11-11-2026 — Bedside: after a bed scan, Meds / Vitals / Care / Meals (also from the bottom bar) open with that Guest already chosen (10 minutes). Daily Care: "Blood Glucose Monitoring" marked Completed asks for FBS / PPBS / RBS + reading (mg/dL) and saves it to Vital Signs too (same moment, so the plan is not marked twice); low / high readings warn at once. Frontend only.
+
 ## 2.20.12 — 11-11-2026 — HR Letters table shows the real WhatsApp result (Delivered ✓✓ / Read ✓✓ / Not delivered + reason) from the delivery reports, instead of only "Sent". Frontend only.
 
 ## 2.20.11 — 11-11-2026 — HR letters: signatory is always Dr. Krishnan Chellammal (Director), whichever Admin is signed in (Edge Function hr-letters only).

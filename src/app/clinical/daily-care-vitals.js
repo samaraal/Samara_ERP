@@ -22,6 +22,9 @@
     return aliases[raw]||raw||'Bathing assistance';
   };
 
+  // 2.20.13: a blood glucose check recorded in Daily Care also asks for the reading.
+  const dcIsGlucose=v=>/glucose|blood\s*sugar|\bgrbs\b|\bcbg\b|\brbs\b|\bsugar\s*(check|monitor)/i.test(String(v||''));
+  const DC_SUGAR_CSS='.dc-sugar-box{margin:6px 0 4px;padding:10px 12px;border:1px solid #f0bfd6;border-radius:12px;background:linear-gradient(135deg,#ffe4f0,#fff3f8)}.dc-sugar-title{font-weight:800;color:#7a1247;font-size:14px;margin-bottom:6px}.dc-sugar-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}.dc-sugar-row .field{margin:0}';
   function DailyCare({profile,onNavigate}){
     const activeShift=currentShift();
     const [patients]=usePatients();
@@ -69,7 +72,7 @@
     React.useEffect(()=>{load()},[]);
     React.useEffect(()=>{
       const context=readTaskNavigationContext('Daily Care');
-      if(!context)return;
+      if(!context){const g=bedsideCurrentGuest();if(g)setForm(current=>current.patient_id?current:{...current,patient_id:g});return;} // 2.20.13
       setForm(current=>({
         ...current,
         patient_id:context.patient_id||current.patient_id,
@@ -90,6 +93,13 @@
       {const _bb=await bedsideSaveCheck(profile,form.patient_id,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.19.96
       if(!form.patient_id){
         showToast('error','Please select a patient before saving the care record.');
+        return;
+      }
+      // 2.20.13: Blood Glucose Monitoring done → the reading is compulsory (saved to Vital Signs as well).
+      const sugarEntry=dcIsGlucose(form.care_type)&&form.status==='Completed';
+      const sugarNum=Number(form.sugar_value);
+      if(sugarEntry&&(!form.sugar_type||!form.sugar_value||!Number.isFinite(sugarNum)||sugarNum<10||sugarNum>900)){
+        showToast('error','Enter the blood sugar test type (FBS / PPBS / RBS) and the reading in mg/dL (numbers only, e.g. 184).');
         return;
       }
       if(form.shift!==activeShift){
@@ -129,7 +139,7 @@
         status:form.status,
         completed_at:now.toISOString(),
         completed_by:profile.id,
-        remarks:`${normaliseDailyCareActivity(form.care_type)}${form.remarks?.trim()?`: ${form.remarks.trim()}`:''}`
+        remarks:`${normaliseDailyCareActivity(form.care_type)}${sugarEntry?`: ${form.sugar_type} ${sugarNum} mg/dL`:''}${form.remarks?.trim()?`${sugarEntry?' · ':': '}${form.remarks.trim()}`:''}`
       };
       if(linkedTime)payload.scheduled_time=linkedTime;
       let {data,error}=await client.from('care_logs').insert(payload).select('id').single();
@@ -141,9 +151,16 @@
         return;
       }
 
+      if(sugarEntry){ // 2.20.13: same reading into Vital Signs (trend, reports, low-sugar alerts)
+        const lvl=sugarNum>400||sugarNum<50?'Critical':(sugarNum>250||sugarNum<70?'Warning':'Normal');
+        const {error:vErr}=await client.from('vital_signs').insert({patient_id:form.patient_id,blood_sugar_type:form.sugar_type,blood_sugar:sugarNum,alert_level:lvl,
+          remarks:`Blood Glucose Monitoring (Daily Care)${form.remarks?.trim()?` · ${form.remarks.trim()}`:''}`,recorded_at:payload.completed_at,recorded_by:profile.id}); // same moment as the care record → the DB sugar-link trigger sees it as already done (no duplicate)
+        if(vErr)showSamaraActionToast('error','Sugar not copied to Vital Signs',`The care record is saved, but the reading could not be added to Vital Signs (${vErr.message||'error'}). Please enter it in Vitals.`);
+        else if(lvl!=='Normal')showSamaraActionToast('error',`Blood sugar ${lvl}`,`${form.sugar_type} ${sugarNum} mg/dL — ${sugarNum<70?'LOW':'HIGH'}. Inform the Nursing Manager / doctor as per protocol.`);
+      }
       {const act=normaliseDailyCareActivity(form.care_type);bedsideRecordTask({kind:(linkedTime||guestProcedures.includes(act))?'procedure':'care',patientId:form.patient_id,refId:linkedOrderId,date:payload.care_date,time:linkedTime,label:`${act} · ${form.status}`,scan:bedsideScan});setBedsideScan(null);} // 2.19.94: separate record, never blocks
       showSamaraActionToast('success','Daily care saved',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);showToast('success',`${normaliseDailyCareActivity(form.care_type)} recorded successfully for the selected patient.`);
-      setForm(current=>({...current,care_order_id:'',remarks:''}));
+      setForm(current=>({...current,care_order_id:'',remarks:'',sugar_type:'',sugar_value:''}));
       await load();
 
       // Audit logging must never block the clinical save.
@@ -194,6 +211,11 @@
             h('option',{value:'Night Shift (7 PM–7 AM)',disabled:activeShift!=='Night Shift (7 PM–7 AM)'},`Night Shift (7 PM–7 AM)${activeShift==='Night Shift (7 PM–7 AM)'?' · Active':' · Not active'}`)
           ),h('small',{className:'shift-entry-note'},`Current active shift: ${activeShift}`)),
           miniSelect('Status',form.status,['Completed','Refused','Not required','Pending'],v=>setForm({...form,status:v})),
+          dcIsGlucose(form.care_type)&&form.status==='Completed'&&h('div',{className:'dc-sugar-box'},h('style',null,DC_SUGAR_CSS),
+            h('div',{className:'dc-sugar-title'},'🩸 Blood sugar reading — saved to Vital Signs too'),
+            h('div',{className:'dc-sugar-row'},
+              h('div',{className:'field'},h('label',null,'Test type *'),h('select',{value:form.sugar_type||'',onChange:e=>setForm({...form,sugar_type:e.target.value})},h('option',{value:''},'Choose…'),['FBS','PPBS','RBS'].map(x=>h('option',{key:x,value:x},x==='FBS'?'FBS (fasting)':x==='PPBS'?'PPBS (after food)':'RBS (random)')))),
+              h('div',{className:'field'},h('label',null,'Reading (mg/dL) *'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,step:'1',value:form.sugar_value||'',placeholder:'e.g. 184',onChange:e=>setForm({...form,sugar_value:e.target.value})})))),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94: shows nothing unless the QR trial is ON
           h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving care record…':'Save care record')
@@ -237,7 +259,7 @@
     React.useEffect(()=>{load();const ch=client.channel('vitals-live').on('postgres_changes',{event:'*',schema:'public',table:'vital_signs'},load).subscribe();return()=>client.removeChannel(ch)},[]);
     React.useEffect(()=>{
       const context=readTaskNavigationContext('Vital Signs');
-      if(!context)return;
+      if(!context){const g=bedsideCurrentGuest();if(g){setForm(current=>current.patient_id?current:{...current,patient_id:g});setSelectedPatient(g);}return;} // 2.20.13
       setForm(current=>({...current,patient_id:context.patient_id||current.patient_id}));
       setSelectedPatient(context.patient_id||'');
       setReturnPage(context.return_page||'');
