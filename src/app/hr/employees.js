@@ -212,6 +212,7 @@
       ]);
       if(error){setMsg(error.message||'Unable to load employees');return}
       setRows(data||[]);
+      if(fullHRAccess)hrRefreshStatus(data||[]).catch(()=>{});
       setWelcomeSentNumbers(new Set((welcomeLogs||[]).map(row=>normalizeWhatsAppRecipient(row.recipient_number||'')).filter(Boolean)));
       if(!fullHRAccess){setAuthMap({});return}
       try{
@@ -437,6 +438,12 @@
         const createdRow={...employeeForm,id:result.user_id};
         setWelcomeEmployee(createdRow);
         await load();
+        // 2.20.9: Appointment Letter goes out on WhatsApp automatically for a new employee (needs Date of Joining + salary).
+        if(fullHRAccess&&!result.repaired&&createdRow.date_of_joining&&Number(createdRow.current_salary)>0){
+          try{const r=await hrIssueLetter(createdRow,'Appointment Letter',hrLetterBase(createdRow,null));
+            showEmployeeToast(r.sent?'success':'error',r.sent?`Appointment Letter ${r.ref_no} sent on WhatsApp.`:`Appointment Letter ${r.ref_no} saved; WhatsApp failed (${r.error}). Resend it from the Personnel File.`);}
+          catch(letterErr){console.warn('Appointment letter:',letterErr.message);}
+        }
         const successText=result.repaired?'Employee account repaired successfully.':'New employee added successfully.';
         setMsg(successText);showEmployeeToast('success',successText);
         if(sourceCareerId){
@@ -473,6 +480,35 @@
         showEmployeeToast('success',`${formalName(row)} ${enabling?'enabled':'disabled'}.`);
       }catch(error){alert(error.message||'Unable to update employee')}
       finally{toggleLockRef.current=false;setToggleBusyId('');}
+    }
+    // 2.20.9: Probation / Exit / HR Letters — exit status per employee (Admin) and login switch used by the exit steps.
+    const [hrStatus,setHrStatus]=React.useState({seps:{},terms:{}});
+    async function hrSetLogin(row,enable){await adminRequest({action:'toggle',user_id:row.id,is_active:enable});}
+    async function hrRefreshStatus(list){
+      if(!fullHRAccess)return;
+      const st=await hrLoadStatusAll();if(!st)return;
+      const seps={},terms={};(st.separations||[]).forEach(x=>{seps[String(x.employee_id)]=x;});(st.terms||[]).forEach(x=>{terms[String(x.employee_id)]=x;});
+      setHrStatus({seps,terms});
+      // Logins closed by the daily job (last working day over) also get the full sign-in block once Admin opens HR.
+      for(const x of Object.values(seps)){
+        if(!x.login_closed_at||x.auth_blocked_at)continue;
+        const row=(list||rows).find(r=>String(r.id)===String(x.employee_id));
+        if(!row||(row.is_active??row.active))continue;
+        try{await adminRequest({action:'toggle',user_id:row.id,is_active:false});await hrRpc('login_closed',{id:x.id,auth:'yes'});}catch(e){console.warn('HR exit sign-in block:',e.message);}
+      }
+    }
+    function hrListBadge(r){
+      if(!fullHRAccess)return null;
+      const sep=hrStatus.seps[String(r.id)];
+      if(sep&&!['Completed'].includes(sep.status))return h('span',{className:'badge warn',style:{display:'inline-block',marginTop:4}},hrExitBadgeText(sep));
+      const t=hrStatus.terms[String(r.id)];const doj=r.date_of_joining?String(r.date_of_joining).slice(0,10):'';
+      if(!doj||t?.confirmed_on)return null;
+      const end=hrAddMonthsLessDay(doj,t?.probation_months??3);
+      return end&&end<todayISOIndia()?h('span',{className:'badge warn',style:{display:'inline-block',marginTop:4}},'Confirmation due'):null;
+    }
+    async function hrPanelChanged(){
+      const fresh=await load();
+      if(detailsTarget){const {data}=await client.from('profiles').select('*').eq('id',detailsTarget.id).maybeSingle();if(data){setDetailsTarget(data);setDetailsForm(f=>({...f,...data,password:''}));}await loadEmploymentActions(detailsTarget);}
     }
     function employeeWelcomeSent(row){
       const number=normalizeWhatsAppRecipient(row?.mobile||'');
@@ -1021,7 +1057,7 @@
     const table=h('div',{className:'table-wrap employee-master-table-wrap'},h('table',{className:'table employee-master-table'},
       h('thead',null,h('tr',null,['Name','Employee ID','Login ID','Department / Designation','ERP Access','Profile Status','Authentication Status','Last sign-in','Actions'].map(x=>h('th',{key:x},x)))),
       h('tbody',null,effectiveRows.map(r=>{const enabled=Boolean(r.is_active??r.active),auth=authMap[r.auth_user_id||r.id],status=authenticationStatus(r),managerBlocked=profile.role==='Manager'&&String(r.role).toLowerCase()==='admin';return h('tr',{key:r.id,className:`employee-row-touch ${enabled?'employee-active':'employee-disabled'}`,role:'button',tabIndex:0,title:'Tap to open Employee Personnel File',onClick:()=>openDetails(r),onKeyDown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openDetails(r)}}},
-        h('td',{'data-label':'Employee'},formalName(r)),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
+        h('td',{'data-label':'Employee'},formalName(r),hrListBadge(r)?h('div',null,hrListBadge(r)):null),h('td',{'data-label':'Employee ID'},r.employee_id||'—'),h('td',{'data-label':'Login ID'},r.login_id),h('td',{'data-label':'Department'},`${employeeDepartment(r)}${r.designation?` · ${r.designation}`:''}`),h('td',{'data-label':'Access'},r.role),
         h('td',{'data-label':'Status'},h('span',{className:`badge ${enabled?'':'off'}`},enabled?'Active':'Disabled')),
         h('td',{'data-label':'Authentication'},h('span',{className:`badge auth-status ${status.className}`},status.text)),h('td',{'data-label':'Last sign-in'},fmt(auth?.last_sign_in_at||r.last_sign_in_at)),
         h('td',{'data-label':'Actions'},fullHRAccess?h('div',{className:'employee-actions',onClick:e=>e.stopPropagation(),onKeyDown:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Personnel File'),h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'Documents'),h('button',{className:'btn btn-secondary',onClick:()=>printIdCard(r)},'Print ID Card'),r.mobile?h('button',{type:'button',className:employeeWelcomeSent(r)?'btn btn-secondary clinical-action-done':'btn btn-whatsapp',disabled:welcomeBusy===String(r.id)||employeeWelcomeSent(r),onClick:()=>sendEmployeeWelcomeApi(r)},welcomeBusy===String(r.id)?'Sending…':employeeWelcomeSent(r)?'WhatsApp Welcome Sent ✓':'WhatsApp Welcome API'):null,employeeWelcomeSent(r)?h('button',{type:'button',className:'btn btn-secondary',disabled:welcomeBusy===String(r.id),onClick:()=>sendEmployeeWelcomeApi(r,{resend:true})},welcomeBusy===String(r.id)?'Resending…':'Resend Welcome'):null,whatsappWelcomeUrl(r)?h('a',{className:'btn btn-whatsapp',href:whatsappWelcomeUrl(r),target:'_blank',rel:'noopener noreferrer'},'Send Login Details'):null,h('button',{type:'button',className:enabled?'btn btn-danger':'btn btn-secondary',disabled:managerBlocked||Boolean(toggleBusyId),onClick:()=>toggle(r)},toggleBusyId===String(r.id)?(enabled?'Disabling…':'Enabling…'):(enabled?'Disable':'Enable')),auth?h('button',{className:'btn btn-primary',disabled:managerBlocked,onClick:()=>openReset(r)},'Reset Password'):h('button',{className:'btn btn-warning',disabled:managerBlocked,onClick:()=>openRepair(r)},'Repair Account')):h('div',{className:'employee-actions',onClick:e=>e.stopPropagation()},h('button',{className:'btn btn-secondary',onClick:()=>openDetails(r)},'View Personnel File')))
@@ -1357,6 +1393,7 @@
           )
         ),
         fullHRAccess?employmentHistorySection():null,
+        fullHRAccess?h(EmployeeExitPanel,{employee:r,employmentActions,onChanged:hrPanelChanged,setLogin:hrSetLogin,toast:showEmployeeToast}):null,
         h('section',{className:'employee-info-section'},h('h4',null,'Personal & Contact'),
           h('div',{className:'employee-info-grid'},
             personnelInfoItem('Father / Guardian',r.father_guardian_name),
@@ -1438,7 +1475,8 @@
       });
       const disabledOn=r=>{const t=regDisabledOn[String(r.id)]||(r.auth_user_id?regDisabledOn[String(r.auth_user_id)]:'');return !isOn(r)&&t?formatDateIN(t):(!isOn(r)?'—':'');};
       const cols=['S.No','Name','Employee ID','Department','Designation','Mobile','Date of Joining','Status','Disabled On'];
-      const cells=(r,i)=>[i+1,formalName(r),r.employee_id||'—',employeeDepartment(r)||'—',r.designation||'—',r.mobile||'—',r.date_of_joining?formatDateIN(r.date_of_joining):'—',isOn(r)?'Active':'Disabled',disabledOn(r)||'—'];
+      const exitOf=r=>{const x=hrStatus.seps[String(r.id)];return x?hrExitBadgeText(x):'';};
+      const cells=(r,i)=>[i+1,formalName(r),r.employee_id||'—',employeeDepartment(r)||'—',r.designation||'—',r.mobile||'—',r.date_of_joining?formatDateIN(r.date_of_joining):'—',`${isOn(r)?'Active':'Disabled'}${exitOf(r)?` · ${exitOf(r)}`:''}`,disabledOn(r)||'—'];
       const activeCount=all.filter(isOn).length,disabledCount=all.length-activeCount;
       const dirty=JSON.stringify(regDraft)!==JSON.stringify(regFilter);
       const statCard=(label,value,status)=>h('button',{type:'button',className:`card stat samara-pink-stat${regFilter.status===status?' is-active':''}`,

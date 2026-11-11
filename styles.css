@@ -2851,3 +2851,16 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
   .employee-personnel-modal .employee-info-item.wide{grid-column:auto!important}
 }
 .employee-info-item>strong,.employee-info-item strong{overflow-wrap:break-word!important;word-break:normal!important}
+
+/* 2.20.9 — Probation, Exit & HR Letters (Personnel File, Admin) */
+.hr-exit-section{border:1px solid #e8c6d5!important;background:linear-gradient(180deg,#fff7fb,#fffafd)!important}
+.hr-exit-exitbox{margin-top:14px;padding:12px 14px;border:1px dashed #e3b6cb;border-radius:14px;background:#fff}
+.hr-exit-step{margin-top:12px;padding:14px;border:1px solid #f0bfd6;border-radius:14px;background:linear-gradient(135deg,#ffe4f0,#fff3f8);box-shadow:0 6px 18px rgba(178,11,93,.10)}
+.hr-exit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.hr-exit-grid label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:13px;color:#5b1235}
+.hr-exit-grid .hr-exit-wide{grid-column:1/-1}
+.hr-exit-grid label.hr-exit-check{flex-direction:row;align-items:center;gap:8px;font-weight:600}
+.hr-exit-total{padding:8px 10px;border-radius:10px;background:#fff;border:1px solid #f0bfd6;font-size:14px}
+.hr-letters-list{margin-top:14px}
+.hr-letters-list .table td,.hr-letters-list .table th{white-space:normal;word-break:break-word}
+.hr-exit-actions .btn,.hr-exit-exitbox .btn{white-space:normal}

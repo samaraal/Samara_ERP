@@ -269,6 +269,11 @@
    "lines": 331
   },
   {
+   "file": "hr/employee-exit-letters.js",
+   "about": "Probation / confirmation, Exit (resignation, termination, left without notice, suspension), Full & Final, HR letters + WhatsApp",
+   "lines": 0
+  },
+  {
    "file": "hr/employees.js",
    "about": "Employees page (+ its CSS)",
    "lines": 1374
