@@ -7,10 +7,12 @@
                                              fingerprint / face kept, restored on reinstatement)
     • resigned / terminated / disabled     → blocked and marked Resigned in easy TimePro
     • reinstated / enabled again           → restored automatically
-  Machine Employee ID = number part of the ERP Employee ID (EMP-0025 -> 25).
+  Machine number = the number linked to the employee in ERP -> HR -> Biometric Attendance -> Link Staff
+  (the machine's own numbers are kept). Active ERP staff with no machine number are added with the
+  next free number and linked automatically. Unlinked machine numbers are never changed.
   Department = the employee's ERP department (created in easy TimePro when missing; staff are
   moved when their ERP department changes). No ERP department -> Mogappair.
-  Staff in easy TimePro that the ERP does not know are only reported, never changed.
+  Staff in easy TimePro not linked to an ERP employee are only reported, never changed.
 
   First time (on the PC where easy TimePro runs): right-click this file -> Run with PowerShell,
   or use the setup command from ERP -> HR -> Biometric Attendance -> Staff Sync.
@@ -25,7 +27,7 @@
 param([switch]$Setup, [switch]$Run, [switch]$DryRun, [switch]$Uninstall, [switch]$Diagnose)
 
 $ErrorActionPreference = 'Stop'
-$AgentVersion = '2.20.24'
+$AgentVersion = '2.20.26'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $AppDir     = Join-Path $env:LOCALAPPDATA 'SamaraBiometricSync'
 $ConfigPath = Join-Path $AppDir 'config.json'
@@ -162,6 +164,8 @@ function Invoke-Sync([bool]$dry) {
   Write-Log ("easy TimePro: {0} on {1}" -f $script:Cfg.TimeProUrl, $env:COMPUTERNAME)
   $actions = New-Object System.Collections.ArrayList
   $errors  = New-Object System.Collections.ArrayList
+  $links   = New-Object System.Collections.ArrayList
+  $deviceUsers = New-Object System.Collections.ArrayList
   $summary = [ordered]@{ added = 0; restored = 0; blocked = 0; resigned = 0; updated = 0; unchanged = 0; not_in_erp = 0 }
   $erpUrl = $script:Cfg.ErpUrl
   try {
@@ -205,7 +209,48 @@ function Invoke-Sync([bool]$dry) {
       if ($code) { $resigned[[string]$code] = @{ id = $r.id; employee_id = $eid } }
     }
 
+    $maxCode = 0
+    foreach ($k in (@($tpEmps.Keys) + @($resigned.Keys))) { $n = 0; if ([int]::TryParse([string]$k, [ref]$n) -and $n -gt $maxCode) { $maxCode = $n } }
+    foreach ($k in $tpEmps.Keys) { [void]$deviceUsers.Add(@{ emp_code = [string]$k; name = [string]$tpEmps[$k].first_name }) }
+
+    $linkedCodes = @{}; foreach ($s in $staff) { if ($s.emp_code) { $linkedCodes[[string]$s.emp_code] = $true } }
     foreach ($s in $staff) {
+      if (-not $s.emp_code) {
+        # active ERP employee with no machine number yet -> add with the next free number and link it in the ERP
+        if ($s.status -ne 'active') { continue }
+        # already added by an earlier run whose report did not reach the ERP? -> just link it again
+        $short = Get-ShortName $s.name
+        $prev = $tpEmps.Values | Where-Object { -not $linkedCodes.ContainsKey([string]$_.emp_code) -and ([string]$_.first_name).Trim() -ceq $short -and (-not $s.mobile -or [string]$_.mobile -eq [string]$s.mobile) } | Select-Object -First 1
+        if ($prev) {
+          if (-not $dry) { [void]$links.Add(@{ profile_id = [string]$s.profile_id; emp_code = [string]$prev.emp_code; name = $short }) }
+          $linkedCodes[[string]$prev.emp_code] = $true
+          [void]$actions.Add(@{ type = 'updated'; emp_code = [string]$prev.emp_code; name = $s.name; note = ("Linked to machine no. {0} (already in easy TimePro)" -f $prev.emp_code) })
+          $summary.updated++
+          Write-Log ("LINKED    {0} ({1}) -> machine no. {2}" -f $s.name, $s.employee_id, $prev.emp_code)
+          continue
+        }
+        $maxCode++
+        $code = [string]$maxCode
+        $label = "{0} ({1}, new machine no. {2})" -f $s.name, $s.employee_id, $code
+        try {
+          $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptId $s.department $dry); area = @($activeArea) }
+          if ($pos) { $body.position = [int]$pos.id }
+          if ($s.date_of_joining) { $body.hire_date = [string]$s.date_of_joining }
+          if ($s.gender) { $body.gender = [string]$s.gender }
+          if ($s.mobile) { $body.mobile = [string]$s.mobile }
+          if (-not $dry) {
+            Invoke-Tp 'Post' '/personnel/api/employees/' $body | Out-Null
+            [void]$links.Add(@{ profile_id = [string]$s.profile_id; emp_code = $code; name = (Get-ShortName $s.name) })
+          }
+          [void]$actions.Add(@{ type = 'added'; emp_code = $code; name = $s.name; note = ("Added to easy TimePro as machine no. {0} - enrol fingerprint / face on the machine" -f $code) })
+          $summary.added++
+          Write-Log "ADDED     $label"
+        } catch {
+          [void]$errors.Add(@{ emp_code = $code; name = $s.name; message = $_.Exception.Message })
+          Write-Log "ERROR     $label : $($_.Exception.Message)"
+        }
+        continue
+      }
       $code = [string]$s.emp_code
       $label = "{0} ({1}, machine {2})" -f $s.name, $s.employee_id, $code
       $e = $tpEmps[$code]
@@ -224,6 +269,7 @@ function Invoke-Sync([bool]$dry) {
               if (-not $e) { throw 'Reinstated, but the employee was not found afterwards.' }
             }
             if (-not $e) {
+              # linked number not in easy TimePro (deleted there?) -> add it back under the same number
               $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptId $s.department $dry); area = @($activeArea) }
               if ($pos) { $body.position = [int]$pos.id }
               if ($s.date_of_joining) { $body.hire_date = [string]$s.date_of_joining }
@@ -295,11 +341,11 @@ function Invoke-Sync([bool]$dry) {
       }
     }
 
-    $known = @{}; foreach ($s in $staff) { $known[[string]$s.emp_code] = $true }
+    $known = $linkedCodes
     foreach ($code in $tpEmps.Keys) {
       if (-not $known.ContainsKey([string]$code)) {
         $summary.not_in_erp++
-        [void]$actions.Add(@{ type = 'not_in_erp'; emp_code = [string]$code; name = [string]$tpEmps[$code].first_name; note = 'In easy TimePro but not in the ERP - left unchanged' })
+        [void]$actions.Add(@{ type = 'not_in_erp'; emp_code = [string]$code; name = [string]$tpEmps[$code].first_name; note = 'Not linked to an ERP employee - left unchanged (link it in Link Staff if it is staff)' })
       }
     }
   } catch {
@@ -312,6 +358,7 @@ function Invoke-Sync([bool]$dry) {
   $send = $real
   if ($real.Count -gt 0 -or $errors.Count -gt 0 -or $dry) { $send = @($actions) }
   $report = @{ ok = ($errors.Count -eq 0); dry_run = $dry; summary = $summary; actions = @($send); errors = @($errors);
+               links = @($links); device_users = @($deviceUsers);
                agent = ("Samara Biometric Sync {0} on {1}" -f $AgentVersion, $env:COMPUTERNAME) }
   try { Invoke-RestMethod -Method Post -Uri $erpUrl -Body (ConvertTo-JsonBody $report) -ContentType 'application/json; charset=utf-8' -TimeoutSec 60 | Out-Null }
   catch { Write-Log "Could not send the result to the ERP: $($_.Exception.Message)" }

@@ -1,3 +1,5 @@
+## 2.20.26 — 11-11-2026 — Biometric Staff Sync keeps the **machine's own numbers** (staff were already enrolled as SOBANA = 2, SARANYA = 22 …). The sync follows Link Staff (machine no. ↔ ERP employee); active staff with no machine number are added with the next free number and linked automatically (then enrol fingerprint / face). Unlinked machine numbers (directors, unnamed entries) are never changed. Every machine number is reported to Link Staff with its easy TimePro name. 9 staff linked by name (Admin-approved); wrong links from 2.20.24 removed. Database: `373_biometric_staff_sync_machine_numbers.sql`.
+
 ## 2.20.25 — 11-11-2026 — Biometric Staff Sync: each employee goes into their **ERP department** in easy TimePro (Nursing, Administration, Housekeeping …; created there when missing; moved automatically when the ERP department changes; no department → Mogappair). Staff Sync list shows the Department. PC program signs in to easy TimePro like the browser and creates missing departments / areas itself. Frontend + PC program only.
 
 ## 2.20.24 — 11-11-2026 — Biometric Staff Sync (step 2: the ERP decides who can use the machine)
