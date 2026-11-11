@@ -1,3 +1,5 @@
+## 2.20.19 — 11-11-2026 — Clinical Alerts and Clinical Escalations: new **Nurse** column (recorded doses: the nurse who recorded it; other alerts: the Guest's assigned nurse for the shift). Tapping any row opens full details (Guest, room, medicine, scheduled / given / entry times, reason, remarks, assigned Day / Night nurse, escalated at / to, resolution) with Acknowledge inside. Escalation Register: "Open Source" button removed. Frontend only.
+
 ## 2.20.18 — 11-11-2026 — Clinical Alerts "View Record" (and Open Task / Escalation Register "Open Source") for Medicine Given Late / Not Given now opens Medicines → Medication History for that Guest and day with that dose's full details open, instead of a blank give-dose form for another medicine. Frontend only.
 
 ## 2.20.17 — 11-11-2026 — Clinical Alerts: Active Alerts and period Alerts tables fit the screen — no horizontal scrolling, text wraps, action buttons stacked in the last column. Frontend only.

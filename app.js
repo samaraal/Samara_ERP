@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.18';
+  const APP_VERSION = '2.20.19';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 View Record opens the recorded dose';
+  const APP_BUILD_DATE = '11-Nov-2026 Nurse name + row details on alerts';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -5640,6 +5640,10 @@ https://samaraassistedliving.com/`;
 
     React.useEffect(()=>{loadHistory()},[alertPeriodApplyA.period,alertPeriodApplyA.from,alertPeriodApplyA.to]);
 
+    // 2.20.19: Nurse name + full details on row click (shared with the Escalation Register)
+    const {nurseCell,alertDetailFields}=useAlertNurseContext([...(engine.alerts||[]),...historyRows]);
+    const [alertDetail,setAlertDetail]=React.useState(null);
+
     // 2.20.16: one-tap Acknowledge on this page for recorded doses (same audit record as the Escalation Register)
     const [ackBusy,setAckBusy]=React.useState('');
     const [ackMessage,setAckMessage]=React.useState('');
@@ -5733,6 +5737,7 @@ https://samaraassistedliving.com/`;
       return a.priority===filter;
     });
 
+    const liveSorted=[...rows].sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.isRecorded)-Number(a.isRecorded))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)));
     const escalatedCount=allRows.filter(a=>a.isEscalated).length;
     const overdueCount=allRows.filter(a=>a.isOverdue&&!a.isEscalated).length;
     const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated&&!a.isRecorded).length;
@@ -5912,9 +5917,10 @@ https://samaraassistedliving.com/`;
         !isLive&&historyMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},historyMessage)
       ),
       // 2.20.17: Clinical Alerts tables fit the screen — no horizontal scrolling, text wraps
-      h('style',null,'.table-wrap:has(> table.ca-fit-table){overflow-x:visible}table.ca-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.ca-fit-table th,table.ca-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.ca-fit-table .badge{white-space:normal}table.ca-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important}table.ca-fit-table .employee-actions .btn{white-space:normal;padding:6px!important;font-size:13px!important;min-width:0!important;width:100%!important;box-sizing:border-box}table.ca-live th:nth-child(1){width:96px}table.ca-live th:nth-child(2){width:72px}table.ca-live th:nth-child(3){width:11%}table.ca-live th:nth-child(4){width:56px}table.ca-live th:nth-child(5){width:14%}table.ca-live th:nth-child(6){width:10%}table.ca-live th:nth-child(7){width:9%}table.ca-live th:nth-child(9){width:130px}table.ca-hist th:nth-child(1){width:84px}table.ca-hist th:nth-child(2){width:9%}table.ca-hist th:nth-child(3){width:72px}table.ca-hist th:nth-child(4){width:10%}table.ca-hist th:nth-child(5){width:56px}table.ca-hist th:nth-child(6){width:9%}table.ca-hist th:nth-child(7){width:9%}table.ca-hist th:nth-child(8){width:7%}table.ca-hist th:nth-child(11){width:96px}@media(max-width:760px){table.ca-fit-table{table-layout:auto}}'),
+      h('style',null,'.table-wrap:has(> table.ca-fit-table){overflow-x:visible}table.ca-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.ca-fit-table th,table.ca-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.ca-fit-table .badge{white-space:normal}table.ca-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important}table.ca-fit-table .employee-actions .btn{white-space:normal;padding:6px!important;font-size:13px!important;min-width:0!important;width:100%!important;box-sizing:border-box}table.ca-live th:nth-child(1){width:96px}table.ca-live th:nth-child(2){width:72px}table.ca-live th:nth-child(3){width:10%}table.ca-live th:nth-child(4){width:56px}table.ca-live th:nth-child(5){width:13%}table.ca-live th:nth-child(6){width:9%}table.ca-live th:nth-child(7){width:8%}table.ca-live th:nth-child(8){width:10%}table.ca-live th:nth-child(10){width:130px}table.ca-fit-table tbody tr{cursor:pointer}table.ca-hist th:nth-child(1){width:84px}table.ca-hist th:nth-child(2){width:9%}table.ca-hist th:nth-child(3){width:72px}table.ca-hist th:nth-child(4){width:10%}table.ca-hist th:nth-child(5){width:56px}table.ca-hist th:nth-child(6){width:9%}table.ca-hist th:nth-child(7){width:9%}table.ca-hist th:nth-child(8){width:7%}table.ca-hist th:nth-child(9){width:9%}table.ca-hist th:nth-child(12){width:96px}@media(max-width:760px){table.ca-fit-table{table-layout:auto}}'),
       !isLive&&h(LogTable,{title:`Alerts · ${rangeLabel} (${historyBusy?'…':historyVisible.length})`,subtitle:historyBusy?'Loading alerts for this period…':'Past clinical alerts from the escalation register. Choose "Now (live)" to see tasks due at this moment.',className:'ca-fit-table ca-hist',
-        heads:['Status','Type','Priority','Patient','Room','Due','Alert Raised','Sent To','Reason','Resolution','Action'],
+        heads:['Status','Type','Priority','Patient','Room','Due','Alert Raised','Sent To','Nurse','Reason','Resolution','Action'],
+        onRowClick:i=>{const r=historyVisible[i];const p=historyPatients[String(r.patient_id||'')]||null;setAlertDetail({row:r,history:true,patientName:p?[p.title,p.full_name].filter(Boolean).join(' ').trim():'',room:p?[p.room_no,p.bed_no].filter(Boolean).join('-'):''})},
         rows:historyVisible.map(r=>{
           const p=historyPatients[String(r.patient_id||'')]||null;
           const name=p?[p.title,p.full_name].filter(Boolean).join(' ').trim():(String(r.alert_type||'').toLowerCase()==='regularisation'?'All current patients':'—');
@@ -5928,20 +5934,25 @@ https://samaraassistedliving.com/`;
             r.due_at?fmt(r.due_at):'—',
             fmt(r.created_at),
             r.escalated_to_role||'—',
+            nurseCell(r),
             r.escalation_reason||'—',
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'} · ${fmt(r.resolved_at)}`:'Pending',
-            h('div',{className:'employee-actions'},
+            h('div',{className:'employee-actions',onClick:ev=>ev.stopPropagation()},
               h('button',{className:'btn btn-secondary',onClick:()=>openClinicalTask({target_page:historyTarget(r.alert_type),patient_id:r.patient_id,source_id:r.source_id,key:r.alert_key,alert_type:r.alert_type,due_at:r.due_at,title:'',isEscalated:!r.resolved_at})},'Open Task')
             )
           ];
         })
       }),
+      alertDetail&&h(RowDetailModal,{title:alertDetail.row.title||alertDetail.row.alert_type||'Clinical alert',subtitle:'Full details',onClose:()=>setAlertDetail(null),
+        fields:alertDetailFields(alertDetail.row,alertDetail)},
+        !alertDetail.history&&escIsInfo(alertDetail.row.alert_type)&&h('div',{className:'employee-actions',style:{marginTop:'12px'}},
+          h('button',{className:'btn btn-primary',onClick:()=>{const r=alertDetail.row;setAlertDetail(null);acknowledgeRow(r)}},'✓ Acknowledge'),
+          h('button',{className:'btn btn-secondary',onClick:()=>{const r=alertDetail.row;setAlertDetail(null);openClinicalTask(r)}},'View Record'))),
       isLive&&ackMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},ackMessage),
       isLive&&h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:rows.length?'Complete the underlying clinical task; management resolution is not available to Nursing':'Nothing is due right now. Choose a Period above (Today, Yesterday, Last 7 days…) to see earlier alerts.',className:'ca-fit-table ca-live',
-        heads:['Status','Priority','Patient','Room','Alert','Due','Overdue','Details','Action'],
-        rows:rows
-          .sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.isRecorded)-Number(a.isRecorded))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)))
-          .map(a=>[
+        heads:['Status','Priority','Patient','Room','Alert','Due','Overdue','Nurse','Details','Action'],
+        onRowClick:i=>setAlertDetail({row:liveSorted[i],history:false}),
+        rows:liveSorted.map(a=>[
             // 2.20.16: Medicine Given Late / Not Given are already recorded by the nurse — shown as "RECORDED", not "ESCALATED"
             escIsInfo(a.alert_type)
               ?h('span',{className:'badge',style:{background:'#fff4dd',color:'#9a6700'}},'RECORDED')
@@ -5955,8 +5966,9 @@ https://samaraassistedliving.com/`;
             String(a.alert_type||'')==='Daily Care'
               ?(Number(a.overdue_minutes)>30?englishOverdueLabel(Number(a.overdue_minutes)-30):'Pending this shift')
               :(Number(a.overdue_minutes)>0?englishOverdueLabel(a.overdue_minutes):'Due now'),
+            nurseCell(a),
             a.description||'—',
-            h('div',{className:'employee-actions'},
+            h('div',{className:'employee-actions',onClick:ev=>ev.stopPropagation()},
               // 2.20.16: already-recorded doses (Given Late / Not Given) need only the Manager's Acknowledge, not "Complete / Record"
               escIsInfo(a.alert_type)
                 ?h('button',{className:'btn btn-primary',disabled:ackBusy===a.key,onClick:()=>acknowledgeRow(a)},ackBusy===a.key?'Saving…':'✓ Acknowledge')
@@ -5971,6 +5983,78 @@ https://samaraassistedliving.com/`;
     );
   }
 
+  // 2.20.19: Nurse name for every alert + full details on row click (Clinical Alerts page and Escalation Register).
+  // Recorded doses (Given Late / Not Given) → the nurse who recorded it; everything else → the Guest's assigned nurse for the shift.
+  function useAlertNurseContext(items){
+    // Recorded doses (Given Late / Not Given) → the nurse who recorded it; everything else → the Guest's assigned nurse for the shift.
+    const [nurseCtx,setNurseCtx]=React.useState({doses:{},orders:{},staff:{},assign:{},esc:{}});
+    async function loadNurseContext(items){
+      try{
+        const doseIds=[...new Set(items.filter(a=>/^medicine/i.test(String(a.alert_type||''))&&a.source_id).map(a=>String(a.source_id)))];
+        const [doseRes,assignRes,escRes]=await Promise.all([
+          doseIds.length?client.from('medication_administrations').select('*').in('id',doseIds):Promise.resolve({data:[]}),
+          client.from('guest_nurse_assignments').select('patient_id,shift,nurse_id,nurse_name').is('ended_at',null),
+          client.from('clinical_alert_escalations').select('alert_key,alert_type,source_id,created_at,escalated_to_role,escalation_reason').is('resolved_at',null).limit(500)
+        ]);
+        const doses={};(doseRes.data||[]).forEach(d=>{doses[String(d.id)]=d});
+        const orderIds=[...new Set(Object.values(doses).map(d=>d.order_id).filter(Boolean))];
+        const staffIds=[...new Set(Object.values(doses).map(d=>d.administered_by).filter(Boolean))];
+        const [ordRes,staffRes]=await Promise.all([
+          orderIds.length?client.from('medication_orders').select('*').in('id',orderIds):Promise.resolve({data:[]}),
+          staffIds.length?client.from('profiles').select('*').or(`id.in.(${staffIds.join(',')}),auth_user_id.in.(${staffIds.join(',')})`):Promise.resolve({data:[]})
+        ]);
+        const orders={};(ordRes.data||[]).forEach(o=>{orders[String(o.id)]=o});
+        const staff={};(staffRes.data||[]).forEach(x=>{if(x.id)staff[String(x.id)]=x;if(x.auth_user_id)staff[String(x.auth_user_id)]=x});
+        const assign={};(assignRes.error?[]:(assignRes.data||[])).forEach(r=>{const k=String(r.patient_id||'');assign[k]=assign[k]||{};assign[k][r.shift]=r.nurse_name||''});
+        const esc={};(escRes.data||[]).forEach(e=>{esc[`${String(e.alert_type||'').toLowerCase()}|${String(e.source_id||'')}`]=e});
+        setNurseCtx({doses,orders,staff,assign,esc});
+      }catch(e){console.warn('Clinical alert nurse details:',e?.message||e)}
+    }
+    const staffLabel=id=>{const x=nurseCtx.staff[String(id||'')];return x?(formalName(x)||x.full_name||x.login_id||''):''};
+    const doseFor=a=>/^medicine/i.test(String(a?.alert_type||''))?nurseCtx.doses[String(a?.source_id||'')]||null:null;
+    const currentShift=()=>{try{return nursingShiftNow().shift}catch(_){return ''}};
+    function alertNurse(a){
+      const d=doseFor(a);
+      if(d&&d.administered_by)return {name:staffLabel(d.administered_by)||'—',how:'Recorded by'};
+      const as=nurseCtx.assign[String(a?.patient_id||'')]||{};
+      const sh=currentShift();
+      const n=as[sh]||'';
+      return n?{name:n,how:`Assigned ${sh} nurse`}:{name:'Not assigned',how:`${sh||'Shift'} nurse`};
+    }
+    function nurseCell(a){
+      const n=alertNurse(a);
+      return h('div',null,h('strong',{style:{display:'block'}},n.name),h('small',{style:{color:'#7b6670'}},n.how));
+    }
+    function alertDetailFields(a,{patientName,room,history}={}){
+      const d=doseFor(a),o=d?nurseCtx.orders[String(d.order_id||'')]:null;
+      const as=nurseCtx.assign[String(a.patient_id||'')]||{};
+      const e=history?a:nurseCtx.esc[`${String(a.alert_type||'').toLowerCase()}|${String(a.source_id||'')}`];
+      const n=alertNurse(a);
+      const t=x=>x?fmt(x):'';
+      return [
+        ['Guest',patientName||a.patient_name||''],['Room / Bed',room||a.room_label||''],
+        ['Alert',a.title||a.alert_type||''],['Type',a.alert_type||''],['Priority',a.priority||''],
+        [n.how,n.name],
+        ['Day nurse (assigned)',as.Day||''],['Night nurse (assigned)',as.Night||''],
+        ['Medicine',o?[o.medicine_name,o.strength||o.dose].filter(Boolean).join(' '):''],['Route',o?.route||''],
+        ['Scheduled',d?`${formatDateIN(d.scheduled_date)} · ${String(d.scheduled_time||'').slice(0,5)}`:(a.due_at?t(a.due_at):'')],
+        ['Dose status',d?.status||''],
+        ['Actually given at',d&&d.status==='Given'?t(d.administered_at):''],
+        ['Entry recorded at',d?t(d.entry_recorded_at||d.created_at):''],
+        ['Reason for giving late',d?.late_given_reason||''],['Late details',d?.late_given_details||''],
+        ['Withhold reason',d?.withhold_reason||''],['Remarks',d?.remarks||''],
+        ['Details',a.description||''],
+        ['Overdue',!history&&Number(a.overdue_minutes)>0?englishOverdueLabel(a.overdue_minutes):''],
+        ['Escalated at',e?.created_at?t(e.created_at):''],['Escalated to',e?.escalated_to_role||''],['Escalation reason',e?.escalation_reason||''],
+        ['Resolution',history?(a.resolved_at?`${a.resolution_action||'Resolved'} · ${a.resolution_remarks||'—'} · ${t(a.resolved_at)}`:'Pending'):'']
+      ];
+    }
+
+
+    const key=(items||[]).map(a=>`${a.alert_type}|${a.source_id}`).join(',');
+    React.useEffect(()=>{loadNurseContext(items||[])},[key]);
+    return {nurseCell,alertDetailFields,alertNurse};
+  }
   // 2.19.20: one-tap "Acknowledge" for Manager / Admin. Info alerts (Medicine Given Late, Meal Intake, Nursing Note)
   // are already recorded by the nurse — the Manager only reviews and closes them. Works from the pop-up and the register.
   const ESC_INFO_TYPES=['medicine late','medicine not given','meal intake','nursing note alert'];
@@ -6008,6 +6092,8 @@ https://samaraassistedliving.com/`;
       }catch(_error){return 'Open'}
     }),[busy,setBusy]=React.useState(false),[message,setMessage]=React.useState('');
     const [dashboardEscalationFocus,setDashboardEscalationFocus]=React.useState('Open escalations');
+    const {nurseCell:escNurseCell,alertDetailFields:escDetailFields}=useAlertNurseContext(rows); // 2.20.19
+    const [escDetail,setEscDetail]=React.useState(null);
     const canView=['Admin','Manager'].includes(profile?.role);
     const targetForType=type=>{
       const t=String(type||'').toLowerCase();
@@ -6070,16 +6156,19 @@ https://samaraassistedliving.com/`;
         ),
         h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
       ),
+      escDetail&&h(RowDetailModal,{title:escDetail.row.alert_type||'Clinical escalation',subtitle:'Full details',onClose:()=>setEscDetail(null),fields:escDetailFields(escDetail.row,escDetail)},
+        !escDetail.row.resolved_at&&h('div',{className:'employee-actions',style:{marginTop:'12px'}},
+          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>{const r=escDetail.row;setEscDetail(null);resolve(r)}},escIsInfo(escDetail.row.alert_type)?'✓ Acknowledge':'Mark Resolved'))),
       // 2.20.3: Escalation Register fits the screen — no horizontal scrolling, text wraps.
-      h('style',null,'.table-wrap:has(> table.esc-fit-table){overflow-x:visible}table.esc-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.esc-fit-table th,table.esc-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.esc-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important;max-width:100%!important}table.esc-fit-table .employee-actions .btn{white-space:normal;padding:6px 6px!important;font-size:13px!important;min-width:0!important;width:100%!important;max-width:100%!important;box-sizing:border-box}table.esc-fit-table th:nth-child(1){width:140px}table.esc-fit-table th:nth-child(2){width:72px}table.esc-fit-table th:nth-child(3){width:10%}table.esc-fit-table th:nth-child(4){width:11%}table.esc-fit-table th:nth-child(5){width:8%}table.esc-fit-table th:nth-child(6){width:7%}table.esc-fit-table th:nth-child(7){width:10%}table.esc-fit-table th:nth-child(8){width:7%}table.esc-fit-table th:nth-child(10){width:14%}@media(max-width:760px){table.esc-fit-table{table-layout:auto}}'),
-      h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Open source item, review corrective action, and close only after resolution',className:'esc-fit-table',
-        heads:['Action','Status','Type','Patient','Room / Bed','Priority','Escalated At','Elapsed','Reason','Resolution'], // 2.19.20: Action first — no sideways scrolling to find it
+      h('style',null,'.table-wrap:has(> table.esc-fit-table){overflow-x:visible}table.esc-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.esc-fit-table th,table.esc-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.esc-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important;max-width:100%!important}table.esc-fit-table .employee-actions .btn{white-space:normal;padding:6px 6px!important;font-size:13px!important;min-width:0!important;width:100%!important;max-width:100%!important;box-sizing:border-box}table.esc-fit-table tbody tr{cursor:pointer}table.esc-fit-table th:nth-child(1){width:130px}table.esc-fit-table th:nth-child(2){width:64px}table.esc-fit-table th:nth-child(3){width:9%}table.esc-fit-table th:nth-child(4){width:10%}table.esc-fit-table th:nth-child(5){width:7%}table.esc-fit-table th:nth-child(6){width:10%}table.esc-fit-table th:nth-child(7){width:6%}table.esc-fit-table th:nth-child(8){width:9%}table.esc-fit-table th:nth-child(9){width:6%}table.esc-fit-table th:nth-child(11){width:12%}@media(max-width:760px){table.esc-fit-table{table-layout:auto}}'),
+      h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Tap a row for full details; acknowledge / resolve with remarks',className:'esc-fit-table',
+        heads:['Action','Status','Type','Patient','Room / Bed','Nurse','Priority','Escalated At','Elapsed','Reason','Resolution'], // 2.19.20: Action first; 2.20.19: Nurse column, row click = full details, no "Open Source"
+        onRowClick:i=>{const r=visible[i];const p=patients[r.patient_id]||{};setEscDetail({row:r,history:true,patientName:p.full_name||'',room:p.id?`${p.room_no||'—'}${p.bed_no?'-'+p.bed_no:''}`:''})},
         rows:visible.map(r=>{
           const p=patients[r.patient_id]||{};
           const elapsed=Math.max(0,Math.floor((Date.now()-new Date(r.created_at).getTime())/60000));
           return [
-            h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-secondary',onClick:()=>{const target=targetForType(r.alert_type);if(target==='Medicines'&&escIsInfo(r.alert_type))openRecordedDose(r);if(target==='Food & Diet')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||'',...mealTaskContext(r)});if(target==='Nursing Notes')saveTaskNavigationContext({page:target,return_page:'Clinical Escalations',patient_id:r.patient_id||'',source_id:r.source_id||'',alert_type:r.alert_type||''});onNavigate(target)}},'Open Source'),
+            h('div',{className:'employee-actions',onClick:ev=>ev.stopPropagation()},
               !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},escIsInfo(r.alert_type)?'✓ Acknowledge':'Mark Resolved'),
               !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             ),
@@ -6087,6 +6176,7 @@ https://samaraassistedliving.com/`;
             r.alert_type||'Clinical',
             p.full_name|| (r.alert_type==='Regularisation'?'All current patients':'—'),
             p.id?`Room ${p.room_no||'—'}${p.bed_no?'-'+p.bed_no:''}`:'—',
+            escNurseCell(r),
             r.priority||'—',fmt(r.created_at),r.resolved_at?'—':`${elapsed} min`,r.escalation_reason||'—',
             r.resolved_at?`${r.resolution_action||'Resolved'} · ${r.resolution_remarks||'—'}${r.resolved_at?` · ${fmt(r.resolved_at)}`:''}`:'Pending management resolution'
           ];
