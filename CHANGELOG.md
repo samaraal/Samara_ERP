@@ -1,3 +1,5 @@
+## 2.20.20 — 11-11-2026 — Clinical alerts: the ✓ Acknowledge button (alert pop-up, Clinical Alerts page, row details, Escalation Register) is shown only to the Nursing Manager and Admin / Directors; other Manager logins see "Awaiting Nursing Manager / Admin". Frontend only.
+
 ## 2.20.19 — 11-11-2026 — Clinical Alerts and Clinical Escalations: new **Nurse** column (recorded doses: the nurse who recorded it; other alerts: the Guest's assigned nurse for the shift). Tapping any row opens full details (Guest, room, medicine, scheduled / given / entry times, reason, remarks, assigned Day / Night nurse, escalated at / to, resolution) with Acknowledge inside. Escalation Register: "Open Source" button removed. Frontend only.
 
 ## 2.20.18 — 11-11-2026 — Clinical Alerts "View Record" (and Open Task / Escalation Register "Open Source") for Medicine Given Late / Not Given now opens Medicines → Medication History for that Guest and day with that dose's full details open, instead of a blank give-dose form for another medicine. Frontend only.

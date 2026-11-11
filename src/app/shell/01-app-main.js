@@ -813,7 +813,7 @@
           page==='Admissions'&&h(Admissions,{profile,onNavigate:setPage}),
           page==='Clinical Dashboard'&&h(ClinicalDashboard,{profile,onNavigate:setPage,alertEngine}),
           page==='Talk to Guest'&&allowed.includes('Talk to Guest')&&h(TalkToGuest),
-          page==='Clinical Alerts'&&h(ClinicalAlertsPage,{engine:alertEngine,setPage,physioAlerts:physioNotifications.alerts}),
+          page==='Clinical Alerts'&&h(ClinicalAlertsPage,{profile,engine:alertEngine,setPage,physioAlerts:physioNotifications.alerts}),
           page==='My To-Do & Follow-up'&&h(ManagerPersonalTodo,{profile}),
           page==='Clinical Escalations'&&h(ClinicalEscalationsDashboard,{profile,onNavigate:setPage}),
           page==='Shift Tasks'&&h(ShiftTasks,{profile,onNavigate:setPage}),
@@ -901,10 +901,10 @@
           h('strong',null,topClinicalAlert.patient_name||'Patient'),
           h('span',null,topClinicalAlert.room_label||''),
           h('p',null,topClinicalAlert.description||''),
-          isInfoAlert(topClinicalAlert)&&h('small',{style:{display:'block',margin:'-4px 0 8px',color:'#6d5963'}},['Admin','Manager'].includes(profile?.role)?'For information — already recorded. Tap Acknowledge after review.':'For information — already recorded.'),
+          isInfoAlert(topClinicalAlert)&&h('small',{style:{display:'block',margin:'-4px 0 8px',color:'#6d5963'}},canAcknowledgeClinical(profile)?'For information — already recorded. Tap Acknowledge after review.':'For information — already recorded.'),
           h('div',{className:'clinical-alert-popup-actions'},
             // 2.19.20: Manager / Admin close the escalation right here ("Noted" only hides the pop-up on this device)
-            isInfoAlert(topClinicalAlert)&&['Admin','Manager'].includes(profile?.role)&&h('button',{type:'button',className:'btn btn-primary',onClick:async()=>{
+            isInfoAlert(topClinicalAlert)&&canAcknowledgeClinical(profile)&&h('button',{type:'button',className:'btn btn-primary',onClick:async()=>{
               const a=topClinicalAlert;
               const res=await acknowledgeClinicalEscalation({alertKey:a.key,sourceId:a.source_id,alertType:a.alert_type});
               if(res.cancelled)return;

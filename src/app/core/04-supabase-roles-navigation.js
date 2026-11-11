@@ -186,6 +186,8 @@
     const department=clean(profile?.department);
     return !designation && department==='nursing' && clean(profile?.role)==='manager';
   };
+  // 2.20.20: only the Nursing Manager and Admin / Directors may Acknowledge (close) clinical alerts / escalations
+  const canAcknowledgeClinical=profile=>String(profile?.role||'')==='Admin'||isNursingManagerProfile(profile);
   const isAdmissionDelegateProfile=profile=>{
     const clean=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
     const login=clean(profile?.login_id||profile?.username||'');

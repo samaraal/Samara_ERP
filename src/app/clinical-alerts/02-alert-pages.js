@@ -1,4 +1,5 @@
-  function ClinicalAlertsPage({engine,setPage,physioAlerts=[]}){
+  function ClinicalAlertsPage({profile,engine,setPage,physioAlerts=[]}){
+    const canAck=canAcknowledgeClinical(profile); // 2.20.20
     const mobileClinicalDevice=isMobileClinicalDevice();
     const [filter,setFilter]=React.useState(()=>{
       try{
@@ -396,7 +397,7 @@
       alertDetail&&h(RowDetailModal,{title:alertDetail.row.title||alertDetail.row.alert_type||'Clinical alert',subtitle:'Full details',onClose:()=>setAlertDetail(null),
         fields:alertDetailFields(alertDetail.row,alertDetail)},
         !alertDetail.history&&escIsInfo(alertDetail.row.alert_type)&&h('div',{className:'employee-actions',style:{marginTop:'12px'}},
-          h('button',{className:'btn btn-primary',onClick:()=>{const r=alertDetail.row;setAlertDetail(null);acknowledgeRow(r)}},'✓ Acknowledge'),
+          canAck?h('button',{className:'btn btn-primary',onClick:()=>{const r=alertDetail.row;setAlertDetail(null);acknowledgeRow(r)}},'✓ Acknowledge'):h('small',{style:{alignSelf:'center',color:'#7b6670'}},'Awaiting Nursing Manager / Admin acknowledgement'),
           h('button',{className:'btn btn-secondary',onClick:()=>{const r=alertDetail.row;setAlertDetail(null);openClinicalTask(r)}},'View Record'))),
       isLive&&ackMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},ackMessage),
       isLive&&h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:rows.length?'Complete the underlying clinical task; management resolution is not available to Nursing':'Nothing is due right now. Choose a Period above (Today, Yesterday, Last 7 days…) to see earlier alerts.',className:'ca-fit-table ca-live',
@@ -421,7 +422,7 @@
             h('div',{className:'employee-actions',onClick:ev=>ev.stopPropagation()},
               // 2.20.16: already-recorded doses (Given Late / Not Given) need only the Manager's Acknowledge, not "Complete / Record"
               escIsInfo(a.alert_type)
-                ?h('button',{className:'btn btn-primary',disabled:ackBusy===a.key,onClick:()=>acknowledgeRow(a)},ackBusy===a.key?'Saving…':'✓ Acknowledge')
+                ?(canAck?h('button',{className:'btn btn-primary',disabled:ackBusy===a.key,onClick:()=>acknowledgeRow(a)},ackBusy===a.key?'Saving…':'✓ Acknowledge'):h('small',{style:{color:'#7b6670'}},'Awaiting Nursing Manager / Admin'))
                 :h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
               escIsInfo(a.alert_type)&&h('button',{className:'btn btn-secondary',onClick:()=>openClinicalTask(a)},'View Record'),
               a.target_page==='Physiotherapy'&&a.source_id&&h(PhysioPlanContact,{planId:a.source_id}), // 2.18.124: call the physio from the alert
@@ -544,6 +545,10 @@
     const [dashboardEscalationFocus,setDashboardEscalationFocus]=React.useState('Open escalations');
     const {nurseCell:escNurseCell,alertDetailFields:escDetailFields}=useAlertNurseContext(rows); // 2.20.19
     const [escDetail,setEscDetail]=React.useState(null);
+    const canAck=canAcknowledgeClinical(profile); // 2.20.20
+    const ackButton=(r,onClick)=>escIsInfo(r.alert_type)&&!canAck
+      ?h('small',{style:{color:'#7b6670'}},'Awaiting Nursing Manager / Admin')
+      :h('button',{className:'btn btn-primary',disabled:busy,onClick},escIsInfo(r.alert_type)?'✓ Acknowledge':'Mark Resolved');
     const canView=['Admin','Manager'].includes(profile?.role);
     const targetForType=type=>{
       const t=String(type||'').toLowerCase();
@@ -608,7 +613,7 @@
       ),
       escDetail&&h(RowDetailModal,{title:escDetail.row.alert_type||'Clinical escalation',subtitle:'Full details',onClose:()=>setEscDetail(null),fields:escDetailFields(escDetail.row,escDetail)},
         !escDetail.row.resolved_at&&h('div',{className:'employee-actions',style:{marginTop:'12px'}},
-          h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>{const r=escDetail.row;setEscDetail(null);resolve(r)}},escIsInfo(escDetail.row.alert_type)?'✓ Acknowledge':'Mark Resolved'))),
+          ackButton(escDetail.row,()=>{const r=escDetail.row;setEscDetail(null);resolve(r)}))),
       // 2.20.3: Escalation Register fits the screen — no horizontal scrolling, text wraps.
       h('style',null,'.table-wrap:has(> table.esc-fit-table){overflow-x:visible}table.esc-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.esc-fit-table th,table.esc-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.esc-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important;max-width:100%!important}table.esc-fit-table .employee-actions .btn{white-space:normal;padding:6px 6px!important;font-size:13px!important;min-width:0!important;width:100%!important;max-width:100%!important;box-sizing:border-box}table.esc-fit-table tbody tr{cursor:pointer}table.esc-fit-table th:nth-child(1){width:130px}table.esc-fit-table th:nth-child(2){width:64px}table.esc-fit-table th:nth-child(3){width:9%}table.esc-fit-table th:nth-child(4){width:10%}table.esc-fit-table th:nth-child(5){width:7%}table.esc-fit-table th:nth-child(6){width:10%}table.esc-fit-table th:nth-child(7){width:6%}table.esc-fit-table th:nth-child(8){width:9%}table.esc-fit-table th:nth-child(9){width:6%}table.esc-fit-table th:nth-child(11){width:12%}@media(max-width:760px){table.esc-fit-table{table-layout:auto}}'),
       h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Tap a row for full details; acknowledge / resolve with remarks',className:'esc-fit-table',
@@ -619,7 +624,7 @@
           const elapsed=Math.max(0,Math.floor((Date.now()-new Date(r.created_at).getTime())/60000));
           return [
             h('div',{className:'employee-actions',onClick:ev=>ev.stopPropagation()},
-              !r.resolved_at&&h('button',{className:'btn btn-primary',disabled:busy,onClick:()=>resolve(r)},escIsInfo(r.alert_type)?'✓ Acknowledge':'Mark Resolved'),
+              !r.resolved_at&&ackButton(r,()=>resolve(r)),
               !r.resolved_at&&/physio/i.test(String(r.alert_type||''))&&r.source_id&&h(PhysioPlanContact,{planId:r.source_id}) // 2.18.124
             ),
             h('span',{className:'badge',style:r.resolved_at?{background:'#eef5f2',color:'#17624b'}:{background:'#fdecec',color:'#b42318'}},r.resolved_at?'Resolved':'Open'),
