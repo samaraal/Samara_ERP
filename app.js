@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.14';
+  const APP_VERSION = '2.20.15';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Scan to Save (second bed scan)';
+  const APP_BUILD_DATE = '11-Nov-2026 One clinical voice at a time; Admin silent';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -4206,6 +4206,8 @@ https://samaraassistedliving.com/`;
     const geminiVoiceInflight=React.useRef(new Map());
     const geminiVoicePauseUntil=React.useRef(0);
     const currentVoiceSources=React.useRef([]);
+    // 2.20.15: announcements are queued — one chime + voice at a time, never overlapping (also across ERP tabs).
+    const voiceQueue=React.useRef([]),voiceRunning=React.useRef(false);
     const voicePlayToken=React.useRef(0);
 
     // 2.19.26: browsers allow sound only after a tap on the page. After every reload / update the sound was
@@ -4927,6 +4929,64 @@ https://samaraassistedliving.com/`;
         try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
       },400);
     }
+    // 2.20.15 (Admin, 11-11-2026): several Guests due together used to start several voices at once.
+    // Now every announcement waits for the previous one to finish (chime → voice → short pause → next).
+    // A browser-wide lock makes ERP tabs / windows on the same computer take turns, and an alert just
+    // announced in one tab is not announced again by another tab.
+    const VOICE_SHARED_KEY='samara_clinical_voice_announced';
+    const sleepMs=ms=>new Promise(r=>window.setTimeout(r,Math.max(0,ms)));
+    function voiceAnnouncedElsewhere(key,windowMs){
+      try{const m=JSON.parse(localStorage.getItem(VOICE_SHARED_KEY)||'{}')||{};return Date.now()-Number(m[key]||0)<windowMs;}catch(_){return false}
+    }
+    function markVoiceAnnounced(key){
+      try{const now=Date.now(),m=JSON.parse(localStorage.getItem(VOICE_SHARED_KEY)||'{}')||{};
+        const keep=Object.fromEntries(Object.entries(m).filter(([,t])=>now-Number(t)<6*3600000));keep[key]=now;
+        localStorage.setItem(VOICE_SHARED_KEY,JSON.stringify(keep));}catch(_){}
+    }
+    async function speakAndWait(a){
+      if(isMobileClinicalDevice()||isAdminDirectorViewer(profile))return;
+      if(!settings.voice_enabled||!soundUnlocked)return;
+      const text=clinicalVoiceTextForGemini(a);
+      try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
+      const t0=Date.now();
+      await sleepMs(300);
+      while(Date.now()-t0<60000){
+        const busy=(currentVoiceSources.current||[]).length>0||geminiVoiceInflight.current.has(text)||!!window.speechSynthesis?.speaking||!!window.speechSynthesis?.pending;
+        if(!busy)break;
+        await sleepMs(300);
+      }
+    }
+    async function runVoiceQueue(){
+      if(voiceRunning.current)return;
+      voiceRunning.current=true;
+      try{
+        while(voiceQueue.current.length){
+          const a=voiceQueue.current.shift();
+          const repeatMs=Math.max(1,Number(settings.repeat_minutes||5))*60000;
+          const job=async()=>{
+            if(voiceAnnouncedElsewhere(a.key,repeatMs*0.9))return; // another tab just announced it
+            markVoiceAnnounced(a.key);
+            try{const t=clinicalVoiceTextForGemini(a);if(settings.voice_enabled&&!geminiVoiceCache.current.has(t))startGeminiVoiceJob(t)}catch(_){} // pre-fetch during the chime
+            const chimeMs=play(a.priority)||0;
+            if(chimeMs>0)await sleepMs(chimeMs+150);
+            await speakAndWait(a);
+            await sleepMs(1500); // gap between Guests so each name is heard clearly
+          };
+          try{
+            if(navigator.locks?.request)await navigator.locks.request('samara-clinical-voice',job);
+            else await job();
+          }catch(error){console.warn('Clinical announcement skipped:',error?.message||error)}
+        }
+      }finally{voiceRunning.current=false}
+    }
+    function announceQueued(a){
+      // 2.20.15: Admin / Directors get no chime and no voice (pop-up, bell and phone notifications stay).
+      if(!a||isMobileClinicalDevice()||isAdminDirectorViewer(profile))return;
+      if(voiceQueue.current.some(x=>x.key===a.key))return;
+      if(voiceQueue.current.length>=8)voiceQueue.current.shift();
+      voiceQueue.current.push(a);
+      runVoiceQueue();
+    }
     async function refreshPushEnabled(){
       try{
         if(!('Notification' in window)){setPushEnabled(false);return false;}
@@ -5424,9 +5484,11 @@ https://samaraassistedliving.com/`;
       if(nextToAnnounce){
         lastPlayed.current[nextToAnnounce.key]=now;
         if(infoOnce(nextToAnnounce)){try{const keep=Object.fromEntries(Object.entries(infoSeen).filter(([,t])=>now-Number(t)<3*86400000));keep[nextToAnnounce.key]=now;localStorage.setItem(INFO_SEEN_KEY,JSON.stringify(keep))}catch(_e){}}
-        // 2.19.25: chime first, then the voice (so the music and the voice do not overlap)
-        const chimeMs=play(nextToAnnounce.priority);
-        if(chimeMs>0){const alertForVoice=nextToAnnounce;window.setTimeout(()=>speak(alertForVoice),chimeMs+150)}else speak(nextToAnnounce);
+        // 2.19.25: chime first, then the voice. 2.20.15: through one queue — never two at the same time.
+        announceQueued(nextToAnnounce);
+        // 2.20.15: other Guests due right now are announced after it, one by one (max 5 per round), instead of
+        // waiting a minute each — the queue keeps them from overlapping.
+        ordered.filter(x=>x!==nextToAnnounce&&!infoOnce(x)&&now-(lastPlayed.current[x.key]||0)>=repeatMs&&!voiceAnnouncedElsewhere(x.key,repeatMs*0.9)).slice(0,4).forEach(x=>announceQueued(x)); // pop-ups still come on their own turn; the shared marker stops a second voice
 
         if(!(isMobileClinicalDevice()&&pushEnabled&&['Admin','Manager'].includes(profile?.role))&&settings.browser_notifications_enabled&&Notification.permission==='granted'){
           showSystemNotification(

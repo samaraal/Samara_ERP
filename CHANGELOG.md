@@ -1,3 +1,5 @@
+## 2.20.15 — 11-11-2026 — Clinical alert voice: announcements go through one queue (chime → Tamil voice → waits until finished → 1.5 s gap → next Guest), so several Guests due together are heard one by one, never at once; ERP tabs / windows on the same computer take turns and do not repeat each other. Admin / Directors: no chime and no voice (pop-up, bell, phone notifications unchanged). Frontend only.
+
 ## 2.20.14 — 11-11-2026 — Bedside "Scan to Save": with the bed scan compulsory, Nurse / Caregiver entries need a second scan of the same bed sticker when pressing Save (Medicines, Vitals, Daily Care / Procedures, Meals, Shift Tasks). Save buttons read "📷 Scan to Save". Cancel or wrong bed = not saved, entries stay on screen. Frontend only.
 
 ## 2.20.13 — 11-11-2026 — Bedside: after a bed scan, Meds / Vitals / Care / Meals (also from the bottom bar) open with that Guest already chosen (10 minutes). Daily Care: "Blood Glucose Monitoring" marked Completed asks for FBS / PPBS / RBS + reading (mg/dL) and saves it to Vital Signs too (same moment, so the plan is not marked twice); low / high readings warn at once. Frontend only.
