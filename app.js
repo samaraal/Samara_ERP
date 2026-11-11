@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.15';
+  const APP_VERSION = '2.20.16';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 One clinical voice at a time; Admin silent';
+  const APP_BUILD_DATE = '11-Nov-2026 Acknowledge recorded late / not-given doses';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -5640,6 +5640,20 @@ https://samaraassistedliving.com/`;
 
     React.useEffect(()=>{loadHistory()},[alertPeriodApplyA.period,alertPeriodApplyA.from,alertPeriodApplyA.to]);
 
+    // 2.20.16: one-tap Acknowledge on this page for recorded doses (same audit record as the Escalation Register)
+    const [ackBusy,setAckBusy]=React.useState('');
+    const [ackMessage,setAckMessage]=React.useState('');
+    async function acknowledgeRow(a){
+      setAckBusy(a.key);setAckMessage('');
+      try{
+        const res=await acknowledgeClinicalEscalation({alertKey:`${a.alert_type}:${a.source_id}`,sourceId:a.source_id,alertType:a.alert_type});
+        if(res.cancelled)return;
+        if(res.error&&!res.closed){setAckMessage(res.error.message||String(res.error));return}
+        await engine.refresh();
+        await refreshEscalations();
+      }finally{setAckBusy('')}
+    }
+
     async function refreshAll(){
       if(!isLive){await loadHistory();return;}
       await engine.refresh();
@@ -5687,11 +5701,13 @@ https://samaraassistedliving.com/`;
 
     const allRows=(engine.alerts||[]).map(a=>({
       ...a,
+      // 2.20.16: Given Late / Not Given doses are already recorded — they wait for Acknowledge, not nursing action
+      isRecorded:escIsInfo(a.alert_type),
       // Engine status is authoritative; legacy alert_key lookup remains fallback only.
-      isEscalated:Boolean(a.is_escalated)||escalatedKeys.has(String(a.key||'')),
+      isEscalated:!escIsInfo(a.alert_type)&&(Boolean(a.is_escalated)||escalatedKeys.has(String(a.key||''))),
       // v2.14.87: Daily Care due_at is 30 min before its escalation time (shift end − 1 h, or the end of the
       // preferred window), so it counts as overdue only after that escalation time.
-      isOverdue:Number(a.overdue_minutes||0)>(String(a.alert_type||'')==='Daily Care'?30:0)
+      isOverdue:!escIsInfo(a.alert_type)&&Number(a.overdue_minutes||0)>(String(a.alert_type||'')==='Daily Care'?30:0)
     }));
 
     const rows=allRows.filter(a=>{
@@ -5707,14 +5723,16 @@ https://samaraassistedliving.com/`;
       if(!focusMatch)return false;
       if(filter==='All')return true;
       if(filter==='Escalated')return a.isEscalated;
+      if(filter==='To acknowledge')return a.isRecorded;
       if(filter==='Overdue')return a.isOverdue&&!a.isEscalated;
-      if(filter==='Due now')return !a.isOverdue&&!a.isEscalated;
+      if(filter==='Due now')return !a.isOverdue&&!a.isEscalated&&!a.isRecorded;
       return a.priority===filter;
     });
 
     const escalatedCount=allRows.filter(a=>a.isEscalated).length;
     const overdueCount=allRows.filter(a=>a.isOverdue&&!a.isEscalated).length;
-    const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated).length;
+    const dueNowCount=allRows.filter(a=>!a.isOverdue&&!a.isEscalated&&!a.isRecorded).length;
+    const toAcknowledgeCount=allRows.filter(a=>a.isRecorded).length;
     const regularisationCount=allRows.filter(a=>String(a.alert_type||'').toLowerCase()==='regularisation').length;
 
     const historyTypes=[...new Set(historyRows.map(r=>r.alert_type||'Clinical'))].sort();
@@ -5842,6 +5860,7 @@ https://samaraassistedliving.com/`;
         )},
         isLive?h('div',{className:'grid stats'},
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setFilter('Escalated'),title:'Show escalated alerts'},h('span',null,'Escalated'),h('strong',null,escalatedCount),h('small',null,'Requires immediate nursing action')),
+          toAcknowledgeCount>0&&h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setFilter('To acknowledge'),title:'Show recorded doses waiting for Acknowledge'},h('span',null,'To acknowledge'),h('strong',null,toAcknowledgeCount),h('small',null,'Already recorded by the nurse — review and acknowledge')),
           h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setFilter('Overdue'),title:'Show overdue alerts'},h('span',null,'Overdue'),h('strong',null,overdueCount),h('small',null,'Not yet escalated')),
           h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setFilter('Due now'),title:'Show due-now alerts'},h('span',null,'Due now'),h('strong',null,dueNowCount),h('small',null,'Current actionable items')),
           h('button',{type:'button',className:'card stat',onClick:()=>setFilter('All'),title:'Show all alerts including regularisation'},h('span',null,'Regularisation'),h('strong',null,regularisationCount),h('small',null,'One consolidated historical backlog'))
@@ -5870,7 +5889,7 @@ https://samaraassistedliving.com/`;
           isLive&&h('div',{className:'field',style:{width:'220px',margin:0}},
             h('label',null,'View'),
             h('select',{value:filter,onChange:e=>setFilter(e.target.value)},
-              ['All','Escalated','Overdue','Due now','Critical','Urgent','Routine'].map(x=>h('option',{key:x,value:x},x))
+              ['All','Escalated','To acknowledge','Overdue','Due now','Critical','Urgent','Routine'].map(x=>h('option',{key:x,value:x},x))
             )
           ),
           !isLive&&h('div',{className:'field',style:{width:'180px',margin:0}},
@@ -5911,12 +5930,16 @@ https://samaraassistedliving.com/`;
           ];
         })
       }),
+      isLive&&ackMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},ackMessage),
       isLive&&h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:rows.length?'Complete the underlying clinical task; management resolution is not available to Nursing':'Nothing is due right now. Choose a Period above (Today, Yesterday, Last 7 days…) to see earlier alerts.',
         heads:['Status','Priority','Patient','Room','Alert','Due','Overdue','Details','Action'],
         rows:rows
-          .sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)))
+          .sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.isRecorded)-Number(a.isRecorded))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)))
           .map(a=>[
-            h('span',{className:'badge',style:a.isEscalated?{background:'#fdecec',color:'#b42318'}:a.isOverdue?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},
+            // 2.20.16: Medicine Given Late / Not Given are already recorded by the nurse — shown as "RECORDED", not "ESCALATED"
+            escIsInfo(a.alert_type)
+              ?h('span',{className:'badge',style:{background:'#fff4dd',color:'#9a6700'}},'RECORDED')
+              :h('span',{className:'badge',style:a.isEscalated?{background:'#fdecec',color:'#b42318'}:a.isOverdue?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},
               a.isEscalated?'ESCALATED':a.isOverdue?'OVERDUE':'DUE NOW'),
             h('span',{className:'badge',style:a.priority==='Critical'?{background:'#fdecec',color:'#b42318'}:a.priority==='Urgent'?{background:'#fff4dd',color:'#9a6700'}:{background:'#eef5ff',color:'#175cd3'}},a.priority),
             a.patient_name||'—',
@@ -5928,7 +5951,11 @@ https://samaraassistedliving.com/`;
               :(Number(a.overdue_minutes)>0?englishOverdueLabel(a.overdue_minutes):'Due now'),
             a.description||'—',
             h('div',{className:'employee-actions'},
-              h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
+              // 2.20.16: already-recorded doses (Given Late / Not Given) need only the Manager's Acknowledge, not "Complete / Record"
+              escIsInfo(a.alert_type)
+                ?h('button',{className:'btn btn-primary',disabled:ackBusy===a.key,onClick:()=>acknowledgeRow(a)},ackBusy===a.key?'Saving…':'✓ Acknowledge')
+                :h('button',{className:'btn btn-primary',onClick:()=>openClinicalTask(a)},a.alert_type==='Regularisation'?'Review':'Complete / Record'),
+              escIsInfo(a.alert_type)&&h('button',{className:'btn btn-secondary',onClick:()=>openClinicalTask(a)},'View Record'),
               a.target_page==='Physiotherapy'&&a.source_id&&h(PhysioPlanContact,{planId:a.source_id}), // 2.18.124: call the physio from the alert
               a.alert_type!=='Regularisation'&&!a.isEscalated&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Snoozed',5)},'Snooze 5'),
               a.alert_type==='Regularisation'&&h('button',{className:'btn btn-secondary',onClick:()=>engine.acknowledge(a,'Acknowledged',0)},'Regularise Backlog')
