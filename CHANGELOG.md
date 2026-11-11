@@ -1,3 +1,5 @@
+## 2.20.14 — 11-11-2026 — Bedside "Scan to Save": with the bed scan compulsory, Nurse / Caregiver entries need a second scan of the same bed sticker when pressing Save (Medicines, Vitals, Daily Care / Procedures, Meals, Shift Tasks). Save buttons read "📷 Scan to Save". Cancel or wrong bed = not saved, entries stay on screen. Frontend only.
+
 ## 2.20.13 — 11-11-2026 — Bedside: after a bed scan, Meds / Vitals / Care / Meals (also from the bottom bar) open with that Guest already chosen (10 minutes). Daily Care: "Blood Glucose Monitoring" marked Completed asks for FBS / PPBS / RBS + reading (mg/dL) and saves it to Vital Signs too (same moment, so the plan is not marked twice); low / high readings warn at once. Frontend only.
 
 ## 2.20.12 — 11-11-2026 — HR Letters table shows the real WhatsApp result (Delivered ✓✓ / Read ✓✓ / Not delivered + reason) from the delivery reports, instead of only "Sent". Frontend only.

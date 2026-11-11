@@ -1147,7 +1147,7 @@
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),
-              h('button',{type:'button',className:'mar-act go',disabled:confirmBusy,onClick:administerNow},confirmBusy?'Saving…':'Yes, given now'))));
+              h('button',{type:'button',className:'mar-act go',disabled:confirmBusy,onClick:administerNow},confirmBusy?'Saving…':bedsideSaveText(profile,'Yes, given now')))));
       })(),
       doseDetail&&doseDetail.log&&h(RowDetailModal,{title:`${medicineLabel(doseDetail.order)} · ${medicationTimeLabel(doseDetail.time)}`,subtitle:patientLabel(doseDetail.order),onClose:()=>setDoseDetail(null),
         fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],

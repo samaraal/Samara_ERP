@@ -362,7 +362,7 @@
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each Guest on each date. Record beverages in ☕ Beverage.'),
           h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
-          h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':`Save ${mealLabel(form.meal_type)} Entry`)
+          h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':bedsideSaveText(profile,`Save ${mealLabel(form.meal_type)} Entry`))
         ):h('form',{className:'fi-form',onSubmit:saveBeverage},
           !bevReady&&h('div',{className:'message error'},'Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase.'),
           h('label',{className:'fi-label'},'Beverage *'),
@@ -379,7 +379,7 @@
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
           h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
-          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
+          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':bedsideSaveText(profile,`Save ${bev.beverage||'Beverage'} Entry`)),
           !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )
       ),

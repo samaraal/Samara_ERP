@@ -55,11 +55,49 @@
       const own=scan&&scan.code&&(!scan.patientId||String(scan.patientId)===String(patientId))?scan:null;
       const s=own||bedsideSessionGet(patientId);
       const r=s?.check?.result;
-      if(r==='verified')return '';
+      if(r==='verified')return await bedsideScanToSaveCheck(patientId); // 2.20.14: second scan at Save
       if(r==='wrong_bed')return 'This sticker belongs to another bed. Go to the Guest\'s own bed and scan its sticker. Saving is not allowed.';
       if(s&&s.code&&r)return 'The bed sticker could not be confirmed for this Guest. Scan the sticker on the Guest\'s bed again, or ask the Nursing Manager.';
       return 'Scanning the bed QR is compulsory. Tap 📷 Scan bed QR (or use Scan & Administer) at the Guest\'s bed, then save. Sticker or camera problem? Ask the Nursing Manager to make this entry.';
     }catch(_){return ''}
+  }
+  // 2.20.14: "Scan to Save" (Admin, 11-11-2026) — two scans per bedside entry: one at the start (Scan & Administer /
+  // 📷 Scan bed QR) and one more at Save, so the values are saved while the nurse is still at the Guest's bed.
+  // Applies wherever the start scan is compulsory (mode 'qr_required', Nurse / Caregiver logins); every bedside save
+  // already passes bedsideSaveCheck, so Medicines, Vitals, Daily Care / Procedures, Meals and Shift Tasks all get it.
+  let bedsideSaveScanOpen=false;
+  function bedsideScanToSave(patientId){
+    if(bedsideSaveScanOpen)return Promise.resolve({cancelled:true});
+    bedsideSaveScanOpen=true;
+    return new Promise(resolve=>{
+      const host=document.createElement('div');document.body.appendChild(host);
+      const root=ReactDOM.createRoot(host);
+      let finished=false;
+      const done=v=>{if(finished)return;finished=true;bedsideSaveScanOpen=false;setTimeout(()=>{try{root.unmount()}catch(_){}try{host.remove()}catch(_){}},0);resolve(v);};
+      const onCode=async code=>{
+        try{
+          const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:patientId||null});
+          if(r.error)throw r.error;
+          done({code,check:r.data||null});
+        }catch(e){done({code,check:{result:'error',message:e?.message||'Could not check the sticker'}});}
+      };
+      root.render(h(BedsideSafe,null,h(BedsideQrScanner,{title:'📷 Scan to Save — scan the same bed sticker again',onCode,onClose:()=>done({cancelled:true})})));
+    });
+  }
+  async function bedsideScanToSaveCheck(patientId){
+    const r=await bedsideScanToSave(patientId);
+    if(r.cancelled)return 'Not saved — scan the bed sticker once more to save (Scan to Save). Your entries are still on the screen.';
+    const res=r.check?.result;
+    if(res==='verified'){
+      const s=bedsideSessionGet(patientId);if(s)bedsideSessionSet({...s,check:r.check}); // keeps the bed check fresh
+      return '';
+    }
+    if(res==='wrong_bed')return 'Not saved — that sticker belongs to another bed. Scan the sticker on this Guest\'s own bed to save.';
+    return 'Not saved — the bed sticker could not be confirmed for this Guest. Scan again, or ask the Nursing Manager.';
+  }
+  // Save-button wording: "📷 Scan to Save" where the second scan applies (phone, Nurse / Caregiver, scan compulsory).
+  function bedsideSaveText(profile,text){
+    try{return bedsideModeCache.mode==='qr_required'&&bedsideBlockedRole(profile)?`📷 Scan to Save · ${text}`:text;}catch(_){return text}
   }
   function useBedsideMode(){
     const [mode,setMode]=React.useState(bedsideModeCache.mode);

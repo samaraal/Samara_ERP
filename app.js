@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.13';
+  const APP_VERSION = '2.20.14';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Bed scan keeps the Guest + sugar reading in Daily Care';
+  const APP_BUILD_DATE = '11-Nov-2026 Scan to Save (second bed scan)';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -36885,7 +36885,7 @@ function RoomsBeds({profile,onNavigate}){
               h('div',{className:'field'},h('label',null,'Reading (mg/dL) *'),h('input',{type:'number',inputMode:'numeric',min:10,max:900,step:'1',value:form.sugar_value||'',placeholder:'e.g. 184',onChange:e=>setForm({...form,sugar_value:e.target.value})})))),
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94: shows nothing unless the QR trial is ON
-          h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving care record…':'Save care record')
+          h('button',{className:'btn btn-primary',disabled:saving},saving?'Saving care record…':bedsideSaveText(profile,'Save care record'))
         )
       ),
       h(LogTable,{
@@ -36942,7 +36942,7 @@ function RoomsBeds({profile,onNavigate}){
         h('form',{className:'vitals-entry-card',onSubmit:save},
           h('div',{className:'vitals-patient-row'},patientSelect(patients,form.patient_id,v=>{setForm({...form,patient_id:v});setSelectedPatient(v)}),h('div',{className:`vital-live-status ${calculateLevel(form).toLowerCase().replace(' ','-')}`},h('small',null,'Current entry'),h('strong',null,calculateLevel(form)))),
           h('div',{className:'vitals-grid'},input('Temperature','temperature','°C / °F',{placeholder:'98.6'}),input('Systolic BP','systolic','mmHg'),input('Diastolic BP','diastolic','mmHg'),input('Pulse','pulse','/min'),input('Respiration','respiration','/min'),input('SpO₂','spo2','%'),h('div',{className:'vital-input'},h('label',null,'Blood Sugar Type'),h('select',{value:form.blood_sugar_type||'Not Taken',onChange:e=>setForm({...form,blood_sugar_type:e.target.value,blood_sugar:e.target.value==='Not Taken'?'':form.blood_sugar})},['Not Taken','FBS','PPBS','RBS'].map(x=>h('option',{value:x,key:x},x)))),input('Blood Sugar','blood_sugar','mg/dL',{disabled:(form.blood_sugar_type||'Not Taken')==='Not Taken'}),input('Weight','weight','kg',{step:'0.1'}),input('Pain Score','pain_score','/10',{min:0,max:10})),
-          h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan})),h('button',{className:'btn btn-primary vitals-save'},'Save Vital Signs')))),
+          h('div',{className:'vitals-bottom'},h('div',{className:'field'},h('label',null,'Clinical remarks'),h('textarea',{rows:2,value:form.remarks,onChange:e=>setForm({...form,remarks:e.target.value}),placeholder:'Symptoms, oxygen support, position, food status or other observations'})),h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===form.patient_id),value:bedsideScan,onChange:setBedsideScan})),h('button',{className:'btn btn-primary vitals-save'},bedsideSaveText(profile,'Save Vital Signs'))))),
       selectedPatient&&latest&&h('div',{className:'latest-vitals-strip'},h('div',null,h('small',null,'Latest for selected patient'),h('strong',null,formalName(latest.patients||{})||latest.patients?.full_name)),[['BP',`${measured(latest.systolic)??'—'}/${measured(latest.diastolic)??'—'}`],['Pulse',measured(latest.pulse)??'—'],['SpO₂',measured(latest.spo2)??'—'],['Sugar',measured(latest.blood_sugar)!==null?`${latest.blood_sugar_type||'RBS'} ${measured(latest.blood_sugar)}`:'—'],['Status',latest.computed_alert_level]].map(([a,b])=>h('div',{key:a},h('small',null,a),h('strong',null,b)))),
       h(LogTable,{className:'vitals-log-table',subtitle:'Swipe left or right to view all measurements.',title:selectedPatient?'Patient Vital Trend':'Recent Vital Signs',heads:['Patient','BP','Temp','Pulse','Resp.','SpO₂','Sugar Type','Sugar','Pain','Alert','Recorded'],rows:patientRows.map(r=>[formalName(r.patients||{})||r.patients?.full_name,vitalBP(r),vitalReading('temperature',r.temperature),vitalReading('pulse',r.pulse),vitalReading('respiration',r.respiration),vitalReading('spo2',r.spo2),r.blood_sugar_type||'Not Taken',vitalReading('blood_sugar',r.blood_sugar),r.pain_score??'—',vitalAlert(r.computed_alert_level),fmt(r.recorded_at)])})
     );
@@ -37820,11 +37820,49 @@ function RoomsBeds({profile,onNavigate}){
       const own=scan&&scan.code&&(!scan.patientId||String(scan.patientId)===String(patientId))?scan:null;
       const s=own||bedsideSessionGet(patientId);
       const r=s?.check?.result;
-      if(r==='verified')return '';
+      if(r==='verified')return await bedsideScanToSaveCheck(patientId); // 2.20.14: second scan at Save
       if(r==='wrong_bed')return 'This sticker belongs to another bed. Go to the Guest\'s own bed and scan its sticker. Saving is not allowed.';
       if(s&&s.code&&r)return 'The bed sticker could not be confirmed for this Guest. Scan the sticker on the Guest\'s bed again, or ask the Nursing Manager.';
       return 'Scanning the bed QR is compulsory. Tap 📷 Scan bed QR (or use Scan & Administer) at the Guest\'s bed, then save. Sticker or camera problem? Ask the Nursing Manager to make this entry.';
     }catch(_){return ''}
+  }
+  // 2.20.14: "Scan to Save" (Admin, 11-11-2026) — two scans per bedside entry: one at the start (Scan & Administer /
+  // 📷 Scan bed QR) and one more at Save, so the values are saved while the nurse is still at the Guest's bed.
+  // Applies wherever the start scan is compulsory (mode 'qr_required', Nurse / Caregiver logins); every bedside save
+  // already passes bedsideSaveCheck, so Medicines, Vitals, Daily Care / Procedures, Meals and Shift Tasks all get it.
+  let bedsideSaveScanOpen=false;
+  function bedsideScanToSave(patientId){
+    if(bedsideSaveScanOpen)return Promise.resolve({cancelled:true});
+    bedsideSaveScanOpen=true;
+    return new Promise(resolve=>{
+      const host=document.createElement('div');document.body.appendChild(host);
+      const root=ReactDOM.createRoot(host);
+      let finished=false;
+      const done=v=>{if(finished)return;finished=true;bedsideSaveScanOpen=false;setTimeout(()=>{try{root.unmount()}catch(_){}try{host.remove()}catch(_){}},0);resolve(v);};
+      const onCode=async code=>{
+        try{
+          const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:patientId||null});
+          if(r.error)throw r.error;
+          done({code,check:r.data||null});
+        }catch(e){done({code,check:{result:'error',message:e?.message||'Could not check the sticker'}});}
+      };
+      root.render(h(BedsideSafe,null,h(BedsideQrScanner,{title:'📷 Scan to Save — scan the same bed sticker again',onCode,onClose:()=>done({cancelled:true})})));
+    });
+  }
+  async function bedsideScanToSaveCheck(patientId){
+    const r=await bedsideScanToSave(patientId);
+    if(r.cancelled)return 'Not saved — scan the bed sticker once more to save (Scan to Save). Your entries are still on the screen.';
+    const res=r.check?.result;
+    if(res==='verified'){
+      const s=bedsideSessionGet(patientId);if(s)bedsideSessionSet({...s,check:r.check}); // keeps the bed check fresh
+      return '';
+    }
+    if(res==='wrong_bed')return 'Not saved — that sticker belongs to another bed. Scan the sticker on this Guest\'s own bed to save.';
+    return 'Not saved — the bed sticker could not be confirmed for this Guest. Scan again, or ask the Nursing Manager.';
+  }
+  // Save-button wording: "📷 Scan to Save" where the second scan applies (phone, Nurse / Caregiver, scan compulsory).
+  function bedsideSaveText(profile,text){
+    try{return bedsideModeCache.mode==='qr_required'&&bedsideBlockedRole(profile)?`📷 Scan to Save · ${text}`:text;}catch(_){return text}
   }
   function useBedsideMode(){
     const [mode,setMode]=React.useState(bedsideModeCache.mode);
@@ -39452,7 +39490,7 @@ function RoomsBeds({profile,onNavigate}){
             h('div',{className:'modal-actions',style:{marginTop:'14px'}},
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>setConfirmTarget(null)},'Cancel'),
               h('button',{type:'button',className:'btn btn-secondary',disabled:confirmBusy,onClick:()=>{setConfirmTarget(null);openMar(item.order,item.time,item.date)}},'Other…'),
-              h('button',{type:'button',className:'mar-act go',disabled:confirmBusy,onClick:administerNow},confirmBusy?'Saving…':'Yes, given now'))));
+              h('button',{type:'button',className:'mar-act go',disabled:confirmBusy,onClick:administerNow},confirmBusy?'Saving…':bedsideSaveText(profile,'Yes, given now')))));
       })(),
       doseDetail&&doseDetail.log&&h(RowDetailModal,{title:`${medicineLabel(doseDetail.order)} · ${medicationTimeLabel(doseDetail.time)}`,subtitle:patientLabel(doseDetail.order),onClose:()=>setDoseDetail(null),
         fields:[['Status',doseDetail.log.status],['Route',doseDetail.order.route],['Food',doseDetail.order.food_instruction],['Special instruction',doseDetail.order.special_instruction||doseDetail.order.special_instructions],
@@ -40281,7 +40319,7 @@ function RoomsBeds({profile,onNavigate}){
           miniInput('Remarks',form.remarks,v=>setForm({...form,remarks:v})),
           h('div',{className:'field-help'},'Only one Breakfast, one Lunch and one Dinner entry is permitted for each Guest on each date. Record beverages in ☕ Beverage.'),
           h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
-          h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':`Save ${mealLabel(form.meal_type)} Entry`)
+          h('button',{className:'btn btn-primary fi-save',disabled:saving},saving?'Saving…':bedsideSaveText(profile,`Save ${mealLabel(form.meal_type)} Entry`))
         ):h('form',{className:'fi-form',onSubmit:saveBeverage},
           !bevReady&&h('div',{className:'message error'},'Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase.'),
           h('label',{className:'fi-label'},'Beverage *'),
@@ -40298,7 +40336,7 @@ function RoomsBeds({profile,onNavigate}){
           miniInput('Remarks',bev.remarks,v=>setBev({...bev,remarks:v})),
           h('div',{className:'field-help'},'Record every serving separately — any time of the day, as many times as given.'),
           h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patients.find(p=>p.id===patientId),value:bedsideScan,onChange:setBedsideScan,disabled:saving})), // 2.19.94
-          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':`Save ${bev.beverage||'Beverage'} Entry`),
+          h('button',{className:'btn btn-primary fi-save',disabled:saving||!bevReady},saving?'Saving…':!bevReady?'Cannot save yet — database update needed':bedsideSaveText(profile,`Save ${bev.beverage||'Beverage'} Entry`)),
           !bevReady&&h('div',{className:'message error'},'Admin: run supabase/sql/177_beverage_records.sql once in Supabase → SQL Editor, then refresh. Meals can still be saved.')
         )
       ),
