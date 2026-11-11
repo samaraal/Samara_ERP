@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.16';
+  const APP_VERSION = '2.20.17';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Acknowledge recorded late / not-given doses';
+  const APP_BUILD_DATE = '11-Nov-2026 Clinical Alerts fit to screen';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -5907,7 +5907,9 @@ https://samaraassistedliving.com/`;
         ),
         !isLive&&historyMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},historyMessage)
       ),
-      !isLive&&h(LogTable,{title:`Alerts · ${rangeLabel} (${historyBusy?'…':historyVisible.length})`,subtitle:historyBusy?'Loading alerts for this period…':'Past clinical alerts from the escalation register. Choose "Now (live)" to see tasks due at this moment.',
+      // 2.20.17: Clinical Alerts tables fit the screen — no horizontal scrolling, text wraps
+      h('style',null,'.table-wrap:has(> table.ca-fit-table){overflow-x:visible}table.ca-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.ca-fit-table th,table.ca-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.ca-fit-table .badge{white-space:normal}table.ca-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important}table.ca-fit-table .employee-actions .btn{white-space:normal;padding:6px!important;font-size:13px!important;min-width:0!important;width:100%!important;box-sizing:border-box}table.ca-live th:nth-child(1){width:96px}table.ca-live th:nth-child(2){width:72px}table.ca-live th:nth-child(3){width:11%}table.ca-live th:nth-child(4){width:56px}table.ca-live th:nth-child(5){width:14%}table.ca-live th:nth-child(6){width:10%}table.ca-live th:nth-child(7){width:9%}table.ca-live th:nth-child(9){width:130px}table.ca-hist th:nth-child(1){width:84px}table.ca-hist th:nth-child(2){width:9%}table.ca-hist th:nth-child(3){width:72px}table.ca-hist th:nth-child(4){width:10%}table.ca-hist th:nth-child(5){width:56px}table.ca-hist th:nth-child(6){width:9%}table.ca-hist th:nth-child(7){width:9%}table.ca-hist th:nth-child(8){width:7%}table.ca-hist th:nth-child(11){width:96px}@media(max-width:760px){table.ca-fit-table{table-layout:auto}}'),
+      !isLive&&h(LogTable,{title:`Alerts · ${rangeLabel} (${historyBusy?'…':historyVisible.length})`,subtitle:historyBusy?'Loading alerts for this period…':'Past clinical alerts from the escalation register. Choose "Now (live)" to see tasks due at this moment.',className:'ca-fit-table ca-hist',
         heads:['Status','Type','Priority','Patient','Room','Due','Alert Raised','Sent To','Reason','Resolution','Action'],
         rows:historyVisible.map(r=>{
           const p=historyPatients[String(r.patient_id||'')]||null;
@@ -5931,7 +5933,7 @@ https://samaraassistedliving.com/`;
         })
       }),
       isLive&&ackMessage&&h('div',{className:'message error',style:{marginTop:'12px'}},ackMessage),
-      isLive&&h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:rows.length?'Complete the underlying clinical task; management resolution is not available to Nursing':'Nothing is due right now. Choose a Period above (Today, Yesterday, Last 7 days…) to see earlier alerts.',
+      isLive&&h(LogTable,{title:`Active Alerts (${rows.length})`,subtitle:rows.length?'Complete the underlying clinical task; management resolution is not available to Nursing':'Nothing is due right now. Choose a Period above (Today, Yesterday, Last 7 days…) to see earlier alerts.',className:'ca-fit-table ca-live',
         heads:['Status','Priority','Patient','Room','Alert','Due','Overdue','Details','Action'],
         rows:rows
           .sort((a,b)=>(Number(b.isEscalated)-Number(a.isEscalated))||(Number(b.isRecorded)-Number(a.isRecorded))||(Number(b.overdue_minutes||0)-Number(a.overdue_minutes||0)))
