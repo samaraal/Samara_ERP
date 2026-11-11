@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.20';
+  const APP_VERSION = '2.20.21';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '11-Nov-2026 Acknowledge: Nursing Manager + Admin only';
+  const APP_BUILD_DATE = '11-Nov-2026 Reports ledger row details';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -56986,6 +56986,10 @@ function Reports(){
     const balance=closingBalances.get(patient.id)?.balance??(opening+patientCharges-paid-discount+refund);
     return {patient,opening,charges:patientCharges,paid,discount,refund,balance};
   }).filter(row=>row.charges||row.paid||row.discount||row.refund||Math.abs(row.opening)>0.009||Math.abs(row.balance)>0.009);
+  // 2.20.21: row click on the ledger / register → full details
+  const [ledgerDetail,setLedgerDetail]=React.useState(null);
+  const [txnDetail,setTxnDetail]=React.useState(null);
+  const staffNameR=id=>{if(!id)return '';const x=state.profiles.find(p=>p.id===id||p.auth_user_id===id);return x?(formalName(x)||x.full_name||x.login_id||''):''};
   const ledgerTotals=patientLedger.reduce((t,r)=>({due:t.due+Math.max(0,r.balance),advance:t.advance+Math.max(0,-r.balance)}),{due:0,advance:0});
 
   // 2.19.69: ageing of the amount still UNPAID as on the To date (not gross charges).
@@ -57205,6 +57209,7 @@ function Reports(){
       title:`Patient / Outside Invoice Financial Ledger (${patientLedger.length})`,
       subtitle:`Opening balance + this period's charges − receipts − discounts + refunds = Closing balance as on ${formatDateIN(filters.to||todayISOIndia())} · Due ${money(ledgerTotals.due)} · Advance held ${money(ledgerTotals.advance)}`,
       heads:['Patient','Patient / Invoice ID','Room / Bed','Opening Balance','Charges','Paid / Advance','Discount','Refund','Closing Balance','Status'],
+      onRowClick:i=>setLedgerDetail(patientLedger[i]),
       rows:patientLedger.map(row=>[
         formalName(row.patient)||row.patient.full_name,
         row.patient.patient_id||'—',
@@ -57218,6 +57223,36 @@ function Reports(){
       ])
     }),
 
+    ledgerDetail&&(()=>{
+      const d=ledgerDetail,p=d.patient||{};
+      const txns=periodRows.filter(r=>r.patient_id===p.id).slice().sort((a,b)=>String(a.transaction_date||'').localeCompare(String(b.transaction_date||'')));
+      const cats={};txns.filter(r=>r.transaction_type==='Charge').forEach(r=>{const k=r.category||'Other';cats[k]=(cats[k]||0)+Number(r.amount||0)});
+      const bal=v=>v<-0.009?money(-v)+' Advance':money(v);
+      const status=Math.abs(d.balance)<=0.009?'Paid':d.balance<0?'Advance Held':d.paid>0?'Partially Paid':'Outstanding';
+      return h(RowDetailModal,{title:formalName(p)||p.full_name||'Guest',subtitle:`${p.patient_id||'—'} · ${p.room_no?`Room ${p.room_no}${p.bed_no?'-'+p.bed_no:''}`:'—'} · ${formatDateIN(filters.from)} to ${formatDateIN(filters.to||todayISOIndia())}`,onClose:()=>setLedgerDetail(null),
+        fields:[['Admission date',p.admission_date?formatDateIN(p.admission_date):''],['Status',status],
+          ['Opening balance',bal(d.opening)],['Charges (this period)',money(d.charges)],['Paid / Advance',money(d.paid)],
+          ['Discount',money(d.discount)],['Refund',money(d.refund)],['Closing balance',bal(d.balance)]]},
+        Object.keys(cats).length>0&&h('div',{style:{marginTop:'12px'}},
+          h('strong',null,'Charges by category'),
+          h('div',{className:'row-detail-grid',style:{marginTop:'6px'}},Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>h('div',{key:k,className:'row-detail-field'},h('small',null,k),h('strong',null,money(v)))))),
+        h('div',{style:{marginTop:'12px'}},
+          h('strong',null,`Transactions in this period (${txns.length})`),
+          h('style',null,'table.ledger-detail-fit{width:100%;table-layout:fixed;min-width:0!important}table.ledger-detail-fit th,table.ledger-detail-fit td{white-space:normal!important;overflow-wrap:anywhere;vertical-align:top;padding:6px 5px;font-size:13px}table.ledger-detail-fit th:nth-child(1){width:15%}table.ledger-detail-fit th:nth-child(2){width:10%}table.ledger-detail-fit th:nth-child(3){width:13%}table.ledger-detail-fit th:nth-child(4){width:10%}table.ledger-detail-fit th:nth-child(5){width:11%}'),
+          h('div',{style:{overflowX:'visible'}},h('table',{className:'table ledger-detail-fit'},
+            h('thead',null,h('tr',null,['Date','Type','Category','Mode','Amount','Reference / Description'].map(x=>h('th',{key:x},x)))),
+            h('tbody',null,txns.length?txns.map((r,i)=>h('tr',{key:r.id||i},
+              h('td',null,transactionDate(r)),h('td',null,r.transaction_type||'—'),h('td',null,r.category||'—'),h('td',null,r.payment_mode||'—'),
+              h('td',null,h('strong',{style:{color:r.transaction_type==='Charge'||r.transaction_type==='Refund'?'#b42318':'#067647'}},money(r.amount))),
+              h('td',null,[r.payment_reference,r.description].filter(Boolean).join(' · ')||'—'))):h('tr',null,h('td',{colSpan:6,className:'empty'},'No transactions in this period')))
+          ))));
+    })(),
+    txnDetail&&h(RowDetailModal,{title:`${txnDetail.transaction_type||'Transaction'} · ${money(txnDetail.amount)}`,subtitle:formalName(txnDetail.patients||{})||txnDetail.patients?.full_name||'',onClose:()=>setTxnDetail(null),
+      fields:[['Date',transactionDate(txnDetail)],['Guest',formalName(txnDetail.patients||{})||txnDetail.patients?.full_name||''],['Patient / Invoice ID',txnDetail.patients?.patient_id||''],
+        ['Room / Bed',txnDetail.patients?.room_no?`${txnDetail.patients.room_no}${txnDetail.patients.bed_no?'-'+txnDetail.patients.bed_no:''}`:''],
+        ['Type',txnDetail.transaction_type],['Category',txnDetail.category],['Amount',money(txnDetail.amount)],['Payment mode',txnDetail.payment_mode],
+        ['Voucher / Reference',txnDetail.payment_reference],['Description',txnDetail.description],['Source',txnDetail.source||''],['Entered by',staffNameR(txnDetail.entered_by)]]}),
+
     h('div',{id:'report-register'}),
     h('details',{open:registerOpen,onToggle:e=>setRegisterOpen(e.currentTarget.open),style:{margin:'12px 0'}},
     h('summary',{style:{cursor:'pointer',padding:'12px 16px',borderRadius:'14px',background:'linear-gradient(90deg,#fde7f1,#fff5fa)',color:'#7a1247',fontWeight:700,listStyle:'revert'}},
@@ -57226,6 +57261,7 @@ function Reports(){
       title:`Detailed Transaction Register (${registerRows.length})`,
       subtitle:filters.register_type==='All'?'Filtered billing, payment, discount and refund history':`Showing ${filters.register_type} entries only`,
       heads:['Date','Patient','Patient / Invoice ID','Type','Category','Mode','Voucher / Reference','Amount','Description'],
+      onRowClick:i=>setTxnDetail(registerRows[i]),
       rows:registerRows.map(row=>[
         transactionDate(row),
         formalName(row.patients||{})||row.patients?.full_name||'—',

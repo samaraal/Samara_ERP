@@ -1,3 +1,5 @@
+## 2.20.21 — 11-11-2026 — Reports: tapping a row in the Patient / Outside Invoice Financial Ledger opens full details — admission date, opening / charges / paid / discount / refund / closing balance, charges by category, and every transaction of the period (date, type, category, mode, amount, reference / description). Rows in the Detailed Transaction Register open their full details too (incl. entered by). Frontend only.
+
 ## 2.20.20 — 11-11-2026 — Clinical alerts: the ✓ Acknowledge button (alert pop-up, Clinical Alerts page, row details, Escalation Register) is shown only to the Nursing Manager and Admin / Directors; other Manager logins see "Awaiting Nursing Manager / Admin". Frontend only.
 
 ## 2.20.19 — 11-11-2026 — Clinical Alerts and Clinical Escalations: new **Nurse** column (recorded doses: the nurse who recorded it; other alerts: the Guest's assigned nurse for the shift). Tapping any row opens full details (Guest, room, medicine, scheduled / given / entry times, reason, remarks, assigned Day / Night nurse, escalated at / to, resolution) with Acknowledge inside. Escalation Register: "Open Source" button removed. Frontend only.
