@@ -20,7 +20,7 @@
             -Run        one normal run (what the scheduled task uses)
             -Uninstall  remove the scheduled task and saved settings
 #>
-param([switch]$Setup, [switch]$Run, [switch]$DryRun, [switch]$Uninstall)
+param([switch]$Setup, [switch]$Run, [switch]$DryRun, [switch]$Uninstall, [switch]$Diagnose)
 
 $ErrorActionPreference = 'Stop'
 $AgentVersion = '2.20.24'
@@ -62,9 +62,11 @@ function Get-TpAuthHeader($cfg) {
   $user = $cred.UserName
   $pass = $cred.GetNetworkCredential().Password
   $body = ConvertTo-JsonBody @{ username = $user; password = $pass }
-  foreach ($try in @(@{ path = '/jwt-api-token-auth/'; scheme = 'JWT' }, @{ path = '/api-token-auth/'; scheme = 'Token' })) {
+  $form = 'username=' + [Uri]::EscapeDataString($user) + '&password=' + [Uri]::EscapeDataString($pass)
+  foreach ($try in @(@{ path = '/jwt-api-token-auth/'; scheme = 'JWT'; form = $false }, @{ path = '/jwt-api-token-auth/'; scheme = 'JWT'; form = $true }, @{ path = '/api-token-auth/'; scheme = 'Token'; form = $false })) {
     try {
-      $r = Invoke-RestMethod -Method Post -Uri ($cfg.TimeProUrl.TrimEnd('/') + $try.path) -Body $body -ContentType 'application/json; charset=utf-8' -TimeoutSec 30
+      if ($try.form) { $r = Invoke-RestMethod -Method Post -Uri ($cfg.TimeProUrl.TrimEnd('/') + $try.path) -Body $form -ContentType 'application/x-www-form-urlencoded' -TimeoutSec 30 }
+      else { $r = Invoke-RestMethod -Method Post -Uri ($cfg.TimeProUrl.TrimEnd('/') + $try.path) -Body $body -ContentType 'application/json; charset=utf-8' -TimeoutSec 30 }
       if ($r.token) { $script:TpScheme = $try.scheme; return @{ Authorization = ('{0} {1}' -f $try.scheme, $r.token) } }
     } catch { $last = $_.Exception.Message }
   }
@@ -314,9 +316,46 @@ function Invoke-Uninstall {
   Write-Host 'Samara Biometric Sync removed (easy TimePro data is not touched).'
 }
 
+
+# ---------------- diagnose (prints what easy TimePro answers; never prints the password or token) ----------------
+function Invoke-Diagnose {
+  $cfg = Read-Config; if (-not $cfg) { throw 'Not set up yet.' }
+  $cred = Import-Clixml $CredPath
+  $user = $cred.UserName; $pass = $cred.GetNetworkCredential().Password
+  $base = $cfg.TimeProUrl.TrimEnd('/')
+  $json = ConvertTo-JsonBody @{ username = $user; password = $pass }
+  $form = 'username=' + [Uri]::EscapeDataString($user) + '&password=' + [Uri]::EscapeDataString($pass)
+  $tests = @(@{ n = 'JWT json'; p = '/jwt-api-token-auth/'; s = 'JWT'; b = $json; c = 'application/json' },
+             @{ n = 'JWT form'; p = '/jwt-api-token-auth/'; s = 'JWT'; b = $form; c = 'application/x-www-form-urlencoded' },
+             @{ n = 'Token json'; p = '/api-token-auth/'; s = 'Token'; b = $json; c = 'application/json' })
+  foreach ($t in $tests) {
+    Write-Host ''
+    Write-Host ("--- login {0} ({1}) as '{2}'" -f $t.n, $t.p, $user) -ForegroundColor Magenta
+    try {
+      $r = Invoke-RestMethod -Method Post -Uri ($base + $t.p) -Body $t.b -ContentType $t.c -TimeoutSec 30
+      $keys = ($r.PSObject.Properties | ForEach-Object { $_.Name }) -join ', '
+      if (-not $r.token) { Write-Host "  no token. Answer keys: $keys"; continue }
+      Write-Host "  OK (answer keys: $keys)"
+      $h = @{ Authorization = ('{0} {1}' -f $t.s, $r.token) }
+      foreach ($path in '/personnel/api/departments/', '/personnel/api/areas/', '/personnel/api/employees/?page_size=100') {
+        try {
+          $d = Invoke-RestMethod -Method Get -Uri ($base + $path) -Headers $h -TimeoutSec 30
+          $items = @($d.data) | ForEach-Object { if ($_.dept_code) { "$($_.dept_code)=$($_.dept_name)" } elseif ($_.area_code) { "$($_.area_code)=$($_.area_name)" } else { "$($_.emp_code)" } }
+          Write-Host ("  {0}: count={1} code={2} msg={3} next={4} -> {5}" -f $path, $d.count, $d.code, $d.msg, $d.next, ($items -join ', '))
+        } catch { Write-Host ("  {0}: ERROR {1}" -f $path, $_.Exception.Message) }
+      }
+    } catch {
+      $detail = ''; try { $detail = (New-Object IO.StreamReader($_.Exception.Response.GetResponseStream())).ReadToEnd() } catch {}
+      if ($detail.Length -gt 300) { $detail = $detail.Substring(0, 300) }
+      Write-Host ("  FAILED: {0} {1}" -f $_.Exception.Message, $detail)
+    }
+  }
+}
+
 # ---------------- start ----------------
 try {
   if ($Uninstall) { Invoke-Uninstall; exit 0 }
+  if ($Diagnose) { Invoke-Diagnose; Read-Host 'Press Enter to close' | Out-Null; exit 0 }
   if ($Run) {
     $script:Quiet = $true
     # only one run at a time
