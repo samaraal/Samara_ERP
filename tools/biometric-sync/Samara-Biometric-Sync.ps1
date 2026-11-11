@@ -134,6 +134,7 @@ function Ensure-Area([string]$code, [string]$name, [bool]$dry) {
 function Invoke-Sync([bool]$dry) {
   $script:Cfg = Read-Config
   if (-not $script:Cfg) { throw 'Not set up yet. Run this file with -Setup.' }
+  Write-Log ("easy TimePro: {0} on {1}" -f $script:Cfg.TimeProUrl, $env:COMPUTERNAME)
   $actions = New-Object System.Collections.ArrayList
   $errors  = New-Object System.Collections.ArrayList
   $summary = [ordered]@{ added = 0; restored = 0; blocked = 0; resigned = 0; updated = 0; unchanged = 0; not_in_erp = 0 }
@@ -152,8 +153,15 @@ function Invoke-Sync([bool]$dry) {
     $dept = $depts | Where-Object { [string]$_.dept_code -eq [string]$script:Cfg.DepartmentCode } | Select-Object -First 1
     if (-not $dept) { $dept = $depts | Where-Object { [string]$_.dept_name -eq 'Mogappair' } | Select-Object -First 1 }
     if (-not $dept) {
-      $seen = ($depts | ForEach-Object { '{0}={1}' -f $_.dept_code, $_.dept_name }) -join ', '
-      throw ("Department code {0} not found in easy TimePro (login type {1}; departments seen: {2})." -f $script:Cfg.DepartmentCode, $script:TpScheme, $(if ($seen) { $seen } else { 'none' }))
+      if ($dry) {
+        Write-Log ("  (test) would create department {0} 'Mogappair' in easy TimePro" -f $script:Cfg.DepartmentCode)
+        $dept = [pscustomobject]@{ id = -1; dept_code = [string]$script:Cfg.DepartmentCode; dept_name = 'Mogappair' }
+      } else {
+        $nd = Invoke-Tp 'Post' '/personnel/api/departments/' @{ dept_code = [string]$script:Cfg.DepartmentCode; dept_name = 'Mogappair' }
+        Write-Log ("  Created department {0} 'Mogappair' in easy TimePro" -f $script:Cfg.DepartmentCode)
+        $dept = (Get-TpAll '/personnel/api/departments/') | Where-Object { [string]$_.dept_code -eq [string]$script:Cfg.DepartmentCode } | Select-Object -First 1
+        if (-not $dept) { throw 'Could not create the Mogappair department in easy TimePro.' }
+      }
     }
     $pos = $positions | Where-Object { [string]$_.position_code -eq [string]$script:Cfg.PositionCode } | Select-Object -First 1
     $activeArea  = Ensure-Area ([string]$script:Cfg.ActiveAreaCode)  ([string]$script:Cfg.ActiveAreaName)  $dry
