@@ -11,7 +11,7 @@
   (the machine's own numbers are kept). Active ERP staff with no machine number are added with the
   next free number and linked automatically. Unlinked machine numbers are never changed.
   Department = the employee's ERP department (created in easy TimePro when missing; staff are
-  moved when their ERP department changes). No ERP department -> Mogappair.
+  moved when their ERP department changes). No ERP department -> Mogappair (or easy TimePro's first department).
   Staff in easy TimePro not linked to an ERP employee are only reported, never changed.
 
   First time (on the PC where easy TimePro runs): right-click this file -> Run with PowerShell,
@@ -155,41 +155,57 @@ function Get-TpAll([string]$path) {
   }
   return ,$all
 }
-function Get-AreaIds($emp) { return @($emp.area | Where-Object { $null -ne $_ } | ForEach-Object { if ($_ -is [System.Management.Automation.PSCustomObject]) { [int]$_.id } else { [int]$_ } }) }
-function Get-DeptId($name, [bool]$dry) {
-  # easy TimePro department for an ERP department name (matched by name; created when missing)
-  $n = ([string]$name).Trim()
-  if (-not $n) { return [int]$script:FallbackDept.id }
+function Get-AreaCodes($emp) {
+  # this easy TimePro version works with area / department / employee CODES
+  return @($emp.area | Where-Object { $null -ne $_ } | ForEach-Object {
+    if ($_ -is [System.Management.Automation.PSCustomObject]) {
+      if ($_.area_code) { [string]$_.area_code } else { $id = $_.id; [string](($script:Areas | Where-Object { $_.id -eq $id } | Select-Object -First 1).area_code) }
+    } else { $id = $_; [string](($script:Areas | Where-Object { [string]$_.id -eq [string]$id } | Select-Object -First 1).area_code) }
+  })
+}
+function Get-DeptName([string]$name) {
+  # easy TimePro refuses "&" in a department name -> "and"
+  return (($name -replace '\s*&\s*', ' and ') -replace '\s+', ' ').Trim()
+}
+function Get-DeptCode($name, [bool]$dry) {
+  # easy TimePro department code for an ERP department name (matched by name; created when missing)
+  $n = Get-DeptName ([string]$name)
+  if (-not $n) { return [string]$script:FallbackDept.dept_code }
   $key = $n.ToLower()
   if ($script:DeptCache.ContainsKey($key)) { return $script:DeptCache[$key] }
-  $d = $script:DeptList | Where-Object { ([string]$_.dept_name).Trim().ToLower() -eq $key } | Select-Object -First 1
-  if ($d) { $script:DeptCache[$key] = [int]$d.id; return [int]$d.id }
+  $d = $script:DeptList | Where-Object { (Get-DeptName ([string]$_.dept_name)).ToLower() -eq $key } | Select-Object -First 1
+  if ($d) { $script:DeptCache[$key] = [string]$d.dept_code; return [string]$d.dept_code }
   $codes = @($script:DeptList | ForEach-Object { $c = 0; if ([int]::TryParse([string]$_.dept_code, [ref]$c)) { $c } })
   $next = 10; if ($codes.Count -gt 0) { $next = [Math]::Max(10, ($codes | Measure-Object -Maximum).Maximum + 1) }
   if ($dry) {
     Write-Log ("  (test) would create department {0} '{1}' in easy TimePro" -f $next, $n)
-    $fake = -1000 - $script:DeptCache.Count
-    $script:DeptList += [pscustomobject]@{ id = $fake; dept_code = [string]$next; dept_name = $n }
-    $script:DeptCache[$key] = $fake; return $fake
+    $script:DeptList += [pscustomobject]@{ id = -1; dept_code = [string]$next; dept_name = $n }
+    $script:DeptCache[$key] = [string]$next; return [string]$next
   }
   Invoke-Tp 'Post' '/personnel/api/departments/' @{ dept_code = [string]$next; dept_name = $n } | Out-Null
   Write-Log ("  Created department {0} '{1}' in easy TimePro" -f $next, $n)
   $script:DeptList = Get-TpAll '/personnel/api/departments/'
-  $d = $script:DeptList | Where-Object { ([string]$_.dept_name).Trim().ToLower() -eq $key } | Select-Object -First 1
-  if (-not $d) { throw "Could not create department '$n' in easy TimePro." }
-  $script:DeptCache[$key] = [int]$d.id; return [int]$d.id
+  $script:DeptCache[$key] = [string]$next; return [string]$next
+}
+function Set-TpEmployee([string]$code, $fields) {
+  # edit one employee (looked up by its machine number); this version needs department + area in every edit
+  $cur = Invoke-Tp 'Get' ("/personnel/api/employees/{0}/" -f $code)
+  if ([string]$cur.emp_code -ne $code) { throw "easy TimePro returned machine no. $($cur.emp_code) for $code - edit skipped" }
+  Invoke-Tp 'Patch' ("/personnel/api/employees/{0}/" -f $code) $fields | Out-Null
+}
+function Move-TpArea([string]$code, [string]$areaCode) {
+  Invoke-Tp 'Post' '/personnel/api/employees/adjust_area/' @{ emp_code = @($code); area_code = @($areaCode) } | Out-Null
 }
 function Get-ShortName($name) { $n = ([string]$name).Trim(); return $n.Substring(0, [Math]::Min(25, $n.Length)) }
 function Ensure-Area([string]$code, [string]$name, [bool]$dry) {
   $a = $script:Areas | Where-Object { [string]$_.area_code -eq $code } | Select-Object -First 1
-  if ($a) { return [int]$a.id }
-  if ($dry) { Write-Log "  (test) would create area $code '$name' in easy TimePro"; return -1 }
+  if ($a) { return [string]$a.area_code }
+  if ($dry) { Write-Log "  (test) would create area $code '$name' in easy TimePro"; return $code }
   $new = Invoke-Tp 'Post' '/personnel/api/areas/' @{ area_code = $code; area_name = $name }
   $id = $new.id; if (-not $id -and $new.data) { $id = $new.data.id }
   Write-Log "  Created area $code '$name' in easy TimePro"
   $script:Areas = Get-TpAll '/personnel/api/areas/'
-  if (-not $id) { $id = ($script:Areas | Where-Object { [string]$_.area_code -eq $code } | Select-Object -First 1).id }
-  return [int]$id
+  return $code
 }
 
 # ---------------- one sync run ----------------
@@ -214,19 +230,11 @@ function Invoke-Sync([bool]$dry) {
     $script:Areas = Get-TpAll '/personnel/api/areas/'
     $depts = Get-TpAll '/personnel/api/departments/'
     $positions = Get-TpAll '/personnel/api/positions/'
-    $dept = $depts | Where-Object { [string]$_.dept_code -eq [string]$script:Cfg.DepartmentCode } | Select-Object -First 1
-    if (-not $dept) { $dept = $depts | Where-Object { [string]$_.dept_name -eq 'Mogappair' } | Select-Object -First 1 }
-    if (-not $dept) {
-      if ($dry) {
-        Write-Log ("  (test) would create department {0} 'Mogappair' in easy TimePro" -f $script:Cfg.DepartmentCode)
-        $dept = [pscustomobject]@{ id = -1; dept_code = [string]$script:Cfg.DepartmentCode; dept_name = 'Mogappair' }
-      } else {
-        $nd = Invoke-Tp 'Post' '/personnel/api/departments/' @{ dept_code = [string]$script:Cfg.DepartmentCode; dept_name = 'Mogappair' }
-        Write-Log ("  Created department {0} 'Mogappair' in easy TimePro" -f $script:Cfg.DepartmentCode)
-        $dept = (Get-TpAll '/personnel/api/departments/') | Where-Object { [string]$_.dept_code -eq [string]$script:Cfg.DepartmentCode } | Select-Object -First 1
-        if (-not $dept) { throw 'Could not create the Mogappair department in easy TimePro.' }
-      }
-    }
+    # department for staff with no ERP department: Mogappair if it exists, else easy TimePro's first department (never created)
+    $dept = $depts | Where-Object { [string]$_.dept_name -eq 'Mogappair' } | Select-Object -First 1
+    if (-not $dept) { $dept = $depts | Where-Object { [string]$_.dept_code -eq [string]$script:Cfg.DepartmentCode } | Select-Object -First 1 }
+    if (-not $dept) { $dept = $depts | Sort-Object { [string]$_.dept_code } | Select-Object -First 1 }
+    if (-not $dept) { throw 'easy TimePro has no departments.' }
     $script:DeptList = @($depts)
     $script:DeptCache = @{}
     $script:FallbackDept = $dept
@@ -268,8 +276,8 @@ function Invoke-Sync([bool]$dry) {
         $code = [string]$maxCode
         $label = "{0} ({1}, new machine no. {2})" -f $s.name, $s.employee_id, $code
         try {
-          $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptId $s.department $dry); area = @($activeArea) }
-          if ($pos) { $body.position = [int]$pos.id }
+          $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptCode $s.department $dry); area = @($activeArea) }
+          if ($pos) { $body.position = [string]$pos.position_code }
           if ($s.date_of_joining) { $body.hire_date = [string]$s.date_of_joining }
           if ($s.gender) { $body.gender = [string]$s.gender }
           if ($s.mobile) { $body.mobile = [string]$s.mobile }
@@ -305,8 +313,8 @@ function Invoke-Sync([bool]$dry) {
             }
             if (-not $e) {
               # linked number not in easy TimePro (deleted there?) -> add it back under the same number
-              $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptId $s.department $dry); area = @($activeArea) }
-              if ($pos) { $body.position = [int]$pos.id }
+              $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptCode $s.department $dry); area = @($activeArea) }
+              if ($pos) { $body.position = [string]$pos.position_code }
               if ($s.date_of_joining) { $body.hire_date = [string]$s.date_of_joining }
               if ($s.gender) { $body.gender = [string]$s.gender }
               if ($s.mobile) { $body.mobile = [string]$s.mobile }
@@ -316,13 +324,13 @@ function Invoke-Sync([bool]$dry) {
               Write-Log "ADDED     $label"
               continue
             }
-            $ids = Get-AreaIds $e
+            $ids = @(Get-AreaCodes $e)
             $changed = $false
-            if ($activeArea -lt 0 -or $ids.Count -ne 1 -or $ids[0] -ne $activeArea) {
-              if (-not $dry) { Invoke-Tp 'Post' '/personnel/api/employees/adjust_area/' @{ employees = @([int]$e.id); areas = @($activeArea) } | Out-Null }
+            if ($ids.Count -ne 1 -or $ids[0] -ne $activeArea) {
+              if (-not $dry) { Move-TpArea $code $activeArea }
               $note = 'Moved to the machine area'
               if ($wasResigned) { $note = 'Back on the machine' }
-              elseif ($blockedArea -gt 0 -and $ids -contains $blockedArea) { $note = 'Unblocked (suspension over) - back on the machine' }
+              elseif ($ids -contains $blockedArea) { $note = 'Unblocked (suspension over) - back on the machine' }
               [void]$actions.Add(@{ type = 'restored'; emp_code = $code; name = $s.name; note = $note })
               $summary.restored++; $changed = $true
               Write-Log "AREA      $label -> $note"
@@ -331,11 +339,15 @@ function Invoke-Sync([bool]$dry) {
             $patch = @{}
             if ([string]$e.first_name -ne $want) { $patch.first_name = $want }
             if ($s.mobile -and [string]$e.mobile -ne [string]$s.mobile) { $patch.mobile = [string]$s.mobile }
-            $wantDept = Get-DeptId $s.department $dry
-            $haveDept = $null; if ($e.department -is [System.Management.Automation.PSCustomObject]) { $haveDept = [int]$e.department.id } elseif ($e.department) { $haveDept = [int]$e.department }
+            $wantDept = Get-DeptCode $s.department $dry
+            $haveDept = $null; if ($e.department -is [System.Management.Automation.PSCustomObject]) { $haveDept = [string]$e.department.dept_code } elseif ($e.department) { $haveDept = [string]$e.department }
             if ($haveDept -ne $wantDept) { $patch.department = $wantDept }
             if ($patch.Count -gt 0) {
-              if (-not $dry) { Invoke-Tp 'Patch' ("/personnel/api/employees/{0}/" -f $e.id) $patch | Out-Null }
+              if (-not $dry) {
+                $full = @{ first_name = $want; department = $wantDept; area = @($activeArea) }
+                if ($s.mobile) { $full.mobile = [string]$s.mobile }
+                Set-TpEmployee $code $full
+              }
               $what = ($patch.Keys | Sort-Object | ForEach-Object { if ($_ -eq 'department') { "department -> $($s.department)" } else { $_ } }) -join ', '
               [void]$actions.Add(@{ type = 'updated'; emp_code = $code; name = $s.name; note = ('Updated ' + $what) })
               $summary.updated++; $changed = $true
@@ -345,9 +357,10 @@ function Invoke-Sync([bool]$dry) {
           }
           'suspended' {
             if ($e) {
-              $ids = Get-AreaIds $e
-              if ($blockedArea -lt 0 -or $ids.Count -ne 1 -or $ids[0] -ne $blockedArea) {
-                if (-not $dry) { Invoke-Tp 'Post' '/personnel/api/employees/adjust_area/' @{ employees = @([int]$e.id); areas = @($blockedArea) } | Out-Null }
+              $ids = @(Get-AreaCodes $e)
+              if ($resigned.ContainsKey($code)) { $summary.unchanged++ }
+              elseif ($ids.Count -ne 1 -or $ids[0] -ne $blockedArea) {
+                if (-not $dry) { Move-TpArea $code $blockedArea }
                 [void]$actions.Add(@{ type = 'blocked'; emp_code = $code; name = $s.name; note = 'Suspended - removed from the machine (fingerprint kept)' })
                 $summary.blocked++
                 Write-Log "BLOCKED   $label (suspended)"
@@ -356,13 +369,11 @@ function Invoke-Sync([bool]$dry) {
           }
           'exited' {
             if ($e -and -not $resigned.ContainsKey($code)) {
-              $ids = Get-AreaIds $e
+              $ids = @(Get-AreaCodes $e)
               if (-not $dry) {
-                if ($blockedArea -gt 0 -and ($ids.Count -ne 1 -or $ids[0] -ne $blockedArea)) {
-                  Invoke-Tp 'Post' '/personnel/api/employees/adjust_area/' @{ employees = @([int]$e.id); areas = @($blockedArea) } | Out-Null
-                }
+                if ($ids.Count -ne 1 -or $ids[0] -ne $blockedArea) { Move-TpArea $code $blockedArea }
                 $rtype = 1; if ($s.reason -eq 'Termination') { $rtype = 2 }
-                Invoke-Tp 'Post' '/personnel/api/resigns/' @{ employee = [int]$e.id; resign_date = $today; resign_type = $rtype; disableatt = $true; reason = ('Samara ERP: ' + [string]$s.reason) } | Out-Null
+                Invoke-Tp 'Post' '/personnel/api/resigns/' @{ employee = $code; resign_date = $today; report_generation_end_date = $today; resign_type = $rtype; disableatt = $true; reason = ('Samara ERP: ' + [string]$s.reason) } | Out-Null
               }
               [void]$actions.Add(@{ type = 'resigned'; emp_code = $code; name = $s.name; note = ('Blocked and marked Resigned (' + [string]$s.reason + ')') })
               $summary.resigned++
@@ -378,7 +389,7 @@ function Invoke-Sync([bool]$dry) {
 
     $known = $linkedCodes
     foreach ($code in $tpEmps.Keys) {
-      if (-not $known.ContainsKey([string]$code)) {
+      if (-not $known.ContainsKey([string]$code) -and -not $resigned.ContainsKey([string]$code)) {
         $summary.not_in_erp++
         [void]$actions.Add(@{ type = 'not_in_erp'; emp_code = [string]$code; name = [string]$tpEmps[$code].first_name; note = 'Not linked to an ERP employee - left unchanged (link it in Link Staff if it is staff)' })
       }
