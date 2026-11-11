@@ -1,7 +1,7 @@
-## 2.20.9 — 11-11-2026 — Probation, Exit & HR Letters (Admin)
+## 2.20.10 — 11-11-2026 — Probation, Exit & HR Letters (Admin)
 - Personnel File → new **Probation, Exit & HR Letters** section: probation 3 months, **Confirm as Permanent** (Confirmation Letter), notice **1 month on probation / 2 months after confirmation** (per-employee override for older letters), Appointment Letter.
 - Exit flows: **Resignation** (record → accept → last working day → login closes automatically next day), **Show Cause → Terminate** (termination only after a show-cause notice), **Left Without Notice** (report-to-duty notice → abandonment of service), **Suspend / Reinstate** (Suspension Order + login block), **Full & Final** statement (2-working-day pay-by), **Relieving & Experience Letter**.
-- Every letter gets a ref no. SAM/HR/2026-27/nnn, is made as a PDF and **sent to the employee on WhatsApp automatically** (template `samara_hr_letter`); View PDF / Resend / Void per letter. New employees get the Appointment Letter automatically. Employees list shows "Notice period" / "Confirmation due" badges; Employee Register shows Resigned / Terminated / Left without notice.
+- Every letter gets a ref no. SAM/HR/2026-27/nnn, is made as a PDF and **sent to the employee on WhatsApp automatically** (template `samara_hr_letter` — one-time "Set up WhatsApp template" button); View PDF / Resend / Void per letter. New employees get the Appointment Letter automatically. Employees list shows "Notice period" / "Confirmation due" badges; Employee Register shows Resigned / Terminated / Left without notice.
 - Database: `370_hr_exit_and_letters.sql` (new tables + `hr_exit_rpc` + daily 00:05 IST login-close job; nothing existing changed). New Edge Function **hr-letters**.
 
 ## 2.20.8 — 11-11-2026 — Employees: safe Disable + Active / Inactive buttons

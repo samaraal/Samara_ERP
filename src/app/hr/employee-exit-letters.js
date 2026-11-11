@@ -221,6 +221,10 @@
       if(!active)await setLogin(emp,true);
       say('success','Reinstated and ERP login switched on.');
     });
+    const setupTemplate=()=>run(async()=>{
+      if(!window.confirm('Submit the WhatsApp template "samara_hr_letter" to Meta for approval? (One time only — needed so letters reach every employee.)'))return;
+      const r=await hrLettersCall('create_template','');say('success',`Template submitted to Meta (status: ${r.status||'PENDING'}). Letters still go as direct documents until it is approved.`);
+    });
     const resend=l=>run(async()=>{const s=await hrLettersCall('send',l.id);say('success',`${l.ref_no} sent on WhatsApp (${s.route}).`);});
     const voidLetter=l=>run(async()=>{const why=window.prompt(`Void ${l.letter_type} ${l.ref_no}? Reason:`);if(why==null)return;await hrRpc('void_letter',{id:l.id,reason:why});say('success','Letter voided.');});
 
@@ -294,7 +298,8 @@
       h('div',{className:'employee-actions hr-exit-actions',style:{marginTop:12}},
         btn('Appointment Letter',appointment),
         confirmed?null:btn('Confirm as Permanent',()=>setStep({kind:'confirm',confirmed_on:probEnd&&probEnd<today?hrAddDays(probEnd,1):today}),'btn btn-primary'),
-        btn('Probation / Notice Terms',()=>setStep({kind:'terms',probation_months:terms.probation_months??3,notice_override_months:terms.notice_override_months??'',override_reason:terms.override_reason||''}))),
+        btn('Probation / Notice Terms',()=>setStep({kind:'terms',probation_months:terms.probation_months??3,notice_override_months:terms.notice_override_months??'',override_reason:terms.override_reason||''})),
+        letters.some(l=>/template/i.test(l.send_route||''))?null:btn('Set up WhatsApp template (one time)',setupTemplate,'btn btn-secondary hr-template-setup')),
       h('div',{className:'hr-exit-exitbox'},
         h('strong',null,open?`Exit in progress — ${open.exit_type}`:'Exit / Discipline'),
         open?h('div',{className:'small-note'},[
