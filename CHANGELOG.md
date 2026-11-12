@@ -1,3 +1,10 @@
+## 2.20.53 — 12-11-2026 — Night Stock (Nursing → Night Stock)
+- New left-menu item **Night Stock** (Nurses, Nursing Manager, Admin): a locked Night Stock cupboard of Consumables / Pharmacy items at set levels, for the night shift only (19:00–07:00). (SQL 387)
+- Nursing Manager (or her Stores leave cover / Admin) sets the item list and levels, and tops up from the Main Store before 19:00 (issued as "Night Stock top-up"; blocked until last night is verified). Items can be returned to the Main Store with a reason.
+- Night nurse: opening count / Accept at the start of the shift → **Use for a Guest** (creates a Guest indent already Received + the use entry, so the item is charged in Bills & Charges as usual, with no second Stores deduction) → closing count before 07:00. Counts are typed without seeing the ERP figure; differences show after Check and need a note.
+- Morning verification by the Nursing Manager — or, when she is not on Day duty today (leave / weekly off / absent), by the Day-shift duty nurse. Differences: Return to the night nurse (late Guest use entry with reason) or verify with a reason (Count Adjustment). The closing nurse cannot verify her own count.
+- Alerts (pop-up / Alerts page): accept due 19:30, closing count due 06:30, verification due (verifier), not verified by 10:00 (Admin), closing count missing, count differences (Nursing Manager), night returned (nurse). Register of nights and movements with Today / This Week / Month / Period, Guest and item filters.
+
 ## 2.20.52 — 12-11-2026 — Food menu back to one list
 - Add food item is one list again: each menu is a heading (🍚 Main items, 🥣 Sides / curries, 🥗 Poriyal, 🥗 Kootu … 🍌 Others, 🕘 Added earlier) with its dishes listed under it — tap a dish to add it.
 

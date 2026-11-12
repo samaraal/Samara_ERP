@@ -463,9 +463,13 @@
         // 2.18.172: an automatic WhatsApp payment receipt that did not go (any route) -> Admin / Director (SQL 307)
         if(foodAdmin)jobs.push(client.rpc('payment_receipt_problems').then(r=>r,()=>({data:[],error:null})));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns,receiptProblems]=await Promise.all(jobs);
+        // 2.20.53: Night Stock (SQL 387) — opening / closing count due, morning verification, returned nights, count differences
+        if(isNursing||foodAdmin)jobs.push(client.rpc('night_stock_alerts').then(r=>r,()=>({data:[],error:null})));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns,receiptProblems,nightStock]=await Promise.all(jobs);
         const returnRows=(!chargeReturns?.error&&Array.isArray(chargeReturns?.data))?chargeReturns.data.filter(a=>a.audience==='nurse'):[];
         const candidates=[];
+        ((!nightStock?.error&&Array.isArray(nightStock?.data))?nightStock.data:[]).forEach(a=>candidates.push({key:`${a.alert_key}-${Math.floor(Date.now()/1800000)}`,kind:'Night Stock',title:a.title,detail:a.detail,page:'Night Stock',record:{id:a.night_date,label:a.title},urgent:['nurse','verifier'].includes(a.audience),at:a.alert_at}));
         const receiptRows=(!receiptProblems?.error&&Array.isArray(receiptProblems?.data))?receiptProblems.data:[];
         if(receiptRows.length){
           const lines=receiptRows.slice(0,4).map(a=>`${a.guest_name||'Guest'}: ₹${Number(a.amount||0).toLocaleString('en-IN')} (${a.route}, ${formatDateIN(a.paid_at)}) — ${String(a.problem||'').slice(0,140)}`).join('; ');
