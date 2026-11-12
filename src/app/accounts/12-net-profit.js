@@ -122,12 +122,14 @@
           stat('Net Profit',npMoney(T.net),`Margin ${T.margin.toFixed(1)}%${P?` · ${prevName}: ${npMoney(P.net)}`:''}`,T.net),
           stat('Cash Collected',npMoney(cur.collected),`Outstanding from Guests today ${npMoney(cur.outstanding_now)}`)),
         h(Section,{title:`Statement · ${periodName}`,subtitle:prev?`Compared with ${prevName}`:null},
+          // 2.20.61: fit the screen — no sideways scrolling, text wraps
+          h('style',null,'.table-wrap:has(> table.np-statement){overflow-x:visible!important}table.np-statement{min-width:0!important;width:100%!important;table-layout:fixed}table.np-statement th,table.np-statement td{white-space:normal!important;overflow-wrap:anywhere}table.np-statement th.np-amt,table.np-statement td.np-amt{width:150px;white-space:nowrap!important;text-align:right}@media(max-width:640px){table.np-statement th.np-amt,table.np-statement td.np-amt{width:105px;font-size:12.5px}}'),
           h('div',{className:'table-wrap'},h('table',{className:'table np-statement'},
-            h('thead',null,h('tr',null,h('th',null,'Particulars'),h('th',{style:{textAlign:'right'}},periodName),prev?h('th',{style:{textAlign:'right'}},prevName):null)),
+            h('thead',null,h('tr',null,h('th',null,'Particulars'),h('th',{className:'np-amt',style:{textAlign:'right'}},periodName),prev?h('th',{className:'np-amt',style:{textAlign:'right'}},prevName):null)),
             h('tbody',null,lines.map(([l,c,p,k],i)=>h('tr',{key:i,style:k==='head'?{background:'#fdf0f5'}:k==='profit'?{borderTop:'2px solid #d97aa3'}:null},
               h('td',{style:{fontWeight:k==='head'?800:['total','profit','sub'].includes(k)?800:500,color:k==='head'?'#7d1748':k==='note'?'#8a6a78':undefined,paddingLeft:k==='row'||k==='note'?'22px':undefined,fontStyle:k==='note'?'italic':undefined}},l),
-              h('td',{style:{textAlign:'right',whiteSpace:'nowrap'}},k==='head'||k==='note'?'':cell(c,k)),
-              prev?h('td',{style:{textAlign:'right',whiteSpace:'nowrap',color:'#7b6871'}},k==='head'||k==='note'?'':cell(p,k)):null))))),
+              h('td',{className:'np-amt',style:{textAlign:'right',whiteSpace:'nowrap'}},k==='head'||k==='note'?'':cell(c,k)),
+              prev?h('td',{className:'np-amt',style:{textAlign:'right',whiteSpace:'nowrap',color:'#7b6871'}},k==='head'||k==='note'?'':cell(p,k)):null))))),
           h('p',{className:'small-note',style:{marginTop:'10px'}},'Income = charges raised in the period, less discounts (Trial Guests excluded); collections are shown separately. Purchases are at stock-receipt cost — receipts whose price looks per box / pack are left out and listed; receipts entered at MRP still overstate cost. Petty-cash payments of outside bills are counted once (under outside bills). Facility Development — furniture & setup and equipment purchases — is investment: shown separately, not deducted from profit. Salaries, rent and other overheads come from Outgoing Payments (Food vendor / Purchase payments excluded — already counted from receipts) and Monthly Expenses.'))
       ):null
     );

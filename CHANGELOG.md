@@ -1,3 +1,6 @@
+## 2.20.61 — 13-11-2026 — Net Profit Statement fits the screen
+- Net Profit Statement table: no sideways scrolling — fits the screen width, Particulars wrap, amount columns fixed width. Frontend only.
+
 ## 2.20.60 — 13-11-2026 — Ward Stock: changes during a shift wait for the nurse on duty
 - Once a nurse has accepted the cupboard for the shift (or the incoming nurse has accepted the next one), **Add items / Edit / Return** by the Nursing Manager become a **pending change** — nothing moves in the Main Store or the cupboard until the nurse on duty taps **✓ Confirm** (or **Not received**, with a reason). (SQL 391)
 - New boxes: **📥 Changes to confirm** (nurse) and **⏳ Waiting for the nurse** (Nursing Manager / Admin, with **Cancel change**). Alerts: nurse — change to confirm; Nursing Manager — change not accepted.
