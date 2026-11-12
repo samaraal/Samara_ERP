@@ -1,3 +1,8 @@
+## 2.20.37 — 12-11-2026 — **Late / Early times** and **automatic Absent** from the biometric machine
+- Duty Roster grid: each rostered cell now shows the In–Out times (e.g. 07:12–18:40) with Late / Early minutes on a second line (15 min grace).
+- Biometric Attendance → Punches: new **Late / Early** column (On time / Late 12m / Early 20m).
+- Automatic Absent (SQL 377, every hour): a rostered Day / Night duty becomes **Absent** (loss of pay in Payroll) when the shift ended over 1 hour ago, there is no approved leave and no punch. Only from 12-11-2026, only for staff linked to a machine number, and never while the machine / PC was not sending data. If her punch arrives later, it is undone automatically. A manager's change is never overwritten. The cell shows "auto: no punch".
+
 ## 2.20.36 — 12-11-2026 — Biometric attendance in the **Duty Roster** and **Payroll**
 - Duty Roster grid (Duty Assignment): each rostered Day / Night cell (today and past) shows the biometric result — ✓ In time (present), Late / Early (over 15 min) / No out, ✗ No punch (rostered, red frame), ⚑ Punched (orange frame: punched without a Day / Night duty). Hover a cell for In / Out times. New line under the grid: "Present by biometric — D present/rostered · N present/rostered".
 - Payroll: new Biometric column (days punched, late count, ⚠ rostered days without a punch, ⚑ punched days beyond the roster) and a line in each employee's salary screen. Days worked still come from the Duty Roster (Admin decides).

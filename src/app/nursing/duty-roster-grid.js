@@ -199,9 +199,10 @@
         const late=Math.round((new Date(g.in)-w.start)/60000),early=g.out?Math.round((w.end-new Date(g.out))/60000):0;
         const flags=[];if(late>15)flags.push(`Late ${late}m`);if(g.out&&early>15)flags.push(`Early ${early}m`);
         if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out');
-        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:flags.length?flags.join(' · '):`✓ ${bioTime(g.in)}`,
+        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:`${bioTime(g.in)}–${g.out?bioTime(g.out):'…'}`,flags:flags.join(' · '),
           title:`Biometric: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?' · '+flags.join(' · '):''} · ${g.count} punch(es)`};
       }
+      if(code==='A'){const r=(byKey.get(`${s.id}|${date}`)||[])[0];if(r&&r.auto_absent)return {kind:'absent',short:'auto',text:'auto: no punch',title:'Marked Absent automatically — no biometric punch and no approved leave. Change it in “Fill missed past days” if this is wrong.'}}
       if(gs.length){const g=gs[0];return {kind:'extra',short:'⚑',text:'⚑ Punched',title:`Not rostered for a Day / Night duty, but punched: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}`:''} (${g.shift||'shift'})`}}
       return null;
     };
@@ -310,7 +311,7 @@
         h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
-        h('span',null,'Biometric: ✓ 07:02 present (In time) · Late / Early (over 15 min) · No out · ✗ No punch (rostered, did not punch) · ⚑ Punched without a Day / Night duty'),
+        h('span',null,'Biometric: 07:02–19:05 = In–Out time · Late / Early minutes (over 15 min) · No out · ✗ No punch (rostered, did not punch) · auto = marked Absent by the machine check (no punch, no approved leave) · ⚑ Punched without a Day / Night duty'),
         h('span',null,'⚠ Leave pending · P Permission (time on hover) · ½L Half-day leave (½ worked + ½ leave) · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
@@ -341,7 +342,7 @@
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
                   c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null,
-                  ai?h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)):null));
+                  ai?h(React.Fragment,null,h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)),ai.flags?h('span',{className:'rg-att rg-att-warn rg-l'},ai.flags):null):null));
               });
               return h('tr',{key:s.id},
                 h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),

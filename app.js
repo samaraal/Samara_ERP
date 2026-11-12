@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.36';
+  const APP_VERSION = '2.20.37';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24303,6 +24303,16 @@ Thank you.`;
         ?h('span',{className:'badge',style:{background:'#e3f5ea',color:'#16703c'}},'On duty')
         :h('span',{className:'badge',style:{background:'#fde2e2',color:'#a3122a'}},'No out punch');
     };
+    // Late / Early against 7 AM / 7 PM (15 min grace); "Both" = Day start + Night end
+    const lateEarly=r=>{
+      if(r.ignored||!['Day','Night','Both'].includes(r.shift))return '—';
+      const st=new Date(r.shift==='Night'?`${r.date}T19:00:00+05:30`:`${r.date}T07:00:00+05:30`),en=bioShiftEnd(r);
+      const late=Math.round((new Date(r.first.punch_at)-st)/60000),early=r.list.length>1?Math.round((en-new Date(r.last.punch_at))/60000):0;
+      const fmt=m=>m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`,out=[];
+      if(late>15)out.push(h('div',{key:'l',style:{color:'#a3122a',fontWeight:700}},`Late ${fmt(late)}`));
+      if(r.list.length>1&&early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Early ${fmt(early)}`));
+      return out.length?h('span',null,out):h('span',{style:{color:'#16703c',fontWeight:700}},'On time');
+    };
     const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
 
     async function saveLink(c,ignore=false){
@@ -24346,7 +24356,7 @@ Thank you.`;
           h('label',null,'Employee',h('select',{value:draft.employee,onChange:e=>setDraft({...draft,employee:e.target.value})},h('option',{value:''},'All employees'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e))))),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Time between','Punches'].map(c=>h('th',{key:c},c)))),
+          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Late / Early','Time between','Punches'].map(c=>h('th',{key:c},c)))),
           h('tbody',null,rows.length?rows.flatMap((r,i)=>{
             const gk=`${r.date}|${r.shift}`,prev=rows[i-1],head=!filter.shift&&(!prev||`${prev.date}|${prev.shift}`!==gk);
             const n=head?rows.filter(x=>x.date===r.date&&x.shift===r.shift&&!x.ignored).length:0;
@@ -24354,9 +24364,9 @@ Thank you.`;
             const sameDay=newDate?rows.filter(x=>x.date===r.date&&!x.ignored):[];
             const dayN=sameDay.filter(x=>x.shift==='Day'||x.shift==='Both').length,nightN=sameDay.filter(x=>x.shift==='Night').length;
             return [
-            newDate?h('tr',{key:'d-'+r.date},h('td',{colSpan:8,style:{background:'#8e1b4f',color:'#fff',fontWeight:800}},
+            newDate?h('tr',{key:'d-'+r.date},h('td',{colSpan:9,style:{background:'#8e1b4f',color:'#fff',fontWeight:800}},
               `${formatDateIN(r.date)} · ${sameDay.length} present`+(filter.shift?'':` (Day ${dayN} · Night ${nightN})`))):null,
-            head?h('tr',{key:'h-'+gk},h('td',{colSpan:8,style:{background:r.shift==='Night'?'#ede7f6':'#fdf0f5',fontWeight:700,color:'#5b1a3c'}},
+            head?h('tr',{key:'h-'+gk},h('td',{colSpan:9,style:{background:r.shift==='Night'?'#ede7f6':'#fdf0f5',fontWeight:700,color:'#5b1a3c'}},
               `${formatDateIN(r.date)} · ${r.shift==='Night'?'Night shift (7 PM – 7 AM, ends next morning)':r.shift==='Day'?'Day shift (7 AM – 7 PM)':shiftLabel(r)} · ${n} staff`)):null,
             h('tr',{key:r.key,className:'bio-row',onClick:()=>setOpen(open===r.key?'':r.key)},
               h('td',{'data-label':'S.No'},r.ignored?'—':String(rows.filter(x=>x.date===r.date&&!x.ignored).indexOf(r)+1)),
@@ -24365,12 +24375,13 @@ Thank you.`;
               h('td',{'data-label':'Employee'},r.employee_id?r.name:r.ignored?h('span',{style:{color:'#7a6a72'}},r.name):h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
               h('td',{'data-label':'In'},bioWhen(r.first,r.date)),
               h('td',{'data-label':'Out'},outCell(r)),
+              h('td',{'data-label':'Late / Early'},lateEarly(r)),
               h('td',{'data-label':'Time between'},r.hours),
               h('td',{'data-label':'Punches'},String(r.list.length))),
-            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:8},h('div',{className:'bio-detail'},
+            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:9},h('div',{className:'bio-detail'},
               h('strong',null,`All punches — machine code ${r.emp_code}${r.device_name?` (name in machine: ${r.device_name})`:''}`),
               h('ul',{style:{margin:'6px 0 0 18px'}},r.list.map(p=>h('li',{key:p.id},`${bioWhen(p,r.date)} · ${p.punch_state||'Punch'}${p.verify_type?` · ${p.verify_type}`:''}${p.terminal_alias?` · ${p.terminal_alias}`:''}`)))))):null
-          ];}):h('tr',null,h('td',{colSpan:8,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
+          ];}):h('tr',null,h('td',{colSpan:9,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
         h('div',{className:'small-note',style:{marginTop:8}},'Each row is one shift. A Night shift (7 PM – 7 AM) is shown under the date it starts, with its next-morning Out punch. The shift comes from the Duty Roster; * = not in the roster, worked out from the punch times.')),
 
       tab==='Link Staff'&&h('section',{className:'card'},
@@ -44575,9 +44586,10 @@ function ShiftManagement({profile}){
         const late=Math.round((new Date(g.in)-w.start)/60000),early=g.out?Math.round((w.end-new Date(g.out))/60000):0;
         const flags=[];if(late>15)flags.push(`Late ${late}m`);if(g.out&&early>15)flags.push(`Early ${early}m`);
         if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out');
-        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:flags.length?flags.join(' · '):`✓ ${bioTime(g.in)}`,
+        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:`${bioTime(g.in)}–${g.out?bioTime(g.out):'…'}`,flags:flags.join(' · '),
           title:`Biometric: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?' · '+flags.join(' · '):''} · ${g.count} punch(es)`};
       }
+      if(code==='A'){const r=(byKey.get(`${s.id}|${date}`)||[])[0];if(r&&r.auto_absent)return {kind:'absent',short:'auto',text:'auto: no punch',title:'Marked Absent automatically — no biometric punch and no approved leave. Change it in “Fill missed past days” if this is wrong.'}}
       if(gs.length){const g=gs[0];return {kind:'extra',short:'⚑',text:'⚑ Punched',title:`Not rostered for a Day / Night duty, but punched: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}`:''} (${g.shift||'shift'})`}}
       return null;
     };
@@ -44686,7 +44698,7 @@ function ShiftManagement({profile}){
         h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
-        h('span',null,'Biometric: ✓ 07:02 present (In time) · Late / Early (over 15 min) · No out · ✗ No punch (rostered, did not punch) · ⚑ Punched without a Day / Night duty'),
+        h('span',null,'Biometric: 07:02–19:05 = In–Out time · Late / Early minutes (over 15 min) · No out · ✗ No punch (rostered, did not punch) · auto = marked Absent by the machine check (no punch, no approved leave) · ⚑ Punched without a Day / Night duty'),
         h('span',null,'⚠ Leave pending · P Permission (time on hover) · ½L Half-day leave (½ worked + ½ leave) · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
@@ -44717,7 +44729,7 @@ function ShiftManagement({profile}){
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
                   c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null,
-                  ai?h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)):null));
+                  ai?h(React.Fragment,null,h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)),ai.flags?h('span',{className:'rg-att rg-att-warn rg-l'},ai.flags):null):null));
               });
               return h('tr',{key:s.id},
                 h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),
