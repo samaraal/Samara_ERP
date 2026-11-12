@@ -1,3 +1,7 @@
+## 2.20.45 — 12-11-2026 — Payroll till date · no duty after a staff member leaves
+- Payroll counts days only till today for the running month (planned future duties are not paid), and for a staff member who has left only up to her last working day (HR Exit: last working day, or the day before "absent from" for Left without notice). The list shows "Left · last working day …"; her final salary can be saved once that day is over. (SQL 381)
+- Once a staff member leaves, all her duties after the last working day are removed automatically, and new duties after that date are blocked.
+
 ## 2.20.44 — 12-11-2026 — Amounts to recover from salary (Akshi kitchen cash)
 - New pending salary deductions: Payroll shows "To deduct ₹…" under the employee and pre-fills it in Other deductions with its note; marked recovered when that salary is saved (re-opened if the salary is voided). (SQL 380)
 - Akshi left on 11-11-2026 without handing over the kitchen petty cash: the kitchen cash book balance is written off (Adjustment + reconciliation, Madhu Mithra starts at ₹0) and added as a deduction from Akshi’s November 2026 salary.

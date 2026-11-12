@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.44';
+  const APP_VERSION = '2.20.45';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -55674,7 +55674,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
     }
     async function save(){
       if(busy)return;
-      if(end>=today){setMsg(`${npMonthLabel(month)} is not over yet. Salary can be saved from ${formatDateIN(npAddDay(end))}.`);return}
+      // 2.20.45: a staff member who has left can be settled once her last working day is over
+      if(end>=today&&!(emp.last_day&&emp.last_day<today)){setMsg(`${npMonthLabel(month)} is not over yet. Salary can be saved from ${formatDateIN(npAddDay(end))}.`);return}
       setBusy(true);setMsg('');
       try{
         const c=payCalc(d,emp.cl_opening,emp.avail_days);
@@ -55717,7 +55718,8 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
           actions:h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSel('');setMsg('')}},'← Back to employees')},
         msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
         sv?h('div',{className:'message success'},`Saved by ${sv.created_by_name||'Admin'} · ${fmt(sv.created_at)} · Paid on ${formatDateIN(sv.paid_on)}${sv.paid_mode?' ('+sv.paid_mode+')':''}${sv.payslip_sent_at?` · Payslip sent ${fmt(sv.payslip_sent_at)}`:''}`)
-          :end>=today?h('div',{className:'message error'},`⚠ ${npMonthLabel(month)} is not over yet. Days below include duties planned for the rest of the month, so they are not final. Salary can be saved from ${formatDateIN(npAddDay(end))}.`)
+          :emp.last_day&&emp.last_day<=end?h('div',{className:'message error'},`⚠ Left Samara — last working day ${formatDateIN(emp.last_day)}. Days are counted only up to that date (${emp.avail_days} payable day(s) of 30); no salary after it.${emp.last_day<today?' Final salary can be saved now.':''}`)
+          :end>=today?h('div',{className:'message error'},`⚠ ${npMonthLabel(month)} is not over yet. Days below are counted till today (${formatDateIN(today)}) — duties planned for the rest of the month are not included. Salary can be saved from ${formatDateIN(npAddDay(end))}.`)
           :h('div',{className:'notice'},onRoster
             ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid)${Number(emp.roster_half)>0?` · half-day leave ${emp.roster_half} date(s) (½ worked each, added to days worked)`:''}${Number(emp.perm_count)>0?` · permissions ${emp.perm_count}${Number(emp.perm_count)>2?` (${Number(emp.perm_count)-2} beyond 2 → ${0.5*(Number(emp.perm_count)-2)} day loss of pay)`:' (within 2 free)'}`:''} · every other day = loss of pay. Correct any number before saving.`
             :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
@@ -55755,7 +55757,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
             !sv&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginTop:'12px'}},
               h('div',{className:'field',style:{margin:0}},h('label',null,'Paid on'),h(StrictDateInput,{value:d.paid_on,min:month,max:today,onChange:e=>setD({...d,paid_on:e.target.value})})),
               h('div',{className:'field',style:{margin:0}},h('label',null,'Paid by'),h('select',{value:d.paid_mode,onChange:e=>setD({...d,paid_mode:e.target.value})},NP_MODES.map(x=>h('option',{key:x},x))))),
-            !sv&&end>=today?h('div',{className:'notice',style:{marginTop:'12px'}},`${npMonthLabel(month)} is not over yet — the roster still has days to come. Salary for ${npMonthLabel(month)} can be saved from ${formatDateIN(npAddDay(end))}.`)
+            !sv&&end>=today&&!(emp.last_day&&emp.last_day<today)?h('div',{className:'notice',style:{marginTop:'12px'}},`${npMonthLabel(month)} is not over yet — salary so far is counted till today. Salary for ${npMonthLabel(month)} can be saved from ${formatDateIN(npAddDay(end))}.`)
             :!sv?h(React.Fragment,null,h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:save,style:{width:'100%',marginTop:'12px',padding:'13px',fontSize:'16px'}},busy?'Saving & sending payslip…':`Save salary & send payslip · ${npMoney(c.net)}`),h('small',{style:{display:'block',marginTop:'6px',color:'#8a5a70'}},`The payslip PDF goes on WhatsApp to ${emp.mobile||'the mobile number in HR'} as soon as you save.`))
               :h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'12px'}},
                 h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>pdf(sv.id)},'📄 Payslip PDF'),
@@ -55770,7 +55772,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       h('div',{className:'table-wrap'},h('table',{className:'table'},
         h('thead',null,h('tr',null,['S.No','Employee','HR Salary','Roster','Biometric','Status',''].map(x=>h('th',{key:x},x)))),
         h('tbody',null,(rows||[]).length?(rows||[]).map((x,i)=>h('tr',{key:x.id,style:{cursor:'pointer'},onClick:()=>openEmp(x)},
-          h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`),pend[String(x.id)]&&!x.saved?h('small',{style:{display:'block',color:'#b42318',fontWeight:800},title:pend[String(x.id)].note},`To deduct ${npMoney(pend[String(x.id)].amount)}`):null),
+          h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`),x.last_day&&x.last_day<=end?h('small',{style:{display:'block',color:'#b42318',fontWeight:700}},`Left · last working day ${formatDateIN(x.last_day)}`):null,pend[String(x.id)]&&!x.saved?h('small',{style:{display:'block',color:'#b42318',fontWeight:800},title:pend[String(x.id)].note},`To deduct ${npMoney(pend[String(x.id)].amount)}`):null),
           h('td',null,x.salary!=null?npMoney(x.salary):h('span',{style:{color:'#b42318'}},'Not set')),
           h('td',null,Number(x.roster_entries)>0?`${x.roster_days} duty · ${x.roster_offs} off${Number(x.roster_absent)>0?` · ${x.roster_absent} absent`:''}`:h('span',{style:{color:'#9a6700'}},'Not on roster')),
           h('td',null,bioCell(x)),
