@@ -1,3 +1,6 @@
+## 2.20.51 — 12-11-2026 — Food menu in two steps for every meal
+- Add food item: first choose the menu (🍚 Main items · 🥣 Sides / curries · 🥗 Poriyal / Kootu / Keerai … · 🍌 Others · 🕘 Added earlier), then the dish from that menu’s own list — Breakfast, Lunch and Dinner alike.
+
 ## 2.20.50 — 12-11-2026 — Additional physiotherapy (Samara in-house, no charge)
 - Physiotherapy → Sessions & Clinical Review: new "Additional Physiotherapy — Samara in-house (no charge)" section. Only the Physiotherapist login records it (＋ Additional session), for any active Guest, from 01-11-2026: date, time, duration, what was done (tap list + other), tolerance, observation. Never billed, no physiotherapist fee, no alerts; kept separate from planned sessions (SQL 384).
 - Daily Family Report shows them as complimentary (count + what was done); the doctor report lists them with the planned sessions as "Completed (additional, in-house)" (Edge Function daily-patient-report).

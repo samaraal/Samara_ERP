@@ -322,7 +322,11 @@
     const groups=foodGroupsFrom(foodList,form.meal_type);
     const cats=foodCatsFrom(foodList,form.meal_type);
     const pickCat=String(pick||'').startsWith('__cat:')?String(pick).split(':'):null; // ['__cat', group, category]
-    const catItems=pickCat?((cats[pickCat[1]]||{})[pickCat.slice(2).join(':')]||[]):[];
+    // 2.20.51: every heading opens its own list — Main items / Sides / Poriyal / Kootu … / Others / Added earlier
+    const catName=pickCat?pickCat.slice(2).join(':'):'';
+    const HEAD_LABEL={Main:'🍚 Main items',Side:'🥣 Sides / curries',Other:'🍌 Others'};
+    const catItems=!pickCat?[]:pickCat[1]==='earlier'?earlierItems:catName===''?(groups[pickCat[1]]||[]):((cats[pickCat[1]]||{})[catName]||[]);
+    const catTitle=!pickCat?'':pickCat[1]==='earlier'?'Added earlier':catName||HEAD_LABEL[pickCat[1]]||pickCat[1];
     const guestName=r=>r.patients?[r.patients.title,r.patients.full_name].filter(Boolean).join(' '):'—';
     const roomOf=r=>r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—';
     const regMeals=regRows||[];
@@ -359,16 +363,16 @@
                 h('span',null,it),
                 h('button',{type:'button',className:'fi-chip-x',title:'Remove','aria-label':`Remove ${it}`,onClick:()=>removeItem(i)},'×'))):h('span',{className:'fi-empty'},'No items yet — choose from the list below, e.g. Idli, then Sambar, then Coconut Chutney.')),
             h('div',{className:'fi-add'},
-              h('select',{value:pickCat?pick:pick==='__other'?pick:'','aria-label':'Add food item',onChange:e=>{const v=e.target.value;if(v==='__other'||v.startsWith('__cat:')){setPick(v);return}addItem(v)}},
-                h('option',{value:''},'＋ Add food item…'),
-                Object.entries(groups).map(([g,list])=>h('optgroup',{key:g,label:FOOD_GROUP_LABEL[g]},
-                  Object.entries(cats[g]||{}).map(([c,l])=>h('option',{key:'c-'+c,value:`__cat:${g}:${c}`},`▸ ${c} — choose which (${l.length})`)),
-                  list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x)))),
-                earlierItems.length?h('optgroup',{label:'Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
+              h('select',{value:pickCat?pick:pick==='__other'?pick:'','aria-label':'Choose the menu',onChange:e=>{const v=e.target.value;setPick(v)}},
+                h('option',{value:''},'＋ Add food item — choose the menu…'),
+                Object.entries(groups).flatMap(([g,list])=>[
+                  list.length?h('option',{key:'h-'+g,value:`__cat:${g}:`},`${HEAD_LABEL[g]} (${list.length})`):null,
+                  ...Object.entries(cats[g]||{}).map(([c,l])=>h('option',{key:'c-'+g+c,value:`__cat:${g}:${c}`},`${g==='Side'?'🥗':'▸'} ${c} (${l.length})`))]),
+                earlierItems.length?h('option',{value:'__cat:earlier:'},`🕘 Added earlier (${earlierItems.length})`):null,
                 h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
               pickCat&&h('div',{className:'fi-other'},
-                h('select',{autoFocus:true,value:'','aria-label':`Choose ${pickCat.slice(2).join(':')}`,onChange:e=>{if(e.target.value)addItem(e.target.value)}},
-                  h('option',{value:''},`Choose ${pickCat.slice(2).join(':')}…`),
+                h('select',{autoFocus:true,value:'','aria-label':`Choose from ${catTitle}`,onChange:e=>{if(e.target.value)addItem(e.target.value)}},
+                  h('option',{value:''},`Choose from ${catTitle}…`),
                   catItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPick('')},'Cancel')),
               pick==='__other'&&h('div',{className:'fi-other'},
