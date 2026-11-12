@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.32';
+  const APP_VERSION = '2.20.33';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24266,10 +24266,13 @@ Thank you.`;
     const rows=React.useMemo(()=>{
       const [ra,rb]=range;
       const want=filter.shift||'';
-      const ignored=new Set(codes.filter(c=>c.ignore&&!c.employee_id).map(c=>String(c.emp_code)));  // Link Staff → Ignore: not shown
-      return bioShiftGroups(punches,roster).filter(g=>(!ra||g.date>=ra)&&(!rb||g.date<=rb)&&(!want||g.shift===want||g.shift==='Both')&&(g.employee_id||!ignored.has(String(g.emp_code)))).map(r=>{const first=r.list[0],last=r.list[r.list.length-1];
+      const ignored=new Set(codes.filter(c=>c.ignore&&!c.employee_id).map(c=>String(c.emp_code)));  // Link Staff → Ignore: shown in grey with the name in the machine
+      return bioShiftGroups(punches,roster).filter(g=>(!ra||g.date>=ra)&&(!rb||g.date<=rb)&&(!want||g.shift===want||g.shift==='Both')).map(r=>{const first=r.list[0],last=r.list[r.list.length-1];
         const mins=r.list.length>1?Math.round((new Date(last.punch_at)-new Date(first.punch_at))/60000):0;
-        return {...r,first,last,hours:mins?`${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m`:'—',name:r.employee_id?empName(empById[String(r.employee_id)]):`Machine code ${r.emp_code} — not linked`};})
+        return {...r,first,last,hours:mins?`${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m`:'—',ignored:!r.employee_id&&ignored.has(String(r.emp_code)),
+          name:r.employee_id?empName(empById[String(r.employee_id)])
+            :ignored.has(String(r.emp_code))?`${r.device_name||'No name'} · machine no. ${r.emp_code} (not an ERP employee)`
+            :`${r.device_name?`${r.device_name} · `:''}Machine code ${r.emp_code} — not linked`};})
         .sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.shift).localeCompare(String(b.shift))||String(a.name).localeCompare(String(b.name)));
     },[punches,roster,range,empById,filter.shift,codes]);
     const bioWhen=(p,date)=>p.punch_date===date?bioTime(p.punch_at):`${formatDateIN(p.punch_date).slice(0,5)} ${bioTime(p.punch_at)}`;
@@ -24322,7 +24325,7 @@ Thank you.`;
               h('td',{'data-label':'S.No'},String(i+1)),
               h('td',{'data-label':'Shift date'},formatDateIN(r.date)),
               h('td',{'data-label':'Shift'},h('span',{className:`badge ${r.shift==='Night'?'warn':''}`,title:r.fromRoster?'From the Duty Roster':'Not in the Duty Roster — worked out from the punch times'},shiftLabel(r)+(r.fromRoster?'':' *'))),
-              h('td',{'data-label':'Employee'},r.employee_id?r.name:h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
+              h('td',{'data-label':'Employee'},r.employee_id?r.name:r.ignored?h('span',{style:{color:'#7a6a72'}},r.name):h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
               h('td',{'data-label':'In'},bioWhen(r.first,r.date)),
               h('td',{'data-label':'Out'},r.list.length>1?bioWhen(r.last,r.date):'—'),
               h('td',{'data-label':'Time between'},r.hours),
