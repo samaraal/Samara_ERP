@@ -1,3 +1,7 @@
+## 2.20.49 — 12-11-2026 — Food item categories (Lunch side dishes)
+- Add food item: categories open a second list — e.g. "▸ Poriyal — choose which" → Beans Poriyal, Carrot Poriyal… (SQL 383). Lunch sides added: Poriyal (16), Kootu (9), Aviyal / Thoran / Erissery (6), Keerai (8), Paruppu Usili (4), Pachadi & Raita (6), Thogayal (6), Crispy Sides & Condiments (9). Old one-word Poriyal / Kootu / Keerai / Raita / Pickle replaced by the categories.
+- Manage Food Item List (Admin): ▸ button sets an item’s category; the category is shown before the name.
+
 ## 2.20.48 — 12-11-2026 — Food items: voice for items not in the list · missed items added
 - Food & Beverage → Add food item: "✎🎤 Not in the list — type or say the item" now has a 🎤 Voice button (Tamil or English; Tamil converted to English) before tapping Add.
 - 153 meals checked: items staff typed under Other added to the dropdown with correct spelling (SQL 382) — Tiffin: Medu Vada · Lunch: Curry Leaves Rice, Millet Kanji, Carrot / Cluster Beans / Kovakkai Poriyal, Potato Fry, Pudalangai Kootu, Fish Kuzhambu, Chicken Gravy, Boiled Egg · Dinner: Millet Kanji, Chicken Gravy, Fresubin (Nutrition Supplement).

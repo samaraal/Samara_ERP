@@ -72,7 +72,15 @@
   function foodGroupsFrom(listRows,meal){
     if(!listRows)return FOOD_ITEMS[meal]||FOOD_ITEMS.Lunch;
     const out={Main:[],Side:[],Other:[]};
-    listRows.filter(r=>r.active&&r.meal_type===meal&&out[r.item_group]).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name)).forEach(r=>out[r.item_group].push(r.name));
+    listRows.filter(r=>r.active&&r.meal_type===meal&&out[r.item_group]&&!r.category).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name)).forEach(r=>out[r.item_group].push(r.name));
+    return out;
+  }
+  // 2.20.49: items with a category (e.g. Poriyal) are picked in two steps — category, then which one
+  function foodCatsFrom(listRows,meal){
+    const out={Main:{},Side:{},Other:{}};
+    if(!listRows)return out;
+    listRows.filter(r=>r.active&&r.meal_type===meal&&out[r.item_group]&&r.category).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name))
+      .forEach(r=>{(out[r.item_group][r.category]=out[r.item_group][r.category]||[]).push(r.name)});
     return out;
   }
   function FoodItemManager({listRows,earlierItems,profile,onClose,onChanged}){
@@ -135,8 +143,9 @@
         ['Main','Side','Other'].map(g=>h('div',{key:g,className:'fim-group'},
           h('h4',null,`${FOOD_GROUP_LABEL[g]} (${rowsOf(meal,g).length})`),
           h('div',{className:'fim-list'},rowsOf(meal,g).map((r,i,arr)=>h('div',{key:r.id,className:'fim-item'},
-            h('span',{className:'fim-name'},r.name),
+            h('span',{className:'fim-name'},r.category?h('small',{style:{color:'#8a5a70',fontWeight:800}},`${r.category} › `):null,r.name),
             h('span',{className:'fim-actions'},
+              h('button',{type:'button',title:'Category (e.g. Poriyal) — empty = shown directly','aria-label':`Category of ${r.name}`,disabled:busy,onClick:()=>{const v=window.prompt(`Category for "${r.name}" (e.g. Poriyal, Kootu). Leave empty to show it directly in the list.`,r.category||'');if(v===null)return;const c=clean(v)||null;if(c===(r.category||null))return;run(`${r.name}: category ${c||'none'}`,()=>client.from('food_item_list').update({category:c,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',r.id),{name:r.name,category:c})}},'▸'),
               h('button',{type:'button',title:'Move up','aria-label':`Move ${r.name} up`,disabled:busy||i===0,onClick:()=>move(r,-1)},'↑'),
               h('button',{type:'button',title:'Move down','aria-label':`Move ${r.name} down`,disabled:busy||i===arr.length-1,onClick:()=>move(r,1)},'↓'),
               h('button',{type:'button',title:'Rename','aria-label':`Rename ${r.name}`,disabled:busy,onClick:()=>rename(r)},'✎'),
@@ -311,6 +320,9 @@
       load();
     }
     const groups=foodGroupsFrom(foodList,form.meal_type);
+    const cats=foodCatsFrom(foodList,form.meal_type);
+    const pickCat=String(pick||'').startsWith('__cat:')?String(pick).split(':'):null; // ['__cat', group, category]
+    const catItems=pickCat?((cats[pickCat[1]]||{})[pickCat.slice(2).join(':')]||[]):[];
     const guestName=r=>r.patients?[r.patients.title,r.patients.full_name].filter(Boolean).join(' '):'—';
     const roomOf=r=>r.patients?`${r.patients.room_no||'—'}-${r.patients.bed_no||'—'}`:'—';
     const regMeals=regRows||[];
@@ -347,11 +359,18 @@
                 h('span',null,it),
                 h('button',{type:'button',className:'fi-chip-x',title:'Remove','aria-label':`Remove ${it}`,onClick:()=>removeItem(i)},'×'))):h('span',{className:'fi-empty'},'No items yet — choose from the list below, e.g. Idli, then Sambar, then Coconut Chutney.')),
             h('div',{className:'fi-add'},
-              h('select',{value:pick,'aria-label':'Add food item',onChange:e=>{const v=e.target.value;if(v==='__other'){setPick(v);return}addItem(v)}},
+              h('select',{value:pickCat?pick:pick==='__other'?pick:'','aria-label':'Add food item',onChange:e=>{const v=e.target.value;if(v==='__other'||v.startsWith('__cat:')){setPick(v);return}addItem(v)}},
                 h('option',{value:''},'＋ Add food item…'),
-                Object.entries(groups).map(([g,list])=>h('optgroup',{key:g,label:FOOD_GROUP_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x)))),
+                Object.entries(groups).map(([g,list])=>h('optgroup',{key:g,label:FOOD_GROUP_LABEL[g]},
+                  Object.entries(cats[g]||{}).map(([c,l])=>h('option',{key:'c-'+c,value:`__cat:${g}:${c}`},`▸ ${c} — choose which (${l.length})`)),
+                  list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x)))),
                 earlierItems.length?h('optgroup',{label:'Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
                 h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
+              pickCat&&h('div',{className:'fi-other'},
+                h('select',{autoFocus:true,value:'','aria-label':`Choose ${pickCat.slice(2).join(':')}`,onChange:e=>{if(e.target.value)addItem(e.target.value)}},
+                  h('option',{value:''},`Choose ${pickCat.slice(2).join(':')}…`),
+                  catItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPick('')},'Cancel')),
               pick==='__other'&&h('div',{className:'fi-other'},
                 h('small',{style:{display:'block',width:'100%',color:'#8a5a70'}},'Type the item, or tap 🎤 Voice and say it in Tamil or English — then tap Add.'),
                 h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
