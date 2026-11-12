@@ -1,3 +1,7 @@
+## 2.20.54 — 12-11-2026 — Night Stock: one "Add items" screen
+- Night Stock: Top-up and Item List & Levels are replaced by one **➕ Add items to Night Stock** button — the full Consumables / Pharmacy list with S.No in alphabetical order (search, All / Consumables / Pharmacy). Type a quantity against any items and Save once; the quantities move from the Main Store to Night Stock. A new item's first quantity becomes its usual level. **Fill up to usual levels** pre-fills what was used. (SQL 388)
+- Night Stock now: S.No, A–Z; the Nursing Manager's **Edit / Remove** changes an item's usual level, returns it to the Main Store, or removes it (only when none is left in the cupboard). The box shows "Done · time · name" after today's top-up; the extra Refresh button is removed.
+
 ## 2.20.53 — 12-11-2026 — Night Stock (Nursing → Night Stock)
 - New left-menu item **Night Stock** (Nurses, Nursing Manager, Admin): a locked Night Stock cupboard of Consumables / Pharmacy items at set levels, for the night shift only (19:00–07:00). (SQL 387)
 - Nursing Manager (or her Stores leave cover / Admin) sets the item list and levels, and tops up from the Main Store before 19:00 (issued as "Night Stock top-up"; blocked until last night is verified). Items can be returned to the Main Store with a reason.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.53';
+  const APP_VERSION = '2.20.54';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Nov-2026 Night Stock';
+  const APP_BUILD_DATE = '12-Nov-2026 Night Stock — Add items';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -43652,10 +43652,10 @@ function RoomsBeds({profile,onNavigate}){
 
     // ---------- status line ----------
     const statusText=(()=>{
-      if(!listItems.length)return acc.manage?'Night Stock is not set up yet. Open "Item List & Levels" to choose the items and their set levels.':'Night Stock is not set up yet. The Nursing Manager chooses the items and levels.';
+      if(!listItems.length)return acc.manage?'Night Stock is not set up yet. Tap "➕ Add items to Night Stock" to choose the items and quantities.':'Night Stock is not set up yet. The Nursing Manager chooses the items and levels.';
       if(isNight){if(!tonight?.accepted_at)return 'Night shift: count the cupboard and tap Accept (opening count) before using any item.';if(tonight.status==='Closed')return `Closing count done by ${tonight.closed_by_name}.`;return `Accepted by ${tonight.accepted_by_name} at ${when(tonight.accepted_at)}. Record every item you use for a Guest.`;}
       if(toVerify)return `Night of ${formatDateIN(toVerify.night_date)} — ${toVerify.status==='Returned'?'returned to the night nurse to enter missed Guest use':toVerify.closed_at?'closing count done, waiting for morning verification':'NOT closed by the night nurse, waiting for morning verification'}.`;
-      return 'Last night is verified. Top up the cupboard before 19:00.';
+      return 'Last night is verified. Add items to the cupboard before 19:00.';
     })();
 
 
@@ -43671,33 +43671,32 @@ function RoomsBeds({profile,onNavigate}){
           h('h4',null,'Movements'),table(['Time','Movement','Item','Qty','Guest','By'],moves.map(m=>[when(m.created_at),m.movement+(m.late_entry?' (late)':''),itemById(m.store_item_id)?.item_name||'',`${n(m.qty)>0?'+':''}${n(m.qty)}`,m.patient_id?pLabel(m.patient_id):'—',m.actor_name||''])))});
     }
 
-    const ctx={acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail};
+    const ctx={load,acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail};
+    const lastTopup=(data.ledger||[]).filter(m=>m.movement==='Top-up'&&m.night_date===cur).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0]||null;
     const usedTonight=(data.ledger||[]).filter(m=>m.night_date===(isNight?cur:prevNight)&&m.movement==='Use').length;
     const boxes=[
+      ['➕ Add items to Night Stock',lastTopup?`Done · ${new Date(lastTopup.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Kolkata'})} · ${lastTopup.actor_name||''}`:'Tap to add','add',acc.manage],
       ['Night Stock now',`${listItems.length} item${listItems.length===1?'':'s'}`,'stock',true],
       ['Use for a Guest',isNight?`${usedTonight} entr${usedTonight===1?'y':'ies'} tonight`:lateNight?'Late entry only':'Night shift only','use',acc.nurse],
       ['Opening Count / Accept',tonight?.accepted_at?`Done · ${tonight.accepted_by_name}`:isNight?'Due now':'From 18:00','accept',acc.nurse],
       ['Closing Count',tonight?.closed_at&&isNight?'Done':(!isNight&&lastNight&&!lastNight.closed_at&&!verified(lastNight.status))?'Not done!':isNight?'Before 07:00':'—','close',acc.nurse],
       ['Morning Verification',toVerify?(toVerify.status==='Returned'?'Returned to nurse':'Waiting'):'Up to date','verify',true],
-      ['Top-up',acc.manage?'Before 19:00':'Nursing Manager','topup',acc.manage],
-      ['Item List & Levels',`${listItems.filter(i=>i.active).length} items`,'list',true],
       ['Register','Nights & movements','register',true]
     ].filter(b=>b[3]);
     return h('div',{className:'night-stock'},
       detail&&h(RowDetailModal,{title:detail.title,subtitle:detail.subtitle,fields:detail.fields,onClose:()=>setDetail(null)},detail.children),
       h('div',{className:'card panel dr-head'},h('div',{className:'dr-head-text'},h('h2',null,'🌙 Night Stock'),h('small',null,'Evening top-up by the Nursing Manager → 19:00 opening count → night use for Guests → 07:00 closing count → morning verification.')),
-        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},tab!=='home'&&btn('← Back',()=>{setTab('home');setError('')}),btn('Refresh',load))),
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},tab!=='home'&&btn('← Back',()=>{setTab('home');setError('')}))),
       error&&h('p',{className:'message error',role:'alert'},error),
       h('p',{className:'message',role:'status'},statusText,acc.verify_as&&toVerify&&!isNight?` You can verify as: ${acc.verify_as}.`:''),
       focus&&h('p',{className:'message',role:'status'},'Opened from an alert. ',btn('OK',clearFocus)),
       tab==='home'&&h('div',{className:'dr-boxes'},boxes.map(([label,value,key])=>h('button',{key,type:'button',className:'dr-box',onClick:()=>{setError('');setTab(key)}},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-value',style:/Not done|Due now|Waiting|Returned/.test(value)?{color:'#b42318'}:undefined},value)))),
-      tab==='stock'&&h(Section,{title:'Night Stock now'},table(['Item','Set level','In cupboard','Short of level'],listItems.map(i=>[h('b',null,i.item_name),qty(i.par_qty,i.unit),qty(i.night_balance,i.unit),Math.max(0,n(i.par_qty)-n(i.night_balance))?pill(qty(Math.max(0,n(i.par_qty)-n(i.night_balance)),i.unit),'bad'):pill('Full','good')]))),
+      tab==='stock'&&h(NsStockNow,{ctx}),
       tab==='use'&&h(NsUseForm,{ctx}),
       tab==='accept'&&h(NsCountForm,{ctx,kind:'accept'}),
       tab==='close'&&h(NsCountForm,{ctx,kind:'close'}),
       tab==='verify'&&h(NsCountForm,{ctx,kind:'verify'}),
-      tab==='topup'&&h(NsTopUp,{ctx}),
-      tab==='list'&&h(NsItemList,{ctx}),
+      tab==='add'&&h(NsAddItems,{ctx}),
       tab==='register'&&h(NsRegister,{ctx}));
   }
   function NsCountForm({ctx,kind}){
@@ -43751,47 +43750,64 @@ function RoomsBeds({profile,onNavigate}){
         h('div',{className:'field'},h('label',null,late?'Why was it not entered during the night? *':'Note (optional)'),h('textarea',{rows:2,value:f.note,onChange:e=>setF(v=>({...v,note:e.target.value}))})),
         h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Record Use'))));
   }
-  function NsTopUp({ctx}){
-  const {acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail}=ctx;
-    const gap=i=>Math.max(0,n(i.par_qty)-n(i.night_balance));
-    const [q,setQ]=React.useState(()=>Object.fromEntries(listItems.filter(i=>i.active).map(i=>[i.store_item_id,String(Math.min(gap(i),Math.max(0,n(i.central_balance))))])));
-    const [ret,setRet]=React.useState({}),[note,setNote]=React.useState(''),[retNote,setRetNote]=React.useState('');
-    if(!acc.manage)return h(Section,{title:'Top-up'},h('p',null,'The Nursing Manager (or her Stores leave cover) tops up the Night Stock.'));
+  // 2.20.54: one screen — full Consumables / Pharmacy list (S.No, A–Z), type a quantity against any items, Save once.
+  // A new item's first quantity becomes its usual level; "Fill up to usual levels" pre-fills last night's use.
+  function NsAddItems({ctx}){
+    const {acc,listItems,toVerify,n,qty,pill,btn,table,post,setError,setTab,verified,data,busy}=ctx;
+    const [q,setQ]=React.useState({}),[search,setSearch]=React.useState(''),[cat,setCat]=React.useState('All'),[note,setNote]=React.useState('');
+    if(!acc.manage)return h(Section,{title:'Add items to Night Stock'},h('p',null,'The Nursing Manager (or her Stores leave cover) adds items to Night Stock.'));
     const blocked=toVerify&&!verified(toVerify.status);
-    return h(React.Fragment,null,
-      h(Section,{title:'Top-up from the Main Store',subtitle:'Suggested quantity = set level − what is in the cupboard. Issued from the Main Store as "Night Stock top-up".'},
-        blocked&&h('p',{className:'message error',role:'status'},`Verify the night of ${formatDateIN(toVerify.night_date)} first, then top up.`),
-        table(['Item','Set level','In cupboard','Main Store','Top-up now'],listItems.filter(i=>i.active).map(i=>[h('b',null,i.item_name),qty(i.par_qty,i.unit),qty(i.night_balance,i.unit),h('span',{style:n(i.central_balance)<gap(i)?{color:'#b42318',fontWeight:800}:undefined},qty(i.central_balance,i.unit)),
-          h('input',{type:'number',min:0,step:1,style:{maxWidth:'100px'},value:q[i.store_item_id]??'',onChange:e=>setQ(v=>({...v,[i.store_item_id]:e.target.value}))})])),
-        h('div',{className:'field'},h('label',null,'Note (optional)'),h('input',{value:note,onChange:e=>setNote(e.target.value)})),
-        btn('Issue to Night Stock',async()=>{const items=Object.entries(q).map(([id,v])=>({store_item_id:id,qty:Number(v||0)})).filter(x=>x.qty>0);if(!items.length){setError('Nothing to top up.');return}if(await post('topup',{items,note},'Night Stock topped up',`${items.length} item${items.length===1?'':'s'} issued from the Main Store.`))setTab('home')},true,blocked)),
-      h(Section,{title:'Return to the Main Store',subtitle:'For items no longer needed at night, or close to expiry.'},
-        table(['Item','In cupboard','Return'],listItems.filter(i=>n(i.night_balance)>0).map(i=>[i.item_name,qty(i.night_balance,i.unit),h('input',{type:'number',min:0,step:1,max:n(i.night_balance),style:{maxWidth:'100px'},value:ret[i.store_item_id]??'',onChange:e=>setRet(v=>({...v,[i.store_item_id]:e.target.value}))})])),
-        h('div',{className:'field'},h('label',null,'Reason *'),h('input',{value:retNote,onChange:e=>setRetNote(e.target.value)})),
-        btn('Return to Main Store',async()=>{const items=Object.entries(ret).map(([id,v])=>({store_item_id:id,qty:Number(v||0)})).filter(x=>x.qty>0);if(!items.length||retNote.trim().length<3){setError('Enter quantities and the reason.');return}if(await post('return_to_store',{items,note:retNote},'Returned to the Main Store','Night Stock reduced and the Main Store increased.'))setRet({})})));
-  }
-  function NsItemList({ctx}){
-  const {acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail}=ctx;
-    const [edit,setEdit]=React.useState({}),[search,setSearch]=React.useState(''),[show,setShow]=React.useState('list');
-    const q=search.trim().toLowerCase();
-    const rows=(data.items||[]).filter(i=>show==='all'||i.in_list).filter(i=>q.length<2||`${i.item_name} ${i.item_code||''}`.toLowerCase().includes(q));
-    const val=i=>edit[i.store_item_id]||{active:i.in_list&&i.active,par_qty:i.par_qty??''};
-    const set=(i,patch)=>setEdit(v=>({...v,[i.store_item_id]:{...val(i),...patch}}));
-    const changed=Object.entries(edit);
-    return h(Section,{title:'Item List & Set Levels',subtitle:acc.manage?'Tick the items kept in the Night Stock cupboard and the level to keep each night.':'Set by the Nursing Manager.'},
+    const all=(data.items||[]).slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
+    const sq=search.trim().toLowerCase();
+    const rows=all.filter(i=>(cat==='All'||i.category===cat)&&(!sq||`${i.item_name} ${i.item_code||''}`.toLowerCase().includes(sq)));
+    const fill=()=>{const v={};listItems.filter(i=>i.active).forEach(i=>{const g=Math.min(Math.max(0,n(i.par_qty)-n(i.night_balance)),Math.max(0,n(i.central_balance)));if(g>0)v[i.store_item_id]=String(g)});setQ(v);setError(Object.keys(v).length?'':'Night Stock is already at its usual levels.')};
+    const chosen=Object.entries(q).map(([id,v])=>({store_item_id:id,qty:Number(v||0)})).filter(x=>x.qty>0);
+    const save=async()=>{
+      const bad=chosen.find(x=>{const i=all.find(z=>z.store_item_id===x.store_item_id);return !Number.isInteger(x.qty)||x.qty>n(i?.central_balance)});
+      if(!chosen.length){setError('Type a quantity against at least one item.');return}
+      if(bad){const i=all.find(z=>z.store_item_id===bad.store_item_id);setError(`${i?.item_name}: enter a whole number up to ${n(i?.central_balance)} (Main Store balance).`);return}
+      if(await post('topup',{items:chosen,note},'Added to Night Stock',`${chosen.length} item${chosen.length===1?'':'s'} moved from the Main Store to Night Stock.`)){setQ({});setNote('');setTab('home')}};
+    const field=(label,el)=>h('div',{className:'field',style:{marginBottom:0}},h('label',null,label),el);
+    return h(Section,{title:'➕ Add items to Night Stock',subtitle:'Type the quantity against the items you are keeping in the Night Stock cupboard, then tap Save. Quantities move from the Main Store to Night Stock.'},
+      blocked&&h('p',{className:'message error',role:'status'},`Verify the night of ${formatDateIN(toVerify.night_date)} first (Morning Verification), then add items.`),
       h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'10px'}},
-        h('div',{className:'field',style:{marginBottom:0}},h('label',null,'Search item'),h('input',{value:search,onChange:e=>setSearch(e.target.value)})),
-        acc.manage&&h('div',{className:'field',style:{marginBottom:0}},h('label',null,'Show'),h('select',{value:show,onChange:e=>setShow(e.target.value)},h('option',{value:'all'},'All Consumables / Pharmacy items'),h('option',{value:'list'},'Night Stock items only')))),
-      table(['In Night Stock','Item','Category','Set level','In cupboard','Main Store'],rows.map(i=>{const v=val(i);return [
-        h('input',{type:'checkbox',disabled:!acc.manage,checked:Boolean(v.active),'aria-label':`Keep ${i.item_name} in Night Stock`,onChange:e=>set(i,{active:e.target.checked,par_qty:v.par_qty||1})}),
-        h('b',null,i.item_name),i.category||'',
-        acc.manage?h('input',{type:'number',min:1,step:1,disabled:!v.active,style:{maxWidth:'90px'},value:v.par_qty??'',onChange:e=>set(i,{par_qty:e.target.value})}):qty(i.par_qty,i.unit),
-        qty(i.night_balance,i.unit),qty(i.central_balance,i.unit)]})),
-      acc.manage&&h('div',{style:{marginTop:'10px'}},btn(`Save changes${changed.length?` (${changed.length})`:''}`,async()=>{
-        const items=changed.map(([id,v])=>({store_item_id:id,active:Boolean(v.active),par_qty:Number(v.par_qty||0)}));
-        if(items.some(x=>x.active&&(!Number.isInteger(x.par_qty)||x.par_qty<=0))){setError('Set level must be a whole number above 0.');return}
-        if(await post('set_list',{items},'Night Stock list saved',`${items.length} item${items.length===1?'':'s'} updated.`))setEdit({})},true,!changed.length)));
+        field('Search item',h('input',{value:search,placeholder:'Item name or code',onChange:e=>setSearch(e.target.value)})),
+        field('Show',h('select',{value:cat,onChange:e=>setCat(e.target.value)},['All','Consumables','Pharmacy'].map(c=>h('option',{key:c,value:c},c==='All'?'All (Consumables + Pharmacy)':c)))),
+        listItems.length>0&&btn('Fill up to usual levels',fill,false,blocked)),
+      table(['S.No','Item','Category','In Main Store','In Night Stock now','Add qty'],rows.map((i,k)=>{const low=n(i.central_balance)<=0;return [k+1,
+        h('span',null,h('b',null,i.item_name),i.in_list&&i.active&&h('span',{style:{marginLeft:'6px'}},pill('In Night Stock'))),i.category||'',
+        h('span',{style:low?{color:'#b42318',fontWeight:800}:undefined},qty(i.central_balance,i.unit)),i.in_list?qty(i.night_balance,i.unit):'—',
+        h('input',{type:'number',min:0,step:1,max:n(i.central_balance),disabled:blocked||low,inputMode:'numeric',style:{maxWidth:'90px'},value:q[i.store_item_id]??'','aria-label':`Add quantity of ${i.item_name}`,onChange:e=>setQ(v=>({...v,[i.store_item_id]:e.target.value}))})]})),
+      h('div',{className:'field',style:{marginTop:'10px'}},h('label',null,'Note (optional)'),h('input',{value:note,onChange:e=>setNote(e.target.value)})),
+      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},btn(busy?'Saving…':`Save${chosen.length?` (${chosen.length} item${chosen.length===1?'':'s'})`:''}`,save,true,blocked||!chosen.length),
+        chosen.length>0&&btn('Clear',()=>setQ({}))));
   }
+
+  // 2.20.54: what is in the cupboard; Nursing Manager can change an item's usual level, return it to the Main Store or remove it.
+  function NsStockNow({ctx}){
+    const {acc,listItems,n,qty,pill,btn,table,post,setError}=ctx;
+    const [edit,setEdit]=React.useState(null);
+    const rows=listItems.slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
+    const short=i=>Math.max(0,n(i.par_qty)-n(i.night_balance));
+    const saveLevel=async()=>{const v=Number(edit.level);if(!Number.isInteger(v)||v<=0){setError('Usual level must be a whole number above 0.');return}if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:true,par_qty:v}]},'Usual level changed',`${edit.item.item_name}: ${v} ${edit.item.unit}`))setEdit(null)};
+    const giveBack=async()=>{const v=Number(edit.ret);if(!Number.isInteger(v)||v<=0||v>n(edit.item.night_balance)){setError(`Return a whole number up to ${n(edit.item.night_balance)}.`);return}if(edit.reason.trim().length<3){setError('Enter the reason for returning.');return}if(await post('return_to_store',{items:[{store_item_id:edit.item.store_item_id,qty:v}],note:edit.reason},'Returned to the Main Store',`${v} ${edit.item.unit} ${edit.item.item_name}`))setEdit(null)};
+    const remove=async()=>{if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:false,par_qty:n(edit.item.par_qty)||1}]},'Removed from Night Stock',edit.item.item_name))setEdit(null)};
+    return h(Section,{title:'Night Stock now',subtitle:'What should be in the Night Stock cupboard now (A–Z).'},
+      table(['S.No','Item','Usual level','In cupboard','Short',...(acc.manage?['']:[])],rows.map((i,k)=>[k+1,h('b',null,i.item_name),i.active?qty(i.par_qty,i.unit):pill('Removed — return balance'),qty(i.night_balance,i.unit),
+        i.active&&short(i)?pill(qty(short(i),i.unit),'bad'):pill('Full','good'),...(acc.manage?[btn('Edit / Remove',()=>{setError('');setEdit({item:i,level:String(n(i.par_qty)||''),ret:'',reason:''})})]:[])])),
+      edit&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal',role:'dialog','aria-modal':true},
+        h('h3',null,edit.item.item_name),h('p',{className:'small-note'},`In cupboard: ${qty(edit.item.night_balance,edit.item.unit)}`),
+        h('div',{className:'field'},h('label',null,'Usual level (kept every night)'),h('input',{type:'number',min:1,step:1,value:edit.level,onChange:e=>setEdit(v=>({...v,level:e.target.value}))})),
+        btn('Save level',saveLevel,true),
+        n(edit.item.night_balance)>0&&h('div',{style:{marginTop:'14px'}},h('h4',null,'Return to the Main Store'),
+          h('div',{className:'grid two'},h('div',{className:'field'},h('label',null,'Quantity'),h('input',{type:'number',min:1,step:1,max:n(edit.item.night_balance),value:edit.ret,onChange:e=>setEdit(v=>({...v,ret:e.target.value}))})),
+            h('div',{className:'field'},h('label',null,'Reason *'),h('input',{value:edit.reason,placeholder:'e.g. close to expiry',onChange:e=>setEdit(v=>({...v,reason:e.target.value}))}))),
+          btn('Return to Main Store',giveBack)),
+        h('div',{style:{marginTop:'14px',display:'flex',gap:'8px',flexWrap:'wrap'}},
+          n(edit.item.night_balance)===0?btn('Remove from Night Stock',remove):h('small',null,'To remove this item, first return all of it to the Main Store.'),
+          btn('Close',()=>setEdit(null))))));
+  }
+
   function NsRegister({ctx}){
   const {acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail}=ctx;
     const today=todayISOIndia();
