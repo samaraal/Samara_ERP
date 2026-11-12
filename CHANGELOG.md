@@ -1,3 +1,5 @@
+## 2.20.31 — 12-11-2026 — Biometric Attendance → Punches: S.No column. Frontend only.
+
 ## 2.20.30 — 12-11-2026 — Biometric Attendance → Punches: new **Shift** filter (All shifts / Day 7 AM–7 PM / Night 7 PM–7 AM) before Period. Frontend only.
 
 ## 2.20.29 — 12-11-2026 — Biometric Attendance by **shift**: Punches now show one row per person per shift (Shift date · Shift · In · Out · Time between). A Night shift (7 PM – 7 AM) is listed under the date it starts with its next-morning Out punch, so "Today" no longer shows last night's out-punches as today. Shift from the Duty Roster (Day / Night / Both); not rostered → worked out from punch times (marked *). Machine no. 21 linked to Dr. Chella Boomi, 25 to Boomi R, 1 "hari" ignored. Database: `376_biometric_shift_view_and_director_links.sql`.

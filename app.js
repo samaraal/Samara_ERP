@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.30';
+  const APP_VERSION = '2.20.31';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24315,9 +24315,10 @@ Thank you.`;
           h('label',null,'Employee',h('select',{value:draft.employee,onChange:e=>setDraft({...draft,employee:e.target.value})},h('option',{value:''},'All employees'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e))))),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Shift date','Shift','Employee','In','Out','Time between','Punches'].map(c=>h('th',{key:c},c)))),
-          h('tbody',null,rows.length?rows.flatMap(r=>[
+          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Time between','Punches'].map(c=>h('th',{key:c},c)))),
+          h('tbody',null,rows.length?rows.flatMap((r,i)=>[
             h('tr',{key:r.key,className:'bio-row',onClick:()=>setOpen(open===r.key?'':r.key)},
+              h('td',{'data-label':'S.No'},String(i+1)),
               h('td',{'data-label':'Shift date'},formatDateIN(r.date)),
               h('td',{'data-label':'Shift'},h('span',{className:`badge ${r.shift==='Night'?'warn':''}`,title:r.fromRoster?'From the Duty Roster':'Not in the Duty Roster — worked out from the punch times'},shiftLabel(r)+(r.fromRoster?'':' *'))),
               h('td',{'data-label':'Employee'},r.employee_id?r.name:h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
@@ -24325,10 +24326,10 @@ Thank you.`;
               h('td',{'data-label':'Out'},r.list.length>1?bioWhen(r.last,r.date):'—'),
               h('td',{'data-label':'Time between'},r.hours),
               h('td',{'data-label':'Punches'},String(r.list.length))),
-            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:7},h('div',{className:'bio-detail'},
+            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:8},h('div',{className:'bio-detail'},
               h('strong',null,`All punches — machine code ${r.emp_code}${r.device_name?` (name in machine: ${r.device_name})`:''}`),
               h('ul',{style:{margin:'6px 0 0 18px'}},r.list.map(p=>h('li',{key:p.id},`${bioWhen(p,r.date)} · ${p.punch_state||'Punch'}${p.verify_type?` · ${p.verify_type}`:''}${p.terminal_alias?` · ${p.terminal_alias}`:''}`)))))):null
-          ]):h('tr',null,h('td',{colSpan:7,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
+          ]):h('tr',null,h('td',{colSpan:8,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
         h('div',{className:'small-note',style:{marginTop:8}},'Each row is one shift. A Night shift (7 PM – 7 AM) is shown under the date it starts, with its next-morning Out punch. The shift comes from the Duty Roster; * = not in the roster, worked out from the punch times.')),
 
       tab==='Link Staff'&&h('section',{className:'card'},
