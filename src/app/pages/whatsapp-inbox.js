@@ -66,7 +66,7 @@
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
     const waDateApply=useAppliedFilters({from:dateFrom,to:dateTo});const waDateA=waDateApply.applied; // 2.14.96: dates apply on "Apply"
-    const isSTD=String(profile?.role||'')==='STD';
+    const isSTD=hasDutyRole(profile,'STD');
     const FOOD_VENDOR_TEMPLATES=[{name:'samara_callback_request',label:'Food Vendor Callback',regarding:'food supply and delivery'}];
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
@@ -75,8 +75,8 @@
     ];
     const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
     // 2.15.24: real-inbox features — approved template texts, hide/restore, attachments.
-    const canDeleteMsg=['Admin','Manager','STD'].includes(String(profile?.role||''));
-    const canRestoreMsg=isNursingManagerProfile(profile)||['Admin','STD'].includes(String(profile?.role||''));
+    const canDeleteMsg=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
+    const canRestoreMsg=isNursingManagerProfile(profile)||['Admin','STD'].some(r=>hasDutyRole(profile,r));
     const [waTemplates,setWaTemplates]=React.useState({});
     const [templateSync,setTemplateSync]=React.useState({busy:false,note:''});
     const [showDeleted,setShowDeleted]=React.useState(false);
@@ -327,7 +327,7 @@ Please reply to this message and our team will be happy to assist you.
 Thank you,
 Samara Assisted Living`;
     }
-    const canUse=foodDesk||['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
+    const canUse=foodDesk||['Admin','Manager','HR','STD'].some(r=>hasDutyRole(profile,r));
     async function repairLegacyInterviewHistory(rawRows){
       // v2.10.84: Repair legacy generic outbound WhatsApp rows for HR interviews.
       // IMPORTANT: the Inbox rendering must NOT depend on a database UPDATE succeeding.

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.42';
+  const APP_VERSION = '2.20.43';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -18288,7 +18288,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
     const [dateFrom,setDateFrom]=React.useState('');
     const [dateTo,setDateTo]=React.useState('');
     const waDateApply=useAppliedFilters({from:dateFrom,to:dateTo});const waDateA=waDateApply.applied; // 2.14.96: dates apply on "Apply"
-    const isSTD=String(profile?.role||'')==='STD';
+    const isSTD=hasDutyRole(profile,'STD');
     const FOOD_VENDOR_TEMPLATES=[{name:'samara_callback_request',label:'Food Vendor Callback',regarding:'food supply and delivery'}];
     const WA_REOPEN_TEMPLATES=[
       {name:'samara_general_followup',label:'General Follow-up',regarding:'your assisted living enquiry'},
@@ -18297,8 +18297,8 @@ function Dashboard({profile,onNavigate,alertEngine}){
     ];
     const [templateName,setTemplateName]=React.useState('samara_general_followup'),[templateLanguage]=React.useState('en'),[templateRegarding,setTemplateRegarding]=React.useState('your assisted living enquiry'),[mediaBusyId,setMediaBusyId]=React.useState('');
     // 2.15.24: real-inbox features — approved template texts, hide/restore, attachments.
-    const canDeleteMsg=['Admin','Manager','STD'].includes(String(profile?.role||''));
-    const canRestoreMsg=isNursingManagerProfile(profile)||['Admin','STD'].includes(String(profile?.role||''));
+    const canDeleteMsg=['Admin','Manager','STD'].some(r=>hasDutyRole(profile,r));
+    const canRestoreMsg=isNursingManagerProfile(profile)||['Admin','STD'].some(r=>hasDutyRole(profile,r));
     const [waTemplates,setWaTemplates]=React.useState({});
     const [templateSync,setTemplateSync]=React.useState({busy:false,note:''});
     const [showDeleted,setShowDeleted]=React.useState(false);
@@ -18549,7 +18549,7 @@ Please reply to this message and our team will be happy to assist you.
 Thank you,
 Samara Assisted Living`;
     }
-    const canUse=foodDesk||['Admin','Manager','HR','STD'].includes(String(profile?.role||''));
+    const canUse=foodDesk||['Admin','Manager','HR','STD'].some(r=>hasDutyRole(profile,r));
     async function repairLegacyInterviewHistory(rawRows){
       // v2.10.84: Repair legacy generic outbound WhatsApp rows for HR interviews.
       // IMPORTANT: the Inbox rendering must NOT depend on a database UPDATE succeeding.
@@ -21883,6 +21883,9 @@ Thank you.`;
     }catch(error){setMsg(error.message||'Unable to save leave change')}finally{lock.current=false;setBusy(false)}}
     const dates=r=>h('p',null,`Approved: ${formatDateIN(r.original_from)} – ${formatDateIN(r.original_to)} → Requested: ${formatDateIN(r.requested_from)} – ${formatDateIN(r.requested_to)}`);
     if(reviewOnly&&!data.can_approve&&!msg)return null;
+    // 2.20.43: staff on the biometric machine are marked back on duty by their first punch — the card is only for the
+    // Nursing Manager during a Stores handover and for staff without a machine number
+    if(!reviewOnly&&onMachine!==false&&!data.handover&&!mine.length&&!open)return null;
     return h(Section,{title:reviewOnly?'Leave Change Approvals':'Extend / Modify Leave',subtitle:'Revised dates take effect only after Admin/Director approval. Original leave history is retained.',actions:h('div',{className:'absence-actions'},!reviewOnly&&h('button',{type:'button',className:'btn btn-primary',onClick:start},'Extend / Modify Leave'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Refresh Leave Changes'))},
       !open&&msg&&h('div',{className:'message',role:'status'},msg),
       queue.map(r=>h('div',{className:'absence-card',key:r.id},h('strong',null,r.employee_name||'Staff'),dates(r),h('p',null,r.reason),h('div',{className:'absence-actions'},h('button',{className:'btn btn-primary',onClick:()=>{setTarget(r);setApprove(true);setNote('');setMsg('');setOpen(true)}},'Review Leave Change'),h('button',{className:'btn btn-secondary',onClick:()=>{setTarget(r);setApprove(false);setNote('');setMsg('');setOpen(true)}},'Reject Leave Change')))),
@@ -21903,7 +21906,9 @@ Thank you.`;
     const [data,setData]=React.useState({requests:[],leaves:[],handover:false,can_approve:false}),[open,setOpen]=React.useState(false),[target,setTarget]=React.useState(null),[approve,setApprove]=React.useState(true),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[note,setNote]=React.useState(''),[leave,setLeave]=React.useState(''),[when,setWhen]=React.useState('');
     const lock=React.useRef(false);
     const localNow=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
-    async function load(){const r=await client.rpc('staff_return_workspace');if(r.error)setMsg(r.error.message);else setData(r.data);}
+    const [onMachine,setOnMachine]=React.useState(null); // 2.20.43: punch marks the return for staff on the biometric machine
+    async function load(){const r=await client.rpc('staff_return_workspace');if(r.error)setMsg(r.error.message);else setData(r.data);
+      if(!reviewOnly){const b=await client.rpc('my_biometric_linked');if(!b.error)setOnMachine(Boolean(b.data));}}
     React.useEffect(()=>{load();const id=setInterval(load,30000);return()=>clearInterval(id)},[]);
     const mine=data.requests.filter(r=>r.employee_id===profile.id),pending=mine.some(r=>r.status==='Pending');
     const queue=data.can_approve?data.requests.filter(r=>r.status==='Pending'&&r.employee_id!==profile.id):[];
@@ -21913,6 +21918,9 @@ Thank you.`;
       if(result.error)throw result.error;setMsg(result.data?.message||'Saved');setOpen(false);await load();if(onChanged)await onChanged();
     }catch(error){setMsg(error.message||'Unable to save return request')}finally{lock.current=false;setBusy(false)}}
     if(reviewOnly&&!data.can_approve&&!msg)return null;
+    // 2.20.43: staff on the biometric machine are marked back on duty by their first punch — the card is only for the
+    // Nursing Manager during a Stores handover and for staff without a machine number
+    if(!reviewOnly&&onMachine!==false&&!data.handover&&!mine.length&&!open)return null;
     return h(Section,{title:reviewOnly?'Return to Duty Approvals':'Return to Duty',subtitle:'Staff submit their actual return. Admin/Director confirms it before delegated rights change.',actions:h('div',{className:'absence-actions'},!reviewOnly&&h('button',{type:'button',className:'btn btn-primary',disabled:pending||busy,onClick:start},pending?'Return Awaiting Approval':'Return to Duty'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Refresh Returns'))},
       !open&&msg&&h('div',{className:'message',role:'status'},msg),
       queue.map(r=>h('div',{className:'absence-card',key:r.id},h('strong',null,r.employee_name||'Staff'),h('p',null,`Returned: ${formatDateTimeIN(r.returned_at)} · Submitted: ${formatDateTimeIN(r.submitted_at)}`),h('p',null,r.remarks),h('div',{className:'absence-actions'},h('button',{className:'btn btn-primary',onClick:()=>{setTarget(r);setApprove(true);setNote('');setMsg('');setOpen(true)}},'Review & Approve Return'),h('button',{className:'btn btn-secondary',onClick:()=>{setTarget(r);setApprove(false);setNote('');setMsg('');setOpen(true)}},'Reject Return')))),
