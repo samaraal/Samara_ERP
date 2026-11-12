@@ -1,3 +1,7 @@
+## 2.20.48 — 12-11-2026 — Food items: voice for items not in the list · missed items added
+- Food & Beverage → Add food item: "✎🎤 Not in the list — type or say the item" now has a 🎤 Voice button (Tamil or English; Tamil converted to English) before tapping Add.
+- 153 meals checked: items staff typed under Other added to the dropdown with correct spelling (SQL 382) — Tiffin: Medu Vada · Lunch: Curry Leaves Rice, Millet Kanji, Carrot / Cluster Beans / Kovakkai Poriyal, Potato Fry, Pudalangai Kootu, Fish Kuzhambu, Chicken Gravy, Boiled Egg · Dinner: Millet Kanji, Chicken Gravy, Fresubin (Nutrition Supplement).
+
 ## 2.20.47 — 12-11-2026 — Extend / Modify Leave only while on leave
 - My Leave & Permission: the Extend / Modify Leave card is shown only while the employee is on approved leave today (or has a leave change awaiting a decision).
 

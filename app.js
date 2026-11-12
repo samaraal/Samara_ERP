@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.47';
+  const APP_VERSION = '2.20.48';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -9126,6 +9126,7 @@ https://samaraassistedliving.com/`;
       if(!enabled||!el||el.disabled||el.readOnly)return false;
       if(el.dataset?.samaraVoice==='off'||el.closest('.samara-voice-modal'))return false;
       if(spotAssessment)return Boolean(el.closest('.spot-assessment')&&el.dataset?.samaraVoice==='on');
+      if(el.dataset?.samaraVoice==='on')return true; // 2.20.48: a field that asks for voice (e.g. Food item "Other")
       const type=String(el.getAttribute('type')||'text').toLowerCase();
       if(el.tagName==='INPUT'&&!['text','search'].includes(type))return false;
       const bits=[el.name,el.id,el.placeholder,el.getAttribute('aria-label'),el.closest('label')?.innerText,el.parentElement?.querySelector(':scope > label')?.innerText].filter(Boolean).join(' ').toLowerCase();
@@ -40889,9 +40890,10 @@ function RoomsBeds({profile,onNavigate}){
                 h('option',{value:''},'＋ Add food item…'),
                 Object.entries(groups).map(([g,list])=>h('optgroup',{key:g,label:FOOD_GROUP_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x)))),
                 earlierItems.length?h('optgroup',{label:'Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
-                h('option',{value:'__other'},'✎ Other — type your own item')),
+                h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
               pick==='__other'&&h('div',{className:'fi-other'},
-                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,placeholder:'Type the item, e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
+                h('small',{style:{display:'block',width:'100%',color:'#8a5a70'}},'Type the item, or tap 🎤 Voice and say it in Tamil or English — then tap Add.'),
+                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>addItem(form.custom)},'Add'),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPick('');setForm({...form,custom:''})}},'Cancel'))
             )

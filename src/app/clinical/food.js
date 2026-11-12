@@ -351,9 +351,10 @@
                 h('option',{value:''},'＋ Add food item…'),
                 Object.entries(groups).map(([g,list])=>h('optgroup',{key:g,label:FOOD_GROUP_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x)))),
                 earlierItems.length?h('optgroup',{label:'Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
-                h('option',{value:'__other'},'✎ Other — type your own item')),
+                h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
               pick==='__other'&&h('div',{className:'fi-other'},
-                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,placeholder:'Type the item, e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
+                h('small',{style:{display:'block',width:'100%',color:'#8a5a70'}},'Type the item, or tap 🎤 Voice and say it in Tamil or English — then tap Add.'),
+                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>addItem(form.custom)},'Add'),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPick('');setForm({...form,custom:''})}},'Cancel'))
             )

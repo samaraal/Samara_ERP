@@ -21,6 +21,7 @@
       if(!enabled||!el||el.disabled||el.readOnly)return false;
       if(el.dataset?.samaraVoice==='off'||el.closest('.samara-voice-modal'))return false;
       if(spotAssessment)return Boolean(el.closest('.spot-assessment')&&el.dataset?.samaraVoice==='on');
+      if(el.dataset?.samaraVoice==='on')return true; // 2.20.48: a field that asks for voice (e.g. Food item "Other")
       const type=String(el.getAttribute('type')||'text').toLowerCase();
       if(el.tagName==='INPUT'&&!['text','search'].includes(type))return false;
       const bits=[el.name,el.id,el.placeholder,el.getAttribute('aria-label'),el.closest('label')?.innerText,el.parentElement?.querySelector(':scope > label')?.innerText].filter(Boolean).join(' ').toLowerCase();
