@@ -1,3 +1,7 @@
+## 2.20.50 — 12-11-2026 — Additional physiotherapy (Samara in-house, no charge)
+- Physiotherapy → Sessions & Clinical Review: new "Additional Physiotherapy — Samara in-house (no charge)" section. Only the Physiotherapist login records it (＋ Additional session), for any active Guest, from 01-11-2026: date, time, duration, what was done (tap list + other), tolerance, observation. Never billed, no physiotherapist fee, no alerts; kept separate from planned sessions (SQL 384).
+- Daily Family Report shows them as complimentary (count + what was done); the doctor report lists them with the planned sessions as "Completed (additional, in-house)" (Edge Function daily-patient-report).
+
 ## 2.20.49 — 12-11-2026 — Food item categories (Lunch side dishes)
 - Add food item: categories open a second list — e.g. "▸ Poriyal — choose which" → Beans Poriyal, Carrot Poriyal… (SQL 383). Lunch sides added: Poriyal (16), Kootu (9), Aviyal / Thoran / Erissery (6), Keerai (8), Paruppu Usili (4), Pachadi & Raita (6), Thogayal (6), Crispy Sides & Condiments (9). Old one-word Poriyal / Kootu / Keerai / Raita / Pickle replaced by the categories.
 - Manage Food Item List (Admin): ▸ button sets an item’s category; the category is shown before the name.

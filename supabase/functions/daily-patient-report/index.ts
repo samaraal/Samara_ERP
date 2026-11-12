@@ -61,6 +61,8 @@ async function makeReport(sb:any,patient:any,date:string){
   const dayMealCandidates=meals.filter((x:any)=>sameDay(x.served_at||x.created_at||x.meal_date,date)).sort((a:any,b:any)=>+new Date(b.served_at||b.created_at||b.meal_date)-+new Date(a.served_at||a.created_at||a.meal_date));
   const dayMeals=["Tiffin","Lunch","Dinner"].map(mealType=>{const row=dayMealCandidates.find((x:any)=>canonicalMealType(x.meal_type)===mealType);return row?{...row,meal_type:mealType}:null}).filter(Boolean) as any[];
   const dayPhysio=physio.filter((x:any)=>sameDay(x.session_at||x.created_at||x.session_date,date));
+  // 2.20.50: additional physiotherapy by Samara's in-house physiotherapist — complimentary, never billed (SQL 384)
+  const extraPhysio=(await rows(sb,"physio_additional_sessions",patient.id)).filter((x:any)=>!x.voided_at&&sameDay(x.session_at||x.session_date,date));
   const dayIncidents=incidents.filter((x:any)=>sameDay(x.incident_at||x.created_at,date));
   const dayHandovers=handovers.filter((x:any)=>sameDay(x.created_at||x.handover_date,date));
   const dayReviews=medReviews.filter((x:any)=>!x.is_admission_correction&&!x.not_doctor_review&&sameDay(x.reviewed_at||x.created_at,date)); // 2.18.133: corrections of admission entries are not doctor reviews
@@ -133,7 +135,7 @@ async function makeReport(sb:any,patient:any,date:string){
   card("MEDICATION ADMINISTRATION",[["Medicines Scheduled",String(dayMar.length)],["Medicines Given",String(given)],["Missed / Omitted",String(missed)],["Active Prescription Items",String(activeOrders.length)]],missed?"Medication exceptions require review.":"Medication activity is summarised above.",M+cw+gap,row1,cw,ch);
   card("DAILY CARE AND NURSING",[["Care Activities Planned",String(careOrders.filter((x:any)=>x.is_active!==false).length)],["Care Activities Recorded",String(dayCare.length)],["Care Activities Completed",String(completed)],["Nursing Procedures",String(dayProcedures.length)],["Assistance with ADL",dayCare.length?"Recorded":"-"]],"Nursing procedures and care activities are summarised above.",M+(cw+gap)*2,row1,cw,ch);
   card("FOOD, DIET AND INTAKE",[["Diet Type",text(patient.diet_type||patient.food_preference)||"Normal Diet"],["Meal / Intake Records",String(dayMeals.length)],["Average Intake",dayMeals.length?"Recorded":"-"],["Feeding Instruction",text(patient.feeding_instruction)||"-"]],"Meal and intake records are available.",M,row2,cw,ch);
-  card("PHYSIOTHERAPY",[["Sessions Planned",String(physioPlans.filter((x:any)=>x.is_active!==false).length)],["Sessions Recorded",String(dayPhysio.length)],["Sessions Completed",String(physioDone)],["Remarks",dayPhysio.length?"Available":"-"]],dayPhysio.length?"Physiotherapy activity recorded.":"No physiotherapy records for the period.",M+cw+gap,row2,cw,ch);
+  card("PHYSIOTHERAPY",[["Sessions Planned",String(physioPlans.filter((x:any)=>x.is_active!==false).length)],["Sessions Recorded",String(dayPhysio.length+extraPhysio.length)],["Sessions Completed",String(physioDone+extraPhysio.length)],["Complimentary (in-house)",extraPhysio.length?String(extraPhysio.length):"-"]],(dayPhysio.length||extraPhysio.length)?(extraPhysio.length?`Physiotherapy activity recorded, including ${extraPhysio.length} complimentary session${extraPhysio.length===1?"":"s"} by Samara's in-house physiotherapist (${extraPhysio.map((x:any)=>text(x.treatment_done)).filter(Boolean).join("; ").slice(0,120)}).`:"Physiotherapy activity recorded."):"No physiotherapy records for the period.",M+cw+gap,row2,cw,ch);
   card("INCIDENT REPORTS",[["Total Incidents",String(dayIncidents.length)],["Falls",String(dayIncidents.filter((x:any)=>/fall/i.test(text(x.incident_type||x.type))).length)],["Medical Emergencies",String(dayIncidents.filter((x:any)=>/emergency|transfer/i.test(text(x.incident_type||x.type))).length)],["Open Incidents",String(dayIncidents.filter((x:any)=>text(x.status||"Open").toLowerCase()!=="closed").length)]],dayIncidents.length?"Incident review is required.":"No reportable incidents during the period.",M+(cw+gap)*2,row2,cw,ch);
 
   // Financial summary, timeline and footer.
@@ -396,6 +398,10 @@ async function makeDoctorReport(sb:any,patient:any,date:string,doctor:string,gen
  // ---- physiotherapy ----
  const activePlans=physioPlans.filter((p:any)=>p.is_active!==false&&(!text(p.end_date)||isoOf(p.end_date)>=from));
  const wp=physio.filter((x:any)=>inWindow(x.session_at||x.session_date||x.created_at,from,date)).sort((a:any,b:any)=>+new Date(a.session_at||a.session_date||a.created_at)-+new Date(b.session_at||b.session_date||b.created_at));
+ // 2.20.50: additional (no-charge) sessions by the in-house physiotherapist, shown with the planned ones
+ const wpx=(await rows(sb,"physio_additional_sessions",patient.id)).filter((x:any)=>!x.voided_at&&inWindow(x.session_at||x.session_date,from,date))
+   .map((x:any)=>({...x,scheduled_time:"",status:"Completed (additional, in-house)",notes:[text(x.treatment_done),x.duration_minutes?`${x.duration_minutes} min`:"",text(x.tolerance),text(x.notes)].filter(Boolean).join(" · "),reason:""}));
+ wp.push(...wpx);wp.sort((a:any,b:any)=>+new Date(a.session_at||a.session_date||a.created_at)-+new Date(b.session_at||b.session_date||b.created_at));
  const physioRows=wp.map((x:any)=>({d:displayDate(isoOf(x.session_at||x.session_date||x.created_at)),slot:text(x.scheduled_time)?(text(x.scheduled_time).includes("-")?text(x.scheduled_time).split("-").map(hhmm12).join("-"):hhmm12(x.scheduled_time)):"-",
   actual:text(x.actual_time)?hhmm12(x.actual_time):timeOf(x.session_at)||"-",who:text(x.physiotherapist_name)||staffName(x.performed_by)||"-",status:text(x.status)||"-",notes:[text(x.notes),text(x.reason)].filter(Boolean).join(" | ")||"-"}));
 

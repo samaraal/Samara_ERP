@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.49';
+  const APP_VERSION = '2.20.50';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -41166,6 +41166,77 @@ function RoomsBeds({profile,onNavigate}){
     `;
     document.head.appendChild(st);
   })();
+  // 2.20.50: ADDITIONAL physiotherapy — Samara in-house, no charge (SQL 384). Recorded only by the Physiotherapist login,
+  // for any active Guest, from 01-11-2026. Kept apart from planned sessions: never billed, no fee, no alerts.
+  const PHYSIO_EXTRA_WORK=['Passive movements (ROM)','Active-assisted exercises','Strengthening exercises','Walking practice','Sitting / standing balance','Bed mobility & positioning','Chest physiotherapy / breathing','Stretching','Transfers training'];
+  function PhysioAdditionalSessions({profile,patients,filters}){
+    const isPhysio=profile?.role==='Physiotherapist';
+    const today=todayISOIndia();
+    const nowHM=()=>{try{return new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date())}catch(_){return ''}};
+    const blank=()=>({patient_id:'',session_date:today,actual_time:nowHM(),duration_minutes:'30',work:[],other:'',notes:'',tolerance:'Tolerated well'});
+    const [rows,setRows]=React.useState(null),[open,setOpen]=React.useState(false),[f,setF]=React.useState(blank()),[busy,setBusy]=React.useState(false),[err,setErr]=React.useState('');
+    const from=filters?.from&&!filters.error?filters.from:'2026-11-01',to=filters?.to&&!filters.error?filters.to:today;
+    async function load(){
+      let q=client.from('physio_additional_sessions').select('*').is('voided_at',null).gte('session_date',from).lte('session_date',to).order('session_at',{ascending:false}).limit(500);
+      if(filters&&filters.patientIds!==null&&filters.patientIds)q=q.in('patient_id',filters.patientIds.length?filters.patientIds:['00000000-0000-0000-0000-000000000000']);
+      const r=await q;setRows(r.error?[]:(r.data||[]));
+      if(r.error&&!/physio_additional_sessions|schema cache|does not exist/i.test(r.error.message||''))setErr(r.error.message);
+    }
+    React.useEffect(()=>{load()},[from,to,filters?.key]);
+    const guestName=id=>{const g=(patients||[]).find(p=>p.id===id);return g?`${g.full_name}${g.room_no?` · Room ${g.room_no}`:''}`:'Guest'};
+    const active=(patients||[]).filter(p=>p.is_active!==false&&p.admission_status!=='Discharged');
+    async function save(e){
+      e.preventDefault();if(busy)return;setErr('');
+      const done=[...f.work,...(f.other.trim()?[f.other.trim()]:[])].join(', ');
+      if(!f.patient_id)return setErr('Choose the Guest.');
+      if(!done)return setErr('Choose or type what was done.');
+      setBusy(true);
+      try{const r=await client.rpc('physio_additional_save',{p:{patient_id:f.patient_id,session_date:f.session_date,actual_time:f.actual_time,duration_minutes:f.duration_minutes,treatment_done:done,notes:f.notes,tolerance:f.tolerance}});
+        if(r.error)throw r.error;
+        showSamaraActionToast('success','Additional physiotherapy saved (no charge)',`${guestName(f.patient_id)} · ${formatDateIN(f.session_date)} ${f.actual_time}`);
+        setOpen(false);setF(blank());await load();
+      }catch(x){setErr(x.message||String(x))}finally{setBusy(false)}
+    }
+    async function cancel(r){
+      const reason=window.prompt(`Cancel this additional session for ${guestName(r.patient_id)} (${formatDateIN(r.session_date)})?\nReason:`);
+      if(!reason)return;
+      const x=await client.rpc('physio_additional_void',{p_id:r.id,p_reason:reason});
+      if(x.error)alert(x.error.message);else load();
+    }
+    const canCancel=r=>profile?.role==='Admin'||(isPhysio&&r.performed_by===profile.id&&new Date(r.created_at).toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})===today);
+    const toggle=w=>setF(x=>({...x,work:x.work.includes(w)?x.work.filter(y=>y!==w):[...x.work,w]}));
+    return h('section',{className:'card panel',style:{borderLeft:'5px solid #16a34a'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap'}},
+        h('div',null,h('h3',{style:{margin:0}},'Additional Physiotherapy — Samara in-house (no charge)'),
+          h('small',{className:'small-note'},'Extra physiotherapy given to any Guest as needed, besides the planned sessions. Never billed. Families see it as complimentary.')),
+        isPhysio&&!open&&h('button',{type:'button',className:'btn btn-primary',onClick:()=>{setF(blank());setErr('');setOpen(true)}},'＋ Additional session (no charge)')),
+      open&&h('form',{onSubmit:save,style:{marginTop:12,display:'grid',gap:10}},
+        h('div',{className:'form-grid'},
+          h('div',{className:'field'},h('label',null,'Guest *'),h('select',{value:f.patient_id,onChange:e=>setF({...f,patient_id:e.target.value})},h('option',{value:''},'Choose the Guest…'),active.map(g=>h('option',{key:g.id,value:g.id},`${g.full_name}${g.room_no?` · Room ${g.room_no}`:''}`)))),
+          h('div',{className:'field'},h('label',null,'Date *'),h('input',{type:'date',value:f.session_date,min:'2026-11-01',max:today,onChange:e=>setF({...f,session_date:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Time *'),h('input',{type:'time',value:f.actual_time,onChange:e=>setF({...f,actual_time:e.target.value})})),
+          h('div',{className:'field'},h('label',null,'Duration (minutes)'),h('input',{type:'number',min:1,max:240,value:f.duration_minutes,onChange:e=>setF({...f,duration_minutes:e.target.value})}))),
+        h('div',{className:'field'},h('label',null,'What was done * (tap all that apply)'),
+          h('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},PHYSIO_EXTRA_WORK.map(w=>h('button',{key:w,type:'button',className:'btn '+(f.work.includes(w)?'btn-primary':'btn-secondary'),style:{padding:'6px 10px'},onClick:()=>toggle(w)},(f.work.includes(w)?'✓ ':'')+w))),
+          h('input',{type:'text',value:f.other,maxLength:200,placeholder:'Anything else done (optional)','aria-label':'Other treatment done',onChange:e=>setF({...f,other:e.target.value}),style:{marginTop:8}})),
+        h('div',{className:'form-grid'},
+          h('div',{className:'field'},h('label',null,'How the Guest tolerated it'),h('select',{value:f.tolerance,onChange:e=>setF({...f,tolerance:e.target.value})},['Tolerated well','Tolerated with rest breaks','Mild discomfort','Could not continue'].map(x=>h('option',{key:x},x))))),
+        h('div',{className:'field'},h('label',null,'Observation / notes'),h('textarea',{rows:3,value:f.notes,placeholder:'Observation, progress, advice to nursing team',onChange:e=>setF({...f,notes:e.target.value})})),
+        err&&h('div',{className:'message error'},err),
+        h('div',{style:{display:'flex',gap:8}},h('button',{type:'submit',className:'btn btn-primary',disabled:busy},busy?'Saving…':'Save — no charge'),h('button',{type:'button',className:'btn btn-secondary',disabled:busy,onClick:()=>setOpen(false)},'Cancel'))),
+      !open&&err&&h('div',{className:'message error'},err),
+      rows===null?h('p',{className:'small-note'},'Loading…'):!rows.length?h('p',{className:'small-note'},`No additional sessions recorded ${filters?'in this period':'yet'}.`):
+      h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('thead',null,h('tr',null,['Date & time','Guest','What was done','Duration','Tolerance / notes','By',''].map(x=>h('th',{key:x},x)))),
+        h('tbody',null,rows.map(r=>h('tr',{key:r.id},
+          h('td',null,`${formatDateIN(r.session_date)} ${String(r.actual_time||'').slice(0,5)}`),
+          h('td',null,guestName(r.patient_id)),
+          h('td',null,r.treatment_done),
+          h('td',null,r.duration_minutes?`${r.duration_minutes} min`:'—'),
+          h('td',null,[r.tolerance,r.notes].filter(Boolean).join(' · ')||'—'),
+          h('td',null,r.physiotherapist_name||'—'),
+          h('td',null,canCancel(r)?h('button',{type:'button',className:'btn btn-secondary',onClick:()=>cancel(r)},'Cancel'):h('span',{className:'badge',style:{background:'#e7f6ef',color:'#17603a'}},'No charge'))))))));
+  }
   function Physiotherapy({profile,onNavigate,filters=null}){
     const canEnter=['Admin','Manager','Nurse','Caregiver','Physiotherapist'].includes(profile?.role);
     const isPhysioLogin=profile?.role==='Physiotherapist'; // 2.19.55: she records her own sessions
@@ -41631,6 +41702,7 @@ function RoomsBeds({profile,onNavigate}){
     return h(React.Fragment,null,
       message&&h('div',{className:'message error'},message),
       returnedPanel,
+      h(PhysioAdditionalSessions,{profile,patients,filters}), // 2.20.50
       h('details',{className:'card panel physio-numbers-panel'},h('summary',null,'📞 Physiotherapist phone numbers — tap to call'),h(OdtPhysioDirectory,null)), // 2.18.125
       h(LogTable,{
         title:'Physiotherapy Plan',
