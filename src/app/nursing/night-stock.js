@@ -258,23 +258,32 @@
     const [edit,setEdit]=React.useState(null);
     const rows=listItems.slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
     const short=i=>Math.max(0,n(i.par_qty)-n(i.night_balance));
-    const saveLevel=async()=>{const v=Number(edit.level);if(!Number.isInteger(v)||v<=0){setError('Usual level must be a whole number above 0.');return}if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:true,par_qty:v}]},'Usual level changed',`${edit.item.item_name}: ${v} ${edit.item.unit}`))setEdit(null)};
-    const giveBack=async()=>{const v=Number(edit.ret);if(!Number.isInteger(v)||v<=0||v>n(edit.item.night_balance)){setError(`Return a whole number up to ${n(edit.item.night_balance)}.`);return}if(edit.reason.trim().length<3){setError('Enter the reason for returning.');return}if(await post('return_to_store',{items:[{store_item_id:edit.item.store_item_id,qty:v}],note:edit.reason},'Returned to the Main Store',`${v} ${edit.item.unit} ${edit.item.item_name}`))setEdit(null)};
+    // 2.20.58: Edit sets the quantity IN THE CUPBOARD. More → issued from the Main Store; less → returned to the Main Store (reason).
+    // The usual level follows the same number, so the daily "Fill up to usual levels" keeps it there.
+    const saveQty=async()=>{
+      const it=edit.item,v=Number(edit.qty),have=n(it.night_balance),d=v-have;
+      if(!Number.isInteger(v)||v<0){setError('Enter a whole number (0 or more).');return}
+      if(d>0&&d>n(it.central_balance)){setError(`Main Store has only ${qty(it.central_balance,it.unit)} — you can add up to ${n(it.central_balance)} more.`);return}
+      if(d<0&&edit.reason.trim().length<3){setError('Enter the reason for taking items out of the cupboard.');return}
+      if(d>0&&!await post('topup',{items:[{store_item_id:it.store_item_id,qty:d}],note:edit.reason||'Quantity changed in Ward Stock now'},'Ward Stock updated',`${it.item_name}: ${have} → ${v} ${it.unit} (${d} issued from the Main Store).`))return;
+      if(d<0&&!await post('return_to_store',{items:[{store_item_id:it.store_item_id,qty:-d}],note:edit.reason},'Ward Stock updated',`${it.item_name}: ${have} → ${v} ${it.unit} (${-d} returned to the Main Store).`))return;
+      if(v>0&&v!==n(it.par_qty)&&!await post('set_list',{items:[{store_item_id:it.store_item_id,active:true,par_qty:v}]},'Usual level updated',`${it.item_name}: ${v} ${it.unit}`))return;
+      setEdit(null);
+    };
     const remove=async()=>{if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:false,par_qty:n(edit.item.par_qty)||1}]},'Removed from Ward Stock',edit.item.item_name))setEdit(null)};
     return h(Section,{title:'Ward Stock now',actions:btn('🖨️ Print / PDF',()=>nsPrintWardStock({rows:acc.manage?rows:rows.filter(i=>i.active),showQty:Boolean(acc.manage),shiftText:shiftLabel(cur,curShift).replace(/^\S+ /,''),who:acc.name||''}),true,!rows.length),subtitle:acc.manage?'What should be in the Ward Stock cupboard now (A–Z).':'Items kept in the Ward Stock cupboard (A–Z). Quantities are counted at the opening and closing counts.'},
       !acc.manage?table(['S.No','Item','Unit'],rows.filter(i=>i.active).map((i,k)=>[k+1,h('b',null,i.item_name),i.unit])):
       table(['S.No','Item','Usual level','In cupboard','Short',...(acc.manage?['']:[])],rows.map((i,k)=>[k+1,h('b',null,i.item_name),i.active?qty(i.par_qty,i.unit):pill('Removed — return balance'),qty(i.night_balance,i.unit),
-        i.active&&short(i)?pill(qty(short(i),i.unit),'bad'):pill('Full','good'),...(acc.manage?[btn('Edit / Remove',()=>{setError('');setEdit({item:i,level:String(n(i.par_qty)||''),ret:'',reason:''})})]:[])])),
+        i.active&&short(i)?pill(qty(short(i),i.unit),'bad'):pill('Full','good'),...(acc.manage?[btn('Edit',()=>{setError('');setEdit({item:i,qty:String(n(i.night_balance)),reason:''})})]:[])])),
       edit&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal',role:'dialog','aria-modal':true},
-        h('h3',null,edit.item.item_name),h('p',{className:'small-note'},`In cupboard: ${qty(edit.item.night_balance,edit.item.unit)}`),
-        h('div',{className:'field'},h('label',null,'Usual level (kept in the cupboard)'),h('input',{type:'number',min:1,step:1,value:edit.level,onChange:e=>setEdit(v=>({...v,level:e.target.value}))})),
-        btn('Save level',saveLevel,true),
-        n(edit.item.night_balance)>0&&h('div',{style:{marginTop:'14px'}},h('h4',null,'Return to the Main Store'),
-          h('div',{className:'grid two'},h('div',{className:'field'},h('label',null,'Quantity'),h('input',{type:'number',min:1,step:1,max:n(edit.item.night_balance),value:edit.ret,onChange:e=>setEdit(v=>({...v,ret:e.target.value}))})),
-            h('div',{className:'field'},h('label',null,'Reason *'),h('input',{value:edit.reason,placeholder:'e.g. close to expiry',onChange:e=>setEdit(v=>({...v,reason:e.target.value}))}))),
-          btn('Return to Main Store',giveBack)),
+        h('h3',null,edit.item.item_name),h('p',{className:'small-note'},`Now in cupboard: ${qty(edit.item.night_balance,edit.item.unit)} · Main Store: ${qty(edit.item.central_balance,edit.item.unit)}`),
+        h('div',{className:'field'},h('label',null,`Quantity in cupboard (${edit.item.unit}) *`),h('input',{type:'number',min:0,step:1,value:edit.qty,onChange:e=>setEdit(v=>({...v,qty:e.target.value}))})),
+        (()=>{const d=Number(edit.qty)-n(edit.item.night_balance);return Number.isInteger(Number(edit.qty))&&edit.qty!==''&&d!==0?h('p',{className:'message',role:'status'},d>0?`${d} ${edit.item.unit} will be issued from the Main Store to the cupboard.`:`${-d} ${edit.item.unit} will be returned from the cupboard to the Main Store.`):null})(),
+        Number(edit.qty)<n(edit.item.night_balance)&&h('div',{className:'field'},h('label',null,'Reason *'),h('input',{value:edit.reason,placeholder:'e.g. close to expiry, not needed',onChange:e=>setEdit(v=>({...v,reason:e.target.value}))})),
+        h('p',{className:'small-note'},'The usual level is set to the same number (used by "Fill up to usual levels").'),
+        btn('Save',saveQty,true),
         h('div',{style:{marginTop:'14px',display:'flex',gap:'8px',flexWrap:'wrap'}},
-          n(edit.item.night_balance)===0?btn('Remove from Ward Stock',remove):h('small',null,'To remove this item, first return all of it to the Main Store.'),
+          n(edit.item.night_balance)===0?btn('Remove from Ward Stock',remove):h('small',null,'To remove this item, set the quantity to 0 and save, then Remove.'),
           btn('Close',()=>setEdit(null))))));
   }
 

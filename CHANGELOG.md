@@ -1,3 +1,6 @@
+## 2.20.58 — 12-11-2026 — Ward Stock: Edit changes the quantity in the cupboard
+- Ward Stock now → **Edit** (Nursing Manager / Admin) sets the **quantity in the cupboard**: a higher number is issued from the Main Store, a lower number is returned to the Main Store (reason required). The usual level is set to the same number. Remove is offered once the quantity is 0. Frontend only.
+
 ## 2.20.57 — 12-11-2026 — Ward Stock: Print / PDF
 - Ward Stock now: **🖨️ Print / PDF** button — Samara-headed count sheet (S.No, item, unit, blank Counted and Remarks columns, signature lines for the counting nurse, incoming nurse and Nursing Manager). The Nursing Manager / Admin copy also shows the usual level and the ERP quantity; the nurses' copy shows item names only (blind count). Frontend only.
 
