@@ -1,3 +1,8 @@
+## 2.20.55 — 12-11-2026 — Night Stock: blind counts for nurses · pink boxes
+- Nurse logins (night nurse, and the Day duty nurse when she verifies) no longer see any Night Stock quantity — no balances, levels, top-ups or count figures. Night Stock now shows them only the item names (S.No, A–Z); Use for a Guest lists item names only. (SQL 389)
+- Counts: the nurse types what she physically counts and taps Check — each item shows ✓ Matched or ✗ Not matched (red). On a mismatch she must recount and Check again; only if it still does not match can she save, with a note (the Nursing Manager is alerted). The Nursing Manager / Admin still see the ERP figure and the difference.
+- Night Stock boxes in the Samara baby-pink gradient; box titles bold and larger, the status line smaller.
+
 ## 2.20.54 — 12-11-2026 — Night Stock: one "Add items" screen
 - Night Stock: Top-up and Item List & Levels are replaced by one **➕ Add items to Night Stock** button — the full Consumables / Pharmacy list with S.No in alphabetical order (search, All / Consumables / Pharmacy). Type a quantity against any items and Save once; the quantities move from the Main Store to Night Stock. A new item's first quantity becomes its usual level. **Fill up to usual levels** pre-fills what was used. (SQL 388)
 - Night Stock now: S.No, A–Z; the Nursing Manager's **Edit / Remove** changes an item's usual level, returns it to the Main Store, or removes it (only when none is left in the cupboard). The box shows "Done · time · name" after today's top-up; the extra Refresh button is removed.

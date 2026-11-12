@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.54';
+  const APP_VERSION = '2.20.55';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '12-Nov-2026 Night Stock — Add items';
+  const APP_BUILD_DATE = '12-Nov-2026 Night Stock — blind counts';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -43611,12 +43611,23 @@ function RoomsBeds({profile,onNavigate}){
   //   07:00   : night nurse closing count.
   //   Morning : Nursing Manager verifies — or, when she is not on Day duty today, the Day-shift duty nurse.
   // Counts are entered without seeing the ERP figure; differences are shown after "Check".
+  // 2.20.55: Samara baby-pink gradient boxes; box title bold and larger, status line smaller.
+  function ensureNightStockCss(){
+    if(document.getElementById('night-stock-css'))return;
+    const st=document.createElement('style');st.id='night-stock-css';
+    st.textContent=`.night-stock .ns-boxes .dr-box{background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%);border:1px solid #edb5ce;border-top:4px solid #a91360;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);padding:14px 16px;gap:6px}
+.night-stock .ns-boxes .dr-box:hover,.night-stock .ns-boxes .dr-box:focus-visible{box-shadow:0 10px 24px rgba(143,23,76,.18)}
+.night-stock .ns-boxes .dr-box-label{font-size:18px;font-weight:900;color:#7a1247;min-height:0;line-height:1.25}
+.night-stock .ns-boxes .dr-box-value{font-size:13px;font-weight:600;color:#5b3a4b}`;
+    document.head.appendChild(st);
+  }
   function NightStock({profile,onNavigate}){
     const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
     const [tab,setTab]=React.useState('home'),[detail,setDetail]=React.useState(null);
     const [patients]=usePatients();
     const lock=React.useRef(false),token=React.useRef(null);
     const [focus,clearFocus]=useRecordFocus('Night Stock');
+    React.useEffect(()=>{ensureNightStockCss()},[]);
     const load=React.useCallback(async()=>{const r=await client.rpc('night_stock_workspace');if(r.error){setError(r.error.message);return}setData(r.data);setError('')},[]);
     React.useEffect(()=>{load();const t=setInterval(load,60000);return()=>clearInterval(t)},[load]);
     React.useEffect(()=>{if(focus)setTab('home')},[focus]);
@@ -43667,7 +43678,7 @@ function RoomsBeds({profile,onNavigate}){
       const ids=[...new Set([...counts.map(c=>c.store_item_id),...moves.map(m=>m.store_item_id)])];
       const c=(id,k)=>{const r=counts.find(z=>z.store_item_id===id&&z.kind===k);return r?(n(r.counted_qty)===n(r.expected_qty)?String(n(r.counted_qty)):`${n(r.counted_qty)} (ERP ${n(r.expected_qty)})`):'—'};
       setDetail({title:`Night of ${formatDateIN(d)} · ${x.status}`,fields:[['Accepted by',[x.accepted_by_name,when(x.accepted_at)].filter(Boolean).join(' · ')],['Opening note',x.accept_note],['Closing count by',[x.closed_by_name,when(x.closed_at)].filter(Boolean).join(' · ')],['Closing note',x.close_note],['Returned by',[x.returned_by_name,when(x.returned_at)].filter(Boolean).join(' · ')],['Return note',x.return_note],['Verified by',[x.verified_by_name,x.verifier_as,when(x.verified_at)].filter(Boolean).join(' · ')],['Verification note',x.verify_note]],
-        children:h('div',null,h('h4',null,'Counts'),table(['Item','Opening','Closing','Verified'],ids.map(id=>[itemById(id)?.item_name||'Item',c(id,'Opening'),c(id,'Closing'),c(id,'Verify')])),
+        children:h('div',null,counts.length>0&&h('h4',null,'Counts'),counts.length>0&&table(['Item','Opening','Closing','Verified'],ids.filter(id=>counts.some(c=>c.store_item_id===id)).map(id=>[itemById(id)?.item_name||'Item',c(id,'Opening'),c(id,'Closing'),c(id,'Verify')])),
           h('h4',null,'Movements'),table(['Time','Movement','Item','Qty','Guest','By'],moves.map(m=>[when(m.created_at),m.movement+(m.late_entry?' (late)':''),itemById(m.store_item_id)?.item_name||'',`${n(m.qty)>0?'+':''}${n(m.qty)}`,m.patient_id?pLabel(m.patient_id):'—',m.actor_name||''])))});
     }
 
@@ -43690,7 +43701,7 @@ function RoomsBeds({profile,onNavigate}){
       error&&h('p',{className:'message error',role:'alert'},error),
       h('p',{className:'message',role:'status'},statusText,acc.verify_as&&toVerify&&!isNight?` You can verify as: ${acc.verify_as}.`:''),
       focus&&h('p',{className:'message',role:'status'},'Opened from an alert. ',btn('OK',clearFocus)),
-      tab==='home'&&h('div',{className:'dr-boxes'},boxes.map(([label,value,key])=>h('button',{key,type:'button',className:'dr-box',onClick:()=>{setError('');setTab(key)}},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-value',style:/Not done|Due now|Waiting|Returned/.test(value)?{color:'#b42318'}:undefined},value)))),
+      tab==='home'&&h('div',{className:'dr-boxes ns-boxes'},boxes.map(([label,value,key])=>h('button',{key,type:'button',className:'dr-box',onClick:()=>{setError('');setTab(key)}},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-value',style:/Not done|Due now|Waiting|Returned/.test(value)?{color:'#b42318'}:undefined},value)))),
       tab==='stock'&&h(NsStockNow,{ctx}),
       tab==='use'&&h(NsUseForm,{ctx}),
       tab==='accept'&&h(NsCountForm,{ctx,kind:'accept'}),
@@ -43699,31 +43710,49 @@ function RoomsBeds({profile,onNavigate}){
       tab==='add'&&h(NsAddItems,{ctx}),
       tab==='register'&&h(NsRegister,{ctx}));
   }
+  // 2.20.55: blind count. Nurse logins never see the ERP quantity — Check only says Matched / Not matched (SQL 389).
+  // 1st Check with a mismatch → recount those items; still not matching → save with a note.
   function NsCountForm({ctx,kind}){
-  const {acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail}=ctx;
-    const [counts,setCounts]=React.useState({}),[checked,setChecked]=React.useState(false),[note,setNote]=React.useState('');
+    const {acc,isNight,listItems,toVerify,prevNight,pill,btn,table,post,setError,setTab,when,busy}=ctx;
+    const [counts,setCounts]=React.useState({}),[result,setResult]=React.useState(null),[tries,setTries]=React.useState(0),[note,setNote]=React.useState(''),[checking,setChecking]=React.useState(false);
+    const showQty=Boolean(acc.manage);
     const target=kind==='verify'?toVerify:null;
-    const diffs=listItems.filter(i=>counts[i.store_item_id]!==undefined&&counts[i.store_item_id]!==''&&n(counts[i.store_item_id])!==n(i.night_balance));
+    const res=id=>(result||[]).find(r=>r.store_item_id===id);
+    const mismatched=(result||[]).filter(r=>!r.matched);
     const complete=listItems.every(i=>counts[i.store_item_id]!==undefined&&counts[i.store_item_id]!==''&&Number.isInteger(Number(counts[i.store_item_id]))&&Number(counts[i.store_item_id])>=0);
-    const payload=()=>({night_date:target?.night_date,note,counts:listItems.map(i=>({store_item_id:i.store_item_id,counted:Number(counts[i.store_item_id])}))});
+    const countList=()=>listItems.map(i=>({store_item_id:i.store_item_id,counted:Number(counts[i.store_item_id])}));
     const titles={accept:['Opening Count — Accept Night Stock','Count each item in the cupboard and type the number you see. Then tap Check.'],close:['Closing Count',isNight?'Before 07:00, count each item in the cupboard. Then tap Check.':`Late closing count for the night of ${formatDateIN(prevNight)}.`],verify:['Morning Verification',target?`Night of ${formatDateIN(target.night_date)} · ${target.closed_at?`closing count by ${target.closed_by_name} at ${when(target.closed_at)}`:'the night nurse did NOT do the closing count'}${target.close_note?` · note: ${target.close_note}`:''}`:'No night is waiting for verification.']};
     if(kind==='verify'&&!target)return h(Section,{title:titles.verify[0]},h('p',null,'No night is waiting for verification.'));
     if(kind==='verify'&&!acc.verify)return h(Section,{title:titles.verify[0]},h('p',null,acc.nm_on_day_duty?'The Nursing Manager is on Day duty today — she verifies the Night Stock.':'Only the Nursing Manager verifies — or, when she is not on Day duty today, the Day-shift duty nurse.'));
     if(kind!=='verify'&&!acc.nurse)return h(Section,{title:titles[kind][0]},h('p',null,'The night nurse does this count from her Nurse login.'));
-    const save=async()=>{const r=await post(kind,payload(),kind==='accept'?'Night Stock accepted':kind==='close'?'Closing count saved':'Night Stock verified',diffs.length?'Saved with differences — the note goes to the Nursing Manager.':'All counts match the ERP.');if(r){setCounts({});setChecked(false);setNote('');setTab('home')}};
+    async function check(){
+      if(!complete){setError('Enter a whole-number count for every item (0 if none).');return}
+      setError('');setChecking(true);
+      try{const r=await client.rpc('night_stock_check',{p_counts:countList()});if(r.error)throw r.error;setResult(Array.isArray(r.data)?r.data:[]);setTries(t=>t+1)}
+      catch(e){setError(e.message)}finally{setChecking(false)}
+    }
+    const canSave=result&&(mismatched.length===0||tries>=2);
+    const save=async()=>{if(mismatched.length&&note.trim().length<3){setError('Write a note explaining the difference.');return}
+      const r=await post(kind,{night_date:target?.night_date,note,counts:countList()},kind==='accept'?'Night Stock accepted':kind==='close'?'Closing count saved':'Night Stock verified',mismatched.length?'Saved with a difference — the note goes to the Nursing Manager.':'All counts matched.');
+      if(r){setCounts({});setResult(null);setTries(0);setNote('');setTab('home')}};
     const sendBack=async()=>{if(note.trim().length<3){setError('Tell the night nurse what to check.');return}const r=await post('return_to_nurse',{night_date:target.night_date,note},'Returned to the night nurse','She can now enter the missed Guest use for that night.');if(r){setTab('home')}};
+    const rows=listItems.slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
     return h(Section,{title:titles[kind][0],subtitle:titles[kind][1]},
-      table(['Item','Unit','Your count',...(checked?['ERP balance','Difference']:[])],listItems.map(i=>{const c=counts[i.store_item_id]??'',d=c===''?null:n(c)-n(i.night_balance);return [h('b',null,i.item_name),i.unit,
-        h('input',{type:'number',min:0,step:1,inputMode:'numeric',style:{maxWidth:'110px'},value:c,'aria-label':`Count of ${i.item_name}`,onChange:e=>{setChecked(false);setCounts(v=>({...v,[i.store_item_id]:e.target.value}))}}),
-        ...(checked?[qty(i.night_balance),d===0?pill('Matches','good'):pill(`${d>0?'+':''}${d} ${i.unit}`,'bad')]:[])]})),
-      !checked&&h('div',{style:{marginTop:'10px'}},btn('Check',()=>{if(!complete){setError('Enter a whole-number count for every item (0 if none).');return}setError('');setChecked(true)},true)),
-      checked&&h('div',{style:{marginTop:'10px'}},
-        diffs.length?h('p',{className:'message error',role:'status'},`${diffs.length} item${diffs.length===1?'':'s'} differ from the ERP.${kind==='verify'?' If a Guest use was not entered, Return to the night nurse. Otherwise save with the reason — the difference is written off as a Count Adjustment.':kind==='close'?' If you used an item for a Guest and did not enter it, go back and record it first (Use for a Guest).':' Recount; if it is still different, explain in the note.'}`):h('p',{className:'message',role:'status'},'All counts match the ERP.'),
-        h('div',{className:'field'},h('label',null,diffs.length?'Reason / note *':'Note (optional)'),h('textarea',{rows:2,value:note,onChange:e=>setNote(e.target.value)})),
+      table(['S.No','Item','Unit','Your count',...(result?['Result']:[])],rows.map((i,k)=>{const r=res(i.store_item_id),bad=r&&!r.matched;return [k+1,h('b',null,i.item_name),i.unit,
+        h('input',{type:'number',min:0,step:1,inputMode:'numeric',style:{maxWidth:'110px',...(bad?{border:'2px solid #b42318',background:'#fff1f1'}:{})},value:counts[i.store_item_id]??'','aria-label':`Count of ${i.item_name}`,onChange:e=>{setResult(null);setCounts(v=>({...v,[i.store_item_id]:e.target.value}))}}),
+        ...(result?[r?(r.matched?pill('✓ Matched','good'):pill(showQty&&r.erp!=null?`✗ Not matched (ERP ${Number(r.erp)}, ${Number(r.difference)>0?'+':''}${Number(r.difference)})`:'✗ Not matched','bad')):'']:[])]})),
+      !result&&h('div',{style:{marginTop:'10px'}},btn(checking?'Checking…':tries?'Check again':'Check',check,true,checking)),
+      result&&mismatched.length===0&&h('p',{className:'message',role:'status',style:{marginTop:'10px'}},'✓ All counts matched.'),
+      result&&mismatched.length>0&&tries<2&&h('div',{style:{marginTop:'10px'}},
+        h('p',{className:'message error',role:'alert'},`✗ ${mismatched.length} item${mismatched.length===1?' does':'s do'} not match. Please count ${mismatched.length===1?'that item':'those items'} (marked red) again, correct the number and tap Check again.`),
+        btn('Recount',()=>setResult(null),true)),
+      result&&mismatched.length>0&&tries>=2&&h('p',{className:'message error',role:'alert',style:{marginTop:'10px'}},`✗ Still not matching (${mismatched.length} item${mismatched.length===1?'':'s'}). ${kind==='close'?'If you used an item for a Guest and did not record it, go back and record it in Use for a Guest first. Otherwise write a note and save.':kind==='verify'?'Return to the night nurse to enter missed Guest use, or write the reason and verify (the difference is written off).':'Write a note and save — the Nursing Manager will be informed.'}`),
+      canSave&&h('div',{style:{marginTop:'10px'}},
+        h('div',{className:'field'},h('label',null,mismatched.length?'Note — reason for the difference *':'Note (optional)'),h('textarea',{rows:2,value:note,onChange:e=>setNote(e.target.value)})),
         h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap'}},
-          btn(kind==='accept'?'Accept Night Stock':kind==='close'?'Save Closing Count':diffs.length?'Verify with Difference':'Verify — All OK',()=>{if(diffs.length&&note.trim().length<3){setError('Enter the reason for the difference.');return}save()},true),
-          kind==='verify'&&diffs.length>0&&btn('Return to Night Nurse',sendBack),
-          btn('Change counts',()=>setChecked(false)))));
+          btn(busy?'Saving…':kind==='accept'?'Accept Night Stock':kind==='close'?'Save Closing Count':mismatched.length?'Verify with Difference':'Verify — All OK',save,true),
+          kind==='verify'&&mismatched.length>0&&btn('Return to Night Nurse',sendBack),
+          btn('Recount',()=>setResult(null)))));
   }
   function NsUseForm({ctx}){
   const {acc,cur,isNight,listItems,toVerify,prevNight,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,lateNight,tonight,onNavigate,busy,data,addDays,night,statusTone,openNight,setDetail}=ctx;
@@ -43733,9 +43762,10 @@ function RoomsBeds({profile,onNavigate}){
     if(late&&!lateNight)return h(Section,{title:'Use for a Guest'},h('p',null,'Night Stock is used only on the night shift (19:00–07:00). Day-shift items go through Raise Indent.'));
     const q=search.trim().toLowerCase();
     const guests=patients.filter(p=>p.is_active!==false).filter(p=>q.length<3||pLabel(p.id).toLowerCase().includes(q)).sort((a,b)=>pLabel(a.id).localeCompare(pLabel(b.id)));
-    const avail=listItems.filter(i=>n(i.night_balance)>0);
+    const showQty=Boolean(acc.manage);
+    const avail=listItems.filter(i=>i.active&&(!showQty||n(i.night_balance)>0)).slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
     const it=itemById(f.store_item_id);
-    const save=async e=>{e.preventDefault();const k=Number(f.qty);if(!f.patient_id||!f.store_item_id){setError('Select the Guest and the item.');return}if(!Number.isInteger(k)||k<=0||k>n(it?.night_balance)){setError(`Enter a whole number from 1 to ${n(it?.night_balance)}.`);return}if(late&&f.note.trim().length<3){setError('Late entry: say why it was not entered during the night.');return}
+    const save=async e=>{e.preventDefault();const k=Number(f.qty);if(!f.patient_id||!f.store_item_id){setError('Select the Guest and the item.');return}if(!Number.isInteger(k)||k<=0||(showQty&&k>n(it?.night_balance))){setError(showQty?`Enter a whole number from 1 to ${n(it?.night_balance)}.`:'Enter a whole number above 0.');return}if(late&&f.note.trim().length<3){setError('Late entry: say why it was not entered during the night.');return}
       const r=await post('use',{patient_id:f.patient_id,store_item_id:f.store_item_id,qty:k,note:f.note,night_date:late?lateNight.night_date:cur},'Night Stock use recorded',`${k} ${it.unit} ${it.item_name} for ${pLabel(f.patient_id)}. Now raise the charge in Bills & Charges.`);
       if(r){setDone({patient_id:f.patient_id,item:it.item_name,qty:k,unit:it.unit});setF({patient_id:f.patient_id,store_item_id:'',qty:'1',note:''})}};
     return h(Section,{title:late?`Use for a Guest — late entry (night of ${formatDateIN(lateNight.night_date)})`:'Use for a Guest',subtitle:'Takes the item out of the Night Stock cupboard and gives it to the Guest as a received indent. Charge it in Bills & Charges as usual.'},
@@ -43745,8 +43775,8 @@ function RoomsBeds({profile,onNavigate}){
         h('div',{className:'grid two'},
           h('div',{className:'field'},h('label',null,'Search Guest / ID'),h('input',{value:search,placeholder:'At least 3 characters',onChange:e=>setSearch(e.target.value)})),
           h('div',{className:'field'},h('label',null,'Guest *'),h('select',{required:true,value:f.patient_id,onChange:e=>setF(v=>({...v,patient_id:e.target.value}))},h('option',{value:''},'Select Guest'),guests.map(p=>h('option',{key:p.id,value:p.id},pLabel(p.id))))),
-          h('div',{className:'field'},h('label',null,'Item *'),h('select',{required:true,value:f.store_item_id,onChange:e=>setF(v=>({...v,store_item_id:e.target.value}))},h('option',{value:''},'Select item'),avail.map(i=>h('option',{key:i.store_item_id,value:i.store_item_id},`${i.item_name} · ${qty(i.night_balance,i.unit)} in cupboard`)))),
-          h('div',{className:'field'},h('label',null,`Quantity${it?` (${it.unit}, up to ${n(it.night_balance)})`:''} *`),h('input',{type:'number',min:1,step:1,required:true,value:f.qty,onChange:e=>setF(v=>({...v,qty:e.target.value}))}))),
+          h('div',{className:'field'},h('label',null,'Item *'),h('select',{required:true,value:f.store_item_id,onChange:e=>setF(v=>({...v,store_item_id:e.target.value}))},h('option',{value:''},'Select item'),avail.map(i=>h('option',{key:i.store_item_id,value:i.store_item_id},showQty?`${i.item_name} · ${qty(i.night_balance,i.unit)} in cupboard`:i.item_name)))),
+          h('div',{className:'field'},h('label',null,`Quantity${it?` (${it.unit}${showQty?`, up to ${n(it.night_balance)}`:''})`:''} *`),h('input',{type:'number',min:1,step:1,required:true,value:f.qty,onChange:e=>setF(v=>({...v,qty:e.target.value}))}))),
         h('div',{className:'field'},h('label',null,late?'Why was it not entered during the night? *':'Note (optional)'),h('textarea',{rows:2,value:f.note,onChange:e=>setF(v=>({...v,note:e.target.value}))})),
         h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Record Use'))));
   }
@@ -43792,7 +43822,8 @@ function RoomsBeds({profile,onNavigate}){
     const saveLevel=async()=>{const v=Number(edit.level);if(!Number.isInteger(v)||v<=0){setError('Usual level must be a whole number above 0.');return}if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:true,par_qty:v}]},'Usual level changed',`${edit.item.item_name}: ${v} ${edit.item.unit}`))setEdit(null)};
     const giveBack=async()=>{const v=Number(edit.ret);if(!Number.isInteger(v)||v<=0||v>n(edit.item.night_balance)){setError(`Return a whole number up to ${n(edit.item.night_balance)}.`);return}if(edit.reason.trim().length<3){setError('Enter the reason for returning.');return}if(await post('return_to_store',{items:[{store_item_id:edit.item.store_item_id,qty:v}],note:edit.reason},'Returned to the Main Store',`${v} ${edit.item.unit} ${edit.item.item_name}`))setEdit(null)};
     const remove=async()=>{if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:false,par_qty:n(edit.item.par_qty)||1}]},'Removed from Night Stock',edit.item.item_name))setEdit(null)};
-    return h(Section,{title:'Night Stock now',subtitle:'What should be in the Night Stock cupboard now (A–Z).'},
+    return h(Section,{title:'Night Stock now',subtitle:acc.manage?'What should be in the Night Stock cupboard now (A–Z).':'Items kept in the Night Stock cupboard (A–Z). Quantities are counted at the opening and closing counts.'},
+      !acc.manage?table(['S.No','Item','Unit'],rows.filter(i=>i.active).map((i,k)=>[k+1,h('b',null,i.item_name),i.unit])):
       table(['S.No','Item','Usual level','In cupboard','Short',...(acc.manage?['']:[])],rows.map((i,k)=>[k+1,h('b',null,i.item_name),i.active?qty(i.par_qty,i.unit):pill('Removed — return balance'),qty(i.night_balance,i.unit),
         i.active&&short(i)?pill(qty(short(i),i.unit),'bad'):pill('Full','good'),...(acc.manage?[btn('Edit / Remove',()=>{setError('');setEdit({item:i,level:String(n(i.par_qty)||''),ret:'',reason:''})})]:[])])),
       edit&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal',role:'dialog','aria-modal':true},
