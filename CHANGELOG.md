@@ -1,3 +1,6 @@
+## 2.20.38 — 12-11-2026 — Early shown only after the shift ends
+- Duty Roster and Biometric Punches: "Early" is shown only once the shift is over (a punch during the shift is not treated as the Out). While the shift is running the cell shows "10:32 · on duty". Long times shown as hours (Late 3h 33m).
+
 ## 2.20.37 — 12-11-2026 — **Late / Early times** and **automatic Absent** from the biometric machine
 - Duty Roster grid: each rostered cell now shows the In–Out times (e.g. 07:12–18:40) with Late / Early minutes on a second line (15 min grace).
 - Biometric Attendance → Punches: new **Late / Early** column (On time / Late 12m / Early 20m).

@@ -142,10 +142,10 @@
     const lateEarly=r=>{
       if(r.ignored||!['Day','Night','Both'].includes(r.shift))return '—';
       const st=new Date(r.shift==='Night'?`${r.date}T19:00:00+05:30`:`${r.date}T07:00:00+05:30`),en=bioShiftEnd(r);
-      const late=Math.round((new Date(r.first.punch_at)-st)/60000),early=r.list.length>1?Math.round((en-new Date(r.last.punch_at))/60000):0;
+      const late=Math.round((new Date(r.first.punch_at)-st)/60000),early=r.list.length>1&&Date.now()>=en.getTime()?Math.round((en-new Date(r.last.punch_at))/60000):0;
       const fmt=m=>m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`,out=[];
       if(late>15)out.push(h('div',{key:'l',style:{color:'#a3122a',fontWeight:700}},`Late ${fmt(late)}`));
-      if(r.list.length>1&&early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Early ${fmt(early)}`));
+      if(early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Early ${fmt(early)}`));
       return out.length?h('span',null,out):h('span',{style:{color:'#16703c',fontWeight:700}},'On time');
     };
     const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
