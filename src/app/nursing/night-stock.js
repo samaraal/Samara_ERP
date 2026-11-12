@@ -19,13 +19,13 @@
     document.head.appendChild(st);
   }
   // 2.20.57: Print / PDF of the Ward Stock list — also a count sheet (blank "Counted" column).
-  // Nurse logins get item names only (blind counts); Nursing Manager / Admin also get the usual level and the ERP quantity.
+  // Nurse logins get item names only (blind counts); Nursing Manager / Admin also get the ERP quantity in the cupboard and the Main Store balance.
   function nsPrintWardStock({rows,showQty,shiftText,who}){
     const esc=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const logo=new URL('assets/samara-logo.png',window.location.href).href;
     const now=new Date().toLocaleString('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).replace(/\//g,'-').replace(',','');
-    const head=['S.No','Item','Unit',...(showQty?['Usual level','In cupboard (ERP)']:[]),'Counted','Remarks'];
-    const body=rows.map((i,k)=>`<tr><td class="n">${k+1}</td><td>${esc(i.item_name)}</td><td>${esc(i.unit)}</td>${showQty?`<td class="n">${Number(i.par_qty||0)}</td><td class="n">${Number(i.night_balance||0)}</td>`:''}<td class="box"></td><td class="rem"></td></tr>`).join('');
+    const head=['S.No','Item','Unit',...(showQty?['In cupboard (ERP)','Main Store']:[]),'Counted','Remarks'];
+    const body=rows.map((i,k)=>`<tr><td class="n">${k+1}</td><td>${esc(i.item_name)}</td><td>${esc(i.unit)}</td>${showQty?`<td class="n">${Number(i.night_balance||0)}</td><td class="n">${Number(i.central_balance||0)}</td>`:''}<td class="box"></td><td class="rem"></td></tr>`).join('');
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>Ward Stock — ${esc(shiftText)}</title><style>
       @page{size:A4 portrait;margin:11mm 9mm 13mm}*{box-sizing:border-box}
       body{font-family:Arial,Helvetica,sans-serif;color:#3b2833;margin:0;font-size:11px;line-height:1.35;background:#fff}
@@ -42,7 +42,7 @@
       <div class="top"><img class="logo" src="${logo}" alt="Samara Assisted Living"><div class="org"><strong>SAMARA HEALTH CARE LLP</strong><span>Nursing · Ward Stock</span><span>Compassion • Comfort • Dignity</span></div></div>
       <h1>Ward Stock — Count Sheet</h1>
       <p class="meta">${esc(shiftText)} · ${rows.length} item(s) · Printed ${esc(now)}</p>
-      <table><thead><tr>${head.map(x=>`<th${/Usual|ERP|S\.No/.test(x)?' class="n"':''}>${esc(x)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
+      <table><thead><tr>${head.map(x=>`<th${/Main Store|ERP|S\.No/.test(x)?' class="n"':''}>${esc(x)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>
       <div class="sign"><div>Counted by (Nurse) — name &amp; time</div><div>Received by (incoming Nurse)</div><div>Verified by (Nursing Manager)</div></div>
       <div class="footer">Generated from Samara Care ERP${who?` by ${esc(who)}`:''} · Computer-generated sheet</div>
       <script>window.addEventListener('load',()=>{const imgs=[...document.images];Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),250));});<\/script>
@@ -229,7 +229,7 @@
     const all=(data.items||[]).slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
     const sq=search.trim().toLowerCase();
     const rows=all.filter(i=>(cat==='All'||i.category===cat)&&(!sq||`${i.item_name} ${i.item_code||''}`.toLowerCase().includes(sq)));
-    const fill=()=>{const v={};listItems.filter(i=>i.active).forEach(i=>{const g=Math.min(Math.max(0,n(i.par_qty)-n(i.night_balance)),Math.max(0,n(i.central_balance)));if(g>0)v[i.store_item_id]=String(g)});setQ(v);setError(Object.keys(v).length?'':'Ward Stock is already at its usual levels.')};
+    const fill=()=>{const v={};listItems.filter(i=>i.active).forEach(i=>{const g=Math.min(Math.max(0,n(i.par_qty)-n(i.night_balance)),Math.max(0,n(i.central_balance)));if(g>0)v[i.store_item_id]=String(g)});setQ(v);setError(Object.keys(v).length?'':'Nothing to refill — every item is back at the quantity set for the cupboard.')};
     const chosen=Object.entries(q).map(([id,v])=>({store_item_id:id,qty:Number(v||0)})).filter(x=>x.qty>0);
     const save=async()=>{
       const bad=chosen.find(x=>{const i=all.find(z=>z.store_item_id===x.store_item_id);return !Number.isInteger(x.qty)||x.qty>n(i?.central_balance)});
@@ -242,7 +242,7 @@
       h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end',marginBottom:'10px'}},
         field('Search item',h('input',{value:search,placeholder:'Item name or code',onChange:e=>setSearch(e.target.value)})),
         field('Show',h('select',{value:cat,onChange:e=>setCat(e.target.value)},['All','Consumables','Pharmacy'].map(c=>h('option',{key:c,value:c},c==='All'?'All (Consumables + Pharmacy)':c)))),
-        listItems.length>0&&btn('Fill up to usual levels',fill,false,blocked)),
+        listItems.length>0&&btn('Refill what was used',fill,false,blocked)),
       table(['S.No','Item','Category','In Main Store','In Ward Stock now','Add qty'],rows.map((i,k)=>{const low=n(i.central_balance)<=0;return [k+1,
         h('span',null,h('b',null,i.item_name),i.in_list&&i.active&&h('span',{style:{marginLeft:'6px'}},pill('In Ward Stock'))),i.category||'',
         h('span',{style:low?{color:'#b42318',fontWeight:800}:undefined},qty(i.central_balance,i.unit)),i.in_list?qty(i.night_balance,i.unit):'—',
@@ -267,20 +267,19 @@
       if(d<0&&edit.reason.trim().length<3){setError('Enter the reason for taking items out of the cupboard.');return}
       if(d>0&&!await post('topup',{items:[{store_item_id:it.store_item_id,qty:d}],note:edit.reason||'Quantity changed in Ward Stock now'},'Ward Stock updated',`${it.item_name}: ${have} → ${v} ${it.unit} (${d} issued from the Main Store).`))return;
       if(d<0&&!await post('return_to_store',{items:[{store_item_id:it.store_item_id,qty:-d}],note:edit.reason},'Ward Stock updated',`${it.item_name}: ${have} → ${v} ${it.unit} (${-d} returned to the Main Store).`))return;
-      if(v>0&&v!==n(it.par_qty)&&!await post('set_list',{items:[{store_item_id:it.store_item_id,active:true,par_qty:v}]},'Usual level updated',`${it.item_name}: ${v} ${it.unit}`))return;
+      if(v>0&&v!==n(it.par_qty)&&!await post('set_list',{items:[{store_item_id:it.store_item_id,active:true,par_qty:v}]},'Ward Stock updated',`${it.item_name}: ${v} ${it.unit}`))return;
       setEdit(null);
     };
     const remove=async()=>{if(await post('set_list',{items:[{store_item_id:edit.item.store_item_id,active:false,par_qty:n(edit.item.par_qty)||1}]},'Removed from Ward Stock',edit.item.item_name))setEdit(null)};
     return h(Section,{title:'Ward Stock now',actions:btn('🖨️ Print / PDF',()=>nsPrintWardStock({rows:acc.manage?rows:rows.filter(i=>i.active),showQty:Boolean(acc.manage),shiftText:shiftLabel(cur,curShift).replace(/^\S+ /,''),who:acc.name||''}),true,!rows.length),subtitle:acc.manage?'What should be in the Ward Stock cupboard now (A–Z).':'Items kept in the Ward Stock cupboard (A–Z). Quantities are counted at the opening and closing counts.'},
       !acc.manage?table(['S.No','Item','Unit'],rows.filter(i=>i.active).map((i,k)=>[k+1,h('b',null,i.item_name),i.unit])):
-      table(['S.No','Item','Usual level','In cupboard','Short',...(acc.manage?['']:[])],rows.map((i,k)=>[k+1,h('b',null,i.item_name),i.active?qty(i.par_qty,i.unit):pill('Removed — return balance'),qty(i.night_balance,i.unit),
-        i.active&&short(i)?pill(qty(short(i),i.unit),'bad'):pill('Full','good'),...(acc.manage?[btn('Edit',()=>{setError('');setEdit({item:i,qty:String(n(i.night_balance)),reason:''})})]:[])])),
+      table(['S.No','Item','In cupboard','Main Store','To refill',...(acc.manage?['']:[])],rows.map((i,k)=>[k+1,h('b',null,i.item_name),i.active?qty(i.night_balance,i.unit):h('span',null,qty(i.night_balance,i.unit),' ',pill('Removed — return to Main Store','bad')),h('span',{style:n(i.central_balance)<=0?{color:'#b42318',fontWeight:800}:undefined},qty(i.central_balance,i.unit)),
+        i.active&&short(i)?pill(`${qty(short(i),i.unit)} used`,'bad'):pill('Full','good'),...(acc.manage?[btn('Edit',()=>{setError('');setEdit({item:i,qty:String(n(i.night_balance)),reason:''})})]:[])])),
       edit&&h('div',{className:'modal-backdrop'},h('div',{className:'card modal',role:'dialog','aria-modal':true},
         h('h3',null,edit.item.item_name),h('p',{className:'small-note'},`Now in cupboard: ${qty(edit.item.night_balance,edit.item.unit)} · Main Store: ${qty(edit.item.central_balance,edit.item.unit)}`),
         h('div',{className:'field'},h('label',null,`Quantity in cupboard (${edit.item.unit}) *`),h('input',{type:'number',min:0,step:1,value:edit.qty,onChange:e=>setEdit(v=>({...v,qty:e.target.value}))})),
         (()=>{const d=Number(edit.qty)-n(edit.item.night_balance);return Number.isInteger(Number(edit.qty))&&edit.qty!==''&&d!==0?h('p',{className:'message',role:'status'},d>0?`${d} ${edit.item.unit} will be issued from the Main Store to the cupboard.`:`${-d} ${edit.item.unit} will be returned from the cupboard to the Main Store.`):null})(),
         Number(edit.qty)<n(edit.item.night_balance)&&h('div',{className:'field'},h('label',null,'Reason *'),h('input',{value:edit.reason,placeholder:'e.g. close to expiry, not needed',onChange:e=>setEdit(v=>({...v,reason:e.target.value}))})),
-        h('p',{className:'small-note'},'The usual level is set to the same number (used by "Fill up to usual levels").'),
         btn('Save',saveQty,true),
         h('div',{style:{marginTop:'14px',display:'flex',gap:'8px',flexWrap:'wrap'}},
           n(edit.item.night_balance)===0?btn('Remove from Ward Stock',remove):h('small',null,'To remove this item, set the quantity to 0 and save, then Remove.'),

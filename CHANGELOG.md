@@ -1,3 +1,6 @@
+## 2.20.59 — 12-11-2026 — Ward Stock: Main Store column instead of "Usual level"
+- Ward Stock now (and its Print / PDF): columns are **In cupboard · Main Store · To refill** — "Usual level" is no longer shown. "Fill up to usual levels" is renamed **Refill what was used**. Frontend only.
+
 ## 2.20.58 — 12-11-2026 — Ward Stock: Edit changes the quantity in the cupboard
 - Ward Stock now → **Edit** (Nursing Manager / Admin) sets the **quantity in the cupboard**: a higher number is issued from the Main Store, a lower number is returned to the Main Store (reason required). The usual level is set to the same number. Remove is offered once the quantity is 0. Frontend only.
 
