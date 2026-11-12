@@ -167,12 +167,17 @@
           h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Time between','Punches'].map(c=>h('th',{key:c},c)))),
           h('tbody',null,rows.length?rows.flatMap((r,i)=>{
             const gk=`${r.date}|${r.shift}`,prev=rows[i-1],head=!filter.shift&&(!prev||`${prev.date}|${prev.shift}`!==gk);
-            const n=head?rows.filter(x=>x.date===r.date&&x.shift===r.shift).length:0;
+            const n=head?rows.filter(x=>x.date===r.date&&x.shift===r.shift&&!x.ignored).length:0;
+            const newDate=!prev||prev.date!==r.date;
+            const sameDay=newDate?rows.filter(x=>x.date===r.date&&!x.ignored):[];
+            const dayN=sameDay.filter(x=>x.shift==='Day'||x.shift==='Both').length,nightN=sameDay.filter(x=>x.shift==='Night').length;
             return [
+            newDate?h('tr',{key:'d-'+r.date},h('td',{colSpan:8,style:{background:'#8e1b4f',color:'#fff',fontWeight:800}},
+              `${formatDateIN(r.date)} · ${sameDay.length} present`+(filter.shift?'':` (Day ${dayN} · Night ${nightN})`))):null,
             head?h('tr',{key:'h-'+gk},h('td',{colSpan:8,style:{background:r.shift==='Night'?'#ede7f6':'#fdf0f5',fontWeight:700,color:'#5b1a3c'}},
               `${formatDateIN(r.date)} · ${r.shift==='Night'?'Night shift (7 PM – 7 AM, ends next morning)':r.shift==='Day'?'Day shift (7 AM – 7 PM)':shiftLabel(r)} · ${n} staff`)):null,
             h('tr',{key:r.key,className:'bio-row',onClick:()=>setOpen(open===r.key?'':r.key)},
-              h('td',{'data-label':'S.No'},String(i+1)),
+              h('td',{'data-label':'S.No'},r.ignored?'—':String(rows.filter(x=>x.date===r.date&&!x.ignored).indexOf(r)+1)),
               h('td',{'data-label':'Shift date'},formatDateIN(r.date)),
               h('td',{'data-label':'Shift'},h('span',{className:`badge ${r.shift==='Night'?'warn':''}`,title:r.fromRoster?'From the Duty Roster':'Not in the Duty Roster — worked out from the punch times'},shiftLabel(r)+(r.fromRoster?'':' *'))),
               h('td',{'data-label':'Employee'},r.employee_id?r.name:r.ignored?h('span',{style:{color:'#7a6a72'}},r.name):h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
