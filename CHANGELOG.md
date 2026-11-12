@@ -1,3 +1,7 @@
+## 2.20.39 — 12-11-2026 — Clearer biometric timing words
+- Duty Roster cells: "In 10:32 · Out 18:40", then "Came 3 hrs 33 min late" / "Left 1 hr 10 min early" on their own lines; "No out punch".
+- Biometric Punches: column renamed **Timing** with the same wording ("On time", "Came on time · on duty").
+
 ## 2.20.38 — 12-11-2026 — Early shown only after the shift ends
 - Duty Roster and Biometric Punches: "Early" is shown only once the shift is over (a punch during the shift is not treated as the Out). While the shift is running the cell shows "10:32 · on duty". Long times shown as hours (Late 3h 33m).
 

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.38';
+  const APP_VERSION = '2.20.39';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24226,6 +24226,8 @@ Thank you.`;
     const night=shift==='Night'||shift==='N';
     return {start:new Date(`${date}T${night?'19':'07'}:00:00+05:30`),end:night?new Date(`${bioAddDays(date,1)}T07:00:00+05:30`):new Date(`${date}T19:00:00+05:30`)};
   }
+  // minutes -> "45 min" / "1 hr" / "3 hrs 33 min"
+  const bioDur=m=>{m=Math.max(0,Math.round(m));const hh=Math.floor(m/60),mm=m%60;return hh?`${hh} ${hh===1?'hr':'hrs'}${mm?` ${mm} min`:''}`:`${mm} min`};
   const bioTime=v=>{try{return new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'})}catch(_){return '—'}};
   // 2.20.24: Staff Sync — the ERP employee list drives who can use the machine (SQL 372, Edge Function
   // "biometric-staff-sync", PC program tools/biometric-sync/Samara-Biometric-Sync.ps1 every 5 minutes).
@@ -24308,9 +24310,10 @@ Thank you.`;
       if(r.ignored||!['Day','Night','Both'].includes(r.shift))return '—';
       const st=new Date(r.shift==='Night'?`${r.date}T19:00:00+05:30`:`${r.date}T07:00:00+05:30`),en=bioShiftEnd(r);
       const late=Math.round((new Date(r.first.punch_at)-st)/60000),early=r.list.length>1&&Date.now()>=en.getTime()?Math.round((en-new Date(r.last.punch_at))/60000):0;
-      const fmt=m=>m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`,out=[];
-      if(late>15)out.push(h('div',{key:'l',style:{color:'#a3122a',fontWeight:700}},`Late ${fmt(late)}`));
-      if(early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Early ${fmt(early)}`));
+      const out=[];
+      if(late>15)out.push(h('div',{key:'l',style:{color:'#a3122a',fontWeight:700}},`Came ${bioDur(late)} late`));
+      if(early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Left ${bioDur(early)} early`));
+      if(!out.length&&Date.now()<en.getTime())return h('span',{style:{color:'#16703c',fontWeight:700}},'Came on time · on duty');
       return out.length?h('span',null,out):h('span',{style:{color:'#16703c',fontWeight:700}},'On time');
     };
     const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
@@ -24356,7 +24359,7 @@ Thank you.`;
           h('label',null,'Employee',h('select',{value:draft.employee,onChange:e=>setDraft({...draft,employee:e.target.value})},h('option',{value:''},'All employees'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e))))),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Late / Early','Time between','Punches'].map(c=>h('th',{key:c},c)))),
+          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Timing','Time between','Punches'].map(c=>h('th',{key:c},c)))),
           h('tbody',null,rows.length?rows.flatMap((r,i)=>{
             const gk=`${r.date}|${r.shift}`,prev=rows[i-1],head=!filter.shift&&(!prev||`${prev.date}|${prev.shift}`!==gk);
             const n=head?rows.filter(x=>x.date===r.date&&x.shift===r.shift&&!x.ignored).length:0;
@@ -24375,7 +24378,7 @@ Thank you.`;
               h('td',{'data-label':'Employee'},r.employee_id?r.name:r.ignored?h('span',{style:{color:'#7a6a72'}},r.name):h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
               h('td',{'data-label':'In'},bioWhen(r.first,r.date)),
               h('td',{'data-label':'Out'},outCell(r)),
-              h('td',{'data-label':'Late / Early'},lateEarly(r)),
+              h('td',{'data-label':'Timing'},lateEarly(r)),
               h('td',{'data-label':'Time between'},r.hours),
               h('td',{'data-label':'Punches'},String(r.list.length))),
             open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:9},h('div',{className:'bio-detail'},
@@ -44432,7 +44435,7 @@ function ShiftManagement({profile}){
       .rg-flag-half{color:#b42318;font-weight:800}
       .rg-cell.rg-half{background-image:linear-gradient(135deg,transparent 50%,rgba(253,226,226,.95) 50%)}
       .rg-att{display:block;font-size:9px;font-weight:800;line-height:1.15;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-      .rg-att-ok{color:#0b7a4b}.rg-att-warn{color:#9a5b00}.rg-att-absent{color:#b42318}.rg-att-extra{color:#b45309}
+      .rg-att.rg-att-wrap{white-space:normal;overflow:visible}.rg-att-ok{color:#0b7a4b}.rg-att-warn{color:#9a5b00}.rg-att-absent{color:#b42318}.rg-att-extra{color:#b45309}
       .rg-N .rg-att-ok{color:#9ff0c0}.rg-N .rg-att-warn{color:#ffd28a}.rg-N .rg-att-absent{color:#ffb3b3}
       .rg-cell.rg-extra{outline:2px solid #f59e0b;outline-offset:-2px}
       .rg-cell.rg-noshow{box-shadow:inset 0 0 0 2px #d92d20}
@@ -44583,11 +44586,11 @@ function ShiftManagement({profile}){
       if(want){
         const w=samaraShiftWindow(date,want),g=gs.find(x=>x.shift===want||x.shift==='Both')||gs[0];
         if(!g)return Date.now()<w.start.getTime()+30*60000?null:{kind:'absent',short:'✗',text:'✗ No punch',title:`Rostered ${want} shift — no biometric punch`};
-        const over=Date.now()>=w.end.getTime(),fm=m=>m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`;
+        const over=Date.now()>=w.end.getTime(),fm=bioDur;
         const late=Math.round((new Date(g.in)-w.start)/60000),early=g.out&&over?Math.round((w.end-new Date(g.out))/60000):0;
-        const flags=[];if(late>15)flags.push(`Late ${fm(late)}`);if(early>15)flags.push(`Early ${fm(early)}`);
-        if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out');
-        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:over?`${bioTime(g.in)}–${g.out?bioTime(g.out):'…'}`:`${bioTime(g.in)} · on duty`,flags:flags.join(' · '),
+        const flags=[];if(late>15)flags.push(`Came ${fm(late)} late`);if(early>15)flags.push(`Left ${fm(early)} early`);
+        if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out punch');
+        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:over?`In ${bioTime(g.in)} · Out ${g.out?bioTime(g.out):'—'}`:`In ${bioTime(g.in)} · on duty`,flags:flags.join(' · '),
           title:`Biometric: In ${bioTime(g.in)}${g.out?` · ${over?'Out':'Last punch'} ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?' · '+flags.join(' · '):''} · ${g.count} punch(es)`};
       }
       if(code==='A'){const r=(byKey.get(`${s.id}|${date}`)||[])[0];if(r&&r.auto_absent)return {kind:'absent',short:'auto',text:'auto: no punch',title:'Marked Absent automatically — no biometric punch and no approved leave. Change it in “Fill missed past days” if this is wrong.'}}
@@ -44699,7 +44702,7 @@ function ShiftManagement({profile}){
         h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
-        h('span',null,'Biometric: 07:02–19:05 = In–Out time · Late / Early minutes (over 15 min) · No out · ✗ No punch (rostered, did not punch) · auto = marked Absent by the machine check (no punch, no approved leave) · ⚑ Punched without a Day / Night duty'),
+        h('span',null,'Biometric: In 07:02 · Out 19:05 = punch times · “Came 20 min late” / “Left 1 hr early” (more than 15 min from 7 AM / 7 PM) · No out punch · ✗ No punch (rostered, did not punch) · auto = marked Absent by the machine check (no punch, no approved leave) · ⚑ Punched without a Day / Night duty'),
         h('span',null,'⚠ Leave pending · P Permission (time on hover) · ½L Half-day leave (½ worked + ½ leave) · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
@@ -44730,7 +44733,7 @@ function ShiftManagement({profile}){
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
                   c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null,
-                  ai?h(React.Fragment,null,h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)),ai.flags?h('span',{className:'rg-att rg-att-warn rg-l'},ai.flags):null):null));
+                  ai?h(React.Fragment,null,h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)),ai.flags?ai.flags.split(' · ').map((f,i)=>h('span',{key:i,className:'rg-att rg-att-warn rg-att-wrap rg-l'},f)):null):null));
               });
               return h('tr',{key:s.id},
                 h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),

@@ -45,7 +45,7 @@
       .rg-flag-half{color:#b42318;font-weight:800}
       .rg-cell.rg-half{background-image:linear-gradient(135deg,transparent 50%,rgba(253,226,226,.95) 50%)}
       .rg-att{display:block;font-size:9px;font-weight:800;line-height:1.15;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-      .rg-att-ok{color:#0b7a4b}.rg-att-warn{color:#9a5b00}.rg-att-absent{color:#b42318}.rg-att-extra{color:#b45309}
+      .rg-att.rg-att-wrap{white-space:normal;overflow:visible}.rg-att-ok{color:#0b7a4b}.rg-att-warn{color:#9a5b00}.rg-att-absent{color:#b42318}.rg-att-extra{color:#b45309}
       .rg-N .rg-att-ok{color:#9ff0c0}.rg-N .rg-att-warn{color:#ffd28a}.rg-N .rg-att-absent{color:#ffb3b3}
       .rg-cell.rg-extra{outline:2px solid #f59e0b;outline-offset:-2px}
       .rg-cell.rg-noshow{box-shadow:inset 0 0 0 2px #d92d20}
@@ -196,11 +196,11 @@
       if(want){
         const w=samaraShiftWindow(date,want),g=gs.find(x=>x.shift===want||x.shift==='Both')||gs[0];
         if(!g)return Date.now()<w.start.getTime()+30*60000?null:{kind:'absent',short:'✗',text:'✗ No punch',title:`Rostered ${want} shift — no biometric punch`};
-        const over=Date.now()>=w.end.getTime(),fm=m=>m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`;
+        const over=Date.now()>=w.end.getTime(),fm=bioDur;
         const late=Math.round((new Date(g.in)-w.start)/60000),early=g.out&&over?Math.round((w.end-new Date(g.out))/60000):0;
-        const flags=[];if(late>15)flags.push(`Late ${fm(late)}`);if(early>15)flags.push(`Early ${fm(early)}`);
-        if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out');
-        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:over?`${bioTime(g.in)}–${g.out?bioTime(g.out):'…'}`:`${bioTime(g.in)} · on duty`,flags:flags.join(' · '),
+        const flags=[];if(late>15)flags.push(`Came ${fm(late)} late`);if(early>15)flags.push(`Left ${fm(early)} early`);
+        if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out punch');
+        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:over?`In ${bioTime(g.in)} · Out ${g.out?bioTime(g.out):'—'}`:`In ${bioTime(g.in)} · on duty`,flags:flags.join(' · '),
           title:`Biometric: In ${bioTime(g.in)}${g.out?` · ${over?'Out':'Last punch'} ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?' · '+flags.join(' · '):''} · ${g.count} punch(es)`};
       }
       if(code==='A'){const r=(byKey.get(`${s.id}|${date}`)||[])[0];if(r&&r.auto_absent)return {kind:'absent',short:'auto',text:'auto: no punch',title:'Marked Absent automatically — no biometric punch and no approved leave. Change it in “Fill missed past days” if this is wrong.'}}
@@ -312,7 +312,7 @@
         h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
-        h('span',null,'Biometric: 07:02–19:05 = In–Out time · Late / Early minutes (over 15 min) · No out · ✗ No punch (rostered, did not punch) · auto = marked Absent by the machine check (no punch, no approved leave) · ⚑ Punched without a Day / Night duty'),
+        h('span',null,'Biometric: In 07:02 · Out 19:05 = punch times · “Came 20 min late” / “Left 1 hr early” (more than 15 min from 7 AM / 7 PM) · No out punch · ✗ No punch (rostered, did not punch) · auto = marked Absent by the machine check (no punch, no approved leave) · ⚑ Punched without a Day / Night duty'),
         h('span',null,'⚠ Leave pending · P Permission (time on hover) · ½L Half-day leave (½ worked + ½ leave) · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
@@ -343,7 +343,7 @@
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
                   c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null,
-                  ai?h(React.Fragment,null,h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)),ai.flags?h('span',{className:'rg-att rg-att-warn rg-l'},ai.flags):null):null));
+                  ai?h(React.Fragment,null,h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)),ai.flags?ai.flags.split(' · ').map((f,i)=>h('span',{key:i,className:'rg-att rg-att-warn rg-att-wrap rg-l'},f)):null):null));
               });
               return h('tr',{key:s.id},
                 h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),

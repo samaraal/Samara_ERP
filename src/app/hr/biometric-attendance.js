@@ -61,6 +61,8 @@
     const night=shift==='Night'||shift==='N';
     return {start:new Date(`${date}T${night?'19':'07'}:00:00+05:30`),end:night?new Date(`${bioAddDays(date,1)}T07:00:00+05:30`):new Date(`${date}T19:00:00+05:30`)};
   }
+  // minutes -> "45 min" / "1 hr" / "3 hrs 33 min"
+  const bioDur=m=>{m=Math.max(0,Math.round(m));const hh=Math.floor(m/60),mm=m%60;return hh?`${hh} ${hh===1?'hr':'hrs'}${mm?` ${mm} min`:''}`:`${mm} min`};
   const bioTime=v=>{try{return new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'})}catch(_){return '—'}};
   // 2.20.24: Staff Sync — the ERP employee list drives who can use the machine (SQL 372, Edge Function
   // "biometric-staff-sync", PC program tools/biometric-sync/Samara-Biometric-Sync.ps1 every 5 minutes).
@@ -143,9 +145,10 @@
       if(r.ignored||!['Day','Night','Both'].includes(r.shift))return '—';
       const st=new Date(r.shift==='Night'?`${r.date}T19:00:00+05:30`:`${r.date}T07:00:00+05:30`),en=bioShiftEnd(r);
       const late=Math.round((new Date(r.first.punch_at)-st)/60000),early=r.list.length>1&&Date.now()>=en.getTime()?Math.round((en-new Date(r.last.punch_at))/60000):0;
-      const fmt=m=>m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m}m`,out=[];
-      if(late>15)out.push(h('div',{key:'l',style:{color:'#a3122a',fontWeight:700}},`Late ${fmt(late)}`));
-      if(early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Early ${fmt(early)}`));
+      const out=[];
+      if(late>15)out.push(h('div',{key:'l',style:{color:'#a3122a',fontWeight:700}},`Came ${bioDur(late)} late`));
+      if(early>15)out.push(h('div',{key:'e',style:{color:'#9a5b00',fontWeight:700}},`Left ${bioDur(early)} early`));
+      if(!out.length&&Date.now()<en.getTime())return h('span',{style:{color:'#16703c',fontWeight:700}},'Came on time · on duty');
       return out.length?h('span',null,out):h('span',{style:{color:'#16703c',fontWeight:700}},'On time');
     };
     const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
@@ -191,7 +194,7 @@
           h('label',null,'Employee',h('select',{value:draft.employee,onChange:e=>setDraft({...draft,employee:e.target.value})},h('option',{value:''},'All employees'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e))))),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Late / Early','Time between','Punches'].map(c=>h('th',{key:c},c)))),
+          h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Timing','Time between','Punches'].map(c=>h('th',{key:c},c)))),
           h('tbody',null,rows.length?rows.flatMap((r,i)=>{
             const gk=`${r.date}|${r.shift}`,prev=rows[i-1],head=!filter.shift&&(!prev||`${prev.date}|${prev.shift}`!==gk);
             const n=head?rows.filter(x=>x.date===r.date&&x.shift===r.shift&&!x.ignored).length:0;
@@ -210,7 +213,7 @@
               h('td',{'data-label':'Employee'},r.employee_id?r.name:r.ignored?h('span',{style:{color:'#7a6a72'}},r.name):h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
               h('td',{'data-label':'In'},bioWhen(r.first,r.date)),
               h('td',{'data-label':'Out'},outCell(r)),
-              h('td',{'data-label':'Late / Early'},lateEarly(r)),
+              h('td',{'data-label':'Timing'},lateEarly(r)),
               h('td',{'data-label':'Time between'},r.hours),
               h('td',{'data-label':'Punches'},String(r.list.length))),
             open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:9},h('div',{className:'bio-detail'},
