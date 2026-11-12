@@ -1,3 +1,6 @@
+## 2.20.57 — 12-11-2026 — Ward Stock: Print / PDF
+- Ward Stock now: **🖨️ Print / PDF** button — Samara-headed count sheet (S.No, item, unit, blank Counted and Remarks columns, signature lines for the counting nurse, incoming nurse and Nursing Manager). The Nursing Manager / Admin copy also shows the usual level and the ERP quantity; the nurses' copy shows item names only (blind count). Frontend only.
+
 ## 2.20.56 — 12-11-2026 — Ward Stock: the cupboard for both shifts (no more indents for cupboard items)
 - **Night Stock is renamed Ward Stock** (Nursing → Ward Stock) and is used on the Day shift too. (SQL 390)
 - At every shift change (07:00 and 19:00): the outgoing nurse does the **Closing Count**, the incoming nurse does the **Opening Count / Accept** (blind counts — Matched / Not matched). In the last hour of a shift, Accept is for the next shift; in the first 2 hours, Closing Count is for the shift that has just ended.
