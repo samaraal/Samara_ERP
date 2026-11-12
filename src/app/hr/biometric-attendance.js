@@ -111,6 +111,16 @@
         .sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.shift).localeCompare(String(b.shift))||String(a.name).localeCompare(String(b.name)));
     },[punches,roster,range,empById,filter.shift,codes]);
     const bioWhen=(p,date)=>p.punch_date===date?bioTime(p.punch_at):`${formatDateIN(p.punch_date).slice(0,5)} ${bioTime(p.punch_at)}`;
+    // Out: next-morning Out shown as time + "next day"; no Out yet = On duty (shift still running) / No out punch (shift over)
+    const bioShiftEnd=r=>new Date(r.shift==='Night'||r.shift==='Both'?`${bioAddDays(r.date,1)}T07:00:00+05:30`:`${r.date}T19:00:00+05:30`);
+    const outCell=r=>{
+      if(r.list.length>1){const p=r.last;
+        return p.punch_date===r.date?bioTime(p.punch_at)
+          :h('span',null,bioTime(p.punch_at),h('div',{style:{fontSize:'0.78em',color:'#8a5a70'}},`next day · ${formatDateIN(p.punch_date).slice(0,5)}`));}
+      return Date.now()<bioShiftEnd(r).getTime()+60*60000
+        ?h('span',{className:'badge',style:{background:'#e3f5ea',color:'#16703c'}},'On duty')
+        :h('span',{className:'badge',style:{background:'#fde2e2',color:'#a3122a'}},'No out punch');
+    };
     const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
 
     async function saveLink(c,ignore=false){
@@ -155,20 +165,25 @@
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
           h('thead',null,h('tr',null,['S.No','Shift date','Shift','Employee','In','Out','Time between','Punches'].map(c=>h('th',{key:c},c)))),
-          h('tbody',null,rows.length?rows.flatMap((r,i)=>[
+          h('tbody',null,rows.length?rows.flatMap((r,i)=>{
+            const gk=`${r.date}|${r.shift}`,prev=rows[i-1],head=!filter.shift&&(!prev||`${prev.date}|${prev.shift}`!==gk);
+            const n=head?rows.filter(x=>x.date===r.date&&x.shift===r.shift).length:0;
+            return [
+            head?h('tr',{key:'h-'+gk},h('td',{colSpan:8,style:{background:r.shift==='Night'?'#ede7f6':'#fdf0f5',fontWeight:700,color:'#5b1a3c'}},
+              `${formatDateIN(r.date)} · ${r.shift==='Night'?'Night shift (7 PM – 7 AM, ends next morning)':r.shift==='Day'?'Day shift (7 AM – 7 PM)':shiftLabel(r)} · ${n} staff`)):null,
             h('tr',{key:r.key,className:'bio-row',onClick:()=>setOpen(open===r.key?'':r.key)},
               h('td',{'data-label':'S.No'},String(i+1)),
               h('td',{'data-label':'Shift date'},formatDateIN(r.date)),
               h('td',{'data-label':'Shift'},h('span',{className:`badge ${r.shift==='Night'?'warn':''}`,title:r.fromRoster?'From the Duty Roster':'Not in the Duty Roster — worked out from the punch times'},shiftLabel(r)+(r.fromRoster?'':' *'))),
               h('td',{'data-label':'Employee'},r.employee_id?r.name:r.ignored?h('span',{style:{color:'#7a6a72'}},r.name):h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
               h('td',{'data-label':'In'},bioWhen(r.first,r.date)),
-              h('td',{'data-label':'Out'},r.list.length>1?bioWhen(r.last,r.date):'—'),
+              h('td',{'data-label':'Out'},outCell(r)),
               h('td',{'data-label':'Time between'},r.hours),
               h('td',{'data-label':'Punches'},String(r.list.length))),
             open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:8},h('div',{className:'bio-detail'},
               h('strong',null,`All punches — machine code ${r.emp_code}${r.device_name?` (name in machine: ${r.device_name})`:''}`),
               h('ul',{style:{margin:'6px 0 0 18px'}},r.list.map(p=>h('li',{key:p.id},`${bioWhen(p,r.date)} · ${p.punch_state||'Punch'}${p.verify_type?` · ${p.verify_type}`:''}${p.terminal_alias?` · ${p.terminal_alias}`:''}`)))))):null
-          ]):h('tr',null,h('td',{colSpan:8,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
+          ];}):h('tr',null,h('td',{colSpan:8,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
         h('div',{className:'small-note',style:{marginTop:8}},'Each row is one shift. A Night shift (7 PM – 7 AM) is shown under the date it starts, with its next-morning Out punch. The shift comes from the Duty Roster; * = not in the roster, worked out from the punch times.')),
 
       tab==='Link Staff'&&h('section',{className:'card'},

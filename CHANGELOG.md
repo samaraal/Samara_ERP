@@ -1,3 +1,5 @@
+## 2.20.34 — 12-11-2026 — Biometric Attendance → Punches: with "All shifts" the list is grouped under date + shift headings (Day shift / Night shift · N staff); next-morning Out shown as time + "next day"; no Out punch yet = "On duty" (shift still running) or "No out punch" (shift over). Frontend only.
+
 ## 2.20.33 — 12-11-2026 — Biometric Attendance → Punches: machine numbers without an ERP employee show the name stored in the machine; ignored ones in grey as "(not an ERP employee)", unlinked ones in red. Frontend only.
 
 ## 2.20.32 — 12-11-2026 — Biometric Attendance → Punches: machine numbers set to Ignore in Link Staff are no longer listed as "not linked". Frontend only.
