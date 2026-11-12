@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.46';
+  const APP_VERSION = '2.20.47';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -21883,6 +21883,9 @@ Thank you.`;
     }catch(error){setMsg(error.message||'Unable to save leave change')}finally{lock.current=false;setBusy(false)}}
     const dates=r=>h('p',null,`Approved: ${formatDateIN(r.original_from)} – ${formatDateIN(r.original_to)} → Requested: ${formatDateIN(r.requested_from)} – ${formatDateIN(r.requested_to)}`);
     if(reviewOnly&&!data.can_approve&&!msg)return null;
+    // 2.20.47: shown only while the employee is on approved leave today (or has a leave change awaiting a decision)
+    const onLeaveNow=data.leaves.some(r=>r.from_date<=todayISOIndia()&&r.to_date>=todayISOIndia());
+    if(!reviewOnly&&!onLeaveNow&&!mine.some(x=>x.status==='Pending')&&!open)return null;
     return h(Section,{title:reviewOnly?'Leave Change Approvals':'Extend / Modify Leave',subtitle:'Revised dates take effect only after Admin/Director approval. Original leave history is retained.',actions:h('div',{className:'absence-actions'},!reviewOnly&&h('button',{type:'button',className:'btn btn-primary',onClick:start},'Extend / Modify Leave'),h('button',{type:'button',className:'btn btn-secondary',onClick:load},'Refresh Leave Changes'))},
       !open&&msg&&h('div',{className:'message',role:'status'},msg),
       queue.map(r=>h('div',{className:'absence-card',key:r.id},h('strong',null,r.employee_name||'Staff'),dates(r),h('p',null,r.reason),h('div',{className:'absence-actions'},h('button',{className:'btn btn-primary',onClick:()=>{setTarget(r);setApprove(true);setNote('');setMsg('');setOpen(true)}},'Review Leave Change'),h('button',{className:'btn btn-secondary',onClick:()=>{setTarget(r);setApprove(false);setNote('');setMsg('');setOpen(true)}},'Reject Leave Change')))),

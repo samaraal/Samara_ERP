@@ -1,3 +1,6 @@
+## 2.20.47 — 12-11-2026 — Extend / Modify Leave only while on leave
+- My Leave & Permission: the Extend / Modify Leave card is shown only while the employee is on approved leave today (or has a leave change awaiting a decision).
+
 ## 2.20.46 — 12-11-2026 — Fix: My Leave & Permission page crash
 - The Return to Duty check (2.20.43) had been copied into the Extend / Modify Leave section too, which crashed the page. Removed there.
 
