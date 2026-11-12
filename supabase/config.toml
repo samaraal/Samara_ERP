@@ -20,3 +20,7 @@ verify_jwt = false
 [functions.biometric-staff-sync]
 # Samara PC sync program: private key in the URL (SQL 372).
 verify_jwt = false
+
+[functions.attendance-daily-dispatch]
+# Morning late / overtime WhatsApp: checks the cron secret or the Admin session itself (SQL 378).
+verify_jwt = false

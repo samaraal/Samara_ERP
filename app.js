@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.41';
+  const APP_VERSION = '2.20.42';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24240,6 +24240,31 @@ Thank you.`;
   const BIO_ACTION_LABEL={added:'Added',restored:'Restored',blocked:'Blocked',resigned:'Resigned',updated:'Updated',not_in_erp:'Not in ERP'};
   const bioCopy=async(text,label)=>{try{await navigator.clipboard.writeText(text);alert(`${label} copied.`)}catch(_){window.prompt(`Copy the ${label}:`,text)}};
 
+  // 2.20.42: Admin — preview / send the morning late & overtime WhatsApp (Edge Function attendance-daily-dispatch)
+  function BioDailyWhatsApp(){
+    const yday=bioAddDays(new Date(Date.now()+5.5*3600000).toISOString().slice(0,10),-1);
+    const [day,setDay]=React.useState(yday),[busy,setBusy]=React.useState(''),[out,setOut]=React.useState(null),[err,setErr]=React.useState('');
+    async function call(mode){
+      if(mode==='send'&&!confirm(`Send the attendance WhatsApp for ${formatDateIN(day)} to all Admin / Directors now?`))return;
+      setBusy(mode);setErr('');
+      try{const {data,error}=await client.functions.invoke('attendance-daily-dispatch',{body:{mode,day}});
+        if(error)throw error;if(data?.success===false)throw new Error(data.error||JSON.stringify(data.meta||data));setOut({mode,data});}
+      catch(e){setErr(e?.message||String(e))}finally{setBusy('')}
+    }
+    const d=out?.data;
+    return h('section',{className:'card'},
+      h('h3',null,'Daily attendance WhatsApp to Admin / Directors'),
+      h('p',{className:'muted'},'Sent automatically every morning (from 9:30 AM, once the machine has sent the Night shift Out punches; latest 11 AM) for yesterday’s Day shift and Night shift: who came late (more than 15 min after 7 AM / 7 PM), overtime (Out more than 15 min after 7 PM / 7 AM) and no punch without approved leave.'),
+      h('div',{style:{display:'flex',gap:8,alignItems:'end',flexWrap:'wrap'}},
+        h('div',{className:'field'},h('label',null,'Date'),h('input',{type:'date',value:day,max:yday,min:'2026-11-12',onChange:e=>setDay(e.target.value)})),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:()=>call('preview')},busy==='preview'?'Loading…':'Preview message'),
+        h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:()=>call('send')},busy==='send'?'Sending…':'Send now'),
+        h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:()=>call('template_status')},'Meta approval status')),
+      err?h('div',{className:'error',style:{marginTop:10}},err):null,
+      out?.mode==='preview'?h('pre',{style:{whiteSpace:'pre-wrap',background:'#e7fbe9',border:'1px solid #bfe8c6',borderRadius:12,padding:14,marginTop:12,fontFamily:'inherit',fontSize:14}},d?.message):null,
+      out?.mode==='send'?h('div',{className:'success',style:{marginTop:10}},`Sent ${d?.sent||0} · failed ${d?.failed||0} · already sent ${d?.skipped||0}`+(d?.message?` · ${d.message}`:'')):null,
+      out?.mode==='template_status'?h('div',{style:{marginTop:10}},(d?.meta?.data||[]).length?(d.meta.data.map(t=>h('div',{key:t.name},`${t.name}: `,h('strong',null,t.status),t.rejected_reason&&t.rejected_reason!=='NONE'?` · ${t.rejected_reason}`:''))):'Template not found on Meta yet.'):null);
+  }
   function BiometricAttendance({profile}){
     const isAdmin=profile?.role==='Admin';
     const [tab,setTab]=React.useState('Punches');
@@ -24346,7 +24371,7 @@ Thank you.`;
         unlinked.length?h('span',{className:'badge warn'},`${unlinked.length} machine code(s) not linked to an employee`):null,
         sync?h('span',{className:`badge ${syncFresh&&sync?.sync?.ok!==false?'':'warn'}`},lastSync?`Staff sync: ${formatDateIN(lastSync)} ${bioTime(lastSync)}${sync?.sync?.ok===false?' — error':''}`:'Staff sync not set up yet'):null,
         status?.push?.last_push_error?h('span',{className:'badge off',style:{background:'#fde2e2',color:'#a3122a'}},`Last error: ${status.push.last_push_error}`):null),
-      h('div',{className:'bio-tabs'},['Punches','Link Staff','Staff Sync',...(isAdmin?['Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
+      h('div',{className:'bio-tabs'},['Punches','Link Staff','Staff Sync',...(isAdmin?['Daily WhatsApp','Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
 
       tab==='Punches'&&h('section',{className:'card'},
         h('div',{className:'bio-filters'},
@@ -24447,6 +24472,7 @@ Thank you.`;
             h('li',null,'In easy TimePro: put the biometric machine in the area "Samara Mogappair" (Device → Device → Area). Never put a machine in "Blocked - No Access".')),
           h('div',{className:'small-note'},'The PC is switched off at night: changes made after that reach the machine the next morning. For an urgent block at night, delete the person directly on the machine.'))),
 
+      tab==='Daily WhatsApp'&&isAdmin&&h(BioDailyWhatsApp),
       tab==='Setup (easy TimePro)'&&isAdmin&&h('section',{className:'card'},
         h('h3',null,'Connect easy TimePro (one time, on the PC where easy TimePro runs)'),
         h('ol',null,

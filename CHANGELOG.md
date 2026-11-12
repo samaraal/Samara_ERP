@@ -1,3 +1,8 @@
+## 2.20.42 — 12-11-2026 — Back on Duty from the punch · morning late / overtime WhatsApp
+- After approved leave, the first biometric punch marks the staff member **Back on Duty** automatically (every 5 min; early return shortens the leave; Admin gets the usual alert, marked by "Biometric machine"). The Manager button stays for staff without a machine number. (SQL 378)
+- New Edge Function **attendance-daily-dispatch** and template samara_staff_attendance_daily: every morning (9:30–11 AM) Admin / Directors get a WhatsApp of yesterday’s Day + Night shift — who came late and by how much, overtime (Out more than 15 min after shift end), no punch without approved leave.
+- Biometric Attendance → new **Daily WhatsApp** tab (Admin): preview / send now / Meta approval status.
+
 ## 2.20.41 — 12-11-2026 — Aligned biometric hover on the Duty Roster
 - Hover shows aligned rows: Shift · In (time — late / on time) · Out (time — early / on time / on duty) · Total punches. Auto-Absent and punched-without-duty cells use the same layout.
 
