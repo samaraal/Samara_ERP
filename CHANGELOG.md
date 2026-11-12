@@ -1,3 +1,6 @@
+## 2.20.46 — 12-11-2026 — Fix: My Leave & Permission page crash
+- The Return to Duty check (2.20.43) had been copied into the Extend / Modify Leave section too, which crashed the page. Removed there.
+
 ## 2.20.45 — 12-11-2026 — Payroll till date · no duty after a staff member leaves
 - Payroll counts days only till today for the running month (planned future duties are not paid), and for a staff member who has left only up to her last working day (HR Exit: last working day, or the day before "absent from" for Left without notice). The list shows "Left · last working day …"; her final salary can be saved once that day is over. (SQL 381)
 - Once a staff member leaves, all her duties after the last working day are removed automatically, and new duties after that date are blocked.
