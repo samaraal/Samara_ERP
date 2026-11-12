@@ -196,7 +196,11 @@ function Set-TpEmployee([string]$code, $fields) {
 function Move-TpArea([string]$code, [string]$areaCode) {
   Invoke-Tp 'Post' '/personnel/api/employees/adjust_area/' @{ emp_code = @($code); area_code = @($areaCode) } | Out-Null
 }
-function Get-ShortName($name) { $n = ([string]$name).Trim(); return $n.Substring(0, [Math]::Min(25, $n.Length)) }
+function Get-ShortName($name) {
+  # easy TimePro refuses digits in names
+  $n = (([string]$name) -replace '[0-9]', '' -replace '\s+', ' ').Trim()
+  return $n.Substring(0, [Math]::Min(25, $n.Length))
+}
 function Ensure-Area([string]$code, [string]$name, [bool]$dry) {
   $a = $script:Areas | Where-Object { [string]$_.area_code -eq $code } | Select-Object -First 1
   if ($a) { return [string]$a.area_code }
