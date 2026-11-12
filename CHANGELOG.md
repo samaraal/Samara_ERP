@@ -1,3 +1,5 @@
+## 2.20.32 — 12-11-2026 — Biometric Attendance → Punches: machine numbers set to Ignore in Link Staff are no longer listed as "not linked". Frontend only.
+
 ## 2.20.31 — 12-11-2026 — Biometric Attendance → Punches: S.No column. Frontend only.
 
 ## 2.20.30 — 12-11-2026 — Biometric Attendance → Punches: new **Shift** filter (All shifts / Day 7 AM–7 PM / Night 7 PM–7 AM) before Period. Frontend only.
