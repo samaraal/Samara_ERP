@@ -1,3 +1,7 @@
+## 2.20.44 — 12-11-2026 — Amounts to recover from salary (Akshi kitchen cash)
+- New pending salary deductions: Payroll shows "To deduct ₹…" under the employee and pre-fills it in Other deductions with its note; marked recovered when that salary is saved (re-opened if the salary is voided). (SQL 380)
+- Akshi left on 11-11-2026 without handing over the kitchen petty cash: the kitchen cash book balance is written off (Adjustment + reconciliation, Madhu Mithra starts at ₹0) and added as a deduction from Akshi’s November 2026 salary.
+
 ## 2.20.43 — 12-11-2026 — Additional Charge (Madhu Mithra: Manager + STD) · Return to Duty card only where needed
 - New **Additional Charge**: a staff member keeps her own role and also holds another one. Madhu Mithra (Manager, Facility Coordinator) now also holds **STD**: STD menu items (Director’s Office, Enquiry Register, Kitchen / Food Stores, Housekeeping indents, full WhatsApp Inbox) added to hers. (SQL 379)
 - Akshi (STD, left without notice) duties moved to Madhu Mithra: Food Management, Enquiry Register default person + her open enquiries, Kitchen / Food Stores cash in-charge (Admin to count and reconcile the cash).

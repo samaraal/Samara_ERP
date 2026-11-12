@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.43';
+  const APP_VERSION = '2.20.44';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -55638,12 +55638,15 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
   function PayrollPanel({month,onChanged}){
     const today=todayISOIndia(),end=npMonthEnd(month);
     const [rows,setRows]=React.useState(null),[sel,setSel]=React.useState(''),[d,setD]=React.useState(null),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[confirmSend,setConfirmSend]=React.useState(false);
+    const [pend,setPend]=React.useState({});
     const [bio,setBio]=React.useState(null); // 2.20.36: biometric attendance beside the roster (shown only; Payroll still uses the roster)
     useStepBack(()=>{if(sel){setSel('');setMsg('');return true}return false});
     async function load(){
       const r=await client.rpc('samara_payroll_rpc',{p_action:'month',p:{month}});
       if(r.error){setRows([]);setMsg(/samara_payroll_rpc/i.test(r.error.message)?'The Payroll database update (SQL 310) has not been run yet.':r.error.message);return}
       setRows(r.data||[]);
+      // 2.20.44: amounts to recover from salary (e.g. kitchen cash not handed over) — pre-filled as Other deductions
+      {const pd=await client.rpc('samara_payroll_pending',{p_month:month});const m={};(pd.data||[]).forEach(x=>{const k=String(x.employee_id);m[k]=m[k]?{amount:m[k].amount+Number(x.amount),note:m[k].note+'; '+x.note}:{amount:Number(x.amount),note:x.note}});setPend(m);}
       const to=end<today?end:today;
       if(month<=today){const sh=await samaraAttendanceShifts(month,to);const m={};sh.forEach(g=>{const k=String(g.employee_id);(m[k]=m[k]||{dates:new Set(),late:0,noOut:0});m[k].dates.add(g.date);
         const w=samaraShiftWindow(g.date,g.shift);if((new Date(g.in)-w.start)/60000>15)m[k].late++;if(!g.out&&Date.now()>w.end.getTime()+3600000)m[k].noOut++;});setBio(sh.length?m:{});}
@@ -55666,7 +55669,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
         days_worked:String((onRoster?Number(x.roster_days):0)+0.5*(Number(x.roster_half)||0)),
         permission_lop:String(0.5*Math.max(0,(Number(x.perm_count)||0)-2)),
         weekly_offs:String(onRoster?Number(x.roster_offs):0),cl_used:String(Number(x.leave_cl)||0),other_leave:String(Number(x.leave_other)||0),
-        overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:'',deduction_note:'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
+        overtime:'',incentives:'',other_earnings:'',earnings_note:'',advance_deduction:'',other_deduction:pend[String(x.id)]?String(pend[String(x.id)].amount):'',deduction_note:pend[String(x.id)]?.note||'',paid_on:end<today?end:today,paid_mode:'Bank Transfer'});
       window.scrollTo({top:0,behavior:'smooth'});
     }
     async function save(){
@@ -55767,7 +55770,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       h('div',{className:'table-wrap'},h('table',{className:'table'},
         h('thead',null,h('tr',null,['S.No','Employee','HR Salary','Roster','Biometric','Status',''].map(x=>h('th',{key:x},x)))),
         h('tbody',null,(rows||[]).length?(rows||[]).map((x,i)=>h('tr',{key:x.id,style:{cursor:'pointer'},onClick:()=>openEmp(x)},
-          h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`)),
+          h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`),pend[String(x.id)]&&!x.saved?h('small',{style:{display:'block',color:'#b42318',fontWeight:800},title:pend[String(x.id)].note},`To deduct ${npMoney(pend[String(x.id)].amount)}`):null),
           h('td',null,x.salary!=null?npMoney(x.salary):h('span',{style:{color:'#b42318'}},'Not set')),
           h('td',null,Number(x.roster_entries)>0?`${x.roster_days} duty · ${x.roster_offs} off${Number(x.roster_absent)>0?` · ${x.roster_absent} absent`:''}`:h('span',{style:{color:'#9a6700'}},'Not on roster')),
           h('td',null,bioCell(x)),
