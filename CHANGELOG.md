@@ -1,3 +1,8 @@
+## 2.20.60 — 13-11-2026 — Ward Stock: changes during a shift wait for the nurse on duty
+- Once a nurse has accepted the cupboard for the shift (or the incoming nurse has accepted the next one), **Add items / Edit / Return** by the Nursing Manager become a **pending change** — nothing moves in the Main Store or the cupboard until the nurse on duty taps **✓ Confirm** (or **Not received**, with a reason). (SQL 391)
+- New boxes: **📥 Changes to confirm** (nurse) and **⏳ Waiting for the nurse** (Nursing Manager / Admin, with **Cancel change**). Alerts: nurse — change to confirm; Nursing Manager — change not accepted.
+- While a change is pending, the Closing Count and Morning Verification wait for it. When no nurse holds the cupboard, changes move at once as before.
+
 ## 2.20.59 — 12-11-2026 — Ward Stock: Main Store column instead of "Usual level"
 - Ward Stock now (and its Print / PDF): columns are **In cupboard · Main Store · To refill** — "Usual level" is no longer shown. "Fill up to usual levels" is renamed **Refill what was used**. Frontend only.
 

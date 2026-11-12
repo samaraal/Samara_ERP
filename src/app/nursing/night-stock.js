@@ -65,7 +65,7 @@
     async function post(action,payload,okTitle,okText){
       if(lock.current)return null;lock.current=true;setBusy(true);setError('');
       const sig=JSON.stringify({action,payload});if(token.current?.sig!==sig)token.current={sig,id:crypto.randomUUID()};
-      try{const r=await client.rpc('night_stock_post',{p_id:token.current.id,p_action:action,p_data:payload});if(r.error)throw r.error;token.current=null;await load();toast(true,okTitle,okText);return r.data||{};}
+      try{const r=await client.rpc('night_stock_post',{p_id:token.current.id,p_action:action,p_data:payload});if(r.error)throw r.error;token.current=null;await load();if(r.data?.pending)toast(true,'Waiting for the nurse on duty','A nurse holds the cupboard this shift, so the change is sent to her. Nothing moves until she taps Confirm.');else toast(true,okTitle,okText);return r.data||{};}
       catch(e){setError(e.message);toast(false,'Ward Stock',e.message);return null}
       finally{lock.current=false;setBusy(false)}
     }
@@ -116,11 +116,14 @@
           h('h4',null,'Movements'),table(['Time','Movement','Item','Qty','Guest','By'],moves.map(m=>[when(m.created_at),m.movement+(m.late_entry?' (late)':''),itemById(m.store_item_id)?.item_name||'',`${n(m.qty)>0?'+':''}${n(m.qty)}`,m.patient_id?pLabel(m.patient_id):'—',m.actor_name||''])))});
     }
 
-    const ctx={load,acc,cur,curShift,mins,prev,curRow,prevRow,acceptTarget,closeTarget,acceptRow,closeRow,pending,lateShifts,shiftLabel,rank,listItems,toVerify,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,onNavigate,busy,data,addDays,shiftRow,statusTone,openShift,setDetail};
+    const transfers=(data.transfers||[]),pendingTr=transfers.filter(t=>t.status==='Pending');
+    const ctx={load,transfers,pendingTr,acc,cur,curShift,mins,prev,curRow,prevRow,acceptTarget,closeTarget,acceptRow,closeRow,pending,lateShifts,shiftLabel,rank,listItems,toVerify,n,qty,pill,btn,table,post,setError,setTab,when,verified,itemById,patients,pLabel,onNavigate,busy,data,addDays,shiftRow,statusTone,openShift,setDetail};
     const lastTopup=(data.ledger||[]).filter(m=>m.movement==='Top-up'&&m.night_date===cur&&(m.shift||'Night')===curShift).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0]||null;
     const usedNow=(data.ledger||[]).filter(m=>m.night_date===cur&&(m.shift||'Night')===curShift&&m.movement==='Use').length;
     const canUse=acc.nurse||acc.nm;
     const boxes=[
+      ['📥 Changes to confirm',`${pendingTr.length} waiting`,'transfers',acc.nurse&&pendingTr.length>0],
+      ['⏳ Waiting for the nurse',`${pendingTr.length} change${pendingTr.length===1?'':'s'}`,'transfers',acc.manage&&pendingTr.length>0],
       ['➕ Add items to Ward Stock',lastTopup?`Done · ${new Date(lastTopup.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Kolkata'})} · ${lastTopup.actor_name||''}`:'Tap to add','add',acc.manage],
       ['Ward Stock now',`${listItems.length} item${listItems.length===1?'':'s'}`,'stock',true],
       ['Use for a Guest',`${usedNow} entr${usedNow===1?'y':'ies'} this shift`,'use',canUse],
@@ -136,13 +139,14 @@
       error&&h('p',{className:'message error',role:'alert'},error),
       h('p',{className:'message',role:'status'},statusText,acc.verify_as&&toVerify&&curShift==='Day'?` You can verify as: ${acc.verify_as}.`:''),
       focus&&h('p',{className:'message',role:'status'},'Opened from an alert. ',btn('OK',clearFocus)),
-      tab==='home'&&h('div',{className:'dr-boxes ns-boxes'},boxes.map(([label,value,key])=>h('button',{key,type:'button',className:'dr-box',onClick:()=>{setError('');setTab(key)}},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-value',style:/not done|Due now|Waiting|Returned/i.test(value)?{color:'#b42318'}:undefined},value)))),
+      tab==='home'&&h('div',{className:'dr-boxes ns-boxes'},boxes.map(([label,value,key])=>h('button',{key,type:'button',className:'dr-box',onClick:()=>{setError('');setTab(key)}},h('span',{className:'dr-box-label'},label),h('b',{className:'dr-box-value',style:/not done|Due now|Waiting|waiting|Returned/i.test(value)?{color:'#b42318'}:undefined},value)))),
       tab==='stock'&&h(NsStockNow,{ctx}),
       tab==='use'&&h(NsUseForm,{ctx}),
       tab==='accept'&&h(NsCountForm,{ctx,kind:'accept'}),
       tab==='close'&&h(NsCountForm,{ctx,kind:'close'}),
       tab==='verify'&&h(NsCountForm,{ctx,kind:'verify'}),
       tab==='add'&&h(NsAddItems,{ctx}),
+      tab==='transfers'&&h(NsTransfers,{ctx}),
       tab==='register'&&h(NsRegister,{ctx}));
   }
   // 2.20.55: blind count. Nurse logins never see the ERP quantity — Check only says Matched / Not matched (SQL 389).
@@ -284,6 +288,27 @@
         h('div',{style:{marginTop:'14px',display:'flex',gap:'8px',flexWrap:'wrap'}},
           n(edit.item.night_balance)===0?btn('Remove from Ward Stock',remove):h('small',null,'To remove this item, set the quantity to 0 and save, then Remove.'),
           btn('Close',()=>setEdit(null))))));
+  }
+
+  // 2.20.60: changes made while a nurse holds the cupboard — the nurse on duty confirms / rejects; the Nursing Manager can cancel.
+  function NsTransfers({ctx}){
+    const {acc,transfers,pendingTr,pill,btn,table,post,setError,setTab,when}=ctx;
+    const [note,setNote]=React.useState({});
+    const lines=t=>(t.items||[]).map(x=>`${x.item_name||'Item'} × ${Number(x.qty)} ${x.unit||''}`.trim()).join(', ');
+    const what=t=>t.kind==='In'?'Add to cupboard (from Main Store)':'Take out of cupboard (to Main Store)';
+    const act=async(t,action)=>{const nt=(note[t.id]||'').trim();if(action!=='confirm_transfer'&&action!=='cancel_transfer'&&nt.length<3){setError('Write the reason (e.g. items not received).');return}
+      const ok=await post(action,{id:t.id,note:nt},action==='confirm_transfer'?'Change confirmed':action==='reject_transfer'?'Change not accepted':'Change cancelled',action==='confirm_transfer'?'Ward Stock updated.':'The Nursing Manager is informed.');
+      if(ok&&!pendingTr.some(x=>x.id!==t.id))setTab('home')};
+    const recent=transfers.filter(t=>t.status!=='Pending').slice(0,15);
+    return h(React.Fragment,null,
+      h(Section,{title:acc.nurse?'📥 Changes to confirm':'⏳ Waiting for the nurse on duty',subtitle:acc.nurse?'The Nursing Manager changed the cupboard while you hold it. Check the items physically, then tap Confirm. If you did not receive them, tap Not received with the reason.':'These changes move only when the nurse on duty confirms them. You can cancel a change that was entered by mistake.'},
+        pendingTr.length===0?h('p',null,'Nothing is waiting.'):table(['Change','Items','Requested by','Note',''],pendingTr.map(t=>[h('b',null,what(t)),lines(t),`${t.requested_by_name||''} · ${when(t.requested_at)}`,t.note||'',
+          h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap',alignItems:'center'}},
+            acc.nurse&&btn('✓ Confirm',()=>act(t,'confirm_transfer'),true),
+            acc.nurse&&h('input',{placeholder:'Reason if not received',value:note[t.id]||'',onChange:e=>setNote(v=>({...v,[t.id]:e.target.value})),style:{maxWidth:'190px'}}),
+            acc.nurse&&btn('Not received',()=>act(t,'reject_transfer')),
+            acc.manage&&btn('Cancel change',()=>act(t,'cancel_transfer')))]))),
+      recent.length>0&&h(Section,{title:'Recent changes (3 days)'},table(['Change','Items','Requested by','Status','Decided by'],recent.map(t=>[what(t),lines(t),`${t.requested_by_name||''} · ${when(t.requested_at)}`,pill(t.status,t.status==='Confirmed'?'good':'bad'),[t.decided_by_name,when(t.decided_at),t.decision_note].filter(Boolean).join(' · ')]))));
   }
 
   function NsRegister({ctx}){

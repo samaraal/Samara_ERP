@@ -436,7 +436,7 @@
   {
    "file": "nursing/night-stock.js",
    "about": "Ward Stock (was Night Stock): cupboard for both shifts — Nursing Manager adds items, blind opening/closing counts at every shift change, Guest use (auto-received indent), daily morning verification (SQL 387–390)",
-   "lines": 321
+   "lines": 346
   },
   {
    "file": "nursing/duty-assignment.js",
