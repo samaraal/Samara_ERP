@@ -1,3 +1,5 @@
+## 2.20.29 — 12-11-2026 — Biometric Attendance by **shift**: Punches now show one row per person per shift (Shift date · Shift · In · Out · Time between). A Night shift (7 PM – 7 AM) is listed under the date it starts with its next-morning Out punch, so "Today" no longer shows last night's out-punches as today. Shift from the Duty Roster (Day / Night / Both); not rostered → worked out from punch times (marked *). Machine no. 21 linked to Dr. Chella Boomi, 25 to Boomi R, 1 "hari" ignored. Database: `376_biometric_shift_view_and_director_links.sql`.
+
 ## 2.20.28 — 11-11-2026 — Biometric Attendance → Staff Sync: blocked staff (suspended / left) shown in red (row, status badge, reason). Frontend only.
 
 ## 2.20.27 — 11-11-2026 — Nebulisation from the MAR only + nursing / physio charges posted without Accounts approval

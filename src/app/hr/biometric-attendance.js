@@ -17,6 +17,33 @@
     if(kind==='Month'){const [y,m]=String(month||bioISO(t).slice(0,7)).split('-').map(Number);return [bioISO(new Date(y,m-1,1)),bioISO(new Date(y,m,0))];}
     return [from||bioISO(t),to||from||bioISO(t)];
   }
+  // 2.20.29: punches are grouped by SHIFT, not calendar day. A Night shift (7 PM - 7 AM) is shown under the
+  // date it starts, with its morning out-punch; the Duty Roster decides the shift, punch times are the fallback.
+  const bioAddDays=(iso,n)=>{const d=new Date(`${iso}T00:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+  const bioHourOf=v=>{try{const pt=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(v));
+    return Number(pt.find(x=>x.type==='hour')?.value||0)+Number(pt.find(x=>x.type==='minute')?.value||0)/60}catch(_){return 12}};
+  function bioShiftGroups(punches,roster){
+    const R=new Map();(roster||[]).forEach(r=>{R.set(`${r.employee_id}|${r.duty_date}`,r.shift)});
+    const rs=(emp,d)=>emp?R.get(`${emp}|${d}`)||'':'';
+    const groups=new Map(),byEmp=new Map();
+    const take=(p,date,shift,fromRoster)=>{const who=p.employee_id||`code:${p.emp_code}`;const k=`${who}|${date}|${shift}`;
+      if(!groups.has(k))groups.set(k,{key:k,who,employee_id:p.employee_id,emp_code:p.emp_code,device_name:p.device_name,date,shift,fromRoster,list:[]});
+      const g=groups.get(k);g.list.push(p);byEmp.set(who,g);};
+    [...punches].sort((a,b)=>String(a.punch_at).localeCompare(String(b.punch_at))).forEach(p=>{
+      const who=p.employee_id||`code:${p.emp_code}`,D=p.punch_date,h=bioHourOf(p.punch_at);
+      const rp=rs(p.employee_id,bioAddDays(D,-1)),rc=rs(p.employee_id,D);
+      if((rp==='Night'||rp==='Both')&&h<12)return take(p,bioAddDays(D,-1),rp,true);       // out-punch of last night's shift
+      if(rc==='Night')return take(p,D,'Night',true);
+      if(rc==='Day'||rc==='Both')return take(p,D,rc,true);
+      // not in the Duty Roster: decide from the punch times
+      const last=byEmp.get(who);
+      if(h<12&&last&&last.date===bioAddDays(D,-1)&&last.shift==='Night'&&!last.fromRoster)return take(p,last.date,'Night',false);
+      const dayG=groups.get(`${who}|${D}|Day`);
+      if(dayG||h<17)return take(p,D,'Day',false);
+      return take(p,D,'Night',false);                                                         // first punch of the day after 5 PM = night shift starts
+    });
+    return [...groups.values()];
+  }
   const bioTime=v=>{try{return new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'})}catch(_){return '—'}};
   // 2.20.24: Staff Sync — the ERP employee list drives who can use the machine (SQL 372, Edge Function
   // "biometric-staff-sync", PC program tools/biometric-sync/Samara-Biometric-Sync.ps1 every 5 minutes).
@@ -37,6 +64,7 @@
     const [draft,setDraft]=React.useState({kind:'Today',month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia(),employee:''});
     const [filter,setFilter]=React.useState(draft);
     const [punches,setPunches]=React.useState([]),[open,setOpen]=React.useState('');
+    const [roster,setRoster]=React.useState([]),[range,setRange]=React.useState(['','']);
     const [picks,setPicks]=React.useState({});
     const [sync,setSync]=React.useState(null),[syncErr,setSyncErr]=React.useState(''),[runOpen,setRunOpen]=React.useState('');
     async function loadSync(){try{setSync(await bioSyncRpc('status'));setSyncErr('');}catch(e){setSyncErr(e.message)}}
@@ -49,7 +77,11 @@
     }
     async function loadPunches(f=filter){
       try{const [a,b]=bioPeriod(f.kind,f.month,f.from,f.to);if(b<a)throw new Error('The "To" date is before the "From" date.');
-        setBusy(true);const r=await bioRpc('punches',{from:a,to:b,employee_id:f.employee||''});setPunches(r.punches||[]);setErr('');}
+        setBusy(true);
+        // one day either side, so night shifts that start before / end after the period are complete
+        const [r,ro]=await Promise.all([bioRpc('punches',{from:bioAddDays(a,-1),to:bioAddDays(b,1),employee_id:f.employee||''}),
+          client.rpc('attendance_roster',{p_from:bioAddDays(a,-1),p_to:bioAddDays(b,1)}).then(x=>x.error?[]:(x.data||[]))]);
+        setRoster(Array.isArray(ro)?ro:[]);setRange([a,b]);setPunches(r.punches||[]);setErr('');}
       catch(e){setErr(e.message)}finally{setBusy(false)}
     }
     React.useEffect(()=>{loadBase();loadPunches(filter);loadSync();},[]);
@@ -65,14 +97,16 @@
     const syncFresh=lastSync&&(Date.now()-new Date(lastSync).getTime()<20*60000);
     const staffList=sync?.staff||[];
 
-    // Day summary: one row per person per day (first / last punch), click shows every punch.
+    // Shift summary: one row per person per shift (In = first punch, Out = last punch), click shows every punch.
     const rows=React.useMemo(()=>{
-      const m=new Map();
-      punches.forEach(p=>{const k=`${p.employee_id||'code:'+p.emp_code}|${p.punch_date}`;if(!m.has(k))m.set(k,{key:k,employee_id:p.employee_id,emp_code:p.emp_code,date:p.punch_date,device_name:p.device_name,list:[]});m.get(k).list.push(p);});
-      return [...m.values()].map(r=>{const first=r.list[0],last=r.list[r.list.length-1];const mins=r.list.length>1?Math.round((new Date(last.punch_at)-new Date(first.punch_at))/60000):0;
+      const [ra,rb]=range;
+      return bioShiftGroups(punches,roster).filter(g=>(!ra||g.date>=ra)&&(!rb||g.date<=rb)).map(r=>{const first=r.list[0],last=r.list[r.list.length-1];
+        const mins=r.list.length>1?Math.round((new Date(last.punch_at)-new Date(first.punch_at))/60000):0;
         return {...r,first,last,hours:mins?`${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m`:'—',name:r.employee_id?empName(empById[String(r.employee_id)]):`Machine code ${r.emp_code} — not linked`};})
-        .sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.name).localeCompare(String(b.name)));
-    },[punches,empById]);
+        .sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.shift).localeCompare(String(b.shift))||String(a.name).localeCompare(String(b.name)));
+    },[punches,roster,range,empById]);
+    const bioWhen=(p,date)=>p.punch_date===date?bioTime(p.punch_at):`${formatDateIN(p.punch_date).slice(0,5)} ${bioTime(p.punch_at)}`;
+    const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
 
     async function saveLink(c,ignore=false){
       const employee_id=ignore?'':(picks[c.emp_code]??c.employee_id??'');
@@ -113,19 +147,21 @@
           h('label',null,'Employee',h('select',{value:draft.employee,onChange:e=>setDraft({...draft,employee:e.target.value})},h('option',{value:''},'All employees'),activeEmps.map(e=>h('option',{key:e.id,value:e.id},empName(e))))),
           h('button',{type:'button',className:'btn btn-primary',disabled:busy,onClick:()=>{setFilter(draft);loadPunches(draft);}},busy?'Loading…':'Apply')),
         h('div',{className:'table-wrap'},h('table',{className:'table'},
-          h('thead',null,h('tr',null,['Date','Employee','First punch','Last punch','Time between','Punches'].map(c=>h('th',{key:c},c)))),
+          h('thead',null,h('tr',null,['Shift date','Shift','Employee','In','Out','Time between','Punches'].map(c=>h('th',{key:c},c)))),
           h('tbody',null,rows.length?rows.flatMap(r=>[
             h('tr',{key:r.key,className:'bio-row',onClick:()=>setOpen(open===r.key?'':r.key)},
-              h('td',{'data-label':'Date'},formatDateIN(r.date)),
+              h('td',{'data-label':'Shift date'},formatDateIN(r.date)),
+              h('td',{'data-label':'Shift'},h('span',{className:`badge ${r.shift==='Night'?'warn':''}`,title:r.fromRoster?'From the Duty Roster':'Not in the Duty Roster — worked out from the punch times'},shiftLabel(r)+(r.fromRoster?'':' *'))),
               h('td',{'data-label':'Employee'},r.employee_id?r.name:h('span',{style:{color:'#a3122a',fontWeight:700}},r.name)),
-              h('td',{'data-label':'First punch'},bioTime(r.first.punch_at)),
-              h('td',{'data-label':'Last punch'},r.list.length>1?bioTime(r.last.punch_at):'—'),
+              h('td',{'data-label':'In'},bioWhen(r.first,r.date)),
+              h('td',{'data-label':'Out'},r.list.length>1?bioWhen(r.last,r.date):'—'),
               h('td',{'data-label':'Time between'},r.hours),
               h('td',{'data-label':'Punches'},String(r.list.length))),
-            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:6},h('div',{className:'bio-detail'},
+            open===r.key?h('tr',{key:r.key+'-d'},h('td',{colSpan:7},h('div',{className:'bio-detail'},
               h('strong',null,`All punches — machine code ${r.emp_code}${r.device_name?` (name in machine: ${r.device_name})`:''}`),
-              h('ul',{style:{margin:'6px 0 0 18px'}},r.list.map(p=>h('li',{key:p.id},`${bioTime(p.punch_at)} · ${p.punch_state||'Punch'}${p.verify_type?` · ${p.verify_type}`:''}${p.terminal_alias?` · ${p.terminal_alias}`:''}`)))))):null
-          ]):h('tr',null,h('td',{colSpan:6,className:'empty'},busy?'Loading…':'No punches for this period.')))))),
+              h('ul',{style:{margin:'6px 0 0 18px'}},r.list.map(p=>h('li',{key:p.id},`${bioWhen(p,r.date)} · ${p.punch_state||'Punch'}${p.verify_type?` · ${p.verify_type}`:''}${p.terminal_alias?` · ${p.terminal_alias}`:''}`)))))):null
+          ]):h('tr',null,h('td',{colSpan:7,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
+        h('div',{className:'small-note',style:{marginTop:8}},'Each row is one shift. A Night shift (7 PM – 7 AM) is shown under the date it starts, with its next-morning Out punch. The shift comes from the Duty Roster; * = not in the roster, worked out from the punch times.')),
 
       tab==='Link Staff'&&h('section',{className:'card'},
         h('p',{className:'muted'},'Each staff member has a number on the machine (Employee ID in easy TimePro). Link each number once to the right ERP employee. The name stored in the machine is shown only to help you.'),
