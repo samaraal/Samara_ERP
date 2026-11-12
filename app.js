@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.29';
+  const APP_VERSION = '2.20.30';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -24226,7 +24226,7 @@ Thank you.`;
     const [tab,setTab]=React.useState('Punches');
     const [status,setStatus]=React.useState(null),[codes,setCodes]=React.useState([]),[emps,setEmps]=React.useState([]);
     const [err,setErr]=React.useState(''),[busy,setBusy]=React.useState(false);
-    const [draft,setDraft]=React.useState({kind:'Today',month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia(),employee:''});
+    const [draft,setDraft]=React.useState({shift:'',kind:'Today',month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia(),employee:''});
     const [filter,setFilter]=React.useState(draft);
     const [punches,setPunches]=React.useState([]),[open,setOpen]=React.useState('');
     const [roster,setRoster]=React.useState([]),[range,setRange]=React.useState(['','']);
@@ -24265,11 +24265,12 @@ Thank you.`;
     // Shift summary: one row per person per shift (In = first punch, Out = last punch), click shows every punch.
     const rows=React.useMemo(()=>{
       const [ra,rb]=range;
-      return bioShiftGroups(punches,roster).filter(g=>(!ra||g.date>=ra)&&(!rb||g.date<=rb)).map(r=>{const first=r.list[0],last=r.list[r.list.length-1];
+      const want=filter.shift||'';
+      return bioShiftGroups(punches,roster).filter(g=>(!ra||g.date>=ra)&&(!rb||g.date<=rb)&&(!want||g.shift===want||g.shift==='Both')).map(r=>{const first=r.list[0],last=r.list[r.list.length-1];
         const mins=r.list.length>1?Math.round((new Date(last.punch_at)-new Date(first.punch_at))/60000):0;
         return {...r,first,last,hours:mins?`${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m`:'—',name:r.employee_id?empName(empById[String(r.employee_id)]):`Machine code ${r.emp_code} — not linked`};})
         .sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.shift).localeCompare(String(b.shift))||String(a.name).localeCompare(String(b.name)));
-    },[punches,roster,range,empById]);
+    },[punches,roster,range,empById,filter.shift]);
     const bioWhen=(p,date)=>p.punch_date===date?bioTime(p.punch_at):`${formatDateIN(p.punch_date).slice(0,5)} ${bioTime(p.punch_at)}`;
     const shiftLabel=r=>r.shift==='Both'?'Day + Night':r.shift==='Night'?'Night (7 PM–7 AM)':r.shift==='Day'?'Day (7 AM–7 PM)':(r.shift||'—');
 
@@ -24305,6 +24306,8 @@ Thank you.`;
 
       tab==='Punches'&&h('section',{className:'card'},
         h('div',{className:'bio-filters'},
+          h('label',null,'Shift',h('select',{value:draft.shift||'',onChange:e=>setDraft({...draft,shift:e.target.value})},
+            h('option',{value:''},'All shifts'),h('option',{value:'Day'},'Day (7 AM–7 PM)'),h('option',{value:'Night'},'Night (7 PM–7 AM)'))),
           h('label',null,'Period',h('select',{value:draft.kind,onChange:e=>setDraft({...draft,kind:e.target.value})},['Today','Yesterday','This Week','Month','Period'].map(k=>h('option',{key:k},k)))),
           draft.kind==='Month'?h('label',null,'Month',h('input',{type:'month',value:draft.month,min:'2026-08',onChange:e=>setDraft({...draft,month:e.target.value})})):null,
           draft.kind==='Period'?h('label',null,'From',h(StrictDateInput,{value:draft.from,onChange:e=>setDraft({...draft,from:e.target.value})})):null,
