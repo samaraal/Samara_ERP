@@ -1,6 +1,7 @@
 ## 2.20.43 — 12-11-2026 — Additional Charge (Madhu Mithra: Manager + STD) · Return to Duty card only where needed
 - New **Additional Charge**: a staff member keeps her own role and also holds another one. Madhu Mithra (Manager, Facility Coordinator) now also holds **STD**: STD menu items (Director’s Office, Enquiry Register, Kitchen / Food Stores, Housekeeping indents, full WhatsApp Inbox) added to hers. (SQL 379)
 - Akshi (STD, left without notice) duties moved to Madhu Mithra: Food Management, Enquiry Register default person + her open enquiries, Kitchen / Food Stores cash in-charge (Admin to count and reconcile the cash).
+- Nursing Manager on approved leave: her Stores / department duties now go automatically to Madhu Mithra (STD by additional charge).
 - My Leave & Permission: the **Return to Duty** card is now shown only to staff without a biometric machine number and to the Nursing Manager during a Stores handover — everyone else is marked back on duty by their first punch.
 
 ## 2.20.42 — 12-11-2026 — Back on Duty from the punch · morning late / overtime WhatsApp

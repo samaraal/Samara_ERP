@@ -2,7 +2,8 @@
 -- Manager + STD, from 12-11-2026, because the STD Akshi left without notice). (2) Akshi's STD duties handed to her:
 -- Kitchen / Food Stores cash, Food Management, Enquiry Register default person and open enquiries.
 -- (3) my_biometric_linked(): the Return to Duty card is shown only to staff without a machine number (and the
--- Nursing Manager during a Stores handover). Needs SQL 130, 183, 186, 196, 239, 242, 339. Run once; safe to run again.
+-- Nursing Manager during a Stores handover). (4) Nursing Manager leave cover goes automatically to the STD by
+-- Additional Charge. Needs SQL 130, 183, 186, 196, 239, 242, 339. Run once; safe to run again.
 begin;
 
 create table if not exists public.staff_additional_charges(
@@ -129,6 +130,17 @@ begin
             jsonb_build_object('from', ak.id, 'from_name', ak.full_name, 'to', m.id, 'to_name', m.full_name,
                                'note', 'Akshi left on 11-11-2026 without handing over; cash in hand to be counted and reconciled by Admin.'));
   end if;
+end $$;
+
+-- Nursing Manager on approved leave -> her Stores / department duties go automatically to the STD, including an STD by
+-- Additional Charge (Madhu Mithra), never to the Nursing Manager herself.
+do $$ declare def text; n int; begin
+  select pg_get_functiondef('public.sync_department_leave_cover()'::regprocedure) into def;
+  if position('samara_has_extra_role' in def) > 0 then return; end if;
+  n := (length(def) - length(replace(def, '(a.role=''Manager'' and p.role=''STD'')', ''))) / length('(a.role=''Manager'' and p.role=''STD'')');
+  if n <> 2 then raise exception 'sync_department_leave_cover: expected 2 STD cover checks, found %', n; end if;
+  execute replace(def, '(a.role=''Manager'' and p.role=''STD'')',
+                  '(a.role=''Manager'' and (p.role=''STD'' or public.samara_has_extra_role(p.id,''STD'')) and p.id<>a.id)');
 end $$;
 
 notify pgrst, 'reload schema';

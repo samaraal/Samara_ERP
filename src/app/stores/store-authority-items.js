@@ -16,7 +16,7 @@
     const now=Date.now();
     const active=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()<=now)||null;
     const scheduled=assignments.find(x=>x.status==='Active'&&new Date(x.effective_from).getTime()>now)||null;
-    const delegated=Boolean(active),isSTD=profile?.role==='STD';
+    const delegated=Boolean(active),isSTD=hasDutyRole(profile,'STD');
     const controller=(isNursingManagerProfile(profile)&&!delegated)||(isSTD&&delegated);
     if(profile?.__nurseMode)return {assignments,active,scheduled,delegated,controller:false,canApprove:false,ready,reload}; // 2.18.44: Nurse view = Nurse login
     return {assignments,active,scheduled,delegated,controller,canApprove,ready,reload};
