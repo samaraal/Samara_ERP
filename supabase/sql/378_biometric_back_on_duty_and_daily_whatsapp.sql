@@ -194,3 +194,11 @@ commit;
 
 select public.samara_auto_back_on_duty() as back_on_duty_first_run;
 select public.attendance_daily_summary(((now() at time zone 'Asia/Kolkata')::date) - 1) as yesterday_preview;
+
+-- AFTER deploying the Edge Function attendance-daily-dispatch (Verify JWT OFF): morning job + template submission (done 12-11-2026)
+-- do $$ declare base_cmd text; new_cmd text; begin
+--   select command into base_cmd from cron.job where jobname = 'samara-clinical-push-dispatch' limit 1;
+--   new_cmd := replace(base_cmd, '/functions/v1/clinical-push-dispatch', '/functions/v1/attendance-daily-dispatch');
+--   perform cron.schedule('samara-attendance-daily-whatsapp', '1,31 4,5 * * *', new_cmd);   -- 9:31 / 10:01 / 10:31 / 11:01 IST
+--   execute replace(new_cmd, '''{}''::jsonb', '''{"mode":"submit_template"}''::jsonb');      -- Meta template samara_staff_attendance_daily
+-- end $$;
