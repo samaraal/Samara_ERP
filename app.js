@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.39';
+  const APP_VERSION = '2.20.40';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -44591,7 +44591,7 @@ function ShiftManagement({profile}){
         const flags=[];if(late>15)flags.push(`Came ${fm(late)} late`);if(early>15)flags.push(`Left ${fm(early)} early`);
         if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out punch');
         return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:over?`In ${bioTime(g.in)} · Out ${g.out?bioTime(g.out):'—'}`:`In ${bioTime(g.in)} · on duty`,flags:flags.join(' · '),
-          title:`Biometric: In ${bioTime(g.in)}${g.out?` · ${over?'Out':'Last punch'} ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?' · '+flags.join(' · '):''} · ${g.count} punch(es)`};
+          title:`In ${bioTime(g.in)}${g.out?` · ${over?'Out':'Last punch'} ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?'\n'+flags.join('\n'):''}\n${g.count} punch${g.count===1?'':'es'}`};
       }
       if(code==='A'){const r=(byKey.get(`${s.id}|${date}`)||[])[0];if(r&&r.auto_absent)return {kind:'absent',short:'auto',text:'auto: no punch',title:'Marked Absent automatically — no biometric punch and no approved leave. Change it in “Fill missed past days” if this is wrong.'}}
       if(gs.length){const g=gs[0];return {kind:'extra',short:'⚑',text:'⚑ Punched',title:`Not rostered for a Day / Night duty, but punched: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}`:''} (${g.shift||'shift'})`}}
@@ -44727,7 +44727,7 @@ function ShiftManagement({profile}){
                 const code=c.onLeave?'L':c.saved==='MULTI'?'M':c.value;
                 const ai=c.changed?null:attInfo(s,date,c.onLeave?'L':c.value);
                 const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':c.pastAbsent?'Past day: tap to change Day / Night / Absent (reason asked on save)':date<today?`Past date (view only)${c.lv?` · ${lvTitle(c.lv)}`:''}`:c.lv?`${lvTitle(c.lv)} · Tap: Day → Night → Off → Absent → empty`:'Tap: Day → Night → Off → Absent → empty';
-                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${!c.onLeave&&isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-half':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''} ${ai?.kind==='extra'?'rg-extra':ai?.kind==='absent'?'rg-noshow':''}`,disabled:c.locked||busy,title:ai?`${title}\n${ai.title}`:title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
+                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${!c.onLeave&&isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-half':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''} ${ai?.kind==='extra'?'rg-extra':ai?.kind==='absent'?'rg-noshow':''}`,disabled:c.locked||busy,title:ai?ai.title:title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
                   c.joinDay?h('span',{className:'rg-join',title:`Joined on ${formatDateIN(date)}`},'Joined'):null,
                   !c.onLeave&&c.lv?h('span',{className:`rg-flag ${isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-flag-half':''}`},flagOf(c.lv)):null,
                   ack?h('span',{className:'rg-ack'},'✓'):null,

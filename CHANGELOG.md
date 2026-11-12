@@ -1,3 +1,6 @@
+## 2.20.40 — 12-11-2026 — Simpler hover on the Duty Roster
+- Hovering a cell with biometric data shows only In / Out, Came late / Left early and the punch count (no "Tap: Day → Night…" hint).
+
 ## 2.20.39 — 12-11-2026 — Clearer biometric timing words
 - Duty Roster cells: "In 10:32 · Out 18:40", then "Came 3 hrs 33 min late" / "Left 1 hr 10 min early" on their own lines; "No out punch".
 - Biometric Punches: column renamed **Timing** with the same wording ("On time", "Came on time · on duty").
