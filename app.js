@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.51';
+  const APP_VERSION = '2.20.52';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -40902,18 +40902,14 @@ function RoomsBeds({profile,onNavigate}){
                 h('span',null,it),
                 h('button',{type:'button',className:'fi-chip-x',title:'Remove','aria-label':`Remove ${it}`,onClick:()=>removeItem(i)},'×'))):h('span',{className:'fi-empty'},'No items yet — choose from the list below, e.g. Idli, then Sambar, then Coconut Chutney.')),
             h('div',{className:'fi-add'},
-              h('select',{value:pickCat?pick:pick==='__other'?pick:'','aria-label':'Choose the menu',onChange:e=>{const v=e.target.value;setPick(v)}},
-                h('option',{value:''},'＋ Add food item — choose the menu…'),
+              // 2.20.52: one list — each menu is a heading with its dishes under it
+              h('select',{value:pick==='__other'?pick:'','aria-label':'Add food item',onChange:e=>{const v=e.target.value;if(v==='__other'){setPick(v);return}addItem(v)}},
+                h('option',{value:''},'＋ Add food item…'),
                 Object.entries(groups).flatMap(([g,list])=>[
-                  list.length?h('option',{key:'h-'+g,value:`__cat:${g}:`},`${HEAD_LABEL[g]} (${list.length})`):null,
-                  ...Object.entries(cats[g]||{}).map(([c,l])=>h('option',{key:'c-'+g+c,value:`__cat:${g}:${c}`},`${g==='Side'?'🥗':'▸'} ${c} (${l.length})`))]),
-                earlierItems.length?h('option',{value:'__cat:earlier:'},`🕘 Added earlier (${earlierItems.length})`):null,
+                  list.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'h-'+g,label:HEAD_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
+                  ...Object.entries(cats[g]||{}).map(([c,l])=>l.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'c-'+g+c,label:`${g==='Side'?'🥗':'▸'} ${c}`},l.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null)]),
+                earlierItems.filter(x=>!form.items.includes(x)).length?h('optgroup',{label:'🕘 Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
                 h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
-              pickCat&&h('div',{className:'fi-other'},
-                h('select',{autoFocus:true,value:'','aria-label':`Choose from ${catTitle}`,onChange:e=>{if(e.target.value)addItem(e.target.value)}},
-                  h('option',{value:''},`Choose from ${catTitle}…`),
-                  catItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))),
-                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>setPick('')},'Cancel')),
               pick==='__other'&&h('div',{className:'fi-other'},
                 h('small',{style:{display:'block',width:'100%',color:'#8a5a70'}},'Type the item, or tap 🎤 Voice and say it in Tamil or English — then tap Add.'),
                 h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),

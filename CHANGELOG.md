@@ -1,3 +1,6 @@
+## 2.20.52 — 12-11-2026 — Food menu back to one list
+- Add food item is one list again: each menu is a heading (🍚 Main items, 🥣 Sides / curries, 🥗 Poriyal, 🥗 Kootu … 🍌 Others, 🕘 Added earlier) with its dishes listed under it — tap a dish to add it.
+
 ## 2.20.51 — 12-11-2026 — Food menu in two steps for every meal
 - Add food item: first choose the menu (🍚 Main items · 🥣 Sides / curries · 🥗 Poriyal / Kootu / Keerai … · 🍌 Others · 🕘 Added earlier), then the dish from that menu’s own list — Breakfast, Lunch and Dinner alike.
 
