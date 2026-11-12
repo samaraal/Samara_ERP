@@ -1,3 +1,11 @@
+## 2.20.56 — 12-11-2026 — Ward Stock: the cupboard for both shifts (no more indents for cupboard items)
+- **Night Stock is renamed Ward Stock** (Nursing → Ward Stock) and is used on the Day shift too. (SQL 390)
+- At every shift change (07:00 and 19:00): the outgoing nurse does the **Closing Count**, the incoming nurse does the **Opening Count / Accept** (blind counts — Matched / Not matched). In the last hour of a shift, Accept is for the next shift; in the first 2 hours, Closing Count is for the shift that has just ended.
+- **Use for a Guest** any time on either shift (Nurses, and the Nursing Manager); late entry for a recent shift that is not verified yet (reason required).
+- **Morning Verification** once a day by the Nursing Manager (or the Day duty nurse when she is off) covers every shift that has ended since the last verification. Adding items stays locked until it is done.
+- **Raise Indent:** items kept in Ward Stock are no longer listed and cannot be indented (blocked in the database too) — take them from the cupboard. Items not in the cupboard are indented as before.
+- Alerts: opening count not done 30 min into a shift, closing count due in the last 30 min, previous shift not closed (Nursing Manager), morning verification due (verifier) / not done by 10:00 (Admin), count differences, shift returned to the nurse.
+
 ## 2.20.55 — 12-11-2026 — Night Stock: blind counts for nurses · pink boxes
 - Nurse logins (night nurse, and the Day duty nurse when she verifies) no longer see any Night Stock quantity — no balances, levels, top-ups or count figures. Night Stock now shows them only the item names (S.No, A–Z); Use for a Guest lists item names only. (SQL 389)
 - Counts: the nurse types what she physically counts and taps Check — each item shows ✓ Matched or ✗ Not matched (red). On a mismatch she must recount and Check again; only if it still does not match can she save, with a note (the Nursing Manager is alerted). The Nursing Manager / Admin still see the ERP figure and the difference.

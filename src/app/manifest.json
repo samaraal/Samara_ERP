@@ -435,8 +435,8 @@
   },
   {
    "file": "nursing/night-stock.js",
-   "about": "Night Stock: night-shift cupboard — Nursing Manager top-up, nurse opening/closing counts, Guest use (auto-received indent), morning verification (SQL 387)",
-   "lines": 271
+   "about": "Ward Stock (was Night Stock): cupboard for both shifts — Nursing Manager adds items, blind opening/closing counts at every shift change, Guest use (auto-received indent), daily morning verification (SQL 387–390)",
+   "lines": 280
   },
   {
    "file": "nursing/duty-assignment.js",
@@ -536,7 +536,7 @@
   {
    "file": "stores/patient-consumables.js",
    "about": "Patient consumables",
-   "lines": 181
+   "lines": 354
   },
   {
    "file": "stores/housekeeping-workspace.js",

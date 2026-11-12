@@ -54,6 +54,9 @@
     const [allocations,setAllocations]=React.useState([]),[returns,setReturns]=React.useState([]),[consumptions,setConsumptions]=React.useState([]),[usageCharges,setUsageCharges]=React.useState([]),[consumptionError,setConsumptionError]=React.useState('Loading patient consumption…');
     const [form,setForm]=React.useState({patient_id:'',category:'',store_item_id:'',item_name:'',requested_qty:'1',unit:'Nos',request_remarks:''});
     const [masterItems,setMasterItems]=React.useState([]);
+    // 2.20.56: items kept in the Ward Stock cupboard are not indented — they are taken from the cupboard (SQL 390).
+    const [wardIds,setWardIds]=React.useState(()=>new Set());
+    React.useEffect(()=>{let live=true;client.from('night_stock_items').select('store_item_id').eq('active',true).then(r=>{if(live&&!r.error)setWardIds(new Set((r.data||[]).map(x=>String(x.store_item_id))))},()=>{});return()=>{live=false}},[]);
     const indentCategoryOf=r=>{const m=(masterItems||[]).find(x=>String(x.id)===String(r.store_item_id));return m?.item_category||'Consumables'};
     const rows=categoryFilter?(masterItems.length?allIndentRows.filter(r=>indentCategoryOf(r)===categoryFilter):[]):allIndentRows;
     const storeController=authority.controller,nurse=profile?.role==='Nurse'&&!isNursingManagerProfile(profile);
@@ -296,7 +299,7 @@
     const codeOfStock=x=>masterById.get(String(x.item_id))?.item_code||'';
     const alphaSort=(a,b)=>String(a||'').localeCompare(String(b||''),'en',{sensitivity:'base',numeric:true});
     const indentCategories=[...new Set(stock.map(categoryOfStock))].sort(alphaSort);
-    const options=stock.filter(x=>!form.category||categoryOfStock(x)===form.category).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
+    const options=stock.filter(x=>(!form.category||categoryOfStock(x)===form.category)&&!wardIds.has(String(x.item_id))).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
     useScrollToFocused(focusId?`indent-row-${focusId}`:'',!!focusId&&visible.length>0);
     if(section==='none')return null;
     return h('div',null,
@@ -313,7 +316,7 @@
           h('div',{className:'field'},h('label',null,'Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),disabled:!form.category},h('option',{value:''},form.category?`Select ${form.category} item (${options.length})`:'Select a category first'),options.map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${x.item_name} · Store balance ${x.balance_qty} ${x.unit}`)))),
           h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'1',step:'1',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
-        ),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),
+        ),wardIds.size>0&&h('p',{className:'small-note'},`${wardIds.size} items kept in the Ward Stock cupboard are not listed here — take them from the cupboard and record them in Nursing → Ward Stock → Use for a Guest (no indent needed).`),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),
         h('div',{style:{margin:'8px 0 14px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!form.item_name,onClick:addIndentLine},'+ Add item to list'),h('small',{style:{marginLeft:'10px',color:'#7a5566'}},'Add each item, then initiate all together.')),
         indentLines.length>0&&h('div',{className:'field'},h('label',null,`Items in this indent (${indentLines.length})`),
           h('div',{className:'table-wrap'},h('table',{className:'table'},

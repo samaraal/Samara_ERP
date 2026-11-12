@@ -858,7 +858,7 @@
           page==='Special Nurse'&&h(SpecialNurseManagement,{profile}),
           (page==='Approval Requests'||page==='Nursing Procedures')&&h(NursingProcedures,{profile}),
           page==='Charge Register'&&h(NursingChargeRegister,{profile}),
-          page==='Night Stock'&&h(NightStock,{profile,onNavigate:setPage}), // 2.20.53 (SQL 387)
+          (page==='Ward Stock'||page==='Night Stock')&&h(NightStock,{profile,onNavigate:setPage}), // 2.20.53 Night Stock → 2.20.56 Ward Stock (SQL 387–390)
           page==='Shift Handover'&&h(ShiftHandover,{profile,onNavigate:setPage}),
           page==='Incidents'&&h(Incidents,{profile,onNavigate:setPage}),
           page==='Documents'&&h(Documents,{profile}),
