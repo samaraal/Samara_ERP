@@ -1,3 +1,8 @@
+## 2.20.36 — 12-11-2026 — Biometric attendance in the **Duty Roster** and **Payroll**
+- Duty Roster grid (Duty Assignment): each rostered Day / Night cell (today and past) shows the biometric result — ✓ In time (present), Late / Early (over 15 min) / No out, ✗ No punch (rostered, red frame), ⚑ Punched (orange frame: punched without a Day / Night duty). Hover a cell for In / Out times. New line under the grid: "Present by biometric — D present/rostered · N present/rostered".
+- Payroll: new Biometric column (days punched, late count, ⚠ rostered days without a punch, ⚑ punched days beyond the roster) and a line in each employee's salary screen. Days worked still come from the Duty Roster (Admin decides).
+- Frontend only (uses SQL 371 / 376).
+
 ## 2.20.35 — 12-11-2026 — Biometric Attendance → Punches: S.No restarts for every date (last number = staff present that day); a date line shows "N present (Day x · Night y)". Machine numbers set to Ignore are not counted. Frontend only.
 
 ## 2.20.34 — 12-11-2026 — Biometric Attendance → Punches: with "All shifts" the list is grouped under date + shift headings (Day shift / Night shift · N staff); next-morning Out shown as time + "next day"; no Out punch yet = "On duty" (shift still running) or "No out punch" (shift over). Frontend only.

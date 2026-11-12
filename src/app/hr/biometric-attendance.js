@@ -44,6 +44,23 @@
     });
     return [...groups.values()];
   }
+  // 2.20.36: shared by the Duty Roster grid and Payroll — biometric shifts (employee_id = ERP profile id) for a period.
+  // Returns [] when the user may not see Biometric Attendance or SQL 371 / 376 are missing.
+  async function samaraAttendanceShifts(from,to){
+    try{
+      const [r,ro]=await Promise.all([client.rpc('attendance_rpc',{p_action:'punches',p:{from:bioAddDays(from,-1),to:bioAddDays(to,1)}}),
+        client.rpc('attendance_roster',{p_from:bioAddDays(from,-1),p_to:bioAddDays(to,1)})]);
+      if(r.error)return [];
+      return bioShiftGroups(r.data?.punches||[],ro.error?[]:(ro.data||[])).filter(g=>g.employee_id&&g.date>=from&&g.date<=to).map(g=>{
+        const first=g.list[0],last=g.list[g.list.length-1];
+        return {...g,in:first.punch_at,out:g.list.length>1?last.punch_at:null,count:g.list.length};});
+    }catch(_){return []}
+  }
+  // Shift times (IST): Day 07:00-19:00 on the date, Night 19:00 on the date - 07:00 next day.
+  function samaraShiftWindow(date,shift){
+    const night=shift==='Night'||shift==='N';
+    return {start:new Date(`${date}T${night?'19':'07'}:00:00+05:30`),end:night?new Date(`${bioAddDays(date,1)}T07:00:00+05:30`):new Date(`${date}T19:00:00+05:30`)};
+  }
   const bioTime=v=>{try{return new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Kolkata'})}catch(_){return '—'}};
   // 2.20.24: Staff Sync — the ERP employee list drives who can use the machine (SQL 372, Edge Function
   // "biometric-staff-sync", PC program tools/biometric-sync/Samara-Biometric-Sync.ps1 every 5 minutes).

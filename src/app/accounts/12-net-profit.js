@@ -214,13 +214,23 @@
   function PayrollPanel({month,onChanged}){
     const today=todayISOIndia(),end=npMonthEnd(month);
     const [rows,setRows]=React.useState(null),[sel,setSel]=React.useState(''),[d,setD]=React.useState(null),[busy,setBusy]=React.useState(false),[msg,setMsg]=React.useState(''),[confirmSend,setConfirmSend]=React.useState(false);
+    const [bio,setBio]=React.useState(null); // 2.20.36: biometric attendance beside the roster (shown only; Payroll still uses the roster)
     useStepBack(()=>{if(sel){setSel('');setMsg('');return true}return false});
     async function load(){
       const r=await client.rpc('samara_payroll_rpc',{p_action:'month',p:{month}});
       if(r.error){setRows([]);setMsg(/samara_payroll_rpc/i.test(r.error.message)?'The Payroll database update (SQL 310) has not been run yet.':r.error.message);return}
       setRows(r.data||[]);
+      const to=end<today?end:today;
+      if(month<=today){const sh=await samaraAttendanceShifts(month,to);const m={};sh.forEach(g=>{const k=String(g.employee_id);(m[k]=m[k]||{dates:new Set(),late:0,noOut:0});m[k].dates.add(g.date);
+        const w=samaraShiftWindow(g.date,g.shift);if((new Date(g.in)-w.start)/60000>15)m[k].late++;if(!g.out&&Date.now()>w.end.getTime()+3600000)m[k].noOut++;});setBio(sh.length?m:{});}
+      else setBio({});
     }
-    React.useEffect(()=>{setSel('');setD(null);setRows(null);setMsg('');load()},[month]);
+    React.useEffect(()=>{setSel('');setD(null);setRows(null);setBio(null);setMsg('');load()},[month]);
+    const bioOf=x=>bio&&bio[String(x.id)]?{days:bio[String(x.id)].dates.size,late:bio[String(x.id)].late,noOut:bio[String(x.id)].noOut}:{days:0,late:0,noOut:0};
+    const bioCell=x=>{if(bio===null)return '…';const b=bioOf(x);const diff=Number(x.roster_days||0)-b.days;
+      return h('span',null,`${b.days} day(s) punched`,b.late?h('small',{style:{display:'block',color:'#9a5b00'}},`${b.late} late`):null,
+        end<today&&Number(x.roster_entries)>0&&diff>0?h('small',{style:{display:'block',color:'#b42318',fontWeight:700}},`⚠ ${diff} rostered day(s) without punch`):null,
+        end<today&&b.days>Number(x.roster_days||0)?h('small',{style:{display:'block',color:'#b45309',fontWeight:700}},`⚑ ${b.days-Number(x.roster_days||0)} more than roster`):null)};
     const emp=(rows||[]).find(x=>x.id===sel);
     function openEmp(x){
       setSel(x.id);setMsg('');setConfirmSend(false);
@@ -284,6 +294,8 @@
           :h('div',{className:'notice'},onRoster
             ?`From the Duty Roster${Number(emp.avail_days)<30?` (from joining, ${formatDateIN(emp.joined)})`:''}: worked ${emp.roster_days} day(s) · weekly offs ${emp.roster_offs} ·${Number(emp.roster_absent)>0?` absent ${emp.roster_absent} (loss of pay) ·`:''} approved casual leave ${emp.leave_cl} (paid) · other leave ${emp.leave_other} (unpaid)${Number(emp.roster_half)>0?` · half-day leave ${emp.roster_half} date(s) (½ worked each, added to days worked)`:''}${Number(emp.perm_count)>0?` · permissions ${emp.perm_count}${Number(emp.perm_count)>2?` (${Number(emp.perm_count)-2} beyond 2 → ${0.5*(Number(emp.perm_count)-2)} day loss of pay)`:' (within 2 free)'}`:''} · every other day = loss of pay. Correct any number before saving.`
             :`⚠ No Duty Roster entries for this month${Number(emp.avail_days)<30?` (since joining on ${formatDateIN(emp.joined)})`:''} — days worked and weekly offs are 0, so the whole month is loss of pay. Add her duties in the Duty Roster (then Refresh), or type the days if she actually worked.`),
+        bio!==null&&h('div',{className:'notice',style:{marginTop:6,background:'#f3fbf6',borderColor:'#bfe6cd'}},(()=>{const b=bioOf(emp);const diff=Number(emp.roster_days||0)-b.days;
+          return `Biometric (machine): punched on ${b.days} day(s) this month${b.late?` · ${b.late} late (over 15 min)`:''}${b.noOut?` · ${b.noOut} without Out punch`:''}${Number(emp.roster_entries)>0&&diff>0?` · ⚠ ${diff} rostered day(s) without a punch — check before saving`:''}${b.days>Number(emp.roster_days||0)?` · ⚑ ${b.days-Number(emp.roster_days||0)} punched day(s) more than the roster`:''}. Days worked below still come from the Duty Roster.`})()),
         Number(emp.avail_days)<30&&h('div',{className:'notice',style:{marginTop:6}},`Joined on ${formatDateIN(emp.joined)}${emp.joining_known?'':' (date of joining not entered in HR — taken as the day added to the ERP)'} · salary only for ${emp.avail_days} of 30 days this month.`),
         h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:'14px',marginTop:'10px'}},
           h('div',{style:box},h('h4',{style:{margin:'0 0 10px',color:'#5d1740'}},'1. Days (30-day month)'),
@@ -329,13 +341,14 @@
     return h(Section,{title:`Payroll · ${npMonthLabel(month)}`,subtitle:`30-day month · weekly offs up to 4 paid · 1 casual leave a month (unused carried forward) · other leave unpaid. ${saved.length} of ${(rows||[]).length} saved · ${npMoney(total)}.`},
       msg?h('div',{className:`message ${msg.startsWith('✓')?'success':'error'}`},msg):null,
       h('div',{className:'table-wrap'},h('table',{className:'table'},
-        h('thead',null,h('tr',null,['S.No','Employee','HR Salary','Roster','Status',''].map(x=>h('th',{key:x},x)))),
+        h('thead',null,h('tr',null,['S.No','Employee','HR Salary','Roster','Biometric','Status',''].map(x=>h('th',{key:x},x)))),
         h('tbody',null,(rows||[]).length?(rows||[]).map((x,i)=>h('tr',{key:x.id,style:{cursor:'pointer'},onClick:()=>openEmp(x)},
           h('td',null,String(i+1)),h('td',null,h('strong',null,x.name),h('small',{style:{display:'block',color:'#8a5a70'}},`${x.designation||''}${x.department?' · '+x.department:''}`)),
           h('td',null,x.salary!=null?npMoney(x.salary):h('span',{style:{color:'#b42318'}},'Not set')),
           h('td',null,Number(x.roster_entries)>0?`${x.roster_days} duty · ${x.roster_offs} off${Number(x.roster_absent)>0?` · ${x.roster_absent} absent`:''}`:h('span',{style:{color:'#9a6700'}},'Not on roster')),
+          h('td',null,bioCell(x)),
           h('td',null,x.saved?h('span',{className:'badge success'},`Saved · ${npMoney(x.saved.net_pay)}${x.saved.payslip_sent_at?' · 📩':''}`):h('span',{className:'badge'},'Not saved')),
-          h('td',{style:{color:'#b01867',fontWeight:700,whiteSpace:'nowrap'}},x.saved?'View →':'Open →'))):h('tr',null,h('td',{colSpan:6,className:'empty'},'No employees found.'))))));
+          h('td',{style:{color:'#b01867',fontWeight:700,whiteSpace:'nowrap'}},x.saved?'View →':'Open →'))):h('tr',null,h('td',{colSpan:7,className:'empty'},'No employees found.'))))));
   }
   function MonthlyExpenses({profile,onNavigate}){
     const isAdmin=profile?.role==='Admin';

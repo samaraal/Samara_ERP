@@ -44,6 +44,13 @@
       .rg-flag{position:absolute;top:2px;left:4px;font-size:10px}
       .rg-flag-half{color:#b42318;font-weight:800}
       .rg-cell.rg-half{background-image:linear-gradient(135deg,transparent 50%,rgba(253,226,226,.95) 50%)}
+      .rg-att{display:block;font-size:9px;font-weight:800;line-height:1.15;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+      .rg-att-ok{color:#0b7a4b}.rg-att-warn{color:#9a5b00}.rg-att-absent{color:#b42318}.rg-att-extra{color:#b45309}
+      .rg-N .rg-att-ok{color:#9ff0c0}.rg-N .rg-att-warn{color:#ffd28a}.rg-N .rg-att-absent{color:#ffb3b3}
+      .rg-cell.rg-extra{outline:2px solid #f59e0b;outline-offset:-2px}
+      .rg-cell.rg-noshow{box-shadow:inset 0 0 0 2px #d92d20}
+      .rg-att-row td{background:#f3fbf6;font-size:11px;font-weight:700;color:#14532d;padding:4px 2px}
+      .rg-att-row .rg-name{background:#f3fbf6}
       .rg-total{font-size:12px;color:#5d4a54;padding:4px 2px!important;white-space:normal!important}
       .rg-table col.rg-c-name{width:170px}.rg-table col.rg-c-total{width:78px}
       .rg-s{display:none}.rg-compact .rg-l{display:none}.rg-compact .rg-s{display:inline}
@@ -90,6 +97,7 @@
     const [staff,setStaff]=React.useState([]);
     const [rows,setRows]=React.useState([]); // duty_assignments for [start-days, end]
     const [leave,setLeave]=React.useState([]);
+    const [att,setAtt]=React.useState([]); // 2.20.36: biometric shifts (HR → Biometric Attendance)
     const [loading,setLoading]=React.useState(true);
     const [error,setError]=React.useState('');
     const [draft,setDraft]=React.useState({}); // key `${staffId}|${date}` -> 'D'|'N'|'O'|''
@@ -116,6 +124,7 @@
         ]);
         if(g!==gen.current)return;
         setRows(a);setStaff(e.filter(x=>x.is_active!==false&&!isNonPayrollManagementAccount(x)).filter(notExcludedFromRoster(rosterOff)));setLeave(l);
+        if(start<=today)samaraAttendanceShifts(start,end<today?end:today).then(x=>{if(g===gen.current)setAtt(x)});else setAtt([]);
       }catch(err){if(g===gen.current)setError(err.message||'Unable to load the roster.')}
       finally{if(g===gen.current)setLoading(false)}
     }
@@ -178,6 +187,24 @@
       const locked=preJoin||(date<today&&!pastOpen&&!pastAbsent)||onLeave||saved==='MULTI'||existing.some(r=>r.status==='Leave granted');
       return {k,existing,lv,onLeave,saved,value,locked,preJoin,pastAbsent,joinDay:!!jd&&date===jd,changed:Object.prototype.hasOwnProperty.call(draft,k)};
     }
+    // 2.20.36: biometric punches on the roster — ✓ present (In time), Late / Early / No out, ✗ no punch, ⚑ punched without a Day / Night duty
+    const attByKey=React.useMemo(()=>{const m=new Map();att.forEach(g=>{const k=`${g.employee_id}|${g.date}`;m.set(k,[...(m.get(k)||[]),g])});return m},[att]);
+    const attInfo=(s,date,code)=>{
+      if(date>today)return null;
+      const gs=attByKey.get(`${s.id}|${date}`)||[];
+      const want=code==='D'?'Day':code==='N'?'Night':'';
+      if(want){
+        const w=samaraShiftWindow(date,want),g=gs.find(x=>x.shift===want||x.shift==='Both')||gs[0];
+        if(!g)return Date.now()<w.start.getTime()+30*60000?null:{kind:'absent',short:'✗',text:'✗ No punch',title:`Rostered ${want} shift — no biometric punch`};
+        const late=Math.round((new Date(g.in)-w.start)/60000),early=g.out?Math.round((w.end-new Date(g.out))/60000):0;
+        const flags=[];if(late>15)flags.push(`Late ${late}m`);if(g.out&&early>15)flags.push(`Early ${early}m`);
+        if(!g.out&&Date.now()>w.end.getTime()+60*60000)flags.push('No out');
+        return {kind:flags.length?'warn':'ok',present:true,short:flags.length?'!':'✓',text:flags.length?flags.join(' · '):`✓ ${bioTime(g.in)}`,
+          title:`Biometric: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}${String(g.out).slice(0,10)!==String(g.in).slice(0,10)?' (next day)':''}`:' · no Out punch'}${flags.length?' · '+flags.join(' · '):''} · ${g.count} punch(es)`};
+      }
+      if(gs.length){const g=gs[0];return {kind:'extra',short:'⚑',text:'⚑ Punched',title:`Not rostered for a Day / Night duty, but punched: In ${bioTime(g.in)}${g.out?` · Out ${bioTime(g.out)}`:''} (${g.shift||'shift'})`}}
+      return null;
+    };
     const NEXT={'':'D',D:'N',N:'O',O:'A',A:'',X:'D'};
     const NEXT_PAST_SAVED={D:'N',N:'A',A:'D'}; // a saved past day is never emptied here
     function tap(s,date){
@@ -283,6 +310,7 @@
         h('span',null,h('b',{className:'rg-A',style:{padding:'2px 6px',borderRadius:'6px'}},'ABSENT'),'Did not come · loss of pay'),
         h('span',null,h('b',{className:'rg-L',style:{padding:'2px 6px',borderRadius:'6px'}},'LEAVE 🔒'),'Approved leave'),
         h('span',null,'30 days / phone: D = Day · N = Night · O = Off · A = Absent · L = Leave'),
+        h('span',null,'Biometric: ✓ 07:02 present (In time) · Late / Early (over 15 min) · No out · ✗ No punch (rostered, did not punch) · ⚑ Punched without a Day / Night duty'),
         h('span',null,'⚠ Leave pending · P Permission (time on hover) · ½L Half-day leave (½ worked + ½ leave) · ✓ Acknowledged by staff · Other = Morning / Evening / General (from the list)'),
         h('span',{'data-no-draft':'',style:{marginLeft:'auto',display:'inline-flex',gap:'6px',alignItems:'center'}},'Minimum per shift: Day', // 2.19.76: period / minimum boxes are settings, not an entry — no 'unsaved entry' reminder
           h('input',{type:'number',min:0,value:minCover.D||'',onChange:e=>setMinCover({...minCover,D:e.target.value}),style:{width:'52px',padding:'2px 4px'}}),'Night',
@@ -305,13 +333,15 @@
                 if(c.value==='D')D++;else if(c.value==='N')N++;else if(c.value==='O')O++;else if(c.value==='A')A++;
                 const ack=c.existing.length===1&&c.existing[0].status==='Acknowledged'&&!c.changed;
                 const code=c.onLeave?'L':c.saved==='MULTI'?'M':c.value;
+                const ai=c.changed?null:attInfo(s,date,c.onLeave?'L':c.value);
                 const title=c.preJoin?`Not yet joined — joined on ${formatDateIN(joinOf(s))}`:c.onLeave?`Approved leave (${c.lv.leave_type||'Leave'})`:c.saved==='MULTI'?'More than one duty on this day — fix it in the List tab':c.pastAbsent?'Past day: tap to change Day / Night / Absent (reason asked on save)':date<today?`Past date (view only)${c.lv?` · ${lvTitle(c.lv)}`:''}`:c.lv?`${lvTitle(c.lv)} · Tap: Day → Night → Off → Absent → empty`:'Tap: Day → Night → Off → Absent → empty';
-                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${!c.onLeave&&isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-half':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''}`,disabled:c.locked||busy,title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
+                return h('td',{key:date},h('button',{type:'button',className:`rg-cell ${code?`rg-${code}`:''} ${c.preJoin?'rg-prejoin':''} ${!c.onLeave&&isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-half':''} ${date<today?'rg-past':''} ${c.changed?'rg-changed':''} ${ai?.kind==='extra'?'rg-extra':ai?.kind==='absent'?'rg-noshow':''}`,disabled:c.locked||busy,title:ai?`${title}\n${ai.title}`:title,'aria-label':`${formalName(s)} ${formatDateIN(date)}: ${c.onLeave?'leave':label(c.value)||'empty'}`,onClick:()=>tap(s,date)},
                   c.joinDay?h('span',{className:'rg-join',title:`Joined on ${formatDateIN(date)}`},'Joined'):null,
                   !c.onLeave&&c.lv?h('span',{className:`rg-flag ${isHalfLeave(c.lv)&&c.lv.status==='approved'?'rg-flag-half':''}`},flagOf(c.lv)):null,
                   ack?h('span',{className:'rg-ack'},'✓'):null,
                   c.onLeave?h(React.Fragment,null,h('span',{className:'rg-l'},'LEAVE'),h('span',{className:'rg-s'},'L')):c.saved==='MULTI'?'2×':h(React.Fragment,null,h('span',{className:'rg-l'},label(c.value)),h('span',{className:'rg-s'},({D:'D',N:'N',O:'O',A:'A',X:'•'})[c.value]||'')),
-                  c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null));
+                  c.value==='X'&&!c.changed&&c.existing[0]?h('small',{className:'rg-l'},String(c.existing[0].shift||'').split(' ')[0]):null,
+                  ai?h('span',{className:`rg-att rg-att-${ai.kind}`},h('span',{className:'rg-l'},ai.text),h('span',{className:'rg-s'},ai.short)):null));
               });
               return h('tr',{key:s.id},
                 h('td',{className:'rg-name'},formalName(s),h('small',null,[s.designation,s.employee_id].filter(Boolean).join(' · ')),
@@ -326,6 +356,17 @@
           h('tr',{className:'rg-cov'},
             h('td',{className:'rg-name'},'On duty (Day · Night)'),
             dates.map(date=>{const cov=coverage(date);return h('td',{key:date,className:short(date,cov)?'rg-short':'',title:short(date,cov)?'Below the minimum per shift':''},`${cov.D}·${cov.N}`)}),
+            h('td',null,'')),
+          h('tr',{className:'rg-att-row'},
+            h('td',{className:'rg-name'},'Present by biometric (Day · Night)'),
+            dates.map(date=>{
+              if(date>today)return h('td',{key:date},'');
+              let rD=0,pD=0,rN=0,pN=0,x=0;
+              scope.forEach(s=>{const c=cellInfo(s,date);if(c.onLeave)return;const ai=attInfo(s,date,c.value);
+                if(c.value==='D'){rD++;if(ai?.present)pD++}else if(c.value==='N'){rN++;if(ai?.present)pN++}else if(ai?.kind==='extra')x++;});
+              return h('td',{key:date,title:`Day: ${pD} of ${rD} rostered punched · Night: ${pN} of ${rN} rostered punched${x?` · ${x} punched without a Day / Night duty`:''}`},
+                date>today?'':h(React.Fragment,null,h('span',{className:'rg-l'},`D ${pD}/${rD} · N ${pN}/${rN}${x?` · ⚑${x}`:''}`),h('span',{className:'rg-s'},`${pD+pN}/${rD+rN}`)));
+            }),
             h('td',null,''))))),
       h('div',{className:'rg-unsaved',role:'status',style:dirtyCount?undefined:{borderColor:'#ead7e1',background:'#fff'}},
         h('strong',{style:{color:dirtyCount?'#790c44':'#7b6871'}},dirtyCount?`${dirtyCount} unsaved change${dirtyCount===1?'':'s'}`:'No changes yet — tap cells to plan, then Save roster'),
