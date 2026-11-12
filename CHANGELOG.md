@@ -1,3 +1,6 @@
+## 2.20.41 — 12-11-2026 — Aligned biometric hover on the Duty Roster
+- Hover shows aligned rows: Shift · In (time — late / on time) · Out (time — early / on time / on duty) · Total punches. Auto-Absent and punched-without-duty cells use the same layout.
+
 ## 2.20.40 — 12-11-2026 — Simpler hover on the Duty Roster
 - Hovering a cell with biometric data shows only In / Out, Came late / Left early and the punch count (no "Tap: Day → Night…" hint).
 
