@@ -140,10 +140,10 @@ create or replace function public.night_stock_post(p_id uuid,p_action text,p_dat
 language plpgsql security definer set search_path=public,pg_temp as $$
 declare a record; acc jsonb:=public.night_stock_access(); cur date:=public.night_stock_night_of(now()); nightd date; nt public.night_stock_nights%rowtype;
   x jsonb; itm public.consumable_store_items%rowtype; q numeric; bal numeric; cbal numeric; cid uuid; lid uuid; iid uuid; prior jsonb; note text; diff boolean:=false;
-  pat public.patients%rowtype; result jsonb:='{}'::jsonb; nowist timestamp:=(now() at time zone 'Asia/Kolkata'); late boolean:=false; n int:=0;
+  pat public.patients%rowtype; res jsonb:='{}'::jsonb; nowist timestamp:=(now() at time zone 'Asia/Kolkata'); late boolean:=false; n int:=0;
 begin
   if p_id is null then raise exception 'Missing request reference.'; end if;
-  select result into prior from public.night_stock_ops where id=p_id;
+  select o.result into prior from public.night_stock_ops o where id=p_id;
   if found then return coalesce(prior,'{}'::jsonb)||jsonb_build_object('already_saved',true); end if;
   select * into a from public.stores_actor();
   if not coalesce((acc->>'ok')::boolean,false) then raise exception 'Night Stock is for Nurses, the Nursing Manager and Admin.'; end if;
@@ -163,7 +163,7 @@ begin
       n:=n+1;
     end loop;
     perform public.record_audit_event('Night Stock list updated','Night Stock',null,jsonb_build_object('items',n),'Success');
-    result:=jsonb_build_object('success',true,'items',n);
+    res:=jsonb_build_object('success',true,'items',n);
 
   -- Top up from the Main Store -----------------------------------------------------------------------
   elsif p_action='topup' then
@@ -189,7 +189,7 @@ begin
     if n=0 then raise exception 'Enter at least one quantity to top up.'; end if;
     update public.night_stock_nights set updated_at=now() where night_date=cur;
     perform public.record_audit_event('Night Stock top-up','Night Stock',cur::text,jsonb_build_object('items',n),'Success');
-    result:=jsonb_build_object('success',true,'items',n,'night_date',cur);
+    res:=jsonb_build_object('success',true,'items',n,'night_date',cur);
 
   -- Return items from the cupboard to the Main Store --------------------------------------------------
   elsif p_action='return_to_store' then
@@ -210,7 +210,7 @@ begin
       n:=n+1;
     end loop;
     if n=0 then raise exception 'Enter at least one quantity to return.'; end if;
-    result:=jsonb_build_object('success',true,'items',n);
+    res:=jsonb_build_object('success',true,'items',n);
 
   -- Night nurse: opening count / accept ---------------------------------------------------------------
   elsif p_action in ('accept','close') then
@@ -219,8 +219,8 @@ begin
       if not public.night_stock_is_night(now()) and extract(hour from nowist)<18 then raise exception 'The opening count is done at the start of the night shift (from 18:00).'; end if;
       nightd:=case when extract(hour from nowist)>=18 then nowist::date else cur end;
     else
-      nightd:=coalesce((p_data->>'night_date')::date,cur);
-      if nightd>cur then raise exception 'Invalid night.'; end if;
+      -- During the night: tonight. After 07:00: the night that has just ended (late closing count).
+      nightd:=case when public.night_stock_is_night(now()) then cur else cur-1 end;
     end if;
     insert into public.night_stock_nights(night_date) values(nightd) on conflict(night_date) do nothing;
     select * into nt from public.night_stock_nights where night_date=nightd for update;
@@ -245,7 +245,7 @@ begin
       update public.night_stock_nights set status='Closed',closed_by=a.actor_id,closed_by_name=a.actor_name,closed_at=now(),close_note=note,close_discrepancy=diff,updated_at=now() where night_date=nightd;
     end if;
     perform public.record_audit_event(case when p_action='accept' then 'Night Stock accepted' else 'Night Stock closing count' end,'Night Stock',nightd::text,jsonb_build_object('items',n,'difference',diff),'Success');
-    result:=jsonb_build_object('success',true,'night_date',nightd,'difference',diff);
+    res:=jsonb_build_object('success',true,'night_date',nightd,'difference',diff);
 
   -- Night nurse: use for a Guest ----------------------------------------------------------------------
   elsif p_action='use' then
@@ -281,7 +281,7 @@ begin
     insert into public.patient_item_consumption(id,indent_id,patient_id,store_item_id,quantity,used_on,recorded_by,recorded_by_name,remarks)
     values(gen_random_uuid(),iid,pat.id,itm.id,q,(now() at time zone 'Asia/Kolkata')::date,a.actor_id,a.actor_name,'Night Stock use');
     perform public.record_audit_event('Night Stock use','Night Stock',lid::text,jsonb_build_object('patient_id',pat.id,'item',itm.item_name,'qty',q,'late',late,'indent_id',iid),'Success');
-    result:=jsonb_build_object('success',true,'indent_id',iid,'balance',bal-q);
+    res:=jsonb_build_object('success',true,'indent_id',iid,'balance',bal-q);
 
   -- Verifier returns the night to the night nurse (to enter missed Guest use) ----------------------------
   elsif p_action='return_to_nurse' then
@@ -291,7 +291,7 @@ begin
     if not found or nt.status in ('Verified','Verified – Discrepancy') then raise exception 'Night not found or already verified.'; end if;
     if note is null then raise exception 'Tell the night nurse what to check.'; end if;
     update public.night_stock_nights set status='Returned',returned_by=a.actor_id,returned_by_name=a.actor_name,returned_at=now(),return_note=note,updated_at=now() where night_date=nightd;
-    result:=jsonb_build_object('success',true);
+    res:=jsonb_build_object('success',true);
 
   -- Morning verification -------------------------------------------------------------------------------
   elsif p_action='verify' then
@@ -320,18 +320,19 @@ begin
     if n=0 then raise exception 'Count every Night Stock item.'; end if;
     update public.night_stock_nights set status=case when diff then 'Verified – Discrepancy' else 'Verified' end,verified_by=a.actor_id,verified_by_name=a.actor_name,verified_at=now(),verify_note=note,verifier_as=acc->>'verify_as',updated_at=now() where night_date=nightd;
     perform public.record_audit_event('Night Stock verified','Night Stock',nightd::text,jsonb_build_object('difference',diff,'verified_as',acc->>'verify_as'),'Success');
-    result:=jsonb_build_object('success',true,'difference',diff);
+    res:=jsonb_build_object('success',true,'difference',diff);
   else
     raise exception 'Unknown Night Stock action.';
   end if;
 
-  insert into public.night_stock_ops(id,action,result) values(p_id,p_action,result);
-  return result;
+  insert into public.night_stock_ops(id,action,result) values(p_id,p_action,res);
+  return res;
 end $$;
 
 -- Alerts for the bell / pop-ups --------------------------------------------------------------------
 create or replace function public.night_stock_alerts() returns table(alert_key text,audience text,title text,detail text,night_date date,alert_at timestamptz)
 language plpgsql stable security definer set search_path=public,pg_temp as $$
+#variable_conflict use_column
 declare acc jsonb:=public.night_stock_access(); nowist timestamp:=(now() at time zone 'Asia/Kolkata'); cur date:=public.night_stock_night_of(now()); prev date; nt public.night_stock_nights%rowtype; h numeric;
 begin
   if not coalesce((acc->>'ok')::boolean,false) or not exists(select 1 from public.night_stock_items where active) then return; end if;
