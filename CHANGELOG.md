@@ -1,3 +1,7 @@
+## 2.20.69 — 13-11-2026 — Clinical Escalations: one row of boxes, Status filter on the register
+- The five boxes (Open escalations, Critical, Medication, Food & Meals, Regularisation) are slightly smaller and fit in one row on computers.
+- The **Status** filter (Open / Resolved / All) now sits in the heading of the **Escalation Register** it filters. Frontend only.
+
 ## 2.20.68 — 13-11-2026 — My To-Do & Follow-up: summary boxes
 - Removed the "Open list →" text from the Due Today / Overdue / Follow-ups Pending / Completed Today boxes. Tapping a box still shows those items in **My List** and now also scrolls down to it. Frontend only.
 

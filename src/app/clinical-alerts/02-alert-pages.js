@@ -602,14 +602,15 @@
     return h(React.Fragment,null,
       h(Section,{title:'Clinical Escalations',subtitle:'Manager / Administrator oversight of unresolved clinical alerts after escalation threshold',actions:h('button',{className:'btn btn-secondary',disabled:busy,onClick:load},busy?'Refreshing…':'Refresh')},
         message&&h('div',{className:'message error'},message),
-        h('div',{className:'grid stats'},
+        // 2.20.69: the five boxes in one row on computers (slightly smaller)
+        h('style',null,'@media(min-width:761px){.grid.stats.esc-stats{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:10px}.esc-stats .card.stat{padding:12px 10px!important;min-height:0!important}.esc-stats .card.stat>span{font-size:13px}.esc-stats .card.stat strong{font-size:24px;margin:2px 0}.esc-stats .card.stat small{font-size:11.5px;line-height:1.25}}'),
+        h('div',{className:'grid stats esc-stats'},
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Open escalations')},h('span',null,'Open escalations'),h('strong',null,unresolved.length),h('small',null,'Requires management oversight')),
           h('button',{type:'button',className:'card stat clinical-red',onClick:()=>setDashboardEscalationFocus('Critical')},h('span',null,'Critical'),h('strong',null,critical),h('small',null,'Critical unresolved items')),
           h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Medication')},h('span',null,'Medication'),h('strong',null,medication),h('small',null,'Medication escalations')),
           h('button',{type:'button',className:'card stat clinical-amber',onClick:()=>setDashboardEscalationFocus('Food & Meals')},h('span',null,'Food & Meals'),h('strong',null,meals),h('small',null,'Meal not recorded / poor intake')),
           h('button',{type:'button',className:'card stat clinical-blue',onClick:()=>setDashboardEscalationFocus('Regularisation')},h('span',null,'Regularisation'),h('strong',null,regularisation),h('small',null,'One-time historical backlog'))
-        ),
-        h('div',{className:'field',style:{maxWidth:'260px',marginTop:'14px'}},h('label',null,'Status'),h('select',{value:filter,onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x))))
+        )
       ),
       escDetail&&h(RowDetailModal,{title:escDetail.row.alert_type||'Clinical escalation',subtitle:'Full details',onClose:()=>setEscDetail(null),fields:escDetailFields(escDetail.row,escDetail)},
         !escDetail.row.resolved_at&&h('div',{className:'employee-actions',style:{marginTop:'12px'}},
@@ -617,6 +618,8 @@
       // 2.20.3: Escalation Register fits the screen — no horizontal scrolling, text wraps.
       h('style',null,'.table-wrap:has(> table.esc-fit-table){overflow-x:visible}table.esc-fit-table{min-width:0!important;width:100%;table-layout:fixed}table.esc-fit-table th,table.esc-fit-table td{white-space:normal!important;overflow-wrap:anywhere;word-break:normal;vertical-align:top;line-height:1.35;padding:8px 6px}table.esc-fit-table .employee-actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex-wrap:nowrap!important;min-width:0!important;width:100%!important;max-width:100%!important}table.esc-fit-table .employee-actions .btn{white-space:normal;padding:6px 6px!important;font-size:13px!important;min-width:0!important;width:100%!important;max-width:100%!important;box-sizing:border-box}table.esc-fit-table tbody tr{cursor:pointer}table.esc-fit-table th:nth-child(1){width:130px}table.esc-fit-table th:nth-child(2){width:64px}table.esc-fit-table th:nth-child(3){width:9%}table.esc-fit-table th:nth-child(4){width:10%}table.esc-fit-table th:nth-child(5){width:7%}table.esc-fit-table th:nth-child(6){width:10%}table.esc-fit-table th:nth-child(7){width:6%}table.esc-fit-table th:nth-child(8){width:9%}table.esc-fit-table th:nth-child(9){width:6%}table.esc-fit-table th:nth-child(11){width:12%}@media(max-width:760px){table.esc-fit-table{table-layout:auto}}'),
       h(LogTable,{title:`Escalation Register (${visible.length})`,subtitle:'Tap a row for full details; acknowledge / resolve with remarks',className:'esc-fit-table',
+        // 2.20.69: Status filter moved here, beside the register it filters
+        actions:h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}},h('label',{htmlFor:'esc-status-filter',style:{fontWeight:800,color:'#5b1636'}},'Status'),h('select',{id:'esc-status-filter',value:filter,style:{minWidth:'140px',minHeight:'40px'},onChange:e=>setFilter(e.target.value)},['Open','Resolved','All'].map(x=>h('option',{key:x,value:x},x)))),
         heads:['Action','Status','Type','Patient','Room / Bed','Nurse','Priority','Escalated At','Elapsed','Reason','Resolution'], // 2.19.20: Action first; 2.20.19: Nurse column, row click = full details, no "Open Source"
         onRowClick:i=>{const r=visible[i];const p=patients[r.patient_id]||{};setEscDetail({row:r,history:true,patientName:p.full_name||'',room:p.id?`${p.room_no||'—'}${p.bed_no?'-'+p.bed_no:''}`:''})},
         rows:visible.map(r=>{

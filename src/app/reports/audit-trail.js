@@ -93,10 +93,10 @@ function AuditTrail(){
     );
   }
 
-  function LogTable({title,subtitle,heads,rows,className='',onRowClick}){
+  function LogTable({title,subtitle,heads,rows,className='',onRowClick,actions}){ // 2.20.69: optional header actions (e.g. a filter)
     const mobileCards=String(className||'').split(/\s+/).includes('samara-mobile-card-table');
     const wideMobileLabels=new Set(['Patient','Service','Action','Provider','Remarks']);
-    return h(Section,{title,subtitle,className},
+    return h(Section,{title,subtitle,className,actions},
       h('div',{className:`table-wrap ${mobileCards?'samara-mobile-card-wrap':''}`.trim()},
         h('table',{className:`table ${className}`.trim()},
           h('thead',null,h('tr',null,heads.map(x=>h('th',{key:x},x)))),
