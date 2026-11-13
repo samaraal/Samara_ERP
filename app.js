@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.88';
+  const APP_VERSION = '2.20.89';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -54767,6 +54767,17 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       client.rpc('night_stock_workspace').then(r=>{if(gone||r.error)return;setWardIds(new Set(((r.data&&r.data.items)||[]).filter(i=>i.active&&i.in_list!==false).map(i=>String(i.store_item_id))))}).catch(()=>{});
       return()=>{gone=true}},[profile?.id]);
     const inWard=itemId=>wardIds.has(String(itemId||''));
+    // 2.20.89: items received a moment ago (Ward Stock use / indent receipt) appear without reloading the page —
+    // received items, allocations and returns are fetched again when the Guest is chosen and when the window gets focus.
+    const refreshReceivedRef=React.useRef(null);
+    const refreshReceived=refreshReceivedRef.current=React.useCallback(async()=>{try{
+      const [e,f,g]=await Promise.all([
+        client.from('patient_consumable_indents').select('id,patient_id,store_item_id,item_name,unit,status,received_qty,received_at').eq('status','Received').order('received_at',{ascending:true}),
+        client.from('bill_charge_store_allocations').select('id,charge_request_id,indent_id,patient_id,store_item_id,allocated_qty').order('created_at',{ascending:true}),
+        client.from('patient_store_returns').select('id,indent_id,patient_id,store_item_id,quantity,status').neq('status','Rejected')]);
+      if(!e.error)setReceivedIndents(e.data||[]);if(!f.error)setStoreAllocations(f.data||[]);if(!g.error)setPatientReturns(g.data||[]);
+    }catch(_){}},[]);
+    React.useEffect(()=>{const on=()=>refreshReceived();window.addEventListener('focus',on);return()=>window.removeEventListener('focus',on)},[refreshReceived]);
     // 2.14.95: Biomedical Equipment register link — equipment issued to each resident (null = register not installed yet)
     const [equipmentLinks,setEquipmentLinks]=React.useState(null);
     const [patientReturns,setPatientReturns]=React.useState([]);
@@ -54843,6 +54854,7 @@ const SR_COMPACT_CSS=`.sr-compact .sr-filters{display:flex;flex-wrap:wrap;gap:8p
       outside_paid_by:'',outside_bill_amount:'',outside_route:'',related_code:''
     });
     const [form,setForm]=React.useState(fresh());
+    React.useEffect(()=>{if(form.patient_id&&typeof refreshReceivedRef.current==='function')refreshReceivedRef.current()},[form.patient_id]);
     const [filter,setFilter]=React.useState({patient_id:initialPatientId,status:'Pending',category:'All',item:'All',date_basis:'Service date'});
     const [period,setPeriod]=React.useState({mode:'All dates',date:todayISOIndia(),month:todayISOIndia().slice(0,7),from:todayISOIndia(),to:todayISOIndia()});
     // 2.18.104: register filters are a DRAFT until Apply. `filter`/`period` stay the applied values,

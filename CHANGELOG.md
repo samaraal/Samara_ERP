@@ -1,3 +1,6 @@
+## 2.20.89 — 2026-11-13
+- Raise Bill / Charge: received items (Ward Stock use, indent receipts) are fetched again when the Guest is chosen and when the window is focused — items recorded a moment ago appear without reloading the page.
+
 ## 2.20.88 — 2026-11-13
 - Patient Consumables ▸ New Patient Indent: new box "🗄️ Used from the Ward Stock cupboard" — pick the Ward Stock item (Gauze, Easy Bath …) and quantity, Record use for this Guest, then Raise Bill / Charge →. No indent for cupboard items.
 
