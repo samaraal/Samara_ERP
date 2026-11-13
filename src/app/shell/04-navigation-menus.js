@@ -136,6 +136,8 @@
           h('button',{type:'button',className:'mobile-drawer-close',onClick:onClose,'aria-label':'Close menu'},'×')
         ),
         h('div',{className:'mobile-drawer-user'},h('div',null,h('strong',null,formalName(profile)),h('small',null,`${profile.login_id||''} · ${profile.designation||profile.role}`)),h('span',{className:'badge'},profile.role)),
+        // 2.20.73: EN | தமிழ் also inside the phone menu (ANMs / caregivers, STD).
+        typeof SamaraLang!=='undefined'&&SamaraLang.allowed(profile)&&h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',margin:'0 14px 10px',padding:'8px 12px',borderRadius:'14px',background:'#fff',border:'1px solid #efd4e0'}},h('span',{style:{fontWeight:800,color:'#59142f'},'data-no-translate':'true'},'Language / மொழி'),h(LanguageSwitch,{profile})),
         h('button',{type:'button',className:`mobile-drawer-home ${page===home?'active':''}`,onClick:()=>onNavigate(home)},(CLINICAL_ROLES.includes(profile.role)||isNursingManagerProfile(profile))?'⌂  Nursing Dashboard':'⌂  Dashboard'),
         h('div',{className:'mobile-drawer-scroll'},sections.map(section=>{const expanded=openSection===section.title;return h('section',{className:`mobile-drawer-group ${expanded?'expanded':''}`,key:section.title},
           h('button',{type:'button',className:'mobile-drawer-group-head',onClick:()=>setOpenSection(current=>current===section.title?'':section.title),'aria-expanded':expanded},h('span',{className:'mobile-drawer-group-icon'},sectionIcon(section.title)),h('span',null,section.title),h('span',{className:'mobile-drawer-group-chevron'},expanded?'−':'+')),

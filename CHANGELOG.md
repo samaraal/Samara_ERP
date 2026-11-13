@@ -1,3 +1,6 @@
+## 2.20.73 — 2026-11-13
+- EN | தமிழ் switch also shown inside the phone menu, under the name card.
+
 ## 2.20.72 — 2026-11-13
 - EN | தமிழ் switch now shown to all ANMs / caregivers (role Caregiver or designation ANM, Caregiver, Senior Caregiver, Nursing Assistant). Not shown to Madhu Mithra.
 
