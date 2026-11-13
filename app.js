@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.92';
+  const APP_VERSION = '2.20.93';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -44387,8 +44387,8 @@ function RoomsBeds({profile,onNavigate}){
       ['Ward Stock now',`${listItems.length} item${listItems.length===1?'':'s'}`,'stock',true],
       ['Use for a Guest',`${usedNow} entr${usedNow===1?'y':'ies'} this shift`,'use',true],
       ['🔄 Shift Handover',curRow?.accepted_at?`${curShift} shift accepted · ${curRow.accepted_by_name}`:mins>=30?`${curShift} shift — NOT accepted yet`:`${curShift} shift — due now`,'handover',acc.manage],
-      ['Opening Count / Accept',acceptRow?.accepted_at?`Done · ${acceptRow.accepted_by_name}`:mins>=660?`Next shift — from now`:mins>=30?'Due now':'At shift start','accept',acc.nurse],
-      ['Closing Count',closeRow?.closed_at?`Done · ${closeRow.closed_by_name}`:mins<120&&prevRow&&!verified(prevRow.status)?'Previous shift — not done!':mins>=660?'Due before shift ends':'At shift end','close',acc.nurse],
+      ['Opening Count / Accept',acceptRow?.accepted_at?`Done · ${acceptRow.accepted_by_name}`:mins>=660?`Next shift — from now`:mins>=30?'Due now':'At shift start','accept',acc.nurse||acc.nm],
+      ['Closing Count',closeRow?.closed_at?`Done · ${closeRow.closed_by_name}`:mins<120&&prevRow&&!verified(prevRow.status)?'Previous shift — not done!':mins>=660?'Due before shift ends':'At shift end','close',acc.nurse||acc.nm],
       ['Morning Verification',toVerify?(toVerify.status==='Returned'?'Returned to nurse':`Waiting · ${pending.length} shift${pending.length===1?'':'s'}`):'Up to date','verify',true],
       ['Register','Shifts & movements','register',true]
     ].filter(b=>b[3]);
@@ -44435,7 +44435,7 @@ function RoomsBeds({profile,onNavigate}){
     if(kind==='accept'&&acceptRow?.accepted_at)return h(Section,{title:titles.accept[0]},h('p',null,`Already accepted by ${acceptRow.accepted_by_name} at ${when(acceptRow.accepted_at)}.`));
     if(kind==='close'&&closeRow?.closed_at)return h(Section,{title:titles.close[0]},h('p',null,`Closing count already done by ${closeRow.closed_by_name} at ${when(closeRow.closed_at)}.`));
     if(kind==='verify'&&!acc.verify)return h(Section,{title:titles.verify[0]},h('p',null,acc.nm_on_day_duty?'The Nursing Manager is on Day duty today — she verifies the Ward Stock.':'Only the Nursing Manager verifies — or, when she is not on Day duty today, the Day-shift duty nurse.'));
-    if(kind!=='verify'&&!acc.nurse)return h(Section,{title:titles[kind][0]},h('p',null,'The nurse on duty does this count from her Nurse login.'));
+    if(kind!=='verify'&&!acc.nurse&&!acc.nm)return h(Section,{title:titles[kind][0]},h('p',null,'The nurse on duty does this count from her Nurse login.')); // 2.20.93: the Nursing Manager can also count (SQL 402)
     async function check(){
       if(!complete){setError('Enter a whole-number count for every item (0 if none).');return}
       setError('');setChecking(true);

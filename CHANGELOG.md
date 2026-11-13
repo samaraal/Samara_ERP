@@ -1,3 +1,6 @@
+## 2.20.93 — 2026-11-13
+- Ward Stock: the Nursing Manager can do the Opening / Closing count from her own (Manager) login too — needed when she covers a nurse shift (SQL 402).
+
 ## 2.20.92 — 2026-11-13
 - Ward Stock count table: the count boxes are no longer cut off at the right edge.
 
