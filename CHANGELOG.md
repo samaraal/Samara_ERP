@@ -1,3 +1,6 @@
+## 2.20.85 — 2026-11-13
+- Raise Bill / Charge (Nurse): Ward Stock cupboard items with a charge rate are listed (🗄️ from Ward Stock cupboard). On Save the Ward Stock use is recorded for the Guest automatically and the charge is raised on it — no separate Use for a Guest step.
+
 ## 2.20.84 — 2026-11-13
 - Ward Stock ▸ Use for a Guest: shows this shift's use entries (time, item, qty, Guest, by, note) with Raise charge; the tile opens for every Ward Stock login.
 - New Patient Indent: the category count now matches the item list (Ward Stock cupboard items are left out of both).

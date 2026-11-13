@@ -215,6 +215,13 @@
     const [approvalCategories,setApprovalCategories]=React.useState(()=>new Set(['Nursing Procedures']));
     const [storeMaster,setStoreMaster]=React.useState([]);
     const [receivedIndents,setReceivedIndents]=React.useState([]);
+    // 2.20.85: Ward Stock cupboard items can be charged directly — Save records the Ward Stock use for the Guest first
+    // (night_stock_post 'use' → received item), then raises the charge on it. No separate "Use for a Guest" step needed.
+    const [wardIds,setWardIds]=React.useState(()=>new Set());
+    React.useEffect(()=>{if(profile?.role!=='Nurse')return;let gone=false;
+      client.rpc('night_stock_workspace').then(r=>{if(gone||r.error)return;setWardIds(new Set(((r.data&&r.data.items)||[]).filter(i=>i.active&&i.in_list!==false).map(i=>String(i.store_item_id))))}).catch(()=>{});
+      return()=>{gone=true}},[profile?.id]);
+    const inWard=itemId=>wardIds.has(String(itemId||''));
     // 2.14.95: Biomedical Equipment register link — equipment issued to each resident (null = register not installed yet)
     const [equipmentLinks,setEquipmentLinks]=React.useState(null);
     const [patientReturns,setPatientReturns]=React.useState([]);
@@ -517,9 +524,9 @@
     function serviceOptions(category,patientId){
       if(storeCategories.includes(category)){
         let items=(storeMaster||[]).filter(x=>(x.item_category||'Consumables')===category&&x.active!==false);
-        if(nurseUser)items=items.filter(x=>receivedUnchargedAvailability(patientId,x.id)>0);
-        const opts=items.sort((a,b)=>samaraAlpha(a.item_name,b.item_name)).map(x=>({value:x.item_name,
-          label:`${x.item_code?`${x.item_code} · `:''}${x.item_name}${nurseUser?` — ${receivedUnchargedAvailability(patientId,x.id)} ${x.unit||''} to charge`:''}`,itemId:x.id}));
+        if(nurseUser)items=items.filter(x=>receivedUnchargedAvailability(patientId,x.id)>0||(inWard(x.id)&&Number(x.charge_rate)>0));
+        const opts=items.sort((a,b)=>samaraAlpha(a.item_name,b.item_name)).map(x=>{const rcv=nurseUser?receivedUnchargedAvailability(patientId,x.id):0;return {value:x.item_name,
+          label:`${x.item_code?`${x.item_code} · `:''}${x.item_name}${nurseUser?(rcv>0?` — ${rcv} ${x.unit||''} to charge${inWard(x.id)?' (+ Ward Stock)':''}`:' — 🗄️ from Ward Stock cupboard'):''}`,itemId:x.id}});
         if(!nurseUser)opts.push({value:'Others',label:'Others'});
         return opts;
       }
@@ -618,8 +625,8 @@
         if(!draft.store_item_id||!stockItem)return 'This item is not linked to Stores stock. Refresh and select the item from the Stores list.';
         if(!(Number(masterItem?.charge_rate)>0))return 'Charge rate is not fixed for this item. Ask Admin / Stores In-charge to set the rate before raising the charge.';
         const receivedAvailable=receivedUnchargedAvailability(draft.patient_id,draft.store_item_id);
-        if(!(receivedAvailable>0))return 'This item has not been received for this patient through the Indent → Hand Over → Received workflow. Complete the patient indent and receipt before raising the charge.';
-        if(Number(draft.quantity)>receivedAvailable)return `Only ${receivedAvailable} ${stockItem.unit||draft.unit||''} received and not yet charged for this patient. Reduce the quantity or complete another indent.`;
+        if(!(receivedAvailable>0)&&!inWard(draft.store_item_id))return 'This item has not been received for this patient through the Indent → Hand Over → Received workflow. Complete the patient indent and receipt before raising the charge.';
+        if(Number(draft.quantity)>receivedAvailable&&!inWard(draft.store_item_id))return `Only ${receivedAvailable} ${stockItem.unit||draft.unit||''} received and not yet charged for this patient. Reduce the quantity or complete another indent.`;
       }
       if(draft.category===OUTSIDE_CATEGORY){
         if(!OUTSIDE_PAID_BY.includes(draft.outside_paid_by))return 'Outside bill: choose who paid the bill.';
@@ -710,6 +717,18 @@
           outside_paid_by:draft.outside_paid_by,outside_route:String(draft.outside_route||'').trim()||null,paid_by_samara:draft.outside_paid_by!=='Family paid directly',
           charge_item_code:isOther?null:((catalog||[]).find(x=>x.category===OUTSIDE_CATEGORY&&x.service_name===effectiveService&&x.is_active!==false)?.charge_code||null)});
       }
+      let indentPool=receivedIndents||[];
+      if(nurseRaised&&storeCategories.includes(draft.category)&&draft.store_item_id&&inWard(draft.store_item_id)){
+        const short=qty-receivedUnchargedAvailability(draft.patient_id,draft.store_item_id);
+        if(short>0){ // 2.20.85: take the missing quantity from the Ward Stock cupboard for this Guest
+          const u=await client.rpc('night_stock_post',{p_id:crypto.randomUUID(),p_action:'use',p_data:{patient_id:draft.patient_id,store_item_id:draft.store_item_id,qty:short,note:'Charged from Raise Bill / Charge'}});
+          if(u.error)throw new Error(`Ward Stock: ${u.error.message}`);
+          const fr=await client.from('patient_consumable_indents').select('id,patient_id,store_item_id,item_name,unit,status,received_qty,received_at').eq('status','Received').eq('patient_id',draft.patient_id).eq('store_item_id',draft.store_item_id).order('received_at',{ascending:true});
+          if(fr.error)throw fr.error;
+          indentPool=[...(receivedIndents||[]).filter(r=>!(String(r.patient_id)===String(draft.patient_id)&&String(r.store_item_id)===String(draft.store_item_id))),...(fr.data||[])];
+          setReceivedIndents(indentPool);
+        }
+      }
       let saved=await client.from('bill_charge_requests').insert(payload).select('*').single();
       // 2.19.17 (SQL 321): the same item for the same Guest within 60 minutes needs a reason
       if(saved.error&&/REPEAT CHECK/i.test(saved.error.message||'')){
@@ -723,7 +742,7 @@
       if(saved.error)throw saved.error;
       if(nurseRaised&&storeCategories.includes(draft.category)&&draft.store_item_id){
         let remaining=qty;
-        const eligible=(receivedIndents||[]).filter(r=>String(r.patient_id)===String(draft.patient_id)&&String(r.store_item_id)===String(draft.store_item_id)&&r.status==='Received').sort((x,y)=>new Date(x.received_at||0)-new Date(y.received_at||0));
+        const eligible=(indentPool||[]).filter(r=>String(r.patient_id)===String(draft.patient_id)&&String(r.store_item_id)===String(draft.store_item_id)&&r.status==='Received').sort((x,y)=>new Date(x.received_at||0)-new Date(y.received_at||0));
         for(const indent of eligible){
           if(remaining<=0)break;
           const rejectedIds=new Set((storeCharges||[]).filter(r=>(r.approval_status||'')==='Rejected'||r.status==='Rejected').map(r=>String(r.id)));
