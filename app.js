@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.70';
+  const APP_VERSION = '2.20.71';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -43978,13 +43978,16 @@ function RoomsBeds({profile,onNavigate}){
         field('Search item',h('input',{value:search,placeholder:'Item name or code',onChange:e=>setSearch(e.target.value)})),
         field('Show',h('select',{value:cat,onChange:e=>setCat(e.target.value)},['All','Consumables','Pharmacy'].map(c=>h('option',{key:c,value:c},c==='All'?'All (Consumables + Pharmacy)':c)))),
         listItems.length>0&&btn('Refill what was used',fill,false,blocked)),
+      // 2.20.71: Note + Save at the top (sticky) so a long list does not need scrolling to save.
+      h('div',{style:{position:'sticky',top:0,zIndex:2,background:'var(--card-bg,#fff)',padding:'8px 0',marginBottom:'8px',borderBottom:'1px solid #e5e7eb',display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'flex-end'}},
+        h('div',{className:'field',style:{marginBottom:0,flex:'1 1 220px'}},h('label',null,'Note (optional)'),h('input',{value:note,onChange:e=>setNote(e.target.value)})),
+        btn(busy?'Saving…':`Save${chosen.length?` (${chosen.length} item${chosen.length===1?'':'s'})`:''}`,save,true,blocked||!chosen.length),
+        chosen.length>0&&btn('Clear',()=>setQ({}))),
       table(['S.No','Item','Category','In Main Store','In Ward Stock now','Add qty'],rows.map((i,k)=>{const low=n(i.central_balance)<=0;return [k+1,
         h('span',null,h('b',null,i.item_name),i.in_list&&i.active&&h('span',{style:{marginLeft:'6px'}},pill('In Ward Stock'))),i.category||'',
         h('span',{style:low?{color:'#b42318',fontWeight:800}:undefined},qty(i.central_balance,i.unit)),i.in_list?qty(i.night_balance,i.unit):'—',
-        h('input',{type:'number',min:0,step:1,max:n(i.central_balance),disabled:blocked||low,inputMode:'numeric',style:{maxWidth:'90px'},value:q[i.store_item_id]??'','aria-label':`Add quantity of ${i.item_name}`,onChange:e=>setQ(v=>({...v,[i.store_item_id]:e.target.value}))})]})),
-      h('div',{className:'field',style:{marginTop:'10px'}},h('label',null,'Note (optional)'),h('input',{value:note,onChange:e=>setNote(e.target.value)})),
-      h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},btn(busy?'Saving…':`Save${chosen.length?` (${chosen.length} item${chosen.length===1?'':'s'})`:''}`,save,true,blocked||!chosen.length),
-        chosen.length>0&&btn('Clear',()=>setQ({}))));
+        h('input',{type:'number',min:0,step:1,max:n(i.central_balance),disabled:blocked||low,inputMode:'numeric',style:{maxWidth:'90px'},value:q[i.store_item_id]??'','aria-label':`Add quantity of ${i.item_name}`,onChange:e=>setQ(v=>({...v,[i.store_item_id]:e.target.value}))})]})));
+
   }
 
   // 2.20.54: what is in the cupboard; Nursing Manager can change an item's usual level, return it to the Main Store or remove it.
