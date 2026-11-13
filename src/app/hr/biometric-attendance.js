@@ -104,7 +104,7 @@
   const BIO_FLAG={new_on_machine:['New on machine — not linked','#b42318'],number_reused:['Number reused','#b42318'],removed_from_machine:['Removed from machine','#b42318'],
     different_name:['Different name in easy TimePro','#b45309'],left_still_active:['Left — being blocked','#b45309'],blocked_on_machine:['Blocked on machine','#b45309'],
     never_punched:['No punch yet','#b45309'],not_on_machine:['Not on machine yet','#b45309'],old_number:['Old number','#6b7280'],
-    left:['Left','#6b7280'],suspended:['Suspended','#6b7280'],not_erp:['Not an ERP employee','#6b7280'],ok:['OK','#16703c']};
+    left:['Left','#6b7280'],suspended:['Suspended','#6b7280'],not_erp:['Not an ERP employee','#6b7280'],not_employee:['Not an employee (not on Duty Roster)','#6b7280'],ok:['OK','#16703c']};
   function BioStaffRegister({emps}){
     const [d,setD]=React.useState(null),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(''),[pick,setPick]=React.useState({}),[show,setShow]=React.useState('problems');
     async function load(){try{const r=await client.rpc('biometric_register',{p_action:'list',p:{}});if(r.error)throw r.error;setD(r.data);setErr('')}catch(e){setErr(e.message||String(e))}}

@@ -1,3 +1,6 @@
+## 2.20.74 — 2026-11-13
+- Biometric: anyone not on the Duty Roster is treated as not an employee — no pop-up, shown as "Not an employee (not on Duty Roster)" in Staff Register (SQL 398).
+
 ## 2.20.73 — 2026-11-13
 - EN | தமிழ் switch also shown inside the phone menu, under the name card.
 
