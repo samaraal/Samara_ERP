@@ -796,7 +796,7 @@
           p_service_datetime:form.service_datetime?new Date(form.service_datetime).toISOString():null,p_remarks:form.remarks||null});
         setBusy(false);
         if(r.error){notify('error',r.error.message||'Unable to resubmit.');return}
-        notify('success','Corrected request sent to Accounts.');
+        notify('success','Corrected request saved — fixed-rate items post to the Guest account at once; others go to Accounts.');
         setResubmitFrom(null);finishSuccessfulAction({close:()=>setShow(false),refresh:load});
         return;
       }
@@ -820,7 +820,16 @@
           const link=await client.rpc('mark_charge_request_resubmitted',{p_returned:resubmitFrom.id,p_new:savedRows[0].id});
           if(link.error){console.warn('Resubmit link failed:',link.error.message);linkNote=' (could not link it to the returned request — tell Admin)';}
         }
-        notify('success',resubmitFrom?`Corrected request resubmitted to Accounts${linkNote}.`:`${items.length} bill / charge request${items.length===1?'':'s'} forwarded for approval.`);
+        // 2.20.101 (Admin, 13-11-2026): fixed-rate charges are posted to the Guest account at once (SQL 403);
+        // only no-rate / Others / bill-based / outside bills still wait for Accounts.
+        let posted=0,waiting=savedRows.length;
+        try{
+          const ids=savedRows.map(x=>x?.id).filter(Boolean);
+          if(ids.length){const st=await client.from('bill_charge_requests').select('id,approval_status').in('id',ids);
+            if(!st.error){posted=(st.data||[]).filter(x=>x.approval_status==='Approved').length;waiting=ids.length-posted;}}
+        }catch(_){}
+        const outcome=[posted?`${posted} posted to the Guest account`:'',waiting?`${waiting} sent to Accounts for checking (no fixed rate / bill-based)`:''].filter(Boolean).join(' · ');
+        notify('success',resubmitFrom?`Corrected request saved${linkNote} — ${outcome||'sent to Accounts'}.`:`${items.length} bill / charge entr${items.length===1?'y':'ies'} saved — ${outcome||'sent to Accounts'}.`);
         setResubmitFrom(null);
         setBatchItems([]);setFiles([]);setFileInputKey(k=>k+1);
         finishSuccessfulAction({close:()=>setShow(false),refresh:load});

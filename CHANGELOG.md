@@ -1,3 +1,6 @@
+## 2.20.101 — 2026-11-13
+- Bills & Charges: **no Accounts approval for fixed-rate charges.** A charge raised for Stores items (Consumables, Pharmacy, Housekeeping, Kitchen, Ward Stock cupboard) at the Stores Master rate, or any Charge Master item with an Admin-fixed tariff, goes straight into the Guest account / Patient Ledger / Family Portal. "Others", bill-based, outside bills and items with no rate fixed still go to Accounts. Charges already pending stay with Accounts. The save message now says how many were posted and how many went to Accounts. Database: `403_auto_post_all_fixed_rate_charges.sql` (run with this release).
+
 ## 2.20.100 — 2026-11-13
 - Bedside care must start with the bed scan: every bedside entry (medicines, meals, beverages, daily care, vitals, intake / output, shift tasks) needs 📷 Scan & Administer for that Guest first (valid 20 min). Choosing the Guest from a list and scanning only at the end is no longer accepted; the entry screens show "Go to Scan & Administer". Scan to Save at Save stays (not for Intake / Output). Physiotherapy not affected.
 
