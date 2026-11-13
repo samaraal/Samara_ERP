@@ -1,3 +1,6 @@
+## 2.20.80 — 2026-11-13
+- Intake / Output entry pop-up: 📷 Scan bed QR panel added (same as Meals / Medicines); Save button becomes Scan to Save.
+
 ## 2.20.79 — 2026-11-13
 - Meals & Beverages by voice: ANM taps 🎤 பேசு and says what was given and how much was eaten in Tamil, Tamiglish or English — the form (meal, items from the food list, time, how much eaten, beverage, quantity, remarks) is filled in English to check, then Scan to Save. Uses the Nursing Notes voice service (mode Meal) — needs the updated nursing-note-voice Edge Function deployed.
 

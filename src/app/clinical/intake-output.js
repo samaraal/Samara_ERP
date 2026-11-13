@@ -146,6 +146,7 @@
     const [editLimits,setEditLimits]=React.useState(null);
     const [cell,setCell]=React.useState(null); // {col, slot}
     const [cf,setCf]=React.useState(null);     // popup form
+    const [ioScan,setIoScan]=React.useState(null); // 2.20.80: bed QR scan inside the entry pop-up
     const [printForm,setPrintForm]=React.useState(null); // 2.18.87 {from,to}
     const [focus,clearFocus]=useRecordFocus('Intake / Output');
     const canManage=ioCanManage(profile);
@@ -243,7 +244,7 @@
       if(isStool&&!(Number(cf.stool_count)>0))return showSamaraActionToast('error','Enter the count','How many times (1 or more).');
       const item=(cf.item==='Other…'?cf.custom:(['urine','other'].includes(col.key)?cf.custom:cf.item)).trim()||null;
       if(cf.item==='Other…'&&!item)return showSamaraActionToast('error','Type the item','Type what was given (e.g. Glucon-D, Horlicks).');
-      {const _bb=await bedsideSaveCheck(profile,patientId,null);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.20.76: bedside scan (SQL 400)
+      {const _bb=await bedsideSaveCheck(profile,patientId,ioScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.20.76: bedside scan (SQL 400)
       setBusy(true);
       const payload={patient_id:patientId,entry_at:at.toISOString(),direction,category,item,volume_ml:vol,stool_count:isStool?Math.round(Number(cf.stool_count)):null,stool_type:isStool?cf.stool_type:null,remarks:cf.remarks.trim()||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
       const {data,error}=await client.from('io_entries').insert(payload).select('id').single();
@@ -466,9 +467,10 @@
             h('details',{className:'io-more'},h('summary',null,`Time: ${ioTime(ioFromLocal(cf.at))} · change time / add remarks`),
               h('div',{className:'field'},h('label',null,'Time given / measured'),h(StrictDateTimeInput,{value:cf.at,max:ioLocalInput(),onChange:e=>setCf({...cf,at:e.target.value})})),
               miniInput('Remarks',cf.remarks,v=>setCf({...cf,remarks:v}))),
+            h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patientRow,value:ioScan,onChange:setIoScan,disabled:busy})), // 2.20.80: 📷 Scan bed QR here
             h('div',{className:'actions',style:{display:'flex',gap:'8px',marginTop:'10px'}},
               h('button',{type:'button',className:'btn btn-secondary',style:{flex:1},onClick:()=>{setCell(null);setCf(null)}},'Cancel'),
-              h('button',{type:'button',className:'btn btn-primary',style:{flex:2},disabled:busy,onClick:saveCell},busy?'Saving…':`Save ${c.label}`))));
+              h('button',{type:'button',className:'btn btn-primary',style:{flex:2},disabled:busy,onClick:saveCell},busy?'Saving…':bedsideSaveText(profile,`Save ${c.label}`)))));
       })()
     );
   }
