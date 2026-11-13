@@ -501,7 +501,7 @@
   // medication_orders.time_critical (SQL 403) overrides the name rule when the doctor / Nursing Manager sets it.
   const MED_TIME_CRITICAL_RE=/insulin|lantus|glargine|basalog|toujeo|tresiba|degludec|actrapid|humulin|huminsulin|mixtard|novomix|novorapid|aspart|humalog|lispro|apidra|glulisine|ryzodeg|wosulin|insugen|amoxi|augmentin|clavam|moxikind|azithro|azee|cef|cipro|levoflo|oflox|norflox|metronid|flagyl|doxy|linezolid|meropenem|piperacillin|tazo|clindamycin|vancomycin|nitrofurantoin|cotrimoxazole|septran|levodopa|syndopa|carbidopa|tidomet|pramipexole|ropinirole|rasagiline|levetiracetam|levipil|keppra|phenytoin|eptoin|valpro|encorate|valparin|carbamazepine|tegretol|oxcarbazepine|oxetol|lacosamide|clobazam|frisium|warfarin|acitrom|acenocoumarol|apixaban|eliquis|rivaroxaban|xarelto|dabigatran|enoxaparin|clexane|heparin/i;
   function medIsTimeCritical(order){if(order&&typeof order.time_critical==='boolean')return order.time_critical;return MED_TIME_CRITICAL_RE.test(`${order?.medicine_name||''} ${order?.strength||''}`)}
-  function medWindowMinutes(order){return medIsTimeCritical(order)?30:60}
+  function medWindowMinutes(order){return 30} // 2.20.96 (Admin): 30 min before / after for every medicine (SQL 404)
   function medCanGiveOutsideWindow(profile){try{if(profile?.__nurseMode)return false;const r=String(profile?.role||'');return r==='Admin'||isNursingManagerProfile(profile)}catch(_){return false}}
   function BedsideScanAdminister({profile,onNavigate}){
     const mode=useBedsideMode();
