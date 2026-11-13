@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.90';
+  const APP_VERSION = '2.20.91';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -44267,9 +44267,9 @@ function RoomsBeds({profile,onNavigate}){
   // Counts are entered without seeing the ERP figure; differences are shown after "Check".
   // 2.20.55: Samara baby-pink gradient boxes; box title bold and larger, status line smaller.
   function ensureNightStockCss(){
-    if(document.getElementById('night-stock-css'))return;
-    const st=document.createElement('style');st.id='night-stock-css';
-    st.textContent=`.night-stock .ns-boxes .dr-box{background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%);border:1px solid #edb5ce;border-top:4px solid #a91360;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);padding:14px 16px;gap:6px}
+    if(document.getElementById('night-stock-css-2'))return;{const old=document.getElementById('night-stock-css');if(old)old.remove();}
+    const st=document.createElement('style');st.id='night-stock-css-2';
+    st.textContent=`.night-stock .ns-count .table-wrap{max-width:760px}.night-stock .ns-count table{width:100%;border-collapse:separate;border-spacing:0}.night-stock .ns-count th:nth-child(1),.night-stock .ns-count td:nth-child(1){width:48px;text-align:center;color:#8a5a70}.night-stock .ns-count th:nth-child(3),.night-stock .ns-count td:nth-child(3){width:80px;color:#6b4a5b}.night-stock .ns-count th:nth-child(4),.night-stock .ns-count td:nth-child(4){width:130px}.night-stock .ns-count tbody tr:nth-child(odd) td{background:#ffffff}.night-stock .ns-count tbody tr:nth-child(even) td{background:#fbe9f1}.night-stock .ns-count tbody tr:hover td{background:#f6d3e3}.night-stock .ns-count tbody tr:focus-within td{background:#fff3c4;box-shadow:inset 0 2px 0 #e8b400,inset 0 -2px 0 #e8b400}.night-stock .ns-count td{padding:7px 10px;font-size:15px}.night-stock .ns-count input{width:110px;font-size:16px;font-weight:700;text-align:center}.night-stock .ns-boxes .dr-box{background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%);border:1px solid #edb5ce;border-top:4px solid #a91360;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);padding:14px 16px;gap:6px}
 .night-stock .ns-boxes .dr-box:hover,.night-stock .ns-boxes .dr-box:focus-visible{box-shadow:0 10px 24px rgba(143,23,76,.18)}
 .night-stock .ns-boxes .dr-box-label{font-size:18px;font-weight:900;color:#7a1247;min-height:0;line-height:1.25}
 .night-stock .ns-boxes .dr-box-value{font-size:13px;font-weight:600;color:#5b3a4b}`;
@@ -44449,9 +44449,9 @@ function RoomsBeds({profile,onNavigate}){
     const sendBack=async()=>{if(note.trim().length<3){setError('Tell the nurse what to check.');return}const r=await post('return_to_nurse',{shift_date:target.night_date,shift:target.shift,note},'Returned to the nurse','She can now enter the missed Guest use for that night.');if(r){setTab('home')}};
     const rows=listItems.slice().sort((a,b)=>a.item_name.localeCompare(b.item_name,undefined,{sensitivity:'base'}));
     return h(Section,{title:titles[kind][0],subtitle:titles[kind][1]},
-      table(['S.No','Item','Unit','Your count',...(result?['Result']:[])],rows.map((i,k)=>{const r=res(i.store_item_id),bad=r&&!r.matched;return [k+1,h('b',null,i.item_name),i.unit,
+      h('div',{className:'ns-count'},table(['S.No','Item','Unit','Your count',...(result?['Result']:[])],rows.map((i,k)=>{const r=res(i.store_item_id),bad=r&&!r.matched;return [k+1,h('b',null,i.item_name),i.unit,
         h('input',{type:'number',min:0,step:1,inputMode:'numeric',style:{maxWidth:'110px',...(bad?{border:'2px solid #b42318',background:'#fff1f1'}:{})},value:counts[i.store_item_id]??'','aria-label':`Count of ${i.item_name}`,onChange:e=>{setResult(null);setCounts(v=>({...v,[i.store_item_id]:e.target.value}))}}),
-        ...(result?[r?(r.matched?pill('✓ Matched','good'):pill(showQty&&r.erp!=null?`✗ Not matched (ERP ${Number(r.erp)}, ${Number(r.difference)>0?'+':''}${Number(r.difference)})`:'✗ Not matched','bad')):'']:[])]})),
+        ...(result?[r?(r.matched?pill('✓ Matched','good'):pill(showQty&&r.erp!=null?`✗ Not matched (ERP ${Number(r.erp)}, ${Number(r.difference)>0?'+':''}${Number(r.difference)})`:'✗ Not matched','bad')):'']:[])]}))),
       !result&&h('div',{style:{marginTop:'10px'}},btn(checking?'Checking…':tries?'Check again':'Check',check,true,checking)),
       result&&mismatched.length===0&&h('p',{className:'message',role:'status',style:{marginTop:'10px'}},'✓ All counts matched.'),
       result&&mismatched.length>0&&tries<2&&h('div',{style:{marginTop:'10px'}},

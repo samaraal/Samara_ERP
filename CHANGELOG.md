@@ -1,3 +1,6 @@
+## 2.20.91 — 2026-11-13
+- Ward Stock counts (Opening / Closing / Verify): compact table (item and count box close together, no long reach across the screen), alternate row colours, the row being typed in is highlighted yellow.
+
 ## 2.20.90 — 2026-11-13
 - Ward Stock counts no longer lost midway: the numbers typed in Opening / Closing / Verify counts are kept on the device and come back if the page reloads or updates; the open screen stays open; an alert no longer sends the nurse back to the Ward Stock home while a count is being entered.
 
