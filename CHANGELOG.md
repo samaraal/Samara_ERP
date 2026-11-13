@@ -1,3 +1,6 @@
+## 2.20.90 — 2026-11-13
+- Ward Stock counts no longer lost midway: the numbers typed in Opening / Closing / Verify counts are kept on the device and come back if the page reloads or updates; the open screen stays open; an alert no longer sends the nurse back to the Ward Stock home while a count is being entered.
+
 ## 2.20.89 — 2026-11-13
 - Raise Bill / Charge: received items (Ward Stock use, indent receipts) are fetched again when the Guest is chosen and when the window is focused — items recorded a moment ago appear without reloading the page.
 

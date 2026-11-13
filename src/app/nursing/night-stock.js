@@ -53,14 +53,16 @@
   }
   function NightStock({profile,onNavigate}){
     const [data,setData]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
-    const [tab,setTab]=React.useState('home'),[detail,setDetail]=React.useState(null);
+    // 2.20.90: the open screen survives a page re-mount, and an alert does not close a count that is being entered
+    const [tab,setTabRaw]=React.useState(()=>{try{return sessionStorage.getItem('samara-ws-tab')||'home'}catch(_){return 'home'}}),[detail,setDetail]=React.useState(null);
+    const setTab=t=>{try{sessionStorage.setItem('samara-ws-tab',t)}catch(_){}setTabRaw(t)};
     const [patients]=usePatients();
     const lock=React.useRef(false),token=React.useRef(null);
     const [focus,clearFocus]=useRecordFocus('Ward Stock');
     React.useEffect(()=>{ensureNightStockCss()},[]);
     const load=React.useCallback(async()=>{const r=await client.rpc('night_stock_workspace');if(r.error){setError(r.error.message);return}setData(r.data);setError('')},[]);
     React.useEffect(()=>{load();const t=setInterval(load,60000);return()=>clearInterval(t)},[load]);
-    React.useEffect(()=>{if(focus)setTab('home')},[focus]);
+    React.useEffect(()=>{if(focus&&!['accept','close','verify','add','use'].includes(tab))setTab('home')},[focus]);
     const toast=(ok,title,text)=>showSamaraActionToast(ok?'success':'error',title,text);
     async function post(action,payload,okTitle,okText){
       if(lock.current)return null;lock.current=true;setBusy(true);setError('');
@@ -155,7 +157,9 @@
   // 1st Check with a mismatch → recount those items; still not matching → save with a note.
   function NsCountForm({ctx,kind}){
     const {acc,listItems,toVerify,pending,acceptTarget,closeTarget,acceptRow,closeRow,shiftLabel,mins,pill,btn,table,post,setError,setTab,when,busy}=ctx;
-    const [counts,setCounts]=React.useState({}),[result,setResult]=React.useState(null),[tries,setTries]=React.useState(0),[note,setNote]=React.useState(''),[checking,setChecking]=React.useState(false);
+    const draftKey=`samara-ws-draft-${kind}-${kind==='accept'?`${acceptTarget?.date}-${acceptTarget?.shift}`:kind==='close'?`${closeTarget?.date}-${closeTarget?.shift}`:`${toVerify?.night_date}-${toVerify?.shift}`}`;
+    const [counts,setCountsRaw]=React.useState(()=>{try{return JSON.parse(sessionStorage.getItem(draftKey)||'{}')||{}}catch(_){return {}}}),[result,setResult]=React.useState(null),[tries,setTries]=React.useState(0),[note,setNote]=React.useState(''),[checking,setChecking]=React.useState(false);
+    const setCounts=v=>setCountsRaw(cur=>{const next=typeof v==='function'?v(cur):v;try{if(next&&Object.keys(next).length)sessionStorage.setItem(draftKey,JSON.stringify(next));else sessionStorage.removeItem(draftKey)}catch(_){}return next});
     const showQty=Boolean(acc.manage);
     const target=kind==='verify'?toVerify:null;
     const res=id=>(result||[]).find(r=>r.store_item_id===id);
