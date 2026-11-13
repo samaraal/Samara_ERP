@@ -120,6 +120,20 @@
     React.useEffect(()=>{load()},[]);
     React.useEffect(()=>{const timer=setInterval(loadReceiptOverdue,60000);return()=>clearInterval(timer)},[]);
     React.useEffect(()=>{if(registerFilter)setFilter(registerFilter)},[registerFilter,section]);
+    // 2.20.88: a Ward Stock cupboard item used for this Guest — recorded here (no indent), then charged in Raise Bill / Charge.
+    const [wardUse,setWardUse]=React.useState({item:'',qty:'1',busy:false,done:''});
+    async function recordWardUse(){
+      const it=stock.find(x=>String(x.item_id)===String(wardUse.item));const q=Number(wardUse.qty);
+      if(!form.patient_id||!it)return showSamaraActionToast('error','Ward Stock','Select the Guest and the Ward Stock item.');
+      if(!Number.isInteger(q)||q<=0)return showSamaraActionToast('error','Ward Stock','Enter a whole-number quantity above 0.');
+      setWardUse(w=>({...w,busy:true}));
+      try{
+        const r=await client.rpc('night_stock_post',{p_id:crypto.randomUUID(),p_action:'use',p_data:{patient_id:form.patient_id,store_item_id:it.item_id,qty:q,note:'Recorded from Patient Consumables'}});
+        if(r.error)throw r.error;
+        const msg=`${q} ${it.unit||'Nos'} ${displayStoreItemName(it.item_name)} taken from Ward Stock for ${patientLabel(form.patient_id)}. Now raise the charge.`;
+        showSamaraActionToast('success','Ward Stock use recorded',msg);setWardUse({item:'',qty:'1',busy:false,done:msg});
+      }catch(e){showSamaraActionToast('error','Ward Stock',e.message||String(e));setWardUse(w=>({...w,busy:false}))}
+    }
     function chooseItem(id){const st=stock.find(x=>x.item_id===id);setForm(f=>({...f,store_item_id:id,item_name:displayStoreItemName(st?.item_name)||'',unit:st?.unit||'Nos'}))}
     // 2.16.15: several items in one go. The nurse adds items to a list (same patient), then one tap
     // initiates one indent per item — each item keeps its own approval / handover / receipt / balance, as before.
@@ -320,7 +334,18 @@
           h('div',{className:'field'},h('label',null,'Item *'),h('select',{'aria-label':'Consumable / Pharmacy Item',value:form.store_item_id,onChange:e=>chooseItem(e.target.value),disabled:!form.category},h('option',{value:''},!wardReady?'Loading items…':form.category?`Select ${form.category} item (${options.length})`:'Select a category first'),(wardReady?options:[]).map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${x.item_name} · Store balance ${x.balance_qty} ${x.unit}`)))),
           h('div',{className:'field'},h('label',null,'Quantity *'),h('input',{type:'number',min:'1',step:'1',value:form.requested_qty,onChange:e=>setForm({...form,requested_qty:e.target.value})})),
           h('div',{className:'field'},h('label',null,'Unit'),h('input',{value:form.unit,readOnly:true}))
-        ),wardIds.size>0&&h('p',{className:'small-note'},`${wardIds.size} items kept in the Ward Stock cupboard are not listed here — take them from the cupboard and record them in Nursing → Ward Stock → Use for a Guest (no indent needed).`),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),
+        ),wardIds.size>0&&h('p',{className:'small-note'},`${wardIds.size} items are kept in the Ward Stock cupboard (Gauze, Easy Bath …) — they are not indented. Used one for this Guest? Record it just below, then raise the charge.`),
+        wardReady&&wardIds.size>0&&(()=>{const wItems=stock.filter(x=>wardIds.has(String(x.item_id))&&(!form.category||categoryOfStock(x)===form.category)).slice().sort((a,b)=>alphaSort(a.item_name,b.item_name));
+          return h('div',{style:{border:'1.5px dashed #e9a9c4',borderRadius:'12px',padding:'10px 12px',margin:'6px 0 12px',background:'#fff8fb'}},
+            h('strong',{style:{color:'#8a1c52'}},'🗄️ Used from the Ward Stock cupboard'),
+            h('div',{className:'grid two',style:{marginTop:'8px'}},
+              h('div',{className:'field'},h('label',null,`Ward Stock item (${wItems.length})`),h('select',{value:wardUse.item,onChange:e=>setWardUse(w=>({...w,item:e.target.value,done:''}))},h('option',{value:''},'Select Ward Stock item'),wItems.map(x=>h('option',{key:x.item_id,value:x.item_id},`${codeOfStock(x)?`${codeOfStock(x)} · `:''}${displayStoreItemName(x.item_name)}`)))),
+              h('div',{className:'field'},h('label',null,'Quantity used'),h('input',{type:'number',min:1,step:1,value:wardUse.qty,onChange:e=>setWardUse(w=>({...w,qty:e.target.value}))}))),
+            h('div',{style:{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}},
+              h('button',{type:'button',className:'btn btn-primary',disabled:wardUse.busy||!wardUse.item||!form.patient_id,onClick:recordWardUse},wardUse.busy?'Saving…':'Record use for this Guest'),
+              h('button',{type:'button',className:'btn btn-secondary',onClick:()=>window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Charge Approvals'}}))},'Raise Bill / Charge →')),
+            wardUse.done&&h('p',{className:'message',role:'status',style:{marginTop:'8px'}},wardUse.done));
+        })(),h(PharmacyStockPanel,{stock:stockInfo,itemId:form.store_item_id,quantity:form.requested_qty,unit:form.unit,showSelector:false}),
         h('div',{style:{margin:'8px 0 14px'}},h('button',{type:'button',className:'btn btn-secondary',disabled:busy||!form.item_name,onClick:addIndentLine},'+ Add item to list'),h('small',{style:{marginLeft:'10px',color:'#7a5566'}},'Add each item, then initiate all together.')),
         indentLines.length>0&&h('div',{className:'field'},h('label',null,`Items in this indent (${indentLines.length})`),
           h('div',{className:'table-wrap'},h('table',{className:'table'},

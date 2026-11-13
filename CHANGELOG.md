@@ -1,3 +1,6 @@
+## 2.20.88 — 2026-11-13
+- Patient Consumables ▸ New Patient Indent: new box "🗄️ Used from the Ward Stock cupboard" — pick the Ward Stock item (Gauze, Easy Bath …) and quantity, Record use for this Guest, then Raise Bill / Charge →. No indent for cupboard items.
+
 ## 2.20.87 — 2026-11-13
 - New Patient Indent: the item list waits for the Ward Stock list ("Loading items…") instead of showing all items for a second and then dropping to fewer.
 
