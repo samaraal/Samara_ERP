@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.74';
+  const APP_VERSION = '2.20.75';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -38432,7 +38432,17 @@ function RoomsBeds({profile,onNavigate}){
     }catch(_){return false}
   }
   const BEDSIDE_COMPUTER_MSG='Bedside entries are made only from the Samara phone at the Guest\'s bed. This computer can view, but not save. (Emergency: ask the Nursing Manager or Admin.)';
-  function bedsideBlockedRole(profile){return ['Nurse','Caregiver'].includes(profile?.role)}
+  // 2.20.75 (SQL 400): the bedside scan applies to EVERY login that records for a Guest — Nurse, Caregiver, STD, Kitchen,
+  // Managers — except Admin / Director and the Nursing Manager's own login (emergency entry). The database enforces the same rule.
+  function bedsideBlockedRole(profile){
+    try{
+      const role=String(profile?.__nurseMode?.role||profile?.role||'').trim().toLowerCase();
+      if(['admin','administrator','director'].includes(role))return false;
+      const des=String(profile?.__nurseMode?.designation||profile?.designation||'').trim().toLowerCase().replace(/[._-]+/g,' ');
+      if(des==='nurse manager'||des==='nursing manager')return false;
+      return Boolean(role);
+    }catch(_){return true}
+  }
   async function bedsideBlockedHere(profile){
     try{
       if(!bedsideBlockedRole(profile)||!bedsideIsComputer())return '';

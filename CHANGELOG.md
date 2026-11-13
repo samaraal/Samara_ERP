@@ -1,3 +1,6 @@
+## 2.20.75 — 2026-11-13
+- Bedside scan compulsory for every login that records for a Guest (Nurse, Caregiver, STD, Kitchen, Managers); only Admin / Director and the Nursing Manager's own login are exempt. Enforced in the database by SQL 400 (medicines, meals, beverages, daily care / procedures, vitals).
+
 ## 2.20.74 — 2026-11-13
 - Biometric: anyone not on the Duty Roster is treated as not an employee — no pop-up, shown as "Not an employee (not on Duty Roster)" in Staff Register (SQL 398).
 
