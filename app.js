@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.85';
+  const APP_VERSION = '2.20.86';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '13-Nov-2026 Clinical Escalations layout';
+  const APP_BUILD_DATE = '13-Nov-2026 Clinical voice ON-OFF switch';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -4195,6 +4195,12 @@ https://samaraassistedliving.com/`;
     });
     const [soundUnlocked,setSoundUnlocked]=React.useState(false);
     const [pushEnabled,setPushEnabled]=React.useState(false);
+    // 2.20.86 (Admin, 13-11-2026): Admin master switch for the spoken clinical voice alerts.
+    // clinical_alert_settings.voice_master_on — ON (default) = voice runs as usual; OFF = no spoken voice on any
+    // device (chime, pop-up, bell and notifications continue). Checked through a ref so queued announcements stop too.
+    const voiceMasterOn=settings.voice_master_on!==false;
+    const voiceMasterRef=React.useRef(true);
+    voiceMasterRef.current=voiceMasterOn;
     const lastPlayed=React.useRef({});
     const lastPopup=React.useRef({});
     const audioContext=React.useRef(null);
@@ -4922,12 +4928,13 @@ https://samaraassistedliving.com/`;
       if(isMobileClinicalDevice())return;
       // 2.19.49: no spoken voice alerts for Admin / Directors (chime, pop-up and notifications stay as before).
       if(isAdminDirectorViewer(profile))return;
+      if(!voiceMasterRef.current)return;
       if(!settings.voice_enabled||!soundUnlocked)return;
       stopClinicalVoice();
       // 2.20.1: start streaming the Gemini Tamil voice now; playback joins the same stream (no 2.3 s wait).
       try{const t=clinicalVoiceTextForGemini(a);if(!geminiVoiceCache.current.has(t))startGeminiVoiceJob(t)}catch(_){}
       window.setTimeout(async()=>{
-        if(!settings.voice_enabled||!soundUnlocked)return;
+        if(!voiceMasterRef.current||!settings.voice_enabled||!soundUnlocked)return;
         try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
       },400);
     }
@@ -4947,6 +4954,7 @@ https://samaraassistedliving.com/`;
     }
     async function speakAndWait(a){
       if(isMobileClinicalDevice()||isAdminDirectorViewer(profile))return;
+      if(!voiceMasterRef.current)return;
       if(!settings.voice_enabled||!soundUnlocked)return;
       const text=clinicalVoiceTextForGemini(a);
       try{await speakLocalClinicalVoice(a)}catch(error){console.warn('Clinical voice unavailable:',error)}
@@ -4968,7 +4976,7 @@ https://samaraassistedliving.com/`;
           const job=async()=>{
             if(voiceAnnouncedElsewhere(a.key,repeatMs*0.9))return; // another tab just announced it
             markVoiceAnnounced(a.key);
-            try{const t=clinicalVoiceTextForGemini(a);if(settings.voice_enabled&&!geminiVoiceCache.current.has(t))startGeminiVoiceJob(t)}catch(_){} // pre-fetch during the chime
+            try{const t=clinicalVoiceTextForGemini(a);if(voiceMasterRef.current&&settings.voice_enabled&&!geminiVoiceCache.current.has(t))startGeminiVoiceJob(t)}catch(_){} // pre-fetch during the chime
             const chimeMs=play(a.priority)||0;
             if(chimeMs>0)await sleepMs(chimeMs+150);
             await speakAndWait(a);
@@ -5334,6 +5342,28 @@ https://samaraassistedliving.com/`;
       const {data}=await client.from('clinical_alert_settings').select('*').eq('is_active',true).order('updated_at',{ascending:false}).limit(1).maybeSingle();
       if(data)setSettings(s=>({...s,...data}));
     }
+    // 2.20.86: every minute pick up ONLY the Admin voice switch (other settings stay as unlocked on this device).
+    async function refreshVoiceMaster(){
+      try{
+        const {data}=await client.from('clinical_alert_settings').select('*').eq('is_active',true).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+        if(!data||!Object.prototype.hasOwnProperty.call(data,'voice_master_on'))return;
+        const on=data.voice_master_on!==false;
+        setSettings(s=>(s.voice_master_on!==false)===on?s:{...s,voice_master_on:on});
+      }catch(_){}
+    }
+    // Admin only: switch the clinical voice alerts ON / OFF for every device.
+    async function setVoiceMaster(on){
+      if(String(profile?.role||'').trim()!=='Admin')throw new Error('Only Admin can switch the clinical voice alerts on or off.');
+      const {data:{user}}=await client.auth.getUser();
+      const patch={voice_master_on:!!on,updated_by:user?.id||profile?.id,updated_at:new Date().toISOString()};
+      const {data,error}=await client.from('clinical_alert_settings').update(patch).eq('setting_key','global').select('setting_key');
+      if(error){
+        if(/voice_master_on/i.test(error.message||''))throw new Error('Database update needed: please run supabase/sql/402_clinical_voice_master_switch.sql first.');
+        throw error;
+      }
+      if(!data||!data.length)throw new Error('Clinical alert settings row not found.');
+      setSettings(s=>({...s,...patch}));
+    }
     async function refresh(){
       if(!profile)return;
       if(!clinicalAlertsAllowedFor(profile)){
@@ -5527,6 +5557,12 @@ https://samaraassistedliving.com/`;
       // before the Nurse/Manager UI and playback controls are updated.
     }
     React.useEffect(()=>{loadSettings()},[]);
+    React.useEffect(()=>{const t=setInterval(refreshVoiceMaster,60000);return()=>clearInterval(t)},[]);
+    React.useEffect(()=>{ // 2.20.86: switched OFF by Admin — stop any voice now and drop queued announcements
+      if(voiceMasterOn)return;
+      voiceQueue.current=[];
+      try{stopClinicalVoice()}catch(_){}
+    },[voiceMasterOn]);
     React.useEffect(()=>{
       if(!profile)return;
       if(!clinicalAlertsAllowedFor(profile)){
@@ -5547,9 +5583,32 @@ https://samaraassistedliving.com/`;
       },{onConflict:'alert_key'});
       if(error)throw error;await refresh();
     }
-    return {alerts,settings,setSettings,soundUnlocked,soundLockedOn,pushEnabled,unlockSound,toggleSound,requestNotifications,disableNotifications,refreshPushEnabled,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
+    return {alerts,settings,setSettings,voiceMasterOn,setVoiceMaster,soundUnlocked,soundLockedOn,pushEnabled,unlockSound,toggleSound,requestNotifications,disableNotifications,refreshPushEnabled,runAudioDiagnostics,testClinicalAlert,testVitalsVoice,testDailyCareVoice,testClinicalTaskVoice,testSampleEscalationVoice,playCurrentLiveEscalation,refresh,acknowledge,setPage};
   }
 
+  // 2.20.86 (Admin, 13-11-2026): Clinical Voice Alerts ON / OFF switch — Admin changes it for every device;
+  // other logins only see that the voice is switched off. Chime, pop-up, bell and notifications are not affected.
+  function ClinicalVoiceMasterSwitch({profile,engine}){
+    const [busy,setBusy]=React.useState(false);
+    const on=engine.voiceMasterOn!==false;
+    const isAdmin=String(profile?.role||'').trim()==='Admin';
+    if(!isAdmin){
+      if(on)return null;
+      return h('span',{className:'badge',style:{background:'#fde2e2',color:'#9b1c1c',border:'1px solid #f3bcbc',padding:'8px 12px',fontWeight:800},title:'Admin has switched off the spoken clinical voice alerts. Chime, pop-ups and notifications continue.'},'🔇 Voice Alerts OFF (by Admin)');
+    }
+    async function flip(){
+      const next=!on;
+      if(!window.confirm(next?'Switch ON clinical voice alerts for all devices?':'Switch OFF clinical voice alerts for all devices?\n\nChime, pop-ups, bell and notifications will continue.'))return;
+      setBusy(true);
+      try{await engine.setVoiceMaster(next)}
+      catch(error){alert(error?.message||String(error))}
+      finally{setBusy(false)}
+    }
+    return h('button',{type:'button',className:'btn',disabled:busy,onClick:flip,
+      style:{background:on?'#dff3e4':'#fde2e2',color:on?'#176b35':'#9b1c1c',border:on?'2px solid #8fc69d':'2px solid #e9a5a5',fontWeight:800},
+      title:on?'Clinical voice alerts are ON for all devices. Tap to switch OFF.':'Clinical voice alerts are OFF for all devices. Tap to switch ON.'
+    },busy?'Saving…':on?'🗣️ Voice Alerts: ON':'🔇 Voice Alerts: OFF');
+  }
   function ClinicalAlertsPage({profile,engine,setPage,physioAlerts=[]}){
     const canAck=canAcknowledgeClinical(profile); // 2.20.20
     const mobileClinicalDevice=isMobileClinicalDevice();
@@ -5805,6 +5864,7 @@ https://samaraassistedliving.com/`;
         actions:h('div',{className:'employee-actions'},
           dashboardFocus&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardFocus('')},'Show All Clinical Alerts'),
           h('button',{className:'btn btn-secondary',onClick:refreshAll},(loadingEscalations||historyBusy)?'Refreshing…':'Refresh'),
+          h(ClinicalVoiceMasterSwitch,{profile,engine}),
           !mobileClinicalDevice&&h('button',{
           className:'btn btn-secondary',
           style:{
@@ -6213,6 +6273,7 @@ https://samaraassistedliving.com/`;
         h('form',{className:'modal-grid',onSubmit:save},
           h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!form.sound_enabled,onChange:e=>setForm({...form,sound_enabled:e.target.checked})}),h('span',null,'Sound alerts')),
           h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!form.voice_enabled,onChange:e=>setForm({...form,voice_enabled:e.target.checked})}),h('span',null,'Voice announcements')),
+          h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.voice_master_on!==false,onChange:e=>setForm({...form,voice_master_on:e.target.checked})}),h('span',null,'Clinical voice alerts ON (all devices) — untick to switch the spoken voice off')),
           h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!form.browser_notifications_enabled,onChange:e=>setForm({...form,browser_notifications_enabled:e.target.checked})}),h('span',null,'Browser notifications')),
           miniInput('Medicine lead minutes',form.medicine_lead_minutes,v=>setForm({...form,medicine_lead_minutes:Number(v)}),true,'number'),
           miniInput('Vitals lead minutes',form.vitals_lead_minutes,v=>setForm({...form,vitals_lead_minutes:Number(v)}),true,'number'),

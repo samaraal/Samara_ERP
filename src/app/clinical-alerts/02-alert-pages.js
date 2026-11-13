@@ -1,3 +1,26 @@
+  // 2.20.86 (Admin, 13-11-2026): Clinical Voice Alerts ON / OFF switch — Admin changes it for every device;
+  // other logins only see that the voice is switched off. Chime, pop-up, bell and notifications are not affected.
+  function ClinicalVoiceMasterSwitch({profile,engine}){
+    const [busy,setBusy]=React.useState(false);
+    const on=engine.voiceMasterOn!==false;
+    const isAdmin=String(profile?.role||'').trim()==='Admin';
+    if(!isAdmin){
+      if(on)return null;
+      return h('span',{className:'badge',style:{background:'#fde2e2',color:'#9b1c1c',border:'1px solid #f3bcbc',padding:'8px 12px',fontWeight:800},title:'Admin has switched off the spoken clinical voice alerts. Chime, pop-ups and notifications continue.'},'🔇 Voice Alerts OFF (by Admin)');
+    }
+    async function flip(){
+      const next=!on;
+      if(!window.confirm(next?'Switch ON clinical voice alerts for all devices?':'Switch OFF clinical voice alerts for all devices?\n\nChime, pop-ups, bell and notifications will continue.'))return;
+      setBusy(true);
+      try{await engine.setVoiceMaster(next)}
+      catch(error){alert(error?.message||String(error))}
+      finally{setBusy(false)}
+    }
+    return h('button',{type:'button',className:'btn',disabled:busy,onClick:flip,
+      style:{background:on?'#dff3e4':'#fde2e2',color:on?'#176b35':'#9b1c1c',border:on?'2px solid #8fc69d':'2px solid #e9a5a5',fontWeight:800},
+      title:on?'Clinical voice alerts are ON for all devices. Tap to switch OFF.':'Clinical voice alerts are OFF for all devices. Tap to switch ON.'
+    },busy?'Saving…':on?'🗣️ Voice Alerts: ON':'🔇 Voice Alerts: OFF');
+  }
   function ClinicalAlertsPage({profile,engine,setPage,physioAlerts=[]}){
     const canAck=canAcknowledgeClinical(profile); // 2.20.20
     const mobileClinicalDevice=isMobileClinicalDevice();
@@ -253,6 +276,7 @@
         actions:h('div',{className:'employee-actions'},
           dashboardFocus&&h('button',{className:'btn btn-secondary',onClick:()=>setDashboardFocus('')},'Show All Clinical Alerts'),
           h('button',{className:'btn btn-secondary',onClick:refreshAll},(loadingEscalations||historyBusy)?'Refreshing…':'Refresh'),
+          h(ClinicalVoiceMasterSwitch,{profile,engine}),
           !mobileClinicalDevice&&h('button',{
           className:'btn btn-secondary',
           style:{
@@ -661,6 +685,7 @@
         h('form',{className:'modal-grid',onSubmit:save},
           h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!form.sound_enabled,onChange:e=>setForm({...form,sound_enabled:e.target.checked})}),h('span',null,'Sound alerts')),
           h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!form.voice_enabled,onChange:e=>setForm({...form,voice_enabled:e.target.checked})}),h('span',null,'Voice announcements')),
+          h('label',{className:'check-card'},h('input',{type:'checkbox',checked:form.voice_master_on!==false,onChange:e=>setForm({...form,voice_master_on:e.target.checked})}),h('span',null,'Clinical voice alerts ON (all devices) — untick to switch the spoken voice off')),
           h('label',{className:'check-card'},h('input',{type:'checkbox',checked:!!form.browser_notifications_enabled,onChange:e=>setForm({...form,browser_notifications_enabled:e.target.checked})}),h('span',null,'Browser notifications')),
           miniInput('Medicine lead minutes',form.medicine_lead_minutes,v=>setForm({...form,medicine_lead_minutes:Number(v)}),true,'number'),
           miniInput('Vitals lead minutes',form.vitals_lead_minutes,v=>setForm({...form,vitals_lead_minutes:Number(v)}),true,'number'),
