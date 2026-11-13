@@ -1,3 +1,6 @@
+## 2.20.78 — 2026-11-13
+- தமிழ் screen: ~370 more Tamil words for the screens ANMs use — Home, Scan & Administer and bed-scan messages, unsaved-entry pop-up, Daily Care / sugar, Food items, Intake / Output, Nursing Notes, Shift Tasks, Talk to Guest, On Duty Today. Greeting, shift name and sentences with names / numbers inside are now translated too. "Talk to Guest" tile no longer repeats the English.
+
 ## 2.20.77 — 2026-11-13
 - Nursing Manager in Nurse mode now works exactly like a nurse: no direct Medication / Vitals / Intake-Output / Daily Care / Food tiles, Scan bottom bar, bed scan before every save. Her own Manager view keeps emergency entry.
 - Phone top bar: "↩ Back to Nursing Manager" button shown in full (own row) instead of cut.

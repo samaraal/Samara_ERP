@@ -16,6 +16,18 @@
       const hit=look(t);if(hit)return hit;
       if(depth>3)return null;
       let m;
+      // 2.20.78: sentences with names / numbers inside (greeting, shift, unsaved entries, bed scan messages)
+      if((m=/^Good (Morning|Afternoon|Evening), (.+)$/.exec(t)))return `${{Morning:'காலை வணக்கம்',Afternoon:'மதிய வணக்கம்',Evening:'மாலை வணக்கம்'}[m[1]]}, ${m[2]}`;
+      if((m=/^(day|night) shift\s*(\(.*\))?$/i.exec(t)))return `${m[1].toLowerCase()==='day'?'பகல் ஷிஃப்ட்':'இரவு ஷிஃப்ட்'}${m[2]?' '+m[2]:''}`;
+      if((m=/^📝 You have (\d+) unsaved (?:entry|entries) on this device$/.exec(t)))return `📝 இந்த ஃபோனில் சேமிக்காத பதிவு ${m[1]} உள்ளது`;
+      if((m=/^📝 Unsaved entry from (.+) — kept on this device$/.exec(t)))return `📝 ${m[1]} அன்று சேமிக்காத பதிவு — இந்த ஃபோனில் உள்ளது`;
+      if((m=/^✓ Entry restored \((\d+) of (\d+) fields\)$/.exec(t)))return `✓ பதிவு திரும்ப வந்தது (${m[2]}-ல் ${m[1]})`;
+      if((m=/^⚠️ Wrong bed — this sticker is (.+); the Guest is in (.+)\. Please check you are at the right bed\.$/.exec(t)))return `⚠️ தவறான படுக்கை — இந்த ஸ்டிக்கர் ${m[1]}; கெஸ்ட் இருப்பது ${m[2]}. சரியான படுக்கையில் இருக்கிறீர்களா என்று பாருங்கள்.`;
+      if((m=/^⚠️ No active Guest is recorded in (.+)\. Check the bed in Patients\.$/.exec(t)))return `⚠️ ${m[1]}-ல் கெஸ்ட் பதிவு இல்லை. நர்சிங் மேனேஜரிடம் சொல்.`;
+      if((m=/^⚠️ More than one Guest is recorded in (.+)\. Tell the Nursing Manager\.$/.exec(t)))return `⚠️ ${m[1]}-ல் ஒன்றுக்கு மேற்பட்ட கெஸ்ட் பதிவு. நர்சிங் மேனேஜரிடம் சொல்.`;
+      if((m=/^(.+?) \((\d{2}-\d{2}-\d{4}[^)]*)\)$/.exec(t))){const a=translate(m[1],depth+1);if(a)return `${a} (${m[2]})`}
+      if((m=/^Open (.+)$/.exec(t))){const a=translate(m[1],depth+1);if(a)return `${a} திற`}
+      if(t.includes('\n')){const parts=t.split('\n');let any=false;const out=parts.map(x=>{const a=translate(x,depth+1);if(a){any=true;return a}return x});if(any)return out.join('\n')}
       if((m=/^(\d+)\s+(.+)$/.exec(t))){const a=translate(m[2],depth+1);return a?`${m[1]} ${a}`:null}                    // "3 this month"
       if((m=/^(.*?)\s*\((\d+)\)$/.exec(t))){const a=translate(m[1],depth+1);return a?`${a} (${m[2]})`:null}            // "All (12)"
       if((m=/^(.+?)\s+(\d+)$/.exec(t))&&!/\d[-/]\d/.test(t)){const a=translate(m[1],depth+1);if(a)return `${a} ${m[2]}`} // "Unread 0"
