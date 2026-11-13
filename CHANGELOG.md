@@ -1,3 +1,7 @@
+## 2.20.62 — 13-11-2026 — Ward Stock: Shift Handover view for Nursing Manager / Admin
+- New box **🔄 Shift Handover** (Nursing Manager / Admin): shows whether the current shift's **Opening Count / Accept** is done — by whom, when, each item counted vs ERP — or, in red, that no nurse has accepted yet and how long it is overdue. Below it, the last 3 days of shifts with Opening Count, Closing Count and Verification; shifts nobody accepted are listed as **NOT accepted / No record** (earlier they were invisible). Tap a shift for its counts and movements.
+- Morning Verification with nothing pending now shows the last verification and a link to Shift Handover. Frontend only, no SQL.
+
 ## 2.20.61 — 13-11-2026 — Net Profit Statement fits the screen
 - Net Profit Statement table: no sideways scrolling — fits the screen width, Particulars wrap, amount columns fixed width. Frontend only.
 

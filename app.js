@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.61';
+  const APP_VERSION = '2.20.62';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '13-Nov-2026 Net Profit fits screen';
+  const APP_BUILD_DATE = '13-Nov-2026 Ward Stock Shift Handover view';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -43730,6 +43730,7 @@ function RoomsBeds({profile,onNavigate}){
       ['➕ Add items to Ward Stock',lastTopup?`Done · ${new Date(lastTopup.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Kolkata'})} · ${lastTopup.actor_name||''}`:'Tap to add','add',acc.manage],
       ['Ward Stock now',`${listItems.length} item${listItems.length===1?'':'s'}`,'stock',true],
       ['Use for a Guest',`${usedNow} entr${usedNow===1?'y':'ies'} this shift`,'use',canUse],
+      ['🔄 Shift Handover',curRow?.accepted_at?`${curShift} shift accepted · ${curRow.accepted_by_name}`:mins>=30?`${curShift} shift — NOT accepted yet`:`${curShift} shift — due now`,'handover',acc.manage],
       ['Opening Count / Accept',acceptRow?.accepted_at?`Done · ${acceptRow.accepted_by_name}`:mins>=660?`Next shift — from now`:mins>=30?'Due now':'At shift start','accept',acc.nurse],
       ['Closing Count',closeRow?.closed_at?`Done · ${closeRow.closed_by_name}`:mins<120&&prevRow&&!verified(prevRow.status)?'Previous shift — not done!':mins>=660?'Due before shift ends':'At shift end','close',acc.nurse],
       ['Morning Verification',toVerify?(toVerify.status==='Returned'?'Returned to nurse':`Waiting · ${pending.length} shift${pending.length===1?'':'s'}`):'Up to date','verify',true],
@@ -43750,7 +43751,8 @@ function RoomsBeds({profile,onNavigate}){
       tab==='verify'&&h(NsCountForm,{ctx,kind:'verify'}),
       tab==='add'&&h(NsAddItems,{ctx}),
       tab==='transfers'&&h(NsTransfers,{ctx}),
-      tab==='register'&&h(NsRegister,{ctx}));
+      tab==='register'&&h(NsRegister,{ctx}),
+      tab==='handover'&&h(NsHandover,{ctx}));
   }
   // 2.20.55: blind count. Nurse logins never see the ERP quantity — Check only says Matched / Not matched (SQL 389).
   // 1st Check with a mismatch → recount those items; still not matching → save with a note.
@@ -43765,7 +43767,13 @@ function RoomsBeds({profile,onNavigate}){
     const countList=()=>listItems.map(i=>({store_item_id:i.store_item_id,counted:Number(counts[i.store_item_id])}));
     const covers=pending.map(x=>shiftLabel(x.night_date,x.shift)).reverse().join(', ');
     const titles={accept:[`Opening Count — ${shiftLabel(acceptTarget.date,acceptTarget.shift)}`,'You are taking over the cupboard. Count each item and type the number you see. Then tap Check.'],close:[`Closing Count — ${shiftLabel(closeTarget.date,closeTarget.shift)}`,mins<120?'Late closing count for the shift that has just ended. Count each item in the cupboard, then tap Check.':'Before your shift ends, make sure every item used is recorded, then count each item in the cupboard and tap Check.'],verify:['Morning Verification',target?`Covers: ${covers}. ${target.closed_at?`Last closing count by ${target.closed_by_name} at ${when(target.closed_at)}`:'The last shift was NOT closed by the nurse'}${target.close_note?` · note: ${target.close_note}`:''}`:'No shift is waiting for verification.']};
-    if(kind==='verify'&&!target)return h(Section,{title:titles.verify[0]},h('p',null,'No shift is waiting for verification.'));
+    if(kind==='verify'&&!target){
+      const lastV=(ctx.data.shifts||[]).filter(x=>ctx.verified(x.status)).sort((a,b)=>String(b.verified_at||'').localeCompare(String(a.verified_at||'')))[0];
+      return h(Section,{title:titles.verify[0]},h('p',null,'No ended shift is waiting for verification.'),
+        lastV&&h('p',{className:'small-note'},`Last verified: ${shiftLabel(lastV.night_date,lastV.shift||'Night')} by ${lastV.verified_by_name||''}${lastV.verifier_as?` (${lastV.verifier_as})`:''} at ${when(lastV.verified_at)}.`),
+        acc.manage&&h('p',{className:'small-note'},'To see whether each shift did its Opening Count / Accept and Closing Count, open 🔄 Shift Handover.'),
+        acc.manage&&btn('🔄 Shift Handover',()=>setTab('handover'),true));
+    }
     if(kind==='accept'&&acceptRow?.accepted_at)return h(Section,{title:titles.accept[0]},h('p',null,`Already accepted by ${acceptRow.accepted_by_name} at ${when(acceptRow.accepted_at)}.`));
     if(kind==='close'&&closeRow?.closed_at)return h(Section,{title:titles.close[0]},h('p',null,`Closing count already done by ${closeRow.closed_by_name} at ${when(closeRow.closed_at)}.`));
     if(kind==='verify'&&!acc.verify)return h(Section,{title:titles.verify[0]},h('p',null,acc.nm_on_day_duty?'The Nursing Manager is on Day duty today — she verifies the Ward Stock.':'Only the Nursing Manager verifies — or, when she is not on Day duty today, the Day-shift duty nurse.'));
@@ -43912,6 +43920,40 @@ function RoomsBeds({profile,onNavigate}){
             acc.nurse&&btn('Not received',()=>act(t,'reject_transfer')),
             acc.manage&&btn('Cancel change',()=>act(t,'cancel_transfer')))]))),
       recent.length>0&&h(Section,{title:'Recent changes (3 days)'},table(['Change','Items','Requested by','Status','Decided by'],recent.map(t=>[what(t),lines(t),`${t.requested_by_name||''} · ${when(t.requested_at)}`,pill(t.status,t.status==='Confirmed'?'good':'bad'),[t.decided_by_name,when(t.decided_at),t.decision_note].filter(Boolean).join(' · ')]))));
+  }
+
+  // 2.20.62: Shift Handover — Nursing Manager / Admin see whether each shift did its Opening Count / Accept and Closing Count
+  // (shifts nobody accepted have no record, so they are listed here as NOT accepted instead of being invisible).
+  function NsHandover({ctx}){
+    const {cur,curShift,mins,curRow,shiftLabel,shiftRow,addDays,pill,statusTone,table,when,openShift,data,n,listItems,btn,setTab}=ctx;
+    const shifts=[];let d=cur,s=curShift;
+    for(let i=0;i<6;i++){shifts.push({date:d,shift:s});if(s==='Day'){s='Night';d=addDays(d,-1)}else s='Day'}
+    const firstUse=(data.shifts||[]).map(x=>x.night_date).sort()[0]||cur;
+    const rows=shifts.filter(x=>x.date>=firstUse).map(x=>({...x,row:shiftRow(x.date,x.shift)}));
+    const start=curShift==='Day'?'07:00':'19:00';
+    const late=v=>v>=60?`${Math.floor(v/60)} h ${v%60} min`:`${v} min`;
+    const counts=(data.counts||[]).filter(c=>c.night_date===cur&&(c.shift||'Night')===curShift&&c.kind==='Opening');
+    const diffs=counts.filter(c=>n(c.counted_qty)!==n(c.expected_qty));
+    const red=t=>h('b',{style:{color:'#b42318'}},t),green=t=>h('b',{style:{color:'#127a4b'}},t);
+    const now=curRow?.accepted_at
+      ?h('div',null,h('p',null,green(`✓ Accepted by ${curRow.accepted_by_name} at ${when(curRow.accepted_at)}`),curRow.accept_discrepancy?red(' · ⚠ count differed from the ERP'):' · all counts matched'),
+          curRow.accept_note&&h('p',{className:'small-note'},`Nurse's note: ${curRow.accept_note}`),
+          counts.length>0&&table(['Item','Nurse counted','ERP quantity','Result'],counts.map(c=>{const it=ctx.itemById(c.store_item_id);return [it?.item_name||'Item',`${n(c.counted_qty)} ${it?.unit||''}`,`${n(c.expected_qty)} ${it?.unit||''}`,n(c.counted_qty)===n(c.expected_qty)?green('Matched'):red(`Differs by ${n(c.counted_qty)-n(c.expected_qty)}`)]})),
+          diffs.length>0&&h('p',{className:'small-note'},`${diffs.length} item${diffs.length===1?'':'s'} differed — the Morning Verification will cover it.`))
+      :h('div',null,h('p',null,mins>=30?red(`✗ No nurse has done the Opening Count / Accept yet — due since ${start} (${late(mins)} ago).`):h('b',null,`Opening Count is due now (shift started at ${start}).`)),
+          h('p',{className:'small-note'},`${listItems.length} item${listItems.length===1?'':'s'} are in the cupboard. The nurse on duty must count them from her Nurse login (Nursing → Ward Stock → Opening Count / Accept) before using any item. Please remind her.`));
+    return h(Section,{title:'🔄 Shift Handover',subtitle:'Opening Count / Accept and Closing Count for each shift. Tap a shift for its counts and movements.'},
+      h('div',{className:'card panel',style:{marginBottom:'12px'}},h('h3',{style:{marginTop:0}},`Now: ${shiftLabel(cur,curShift)}`),now),
+      h('h4',null,'Last 3 days'),
+      table(['Shift','Opening Count / Accept','Closing Count','Verified','Status'],rows.map(({date,shift,row})=>{
+        const isCur=date===cur&&shift===curShift;
+        return [shiftLabel(date,shift),
+          row?.accepted_at?`${row.accepted_by_name} · ${when(row.accepted_at)}${row.accept_discrepancy?' ⚠ differed':''}`:red(isCur&&mins<30?'Due now':'NOT accepted'),
+          row?.closed_at?`${row.closed_by_name} · ${when(row.closed_at)}${row.close_discrepancy?' ⚠ differed':''}`:isCur?'At shift end':red('NOT done'),
+          row?.verified_at?`${row.verified_by_name} · ${when(row.verified_at)}`:'—',
+          pill(row?.status||(isCur?'Running':'No record'),row?statusTone(row.status):'bad')]}),i=>openShift(rows[i].date,rows[i].shift)),
+      h('p',{className:'small-note',style:{marginTop:'10px'}},'"No record" = no nurse did any count or Guest use in that shift.'),
+      btn('Full Register',()=>setTab('register')));
   }
 
   function NsRegister({ctx}){
