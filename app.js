@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.99';
+  const APP_VERSION = '2.20.100';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -14003,6 +14003,8 @@ https://samaraassistedliving.com/`;
 "Heard:": "கேட்டது:",
 "🎙 Voice entry": "🎙 குரல் பதிவு",
 "🎤 பேசு / Speak": "🎤 பேசு",
+"Start at the Guest's bed: tap 📷 Scan & Administer on Home and scan the bed sticker first — then open the entry. Choosing the Guest from the list and scanning later is not allowed.": "கெஸ்ட்டின் படுக்கையிலிருந்து தொடங்குங்கள்: முகப்பில் 📷 ஸ்கேன் செய்து கொடு அழுத்தி முதலில் படுக்கை ஸ்டிக்கரை ஸ்கேன் செய்யுங்கள் — பிறகு பதிவைத் திறக்கவும். பட்டியலிலிருந்து கெஸ்ட்டைத் தேர்ந்தெடுத்து பின்னர் ஸ்கேன் செய்வது அனுமதி இல்லை.",
+"📷 Go to Scan & Administer": "📷 ஸ்கேன் செய்து கொடு-க்குச் செல்",
 };
   // 2.15.70: EN | தமிழ் screen-language switch (STD, Admin, all ANMs / caregivers since 2.20.72).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -38943,14 +38945,20 @@ function RoomsBeds({profile,onNavigate}){
   }
   // 2.19.97: one check before every bedside save — computer block, then the compulsory scan.
   // scan = the screen's scan value; a Scan & Administer bed check (10 min, same Guest) also counts.
+  const BEDSIDE_START_MSG='Start at the Guest\'s bed: tap 📷 Scan & Administer on Home and scan the bed sticker first — then open the entry. Choosing the Guest from the list and scanning later is not allowed.';
+  function bedsideGoScanFirst(){try{window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Clinical Dashboard'}}))}catch(_){}}
   async function bedsideSaveCheck(profile,patientId,scan,opts){
     try{
       const b=await bedsideBlockedHere(profile);if(b)return b;
       if(!bedsideBlockedRole(profile)||!patientId)return '';
       const mode=await bedsideLoadMode();
       if(mode!=='qr_required')return '';
+      // 2.20.100 (Admin): bedside care must START with the bed scan (📷 Scan & Administer) — choosing the Guest from a
+      // list and scanning only at the end is not allowed. Physiotherapy is not affected (it does not use this check).
+      const startScan=bedsideSessionGet(patientId);
+      if(!startScan)return BEDSIDE_START_MSG;
       const own=scan&&scan.code&&(!scan.patientId||String(scan.patientId)===String(patientId))?scan:null;
-      const s=own||bedsideSessionGet(patientId);
+      const s=own||startScan;
       const r=s?.check?.result;
       // 2.20.82: one scan is enough — a ✅ verified bed scan in the last 12 minutes saves directly (the database accepts a
       // scan for 15 minutes, SQL 400). Only an older scan asks for the sticker once more (Scan to Save).
@@ -39012,7 +39020,7 @@ function RoomsBeds({profile,onNavigate}){
   function bedsideSessionGet(patientId){
     try{
       const s=JSON.parse(sessionStorage.getItem(BEDSIDE_SESSION_KEY)||'null');
-      if(!s||!s.code||!s.patientId||Date.now()-Number(s.at||0)>10*60*1000)return null;
+      if(!s||!s.code||!s.patientId||Date.now()-Number(s.at||0)>20*60*1000)return null; // 2.20.100: 20 min
       if(patientId&&String(s.patientId)!==String(patientId))return null;
       return s;
     }catch(_){return null}
@@ -39121,6 +39129,10 @@ function RoomsBeds({profile,onNavigate}){
     },[mode,patient?.id,value?.code]);
     if(!bedsideOn(mode)||!patient?.id)return null;
     if(bedsideModeCache.block&&bedsideIsComputer()&&bedsideBlockedRole(profile))return h('div',{className:'bedside-box'},h(BedsideCss),h('div',{className:'bedside-res bad'},`🔒 ${BEDSIDE_COMPUTER_MSG}`));
+    // 2.20.100: no start scan for this Guest → the entry must begin at the bed with Scan & Administer
+    if(mode==='qr_required'&&bedsideBlockedRole(profile)&&!bedsideSessionGet(patient.id))return h('div',{className:'bedside-box'},h(BedsideCss),
+      h('div',{className:'bedside-res bad'},`🔒 ${BEDSIDE_START_MSG}`),
+      h('div',{className:'bedside-row'},h('button',{type:'button',className:'btn btn-primary',onClick:bedsideGoScanFirst},'📷 Go to Scan & Administer')));
     const v=value&&(!value.patientId||value.patientId===patient.id)?value:{};
     const roomText=patient?.room_no?`Room ${patient.room_no}${patient.bed_no?` · Bed ${patient.bed_no}`:''}`:'no bed on record';
     async function gotCode(code){

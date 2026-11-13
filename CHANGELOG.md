@@ -1,3 +1,6 @@
+## 2.20.100 — 2026-11-13
+- Bedside care must start with the bed scan: every bedside entry (medicines, meals, beverages, daily care, vitals, intake / output, shift tasks) needs 📷 Scan & Administer for that Guest first (valid 20 min). Choosing the Guest from a list and scanning only at the end is no longer accepted; the entry screens show "Go to Scan & Administer". Scan to Save at Save stays (not for Intake / Output). Physiotherapy not affected.
+
 ## 2.20.99 — 2026-11-13
 - Bedside: every Save needs the bed sticker scanned again (📷 Scan to Save) — medicines, meals, beverages, daily care, vitals, shift tasks. Intake / Output: one scan is enough (within 12 minutes).
 

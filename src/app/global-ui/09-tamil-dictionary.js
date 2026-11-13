@@ -4352,4 +4352,6 @@
 "Heard:": "கேட்டது:",
 "🎙 Voice entry": "🎙 குரல் பதிவு",
 "🎤 பேசு / Speak": "🎤 பேசு",
+"Start at the Guest's bed: tap 📷 Scan & Administer on Home and scan the bed sticker first — then open the entry. Choosing the Guest from the list and scanning later is not allowed.": "கெஸ்ட்டின் படுக்கையிலிருந்து தொடங்குங்கள்: முகப்பில் 📷 ஸ்கேன் செய்து கொடு அழுத்தி முதலில் படுக்கை ஸ்டிக்கரை ஸ்கேன் செய்யுங்கள் — பிறகு பதிவைத் திறக்கவும். பட்டியலிலிருந்து கெஸ்ட்டைத் தேர்ந்தெடுத்து பின்னர் ஸ்கேன் செய்வது அனுமதி இல்லை.",
+"📷 Go to Scan & Administer": "📷 ஸ்கேன் செய்து கொடு-க்குச் செல்",
 };
