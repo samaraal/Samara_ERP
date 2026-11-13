@@ -57,6 +57,8 @@
     }
   };
   const FOOD_GROUP_LABEL={Main:'Main item',Side:'Sides / curries',Other:'Others'};
+  // 2.20.64: headings of the single food list (SQL 394)
+  const FOOD_CAT_ICON={'Tiffin Items':'🍚','Rice':'🍛','Chutney & Tiffin Sides':'🥥','Kuzhambu / Gravy':'🍲','Kootu':'🥣','Poriyal':'🥗','Aviyal':'🥘','Accompaniments':'🥛','Non-veg':'🍗','Others':'✏️'};
   const BEVERAGES=[['Tea','☕'],['Coffee','☕'],['Milk','🥛'],['Boost','🥤'],['Horlicks','🥤'],['Fresh Juice','🧃']];
   const INTAKE_OPTIONS=['Consumed fully','Consumed mostly','Consumed partially','Tasted only','Refused','Vomited','Tube feed completed'];
   // 2.15.40: quantity unit for beverages.
@@ -68,10 +70,13 @@
   // 2.15.59: Admin manages the food item list (table food_item_list, supabase/sql/192_food_item_list.sql).
   // Remove = hide from the list (saved meal entries keep their text). 'Hidden' rows hide typed "Added earlier" items.
   const FOOD_MEALS=['Tiffin','Lunch','Dinner'];
-  const fimMealLabel=m=>m==='Tiffin'?'Breakfast':m; // same wording as the intake page
+  const fimMealLabel=m=>m==='Tiffin'?'Breakfast':m==='All'?'Single list (all meals)':m; // same wording as the intake page
+  // 2.20.64: when the single list (meal_type 'All', SQL 394) exists, every meal uses it.
+  const foodListMeal=(listRows,meal)=>(listRows||[]).some(r=>r.active&&r.meal_type==='All'&&r.item_group!=='Hidden')?'All':meal;
   function foodGroupsFrom(listRows,meal){
     if(!listRows)return FOOD_ITEMS[meal]||FOOD_ITEMS.Lunch;
     const out={Main:[],Side:[],Other:[]};
+    meal=foodListMeal(listRows,meal);
     listRows.filter(r=>r.active&&r.meal_type===meal&&out[r.item_group]&&!r.category).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name)).forEach(r=>out[r.item_group].push(r.name));
     return out;
   }
@@ -79,12 +84,15 @@
   function foodCatsFrom(listRows,meal){
     const out={Main:{},Side:{},Other:{}};
     if(!listRows)return out;
+    meal=foodListMeal(listRows,meal);
     listRows.filter(r=>r.active&&r.meal_type===meal&&out[r.item_group]&&r.category).sort((a,b)=>(a.sort_order-b.sort_order)||a.name.localeCompare(b.name))
       .forEach(r=>{(out[r.item_group][r.category]=out[r.item_group][r.category]||[]).push(r.name)});
     return out;
   }
   function FoodItemManager({listRows,earlierItems,profile,onClose,onChanged}){
-    const [meal,setMeal]=React.useState('Tiffin');
+    const hasAll=foodListMeal(listRows,'Tiffin')==='All';
+    const MEAL_TABS=hasAll?['All',...FOOD_MEALS]:FOOD_MEALS;
+    const [meal,setMeal]=React.useState(hasAll?'All':'Tiffin');
     const [busy,setBusy]=React.useState(false);
     const [newName,setNewName]=React.useState({Main:'',Side:'',Other:''});
     const [promote,setPromote]=React.useState({});
@@ -139,7 +147,7 @@
     return h('div',{className:'modal-backdrop row-detail-backdrop',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
       h('div',{className:'card modal row-detail-modal fim-modal',role:'dialog','aria-modal':'true','aria-label':'Manage food item list'},
         h('div',{className:'panel-head'},h('div',null,h('h3',null,'Manage Food Item List'),h('small',null,'Admin only · changes apply to new entries; saved meal entries are never changed')),h('button',{type:'button',className:'close',onClick:onClose,'aria-label':'Close'},'×')),
-        h('div',{className:'fi-switch fim-meals',role:'tablist'},FOOD_MEALS.map(m=>h('button',{key:m,type:'button',role:'tab','aria-selected':meal===m,className:meal===m?'active':'',onClick:()=>setMeal(m)},fimMealLabel(m)))),
+        h('div',{className:'fi-switch fim-meals',role:'tablist'},MEAL_TABS.map(m=>h('button',{key:m,type:'button',role:'tab','aria-selected':meal===m,className:meal===m?'active':'',onClick:()=>setMeal(m)},fimMealLabel(m)))),
         ['Main','Side','Other'].map(g=>h('div',{key:g,className:'fim-group'},
           h('h4',null,`${FOOD_GROUP_LABEL[g]} (${rowsOf(meal,g).length})`),
           h('div',{className:'fim-list'},rowsOf(meal,g).map((r,i,arr)=>h('div',{key:r.id,className:'fim-item'},
@@ -161,7 +169,7 @@
           earlierItems.length?h('div',{className:'fim-list'},earlierItems.map(name=>{const tgt=promote[name]||{meal_type:meal,item_group:'Side'};return h('div',{key:name,className:'fim-item'},
             h('span',{className:'fim-name'},name),
             h('span',{className:'fim-actions fim-promote'},
-              h('select',{value:tgt.meal_type,'aria-label':`Meal for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,meal_type:e.target.value}})},FOOD_MEALS.map(m=>h('option',{key:m,value:m},fimMealLabel(m)))),
+              h('select',{value:tgt.meal_type,'aria-label':`Meal for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,meal_type:e.target.value}})},MEAL_TABS.map(m=>h('option',{key:m,value:m},fimMealLabel(m)))),
               h('select',{value:tgt.item_group,'aria-label':`Group for ${name}`,onChange:e=>setPromote({...promote,[name]:{...tgt,item_group:e.target.value}})},['Main','Side','Other'].map(g=>h('option',{key:g,value:g},FOOD_GROUP_LABEL[g]))),
               h('button',{type:'button',disabled:busy,onClick:()=>add(tgt.item_group,name,tgt.meal_type)},'＋ Add to list'),
               h('button',{type:'button',className:'fim-del',disabled:busy,onClick:()=>hideTyped(name)},'Hide')))})):h('p',{className:'fi-empty'},'No typed items.'),
@@ -257,6 +265,33 @@
       if(!item)return;
       if(form.items.some(x=>x.toLowerCase()===item.toLowerCase())){setPick('');return}
       setForm(f=>({...f,items:[...f.items,item],custom:''}));setPick('');
+    }
+    // 2.20.64: a typed / spoken item ("Not in the list"). Same item already in the list (capitals and
+    // spaces ignored) → the list spelling is used; a close spelling asks "Did you mean …?";
+    // a new item is added to the single list under "Others" for everyone (SQL 394).
+    const foodKey=v=>String(v||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    function foodNear(a,b){
+      if(a.length<4||b.length<4||Math.abs(a.length-b.length)>2)return false;
+      const d=Array.from({length:b.length+1},(_,j)=>j);
+      for(let i=1;i<=a.length;i++){let prev=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=t}}
+      return d[b.length]<=(a.length>=8?2:1);
+    }
+    async function addTypedItem(name){
+      const item=String(name||'').trim().replace(/\s+/g,' ');
+      if(item.length<2)return alert('Type or say the food item name.');
+      const listNames=foodList?foodList.filter(r=>r.active&&r.item_group!=='Hidden'&&r.meal_type===foodListMeal(foodList,form.meal_type)).map(r=>r.name):Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat());
+      const k=foodKey(item);
+      const same=listNames.find(x=>foodKey(x)===k);
+      if(same)return addItem(same);
+      const near=listNames.find(x=>foodNear(k,foodKey(x)));
+      if(near&&window.confirm(`Did you mean "${near}"?\n\nOK = use ${near}\nCancel = add "${item}" as a new item`))return addItem(near);
+      addItem(item);
+      if(!foodList)return;
+      try{
+        const {data,error}=await client.rpc('add_food_item_from_staff',{p_name:item});
+        if(error)throw error;
+        if(data?.status==='added'){showSamaraActionToast('success','Added to the food list',`${data.name} — now in the list under Others`);writeAuditEvent('Food Item Added by Staff','Food & Diet',null,{name:data.name},'Success');loadFoodList()}
+      }catch(e){console.warn('Food item not added to the list',e)} // the meal entry itself is not affected
     }
     function removeItem(i){setForm(f=>({...f,items:f.items.filter((_,j)=>j!==i)}))}
     function moveItem(i,d){setForm(f=>{const a=[...f.items];const j=i+d;if(j<0||j>=a.length)return f;[a[i],a[j]]=[a[j],a[i]];return {...f,items:a}})}
@@ -368,13 +403,13 @@
                 h('option',{value:''},'＋ Add food item…'),
                 Object.entries(groups).flatMap(([g,list])=>[
                   list.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'h-'+g,label:HEAD_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
-                  ...Object.entries(cats[g]||{}).map(([c,l])=>l.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'c-'+g+c,label:`${g==='Side'?'🥗':'▸'} ${c}`},l.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null)]),
+                  ...Object.entries(cats[g]||{}).map(([c,l])=>l.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'c-'+g+c,label:`${FOOD_CAT_ICON[c]||(g==='Side'?'🥗':'▸')} ${c}`},l.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null)]),
                 earlierItems.filter(x=>!form.items.includes(x)).length?h('optgroup',{label:'🕘 Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
                 h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
               pick==='__other'&&h('div',{className:'fi-other'},
                 h('small',{style:{display:'block',width:'100%',color:'#8a5a70'}},'Type the item, or tap 🎤 Voice and say it in Tamil or English — then tap Add.'),
-                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addItem(form.custom)}}}),
-                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>addItem(form.custom)},'Add'),
+                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addTypedItem(form.custom)}}}),
+                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>addTypedItem(form.custom)},'Add'),
                 h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPick('');setForm({...form,custom:''})}},'Cancel'))
             )
           ),

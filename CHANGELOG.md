@@ -1,3 +1,7 @@
+## 2.20.64 — 13-11-2026 — Food & Beverage: one food list for all meals (SQL 394)
+- **＋ Add food item** now shows ONE list for Breakfast, Lunch and Dinner, under headings: Tiffin Items, Rice, Chutney & Tiffin Sides, Kuzhambu / Gravy, Kootu, Poriyal, Aviyal, Accompaniments, Non-veg, Others (list approved by Admin). Old per-meal lists are switched off (saved meals unchanged).
+- **Not in the list → type or say the item**: if it is already in the list (capitals / spaces ignored, e.g. "IDLI" = Idli) the list spelling is used; a close spelling asks "Did you mean …?"; a new item is added to the list under **Others** for everyone. Items Admin removed or hid are not brought back. Admin: ⚙ Manage item list → "Single list (all meals)" tab to rename, remove or move items (▸) to a heading.
+
 ## 2.20.63a — 13-11-2026 — Ward Stock: Nurse mode = Nurse (SQL 393)
 - Nursing Manager in **Switch to Nurse** mode now gets the Nurse Ward Stock screen: **Opening Count / Accept** and **Closing Count** boxes, blind counts, and the server accepts her counts. Her Nursing Manager alerts stay on. Switch off = as before. SQL 393 also includes the SQL 392 alert, so running 393 alone is enough.
 
