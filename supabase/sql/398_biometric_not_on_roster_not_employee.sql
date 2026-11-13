@@ -35,7 +35,7 @@ returns jsonb language sql stable security definer set search_path=public,pg_tem
            public.samara_staff_last_day(pr.id) as last_day,
            (pr.id is not null and public.samara_is_roster_staff(pr.id)) as on_roster,
            exists(select 1 from public.profiles q where coalesce(q.is_active,q.active,true) and public.samara_is_roster_staff(q.id)
-                   and public.samara_same_person(u.tp_name, q.full_name)) as tp_matches_roster,
+                   and public.samara_same_person(u.tp_name, q.full_name)) and nullif(trim(coalesce(u.tp_name,'')),'') is not null as tp_matches_roster,
            (select max(a.punch_at) from public.attendance_punches a where a.emp_code = u.emp_code) as last_punch,
            (select count(*) from public.attendance_punches a where a.emp_code = u.emp_code) as punches
       from public.attendance_device_users u left join public.profiles pr on pr.id = u.employee_id
