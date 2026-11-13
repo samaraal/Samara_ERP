@@ -98,11 +98,11 @@ RULES:
 1. heard_text: faithful transcript of what was said, in the language / script spoken (repeat the text if the input is text).
 2. entry: "meal" if food (Breakfast / Lunch / Dinner items) was described, "beverage" if only a drink was described.
 3. meal_type: one of Tiffin, Lunch, Dinner — only if said or clearly implied by the words or the time; else "".
-4. items: food items served, each EXACTLY as written in the given food list when it matches (same spelling). Items said that are not in the list go to new_items, written in simple English (e.g. "Ragi Kali"). Keep the order spoken. Do not add items that were not said.
+4. items: EVERY food or dish that was said to be served / given goes into items or new_items — NEVER into remarks. Use the name EXACTLY as written in the given food list when it matches or is clearly the same dish (e.g. கீரை / keerai → the list item that is keerai, such as "Keerai" or "Keerai Poriyal"; சாதம் → "White Rice" or "Rice", whichever is in the list). Dishes not in the list go to new_items, in simple English (e.g. "Ragi Kali"). Keep the order spoken. Do not add items that were not said. A dish the Guest refused or did not want (e.g. "kootu vendamnu sonnanga") is NOT an item — put it in remarks ("Refused kootu").
 5. consumption_status: EXACTLY one of the given intake options, only if said; else "".
 6. time: "HH:MM" 24-hour, only if said ("now" = the given current time); else "".
 7. beverage: EXACTLY one of the given beverages, only for a drink; juice_name for Fresh Juice (e.g. "Orange"); quantity as a number and quantity_unit EXACTLY one of the given units, only if said.
-8. remarks: anything else said that matters (refused an item, needed feeding help, choking / cough, complaint, spilled, family brought food …) in short simple English. "" if nothing.
+8. remarks: only things that are not a served item — (refused an item, needed feeding help, choking / cough, complaint, spilled, family brought food …) in short simple English. "" if nothing.
 9. Never invent or guess. Keep negations exactly. Use English (Latin script) in every field except heard_text.
 Return JSON only: {"heard_text":"...","entry":"meal|beverage","meal_type":"","items":[],"new_items":[],"consumption_status":"","time":"","beverage":"","juice_name":"","quantity":"","quantity_unit":"","remarks":""}`;
 
