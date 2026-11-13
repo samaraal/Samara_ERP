@@ -1,4 +1,4 @@
-  // 2.15.70: EN | தமிழ் screen-language switch (trial for STD; Admin can also check).
+  // 2.15.70: EN | தமிழ் screen-language switch (STD, Admin, all ANMs / caregivers since 2.20.72).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
   // It changes the text of existing text nodes (never replaces elements), so React keeps working;
   // anything not in the dictionary — and every name, note or value typed by staff — stays as it is.
@@ -88,7 +88,13 @@
     // 2.16.8: trial extended to named staff — ANM Dharshini (EMP-0018). Add more names / employee IDs here.
     const TRIAL_STAFF=[/\bdharshini\b/i];const TRIAL_IDS=['EMP-0018'];
     const trialStaff=p=>TRIAL_IDS.includes(String(p?.employee_id||'').toUpperCase())||TRIAL_STAFF.some(re=>re.test(String(p?.full_name||'')));
-    const allowed=p=>['STD','Admin'].includes(String(p?.role||''))||Boolean(p?.__dutyContext?.roles?.includes('STD'))||trialStaff(p);
+    // 2.20.72: all ANMs / caregivers get EN | தமிழ் (role Caregiver, or designation ANM / Caregiver / Senior Caregiver / Nursing Assistant —
+    // also when an ANM is working in Nurse mode). Madhu Mithra (STD as additional charge) does not use Tamil — no switch for her.
+    const CARE_DESIG=/^(anm|caregiver|senior caregiver|nursing assistant)$/i;
+    const careStaff=p=>String(p?.__nurseMode?.role||p?.role||'')==='Caregiver'||[p?.designation,p?.__nurseMode?.designation].some(d=>CARE_DESIG.test(String(d||'').trim()));
+    const NO_TAMIL=[/\bmadhu\s*mithra\b/i];
+    const noTamil=p=>NO_TAMIL.some(re=>re.test(String(p?.full_name||'')));
+    const allowed=p=>!noTamil(p)&&(['STD','Admin'].includes(String(p?.role||''))||Boolean(p?.__dutyContext?.roles?.includes('STD'))||careStaff(p)||trialStaff(p));
     return {
       allowed,translate,
       current:()=>on?'ta':'en',

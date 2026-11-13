@@ -1,3 +1,6 @@
+## 2.20.72 — 2026-11-13
+- EN | தமிழ் switch now shown to all ANMs / caregivers (role Caregiver or designation ANM, Caregiver, Senior Caregiver, Nursing Assistant). Not shown to Madhu Mithra.
+
 ## 2.20.71 — 2026-11-13
 - Ward Stock ▸ Add items: Note and Save moved to the top of the list (stays visible while scrolling).
 
