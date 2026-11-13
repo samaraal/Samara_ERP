@@ -1,3 +1,6 @@
+## 2.20.67 — 13-11-2026 — My To-Do & Follow-up: one taller pink banner with Back and Refresh inside
+- Computers: the pink banner now runs the full width and holds **‹ Back** (left), the title, the name and **↻ Refresh** (right) — buttons in white outline on pink, bigger title. Phones unchanged. styles.css only, no SQL.
+
 ## 2.20.66 — 13-11-2026 — My To-Do & Follow-up: title banner in the top bar
 - On computers the "My To-Do & Follow-up" banner now sits in the top bar between **‹ Back** and **↻ Refresh** (slimmer, one line each), so the page content starts higher. On phones it stays as before. Frontend only (app.js + styles.css), no SQL.
 

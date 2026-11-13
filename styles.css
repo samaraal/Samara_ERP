@@ -2874,3 +2874,23 @@ table.table.vitals-log-table th:first-child{z-index:3!important}
 .shift-summary.shift-summary-in-toolbar>div{min-width:0}
 .shift-summary.shift-summary-in-toolbar>.badge{flex:0 0 auto;font-size:12px;padding:4px 12px}
 @media(max-width:760px){.global-page-title-slot{display:none!important}}
+
+/* ERP 2.20.67 — the whole top bar becomes the pink title banner: ‹ Back · title · name · ↻ Refresh inside it (desktop) */
+@media(min-width:761px){
+  .global-page-tools:has(.shift-summary-in-toolbar){
+    margin:12px 26px 4px;padding:16px 18px!important;min-height:96px;gap:16px;
+    background:linear-gradient(115deg,#7f0b45 0%,#ad1457 58%,#d81b60 100%);
+    border-radius:20px;box-shadow:0 12px 28px rgba(126,11,69,.22);
+  }
+  .global-page-tools:has(.shift-summary-in-toolbar) .shift-summary.shift-summary-in-toolbar{
+    background:none!important;box-shadow:none!important;padding:0 8px!important;min-height:0;border-radius:0;
+  }
+  .global-page-tools:has(.shift-summary-in-toolbar) .shift-summary-in-toolbar strong{font-size:24px!important;letter-spacing:.2px}
+  .global-page-tools:has(.shift-summary-in-toolbar) .shift-summary-in-toolbar>div>span{font-size:14px!important;margin-top:4px;color:#fde3ef!important}
+  .global-page-tools:has(.shift-summary-in-toolbar) .shift-summary-in-toolbar>.badge{font-size:13px;padding:6px 14px}
+  .global-page-tools:has(.shift-summary-in-toolbar) .btn{
+    background:rgba(255,255,255,.16)!important;color:#fff!important;border:1.5px solid rgba(255,255,255,.55)!important;
+    border-radius:12px;min-height:46px;font-weight:800;box-shadow:none!important;
+  }
+  .global-page-tools:has(.shift-summary-in-toolbar) .btn:hover{background:rgba(255,255,255,.28)!important}
+}
