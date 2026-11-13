@@ -126,7 +126,7 @@
       ['⏳ Waiting for the nurse',`${pendingTr.length} change${pendingTr.length===1?'':'s'}`,'transfers',acc.manage&&pendingTr.length>0],
       ['➕ Add items to Ward Stock',lastTopup?`Done · ${new Date(lastTopup.created_at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Kolkata'})} · ${lastTopup.actor_name||''}`:'Tap to add','add',acc.manage],
       ['Ward Stock now',`${listItems.length} item${listItems.length===1?'':'s'}`,'stock',true],
-      ['Use for a Guest',`${usedNow} entr${usedNow===1?'y':'ies'} this shift`,'use',canUse],
+      ['Use for a Guest',`${usedNow} entr${usedNow===1?'y':'ies'} this shift`,'use',true],
       ['🔄 Shift Handover',curRow?.accepted_at?`${curShift} shift accepted · ${curRow.accepted_by_name}`:mins>=30?`${curShift} shift — NOT accepted yet`:`${curShift} shift — due now`,'handover',acc.manage],
       ['Opening Count / Accept',acceptRow?.accepted_at?`Done · ${acceptRow.accepted_by_name}`:mins>=660?`Next shift — from now`:mins>=30?'Due now':'At shift start','accept',acc.nurse],
       ['Closing Count',closeRow?.closed_at?`Done · ${closeRow.closed_by_name}`:mins<120&&prevRow&&!verified(prevRow.status)?'Previous shift — not done!':mins>=660?'Due before shift ends':'At shift end','close',acc.nurse],
@@ -205,9 +205,14 @@
           btn('Recount',()=>setResult(null)))));
   }
   function NsUseForm({ctx}){
-    const {acc,cur,curShift,curRow,lateShifts,shiftLabel,listItems,n,qty,btn,post,setError,itemById,patients,pLabel,onNavigate,busy}=ctx;
+    const {acc,cur,curShift,curRow,lateShifts,shiftLabel,listItems,n,qty,btn,post,setError,itemById,patients,pLabel,onNavigate,busy,data,when,table}=ctx;
     const [f,setF]=React.useState({patient_id:'',store_item_id:'',qty:'1',note:'',when:'now'}),[search,setSearch]=React.useState(''),[done,setDone]=React.useState(null);
-    if(!(acc.nurse||acc.nm))return h(Section,{title:'Use for a Guest'},h('p',null,'Nurses record use from their Nurse login.'));
+    // 2.20.84: list of this shift's Use entries (what, for whom, by whom) with Raise charge
+    const usedRows=((data&&data.ledger)||[]).filter(m=>m.night_date===cur&&(m.shift||'Night')===curShift&&m.movement==='Use').sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    const usedList=h(Section,{title:`Used this shift — ${usedRows.length} entr${usedRows.length===1?'y':'ies'}`,subtitle:'Each entry is already a received item for the Guest. Charge it in Raise Bill / Charge → category → the item appears under "received for this Guest".'},
+      usedRows.length?table(['Time','Item','Qty','Guest','By','Note',''],usedRows.map(m=>{const i=itemById(m.store_item_id);return [when?when(m.created_at):'',i?.item_name||'Item',`${Math.abs(n(m.qty))} ${i?.unit||''}`,m.patient_id?pLabel(m.patient_id):'',m.actor_name||'',(m.late_entry?'(late) ':'')+(m.remarks||''),
+        onNavigate?btn('Raise charge',()=>onNavigate('Charge Approvals')):'']})):h('p',{className:'small-note'},'No Ward Stock use recorded in this shift yet.'));
+    if(!(acc.nurse||acc.nm))return h('div',null,h(Section,{title:'Use for a Guest'},h('p',null,'Nurses record use from their Nurse login.')),usedList);
     const showQty=Boolean(acc.manage);
     const lateT=f.when==='now'?null:lateShifts.find(x=>`${x.night_date}|${x.shift}`===f.when);
     const late=Boolean(lateT);
@@ -229,7 +234,8 @@
           h('div',{className:'field'},h('label',null,'Item *'),h('select',{required:true,value:f.store_item_id,onChange:e=>setF(v=>({...v,store_item_id:e.target.value}))},h('option',{value:''},'Select item'),avail.map(i=>h('option',{key:i.store_item_id,value:i.store_item_id},showQty?`${i.item_name} · ${qty(i.night_balance,i.unit)} in cupboard`:i.item_name)))),
           h('div',{className:'field'},h('label',null,`Quantity${it?` (${it.unit}${showQty?`, up to ${n(it.night_balance)}`:''})`:''} *`),h('input',{type:'number',min:1,step:1,required:true,value:f.qty,onChange:e=>setF(v=>({...v,qty:e.target.value}))}))),
         h('div',{className:'field'},h('label',null,late?'Why was it not entered during that shift? *':'Note (optional)'),h('textarea',{rows:2,value:f.note,onChange:e=>setF(v=>({...v,note:e.target.value}))})),
-        h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Record Use'))));
+        h('button',{className:'btn btn-primary',disabled:busy},busy?'Saving…':'Record Use'))),
+      usedList);
   }
   // 2.20.54: one screen — full Consumables / Pharmacy list (S.No, A–Z), type a quantity against any items, Save once.
   // A new item's first quantity becomes its usual level; "Fill up to usual levels" pre-fills last night's use.

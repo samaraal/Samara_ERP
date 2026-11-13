@@ -1,3 +1,7 @@
+## 2.20.84 — 2026-11-13
+- Ward Stock ▸ Use for a Guest: shows this shift's use entries (time, item, qty, Guest, by, note) with Raise charge; the tile opens for every Ward Stock login.
+- New Patient Indent: the category count now matches the item list (Ward Stock cupboard items are left out of both).
+
 ## 2.20.83 — 2026-11-13
 - Beverage: a time up to 15 minutes ahead (rounded up / phone clock) is saved as the current time instead of being refused; a later time shows both times and the 24-hour example.
 
