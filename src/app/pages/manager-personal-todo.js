@@ -1,4 +1,12 @@
   function ManagerPersonalTodo({profile}){
+    const [titleSlot,setTitleSlot]=React.useState(null); // 2.20.66: top-bar slot (desktop only)
+    React.useLayoutEffect(()=>{
+      const mq=window.matchMedia?window.matchMedia('(min-width: 761px)'):null;
+      const pick=()=>setTitleSlot(mq&&mq.matches?document.getElementById('samara-page-title-slot'):null);
+      pick();if(!mq)return;
+      mq.addEventListener?mq.addEventListener('change',pick):mq.addListener(pick);
+      return()=>{mq.removeEventListener?mq.removeEventListener('change',pick):mq.removeListener(pick)};
+    },[]);
     const emptyForm=()=>({subject:'',category:'General',priority:'Normal',due_at:'',follow_up_at:'',notes:'',status:'Pending'});
     const [rows,setRows]=React.useState([]);
     const [form,setForm]=React.useState(emptyForm());
@@ -315,11 +323,13 @@
       style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},
       h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
 
+    // 2.20.66: on desktop the title banner sits in the top bar between ‹ Back and ↻ Refresh; on phones it stays here.
+    const titleBanner=h('div',{className:'shift-summary'+(titleSlot?' shift-summary-in-toolbar':'')},
+      h('div',null,h('strong',null,'My To-Do & Follow-up'),h('span',null,'Private personal workspace — visible only to you')),
+      h('span',{className:'badge'},formalName(profile))
+    );
     return h('div',{className:'manager-personal-todo'},
-      h('div',{className:'shift-summary'},
-        h('div',null,h('strong',null,'My To-Do & Follow-up'),h('span',null,'Private personal workspace — visible only to you')),
-        h('span',{className:'badge'},formalName(profile))
-      ),
+      titleSlot&&ReactDOM.createPortal?ReactDOM.createPortal(titleBanner,titleSlot):titleBanner,
       h('div',{className:'grid stats',style:{marginTop:'14px'}},
         stat('Due Today',dueToday,'Today'),
         stat('Overdue',overdue,'Overdue'),

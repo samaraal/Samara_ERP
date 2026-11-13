@@ -1,3 +1,6 @@
+## 2.20.66 — 13-11-2026 — My To-Do & Follow-up: title banner in the top bar
+- On computers the "My To-Do & Follow-up" banner now sits in the top bar between **‹ Back** and **↻ Refresh** (slimmer, one line each), so the page content starts higher. On phones it stays as before. Frontend only (app.js + styles.css), no SQL.
+
 ## 2.20.65 — 13-11-2026 — Food & Beverage: search box for food items (SQL 395)
 - **＋ Add food item** is now a **🔍 Search food item** box: type (or say) a few letters — only matching dishes show under their headings (typing a heading such as "kootu" shows all Kootu). Tap a dish to add it. Capitals / spaces ignored.
 - Nothing matches → **＋ Add "…" as a new item** (same duplicate check as before; goes to **Others** for everyone). The separate "Not in the list" option and the "Added earlier" group are removed from the staff list.

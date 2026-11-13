@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.65';
+  const APP_VERSION = '2.20.66';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '13-Nov-2026 Food item search';
+  const APP_BUILD_DATE = '13-Nov-2026 To-Do title in top bar';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -16011,6 +16011,7 @@ https://samaraassistedliving.com/`;
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
         h('div',{className:`global-page-tools${page==='WhatsApp Inbox'?' wa-page-tools':''}`},
           (navDepth>0||page!==(homePageForProfile(profile)||allowed[0]))&&h('button',{type:'button',className:'btn btn-secondary global-back-button',onClick:goBackPage,title:'Go back to the previous page','aria-label':'Go back'},'‹ Back'),
+          h('div',{className:'global-page-title-slot',id:'samara-page-title-slot'}), // 2.20.66: a page may show its title banner here, between Back and Refresh (desktop)
           h('button',{type:'button',className:'btn btn-secondary mobile-global-home',onClick:()=>{pageEditedRef.current=false;setPage(homePageForProfile(profile)||allowed[0]);window.requestAnimationFrame(()=>{try{window.scrollTo({top:0,left:0})}catch(_){}})},title:'Go to Home','aria-label':'Go to Home'},'⌂ Home'),
           h('button',{type:'button',className:'btn btn-secondary',onClick:refreshCurrentPage,title:'Reload the current page data','aria-label':'Refresh current page'},'↻ Refresh'),
           h('button',{type:'button',className:'btn btn-secondary mobile-global-signout',onClick:async()=>{if(!window.confirm('Are you sure you want to sign out?'))return;try{window.SamaraDrafts?.clearForSignOut()}catch(_){}await writeAuditEvent('User Logout','Authentication',profile.id,{login_id:profile.login_id},'Success');await client.auth.signOut({scope:'local'})},title:'Sign out of Samara Care on this device','aria-label':'Sign out'},'⇥ Sign Out')),
@@ -17836,6 +17837,14 @@ function Dashboard({profile,onNavigate,alertEngine}){
 
 
   function ManagerPersonalTodo({profile}){
+    const [titleSlot,setTitleSlot]=React.useState(null); // 2.20.66: top-bar slot (desktop only)
+    React.useLayoutEffect(()=>{
+      const mq=window.matchMedia?window.matchMedia('(min-width: 761px)'):null;
+      const pick=()=>setTitleSlot(mq&&mq.matches?document.getElementById('samara-page-title-slot'):null);
+      pick();if(!mq)return;
+      mq.addEventListener?mq.addEventListener('change',pick):mq.addListener(pick);
+      return()=>{mq.removeEventListener?mq.removeEventListener('change',pick):mq.removeListener(pick)};
+    },[]);
     const emptyForm=()=>({subject:'',category:'General',priority:'Normal',due_at:'',follow_up_at:'',notes:'',status:'Pending'});
     const [rows,setRows]=React.useState([]);
     const [form,setForm]=React.useState(emptyForm());
@@ -18152,11 +18161,13 @@ function Dashboard({profile,onNavigate,alertEngine}){
       style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},
       h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
 
+    // 2.20.66: on desktop the title banner sits in the top bar between ‹ Back and ↻ Refresh; on phones it stays here.
+    const titleBanner=h('div',{className:'shift-summary'+(titleSlot?' shift-summary-in-toolbar':'')},
+      h('div',null,h('strong',null,'My To-Do & Follow-up'),h('span',null,'Private personal workspace — visible only to you')),
+      h('span',{className:'badge'},formalName(profile))
+    );
     return h('div',{className:'manager-personal-todo'},
-      h('div',{className:'shift-summary'},
-        h('div',null,h('strong',null,'My To-Do & Follow-up'),h('span',null,'Private personal workspace — visible only to you')),
-        h('span',{className:'badge'},formalName(profile))
-      ),
+      titleSlot&&ReactDOM.createPortal?ReactDOM.createPortal(titleBanner,titleSlot):titleBanner,
       h('div',{className:'grid stats',style:{marginTop:'14px'}},
         stat('Due Today',dueToday,'Today'),
         stat('Overdue',overdue,'Overdue'),
