@@ -7,6 +7,18 @@
   const zaMonthLabel=iso=>{if(!iso)return '—';const [y,m]=String(iso).slice(0,7).split('-').map(Number);return new Date(Date.UTC(y,m-1,1)).toLocaleDateString('en-GB',{month:'short',year:'numeric',timeZone:'UTC'})};
   const RR_NO_BILL='Owner gives no bill — Samara rent receipt to be signed by the owner and uploaded';
   const zaAddMonths=(iso,n)=>{const [y,m]=String(iso).slice(0,7).split('-').map(Number);const d=new Date(Date.UTC(y,m-1+n,1));return d.toISOString().slice(0,10)};
+  // 2.20.81: preview of the chosen bill / receipt (photo shown; PDF opens in a new tab)
+  function RaBillPreview({file}){
+    const [url,setUrl]=React.useState('');
+    React.useEffect(()=>{if(!file)return;let u='';try{u=URL.createObjectURL(file)}catch(_){}setUrl(u);return()=>{try{u&&URL.revokeObjectURL(u)}catch(_){}}},[file]);
+    if(!file||!url)return null;
+    const isImg=/^image\//.test(file.type||'')||/\.(jpe?g|png|webp|heic)$/i.test(file.name||'');
+    const kb=Math.round((file.size||0)/1024);
+    return h('div',{style:{marginTop:'10px',display:'flex',gap:'12px',alignItems:'flex-start',flexWrap:'wrap'}},
+      isImg?h('a',{href:url,target:'_blank',rel:'noopener',title:'Open full size'},h('img',{src:url,alt:'Chosen receipt',style:{maxWidth:'220px',maxHeight:'220px',borderRadius:'10px',border:'1px solid #f3c2d8',objectFit:'contain',background:'#faf5f7'}}))
+        :h('a',{href:url,target:'_blank',rel:'noopener',className:'btn btn-secondary',style:{margin:0}},'📄 Open PDF'),
+      h('small',{style:{color:'#8a5a70'}},`${file.name} · ${kb>1024?(kb/1024).toFixed(1)+' MB':kb+' KB'}`,h('br'),'Tap the picture to see it full size. It is uploaded when you press Save.'));
+  }
   function RentalAccountPage({profile,onNavigate,category}){
     const isRent=category==='Rent';
     const pageTitle=isRent?'Rent Account':'Genset Account';
@@ -187,7 +199,9 @@
         h('label',{className:'btn btn-primary',style:{cursor:'pointer',margin:0}},'📷 Take photo',h('input',{type:'file',accept:'image/*',capture:'environment',style:{display:'none'},onChange:e=>{setBill(e.target.files&&e.target.files[0]||null);e.target.value=''}})),
         h('label',{className:'btn btn-secondary',style:{cursor:'pointer',margin:0}},'🖼 Choose photo / PDF',h('input',{type:'file',accept:'image/jpeg,image/png,image/webp,application/pdf',style:{display:'none'},onChange:e=>{setBill(e.target.files&&e.target.files[0]||null);e.target.value=''}})),
         bill&&h('span',{style:{color:'#2e7d4f',fontWeight:700}},`✓ ${bill.name}`),
+        bill&&h('button',{type:'button',className:'btn btn-secondary',style:{margin:0},onClick:()=>setBill(null)},'✕ Remove'),
         required&&h('label',{style:{display:'flex',gap:'6px',alignItems:'center',fontWeight:700,color:'#5d1740'}},h('input',{type:'checkbox',checked:!!form.no_bill,onChange:e=>setForm({...form,no_bill:e.target.checked})}),isRent?'No bill (owner signs Samara receipt)':'No bill')),
+      bill&&h(RaBillPreview,{file:bill}), // 2.20.81: show the chosen photo / PDF
       required&&form.no_bill&&h('input',{style:{marginTop:'8px',width:'100%'},value:form.no_bill_reason||'',placeholder:'Why is there no bill? (e.g. bill to come from vendor)',onChange:e=>setForm({...form,no_bill_reason:e.target.value})}));
     const monthPaid=form.month&&months.find(m=>String(m.month).slice(0,7)===String(form.month).slice(0,7));
     // 2.20.6: every month from Aug 2026 (Samara opened 27-08-2026) to next month can be chosen — past months can be recorded

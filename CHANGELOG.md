@@ -1,3 +1,6 @@
+## 2.20.81 — 2026-11-13
+- Rent / Genset Account: the chosen bill / receipt is now shown (photo preview, tap for full size; PDF opens in a new tab) with ✕ Remove, before Save.
+
 ## 2.20.80 — 2026-11-13
 - Intake / Output entry pop-up: 📷 Scan bed QR panel added (same as Meals / Medicines); Save button becomes Scan to Save.
 
