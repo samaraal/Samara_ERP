@@ -4,7 +4,7 @@
 -- Until now the scan was checked only on the phone screen, so an old app version, a computer, a role the screen did
 -- not check (e.g. STD for meals) or a network hiccup could still save without a scan. From this SQL:
 --   1. Every bed-sticker check that comes back ✅ verified is written down (who, which Guest, when).
---   2. Medication given / not given / withheld, Meals, Beverages, Daily care & procedures and Vitals can be saved for a
+--   2. Medication given / not given / withheld, Meals, Beverages, Daily care & procedures, Vitals and Intake / Output can be saved for a
 --      Guest ONLY if the same login scanned THAT Guest's bed sticker (✅ verified) in the last 15 minutes.
 --      Otherwise the database refuses the entry, whichever screen, phone or computer it comes from.
 --   3. Exempt (emergency entry): Admin / Director and the Nursing Manager's own login. Automatic system jobs are not affected.
@@ -92,7 +92,7 @@ revoke all on function public.bedside_enforce_scan() from public, anon, authenti
 do $$
 declare t text;
 begin
-  foreach t in array array['medication_administrations','meal_records','beverage_records','care_logs','vital_signs'] loop
+  foreach t in array array['medication_administrations','meal_records','beverage_records','care_logs','vital_signs','io_entries'] loop
     if to_regclass('public.'||t) is not null then
       execute format('drop trigger if exists bedside_enforce_scan on public.%I', t);
       execute format('create trigger bedside_enforce_scan before insert on public.%I for each row execute function public.bedside_enforce_scan()', t);
@@ -106,7 +106,7 @@ update public.bedside_verify_settings set mode='qr_required', updated_at=now(), 
 notify pgrst,'reload schema';
 commit;
 
--- check: mode + the 5 guarded tables
+-- check: mode + the 6 guarded tables
 select (select mode from public.bedside_verify_settings where id=1) as mode,
        string_agg(c.relname, ', ' order by c.relname) as guarded_tables
   from pg_trigger tg join pg_class c on c.oid = tg.tgrelid

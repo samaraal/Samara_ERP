@@ -51,17 +51,26 @@
     const home=homePageForProfile(profile)||allowed[0]||'Dashboard';
     const choose=(preferred,fallbacks=[])=>[preferred,...fallbacks].find(item=>allowed.includes(item));
 
+    const bedsideMode=useBedsideMode(); // 2.20.76
     if(CLINICAL_ROLES.includes(profile.role)){
       const clinicalHome=choose('Clinical Dashboard',[home]);
+      // 2.20.76: when the bedside scan is compulsory, no direct Meds / Vitals / Care shortcuts — entries start only with
+      // 📷 Scan & Administer on Home (scan the Guest's bed sticker). Notes / Tasks / Talk to Guest stay.
+      const scanOnly=bedsideMode==='qr_required'&&bedsideBlockedRole(profile);
       const medicines=choose('Medicines',['Shift Tasks']);
       const vitals=choose('Vital Signs',['Shift Tasks']);
       const care=choose('Daily Care',['Shift Tasks']);
-      const items=[
+      const items=(scanOnly?[
+        clinicalHome&&{page:clinicalHome,icon:'📷',label:'Scan'},
+        choose('Nursing Notes')&&{page:'Nursing Notes',icon:'📝',label:'Notes'},
+        choose('Shift Tasks')&&{page:'Shift Tasks',icon:'☷',label:'Tasks'},
+        choose('Talk to Guest')&&{page:'Talk to Guest',icon:'🎙',label:'Talk'}
+      ]:[
         clinicalHome&&{page:clinicalHome,icon:'⌂',label:'Home'},
         medicines&&{page:medicines,icon:'◐',label:'Meds'},
         vitals&&{page:vitals,icon:'∿',label:'Vitals'},
         care&&{page:care,icon:'♡',label:'Care'}
-      ].filter(Boolean);
+      ]).filter(Boolean);
       return h('nav',{className:'mobile-bottom-nav nursing-mobile-nav','aria-label':'Nursing mobile navigation'},
         items.map(item=>h('button',{
           type:'button',key:item.label,
@@ -153,6 +162,7 @@
   }
 
   function NursingMobileQuickActions({profile,page,onNavigate}){
+    const bedsideMode=useBedsideMode(); // 2.20.76
     // Keep the large clinical shortcut grid on the nursing dashboard only.
     // Workflow pages need the full mobile viewport for their actual content.
     if(page!=='Clinical Dashboard')return null;
@@ -167,6 +177,12 @@
       ['Shift Tasks','☷','Tasks','Current shift'],
       ['Talk to Guest','🎙','Talk to Guest','Auto · 6 languages']
     ];
+    // 2.20.76: bedside scan compulsory → no direct entry tiles for Medication / Vitals / Intake-Output / Daily Care / Food.
+    // Staff start every Guest entry with 📷 Scan & Administer above (scan the bed sticker → the Guest opens).
+    if(bedsideMode==='qr_required'&&bedsideBlockedRole(profile)){
+      const BEDSIDE_TILES=['Medicines','Vital Signs','Intake / Output','Daily Care','Food & Diet'];
+      for(let i=actions.length-1;i>=0;i--)if(BEDSIDE_TILES.includes(actions[i][0]))actions.splice(i,1);
+    }
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['Outside Samara Nursing Procedures','✚','Outside Nursing','Submit completed procedure']);
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
     // These workflows must also be visible on desktop and in the Manager's Nurse view.

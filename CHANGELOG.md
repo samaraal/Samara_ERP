@@ -1,3 +1,7 @@
+## 2.20.76 — 2026-11-13
+- Nursing Home (bedside scan compulsory): Medication / Vitals / Intake-Output / Daily Care / Food tiles and the Meds / Vitals / Care bottom buttons removed for Nurse / Caregiver logins — every Guest entry starts with 📷 Scan & Administer. Bottom bar: Scan · Notes · Tasks · Talk · More.
+- Intake / Output: bedside scan needed to save (also in SQL 400); opens the scanned Guest; added to Scan & Administer.
+
 ## 2.20.75 — 2026-11-13
 - Bedside scan compulsory for every login that records for a Guest (Nurse, Caregiver, STD, Kitchen, Managers); only Admin / Director and the Nursing Manager's own login are exempt. Enforced in the database by SQL 400 (medicines, meals, beverages, daily care / procedures, vitals).
 

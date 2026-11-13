@@ -582,7 +582,8 @@
             !isCaregiver&&can('Medicines')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Medicines',{filter_only:true})},'💊 Medicines'),
             can('Vital Signs')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Vital Signs')},'🩺 Vital signs'),
             can('Daily Care')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Daily Care')},'🧼 Daily care / Procedure'),
-            can('Food & Diet')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Food & Diet')},'🍛 Meal / Beverage'))),
+            can('Food & Diet')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Food & Diet')},'🍛 Meal / Beverage'),
+            can('Intake / Output')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Intake / Output')},'💧 Intake / Output'))), // 2.20.76
       msg&&h('div',{className:'bedside-res bad',style:{marginTop:'10px'}},msg),
       scanning&&h(BedsideQrScanner,{title:'Scan the bed sticker',onCode:gotCode,onClose:()=>setScanning(false)}));
   }

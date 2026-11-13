@@ -134,7 +134,7 @@
   function IntakeOutput({profile,onNavigate}){
     const [patients]=usePatients();
     const [settings,setSettings]=React.useState([]);
-    const [patientId,setPatientId]=React.useState('');
+    const [patientId,setPatientId]=React.useState(()=>{try{return bedsideCurrentGuest()||''}catch(_){return ''}}); // 2.20.76: Guest scanned at the bed
     const [chartDate,setChartDate]=React.useState(()=>ioChartDay(new Date()));
     const [draftDate,setDraftDate]=React.useState(()=>ioChartDay(new Date()));
     const [entries,setEntries]=React.useState([]);
@@ -243,6 +243,7 @@
       if(isStool&&!(Number(cf.stool_count)>0))return showSamaraActionToast('error','Enter the count','How many times (1 or more).');
       const item=(cf.item==='Other…'?cf.custom:(['urine','other'].includes(col.key)?cf.custom:cf.item)).trim()||null;
       if(cf.item==='Other…'&&!item)return showSamaraActionToast('error','Type the item','Type what was given (e.g. Glucon-D, Horlicks).');
+      {const _bb=await bedsideSaveCheck(profile,patientId,null);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.20.76: bedside scan (SQL 400)
       setBusy(true);
       const payload={patient_id:patientId,entry_at:at.toISOString(),direction,category,item,volume_ml:vol,stool_count:isStool?Math.round(Number(cf.stool_count)):null,stool_type:isStool?cf.stool_type:null,remarks:cf.remarks.trim()||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
       const {data,error}=await client.from('io_entries').insert(payload).select('id').single();

@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.75';
+  const APP_VERSION = '2.20.76';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -16731,17 +16731,26 @@ https://samaraassistedliving.com/`;
     const home=homePageForProfile(profile)||allowed[0]||'Dashboard';
     const choose=(preferred,fallbacks=[])=>[preferred,...fallbacks].find(item=>allowed.includes(item));
 
+    const bedsideMode=useBedsideMode(); // 2.20.76
     if(CLINICAL_ROLES.includes(profile.role)){
       const clinicalHome=choose('Clinical Dashboard',[home]);
+      // 2.20.76: when the bedside scan is compulsory, no direct Meds / Vitals / Care shortcuts — entries start only with
+      // 📷 Scan & Administer on Home (scan the Guest's bed sticker). Notes / Tasks / Talk to Guest stay.
+      const scanOnly=bedsideMode==='qr_required'&&bedsideBlockedRole(profile);
       const medicines=choose('Medicines',['Shift Tasks']);
       const vitals=choose('Vital Signs',['Shift Tasks']);
       const care=choose('Daily Care',['Shift Tasks']);
-      const items=[
+      const items=(scanOnly?[
+        clinicalHome&&{page:clinicalHome,icon:'📷',label:'Scan'},
+        choose('Nursing Notes')&&{page:'Nursing Notes',icon:'📝',label:'Notes'},
+        choose('Shift Tasks')&&{page:'Shift Tasks',icon:'☷',label:'Tasks'},
+        choose('Talk to Guest')&&{page:'Talk to Guest',icon:'🎙',label:'Talk'}
+      ]:[
         clinicalHome&&{page:clinicalHome,icon:'⌂',label:'Home'},
         medicines&&{page:medicines,icon:'◐',label:'Meds'},
         vitals&&{page:vitals,icon:'∿',label:'Vitals'},
         care&&{page:care,icon:'♡',label:'Care'}
-      ].filter(Boolean);
+      ]).filter(Boolean);
       return h('nav',{className:'mobile-bottom-nav nursing-mobile-nav','aria-label':'Nursing mobile navigation'},
         items.map(item=>h('button',{
           type:'button',key:item.label,
@@ -16833,6 +16842,7 @@ https://samaraassistedliving.com/`;
   }
 
   function NursingMobileQuickActions({profile,page,onNavigate}){
+    const bedsideMode=useBedsideMode(); // 2.20.76
     // Keep the large clinical shortcut grid on the nursing dashboard only.
     // Workflow pages need the full mobile viewport for their actual content.
     if(page!=='Clinical Dashboard')return null;
@@ -16847,6 +16857,12 @@ https://samaraassistedliving.com/`;
       ['Shift Tasks','☷','Tasks','Current shift'],
       ['Talk to Guest','🎙','Talk to Guest','Auto · 6 languages']
     ];
+    // 2.20.76: bedside scan compulsory → no direct entry tiles for Medication / Vitals / Intake-Output / Daily Care / Food.
+    // Staff start every Guest entry with 📷 Scan & Administer above (scan the bed sticker → the Guest opens).
+    if(bedsideMode==='qr_required'&&bedsideBlockedRole(profile)){
+      const BEDSIDE_TILES=['Medicines','Vital Signs','Intake / Output','Daily Care','Food & Diet'];
+      for(let i=actions.length-1;i>=0;i--)if(BEDSIDE_TILES.includes(actions[i][0]))actions.splice(i,1);
+    }
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['Outside Samara Nursing Procedures','✚','Outside Nursing','Submit completed procedure']);
     if(profile?.role==='Nurse'||isNursingManagerProfile(profile))actions.push(['My To-Do List','＋','To-Do','Voice / personal']);
     // These workflows must also be visible on desktop and in the Manager's Nurse view.
@@ -37706,7 +37722,7 @@ function RoomsBeds({profile,onNavigate}){
   function IntakeOutput({profile,onNavigate}){
     const [patients]=usePatients();
     const [settings,setSettings]=React.useState([]);
-    const [patientId,setPatientId]=React.useState('');
+    const [patientId,setPatientId]=React.useState(()=>{try{return bedsideCurrentGuest()||''}catch(_){return ''}}); // 2.20.76: Guest scanned at the bed
     const [chartDate,setChartDate]=React.useState(()=>ioChartDay(new Date()));
     const [draftDate,setDraftDate]=React.useState(()=>ioChartDay(new Date()));
     const [entries,setEntries]=React.useState([]);
@@ -37815,6 +37831,7 @@ function RoomsBeds({profile,onNavigate}){
       if(isStool&&!(Number(cf.stool_count)>0))return showSamaraActionToast('error','Enter the count','How many times (1 or more).');
       const item=(cf.item==='Other…'?cf.custom:(['urine','other'].includes(col.key)?cf.custom:cf.item)).trim()||null;
       if(cf.item==='Other…'&&!item)return showSamaraActionToast('error','Type the item','Type what was given (e.g. Glucon-D, Horlicks).');
+      {const _bb=await bedsideSaveCheck(profile,patientId,null);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.20.76: bedside scan (SQL 400)
       setBusy(true);
       const payload={patient_id:patientId,entry_at:at.toISOString(),direction,category,item,volume_ml:vol,stool_count:isStool?Math.round(Number(cf.stool_count)):null,stool_type:isStool?cf.stool_type:null,remarks:cf.remarks.trim()||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
       const {data,error}=await client.from('io_entries').insert(payload).select('id').single();
@@ -38978,7 +38995,8 @@ function RoomsBeds({profile,onNavigate}){
             !isCaregiver&&can('Medicines')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Medicines',{filter_only:true})},'💊 Medicines'),
             can('Vital Signs')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Vital Signs')},'🩺 Vital signs'),
             can('Daily Care')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Daily Care')},'🧼 Daily care / Procedure'),
-            can('Food & Diet')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Food & Diet')},'🍛 Meal / Beverage'))),
+            can('Food & Diet')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Food & Diet')},'🍛 Meal / Beverage'),
+            can('Intake / Output')&&h('button',{type:'button',className:'btn btn-secondary',onClick:()=>open('Intake / Output')},'💧 Intake / Output'))), // 2.20.76
       msg&&h('div',{className:'bedside-res bad',style:{marginTop:'10px'}},msg),
       scanning&&h(BedsideQrScanner,{title:'Scan the bed sticker',onCode:gotCode,onClose:()=>setScanning(false)}));
   }
