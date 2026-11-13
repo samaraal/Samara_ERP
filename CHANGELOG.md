@@ -1,3 +1,6 @@
+## 2.20.63 — 13-11-2026 — Ward Stock: alert when no nurse has accepted
+- New alert to the **Nursing Manager and Admin**: if no nurse has done the **Opening Count / Accept** 60 minutes after the shift started (08:00 for Day, 20:00 for Night), a pop-up + bell alert "Ward Stock not accepted by the nurse" says how long it is overdue. It repeats every 30 minutes and clears by itself once a nurse accepts. (SQL 392)
+
 ## 2.20.62 — 13-11-2026 — Ward Stock: Shift Handover view for Nursing Manager / Admin
 - New box **🔄 Shift Handover** (Nursing Manager / Admin): shows whether the current shift's **Opening Count / Accept** is done — by whom, when, each item counted vs ERP — or, in red, that no nurse has accepted yet and how long it is overdue. Below it, the last 3 days of shifts with Opening Count, Closing Count and Verification; shifts nobody accepted are listed as **NOT accepted / No record** (earlier they were invisible). Tap a shift for its counts and movements.
 - Morning Verification with nothing pending now shows the last verification and a link to Shift Handover. Frontend only, no SQL.

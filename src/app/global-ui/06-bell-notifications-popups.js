@@ -469,7 +469,7 @@
         const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns,receiptProblems,nightStock]=await Promise.all(jobs);
         const returnRows=(!chargeReturns?.error&&Array.isArray(chargeReturns?.data))?chargeReturns.data.filter(a=>a.audience==='nurse'):[];
         const candidates=[];
-        ((!nightStock?.error&&Array.isArray(nightStock?.data))?nightStock.data:[]).forEach(a=>candidates.push({key:`${a.alert_key}-${Math.floor(Date.now()/1800000)}`,kind:'Ward Stock',title:a.title,detail:a.detail,page:'Ward Stock',record:{id:a.night_date,label:a.title},urgent:['nurse','verifier'].includes(a.audience),at:a.alert_at}));
+        ((!nightStock?.error&&Array.isArray(nightStock?.data))?nightStock.data:[]).forEach(a=>candidates.push({key:`${a.alert_key}-${Math.floor(Date.now()/1800000)}`,kind:'Ward Stock',title:a.title,detail:a.detail,page:'Ward Stock',record:{id:a.night_date,label:a.title},urgent:['nurse','verifier'].includes(a.audience)||String(a.alert_key||'').startsWith('ws-noaccept-'),at:a.alert_at}));
         const receiptRows=(!receiptProblems?.error&&Array.isArray(receiptProblems?.data))?receiptProblems.data:[];
         if(receiptRows.length){
           const lines=receiptRows.slice(0,4).map(a=>`${a.guest_name||'Guest'}: ₹${Number(a.amount||0).toLocaleString('en-IN')} (${a.route}, ${formatDateIN(a.paid_at)}) — ${String(a.problem||'').slice(0,140)}`).join('; ');
