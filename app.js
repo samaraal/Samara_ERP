@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.78';
+  const APP_VERSION = '2.20.79';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13933,6 +13933,15 @@ https://samaraassistedliving.com/`;
 "From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.": "டியூட்டி ஒதுக்கீடு, அனுமதித்த லீவ் / பர்மிஷனிலிருந்து. லீவில் உள்ளவர்கள் டியூட்டியில் கணக்கில் இல்லை. பிசியோதெரபி இன்றைய திட்டங்களிலிருந்து.",
 "📍 Bedside check": "📍 படுக்கை சரிபார்ப்பு",
 "Bedside check": "படுக்கை சரிபார்ப்பு",
+// 2.20.79: meal voice
+"🎤 Listening… speak (Tamil / Tamiglish / English), then tap Stop.": "🎤 கேட்கிறது… பேசுங்கள் (தமிழ் / தமிங்கிலீஷ் / ஆங்கிலம்), முடிந்ததும் நிறுத்து அழுத்து.",
+"Say what was given and how much was eaten — e.g. “lunch-ku rice, sambar, keerai kuduthen, paadhi saptanga, 1 mani”. The form is filled in English; check it, then Scan to Save.": "என்ன கொடுத்தீர்கள், எவ்வளவு சாப்பிட்டார்கள் என்று சொல்லுங்கள் — எ.கா. “மதியம் சாதம், சாம்பார், கீரை குடுத்தேன், பாதி சாப்டாங்க, 1 மணிக்கு”. படிவம் ஆங்கிலத்தில் நிரப்பப்படும்; சரிபார்த்து, பிறகு ஸ்கேன் செய்து சேமி.",
+"Filling the form from your voice…": "உங்கள் குரலிலிருந்து படிவம் நிரப்பப்படுகிறது…",
+"✓ Filled from your voice. Check every field (yellow = not heard), then Scan to Save.": "✓ உங்கள் குரலிலிருந்து நிரப்பப்பட்டது. எல்லாவற்றையும் சரிபார்த்து (மஞ்சள் = கேட்கவில்லை), பிறகு ஸ்கேன் செய்து சேமி.",
+"Voice could not be processed. Please fill the form or try again.": "குரல் புரியவில்லை. படிவத்தை நிரப்புங்கள் அல்லது மீண்டும் முயற்சி செய்யுங்கள்.",
+"Heard:": "கேட்டது:",
+"🎙 Voice entry": "🎙 குரல் பதிவு",
+"🎤 பேசு / Speak": "🎤 பேசு",
 };
   // 2.15.70: EN | தமிழ் screen-language switch (STD, Admin, all ANMs / caregivers since 2.20.72).
   // Translates only fixed screen wording (menu, titles, buttons, labels, statuses) using SAMARA_TA.
@@ -41334,6 +41343,29 @@ function RoomsBeds({profile,onNavigate}){
         if(data?.status==='added'){showSamaraActionToast('success','Added to the food list',`${data.name} — now in the list under Others`);writeAuditEvent('Food Item Added by Staff','Food & Diet',null,{name:data.name},'Success');loadFoodList()}
       }catch(e){console.warn('Food item not added to the list',e)} // the meal entry itself is not affected
     }
+    // 2.20.79: Meal / Beverage by voice — Tamil, Tamiglish or English → the form fields in English (nursing-note-voice, mode Meal).
+    const [voiceHeard,setVoiceHeard]=React.useState('');
+    const voiceListNames=()=>{const all=foodList?foodList.filter(r=>r.active&&r.item_group!=='Hidden').map(r=>r.name):Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat());return [...new Set([...all,...earlierItems])].slice(0,600)};
+    const voiceContext=()=>({current_time:nowHHMM(),today:todayISOIndia(),screen:entryType,meals:['Tiffin','Lunch','Dinner'],food_list:voiceListNames(),
+      intake_options:INTAKE_OPTIONS,beverage_intake_options:BEVERAGE_INTAKE,beverages:BEVERAGES.map(b=>b[0]),units:BEV_UNITS.map(u=>u[0])});
+    function onMealVoice(res){
+      setVoiceHeard(String(res?.heard_text||''));
+      const names=voiceListNames(),byKey=new Map(names.map(n=>[foodKey(n),n]));
+      if(res?.entry==='beverage'&&res.beverage){
+        setEntryType('beverage');
+        setBev(b=>({...b,beverage:BEVERAGES.some(x=>x[0]===res.beverage)?res.beverage:b.beverage,juice_name:res.beverage==='Fresh Juice'?(res.juice_name||b.juice_name):'',
+          given_time:res.time||b.given_time,quantity:res.quantity||b.quantity,quantity_unit:BEV_UNITS.some(u=>u[0]===res.quantity_unit)?res.quantity_unit:b.quantity_unit,
+          consumption_status:BEVERAGE_INTAKE.includes(res.consumption_status)?res.consumption_status:b.consumption_status,
+          remarks:[b.remarks,res.remarks].filter(x=>String(x||'').trim()).join('; ')}));
+        return;
+      }
+      const spoken=[...(res?.items||[]),...(res?.new_items||[])].map(x=>byKey.get(foodKey(x))||String(x).trim()).filter(Boolean);
+      setEntryType('meal');
+      setForm(f=>{const items=[...f.items];spoken.forEach(x=>{if(!items.some(y=>y.toLowerCase()===x.toLowerCase()))items.push(x)});
+        return {...f,meal_type:res?.meal_type||f.meal_type,served_time:res?.time||f.served_time,items,
+          consumption_status:INTAKE_OPTIONS.includes(res?.consumption_status)?res.consumption_status:f.consumption_status,
+          remarks:[f.remarks,res?.remarks].filter(x=>String(x||'').trim()).join('; ')}});
+    }
     function removeItem(i){setForm(f=>({...f,items:f.items.filter((_,j)=>j!==i)}))}
     function moveItem(i,d){setForm(f=>{const a=[...f.items];const j=i+d;if(j<0||j>=a.length)return f;[a[i],a[j]]=[a[j],a[i]];return {...f,items:a}})}
     async function saveMeal(e){
@@ -41432,6 +41464,10 @@ function RoomsBeds({profile,onNavigate}){
             h('button',{type:'button',role:'tab','aria-selected':entryType==='meal',className:entryType==='meal'?'active':'',onClick:()=>setEntryType('meal')},'🍛 Meal'),
             h('button',{type:'button',role:'tab','aria-selected':entryType==='bev',className:entryType==='bev'?'active':'',onClick:()=>setEntryType('bev')},'☕ Beverage'))
         ),
+        patientId&&typeof NursingNoteVoice==='function'&&h('div',{className:'fi-voice',style:{margin:'4px 0 12px'}},
+          h(NursingNoteVoice,{mode:'Meal',single:true,extra:{context:voiceContext()},onResult:onMealVoice,workingText:'Filling the form from your voice…',
+            hint:'Say what was given and how much was eaten — e.g. “lunch-ku rice, sambar, keerai kuduthen, paadhi saptanga, 1 mani”. The form is filled in English; check it, then Scan to Save.'}),
+          voiceHeard&&h('div',{className:'small-note',style:{marginTop:'6px'}},h('b',null,'Heard:'),' ',h('span',{className:'samara-no-translate'},voiceHeard))),
         entryType==='meal'?h('form',{className:'fi-form',onSubmit:saveMeal},
           h('div',{className:'fi-row'},
             h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),
@@ -46210,22 +46246,24 @@ function ShiftHandover({profile,onNavigate}){
     return {english_note:text,heard_text:String(j.transcript||spoken||'').trim()};
   }
 
-  function NursingNoteVoice({mode,onResult}){
+  // 2.20.79: also used by Meals & Beverages (mode 'Meal', extra = {context}, single Tamil / Tamiglish / English button, no plain fallback)
+  function NursingNoteVoice({mode,onResult,extra,single,hint,workingText}){
     const [state,setState]=React.useState('idle'); // idle | recording | processing
     const [msg,setMsg]=React.useState('');
     const recRef=React.useRef(null),streamRef=React.useRef(null),chunksRef=React.useRef([]),langRef=React.useRef('ta-IN'),srRef=React.useRef(null);
     React.useEffect(()=>()=>{try{recRef.current?.state!=='inactive'&&recRef.current?.stop()}catch(_){}try{streamRef.current?.getTracks().forEach(t=>t.stop())}catch(_){}try{srRef.current?.stop()}catch(_){}},[]);
     async function process(blob,spokenText){
-      setState('processing');setMsg('Arranging your note… (Tamil is converted to simple English)');
+      setState('processing');setMsg(workingText||'Arranging your note… (Tamil is converted to simple English)');
       const lang=langRef.current;
       try{
         let res;
-        if(blob){const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';const fd=new FormData();fd.append('audio',blob,`nursing-note.${ext}`);fd.append('spoken_language',lang);fd.append('mode',mode);res=await nnVoiceCall(fd,true)}
-        else res=await nnVoiceCall({text:spokenText,spoken_language:lang,mode},false);
+        if(blob){const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';const fd=new FormData();fd.append('audio',blob,`nursing-note.${ext}`);fd.append('spoken_language',lang);fd.append('mode',mode);if(extra?.context)fd.append('context',JSON.stringify(extra.context));res=await nnVoiceCall(fd,true)}
+        else res=await nnVoiceCall({text:spokenText,spoken_language:lang,mode,context:extra?.context||null},false);
         onResult({...res,voice:true,lang,structured:true});
         setMsg('✓ Filled from your voice. Check every field, correct any word, then Save.');
       }catch(e){
         console.warn('Nursing note voice (AI) failed, using plain voice:',e?.message||e);
+        if(mode==='Meal'){setMsg(e?.message||'Voice could not be processed. Please fill the form or try again.');return}
         try{
           const res=await nnPlainVoice(blob,lang,spokenText);
           onResult({...res,voice:true,lang,structured:false});
@@ -46243,7 +46281,7 @@ function ShiftHandover({profile,onNavigate}){
           rec.ondataavailable=e=>{if(e.data?.size)chunksRef.current.push(e.data)};
           rec.onstop=()=>{const blob=new Blob(chunksRef.current,{type:rec.mimeType||'audio/webm'});chunksRef.current=[];try{stream.getTracks().forEach(t=>t.stop())}catch(_){}streamRef.current=null;recRef.current=null;
             if(blob.size<1000){setState('idle');setMsg('No speech was captured. Please try again.');return}process(blob,'')};
-          rec.start();setState('recording');setMsg(lang==='ta-IN'?'🎤 Listening in Tamil… speak the whole note, then tap Stop.':'🎤 Listening in English… speak the whole note, then tap Stop.');
+          rec.start();setState('recording');setMsg(single?'🎤 Listening… speak (Tamil / Tamiglish / English), then tap Stop.':lang==='ta-IN'?'🎤 Listening in Tamil… speak the whole note, then tap Stop.':'🎤 Listening in English… speak the whole note, then tap Stop.');
           return;
         }catch(e){setState('idle');setMsg(e?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow the microphone for Samara Care.':(e.message||'Unable to start the microphone.'));return}
       }
@@ -46260,9 +46298,10 @@ function ShiftHandover({profile,onNavigate}){
         h('strong',{style:{color:'#a3124f'}},'🎙 Voice assistant'),
         state==='recording'?h('button',{type:'button',className:'btn nn-rec',onClick:stop},'■ Stop'):
           h(React.Fragment,null,
+            single?h('button',{type:'button',className:'btn btn-primary',disabled:state!=='idle',onClick:()=>start('ta-IN')},state==='processing'?'Processing…':'🎤 பேசு / Speak'):
             h('button',{type:'button',className:'btn btn-primary',disabled:state!=='idle',onClick:()=>start('ta-IN')},state==='processing'?'Processing…':'🎤 Speak in Tamil'),
-            h('button',{type:'button',className:'btn btn-secondary',disabled:state!=='idle',onClick:()=>start('en-IN')},'🎤 Speak in English'))),
-      h('div',{className:'nn-voice-msg'},msg||(mode==='DAR'?'Speak the whole note — what you saw, what you did and how the Guest responded. It is arranged into D · A · R for you to check.':'Speak the note. It is written in simple English for you to check.'))
+            !single&&h('button',{type:'button',className:'btn btn-secondary',disabled:state!=='idle',onClick:()=>start('en-IN')},'🎤 Speak in English'))),
+      h('div',{className:'nn-voice-msg'},msg||hint||(mode==='DAR'?'Speak the whole note — what you saw, what you did and how the Guest responded. It is arranged into D · A · R for you to check.':'Speak the note. It is written in simple English for you to check.'))
     );
   }
 

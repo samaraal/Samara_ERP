@@ -294,6 +294,29 @@
         if(data?.status==='added'){showSamaraActionToast('success','Added to the food list',`${data.name} — now in the list under Others`);writeAuditEvent('Food Item Added by Staff','Food & Diet',null,{name:data.name},'Success');loadFoodList()}
       }catch(e){console.warn('Food item not added to the list',e)} // the meal entry itself is not affected
     }
+    // 2.20.79: Meal / Beverage by voice — Tamil, Tamiglish or English → the form fields in English (nursing-note-voice, mode Meal).
+    const [voiceHeard,setVoiceHeard]=React.useState('');
+    const voiceListNames=()=>{const all=foodList?foodList.filter(r=>r.active&&r.item_group!=='Hidden').map(r=>r.name):Object.values(FOOD_ITEMS).flatMap(g=>Object.values(g).flat());return [...new Set([...all,...earlierItems])].slice(0,600)};
+    const voiceContext=()=>({current_time:nowHHMM(),today:todayISOIndia(),screen:entryType,meals:['Tiffin','Lunch','Dinner'],food_list:voiceListNames(),
+      intake_options:INTAKE_OPTIONS,beverage_intake_options:BEVERAGE_INTAKE,beverages:BEVERAGES.map(b=>b[0]),units:BEV_UNITS.map(u=>u[0])});
+    function onMealVoice(res){
+      setVoiceHeard(String(res?.heard_text||''));
+      const names=voiceListNames(),byKey=new Map(names.map(n=>[foodKey(n),n]));
+      if(res?.entry==='beverage'&&res.beverage){
+        setEntryType('beverage');
+        setBev(b=>({...b,beverage:BEVERAGES.some(x=>x[0]===res.beverage)?res.beverage:b.beverage,juice_name:res.beverage==='Fresh Juice'?(res.juice_name||b.juice_name):'',
+          given_time:res.time||b.given_time,quantity:res.quantity||b.quantity,quantity_unit:BEV_UNITS.some(u=>u[0]===res.quantity_unit)?res.quantity_unit:b.quantity_unit,
+          consumption_status:BEVERAGE_INTAKE.includes(res.consumption_status)?res.consumption_status:b.consumption_status,
+          remarks:[b.remarks,res.remarks].filter(x=>String(x||'').trim()).join('; ')}));
+        return;
+      }
+      const spoken=[...(res?.items||[]),...(res?.new_items||[])].map(x=>byKey.get(foodKey(x))||String(x).trim()).filter(Boolean);
+      setEntryType('meal');
+      setForm(f=>{const items=[...f.items];spoken.forEach(x=>{if(!items.some(y=>y.toLowerCase()===x.toLowerCase()))items.push(x)});
+        return {...f,meal_type:res?.meal_type||f.meal_type,served_time:res?.time||f.served_time,items,
+          consumption_status:INTAKE_OPTIONS.includes(res?.consumption_status)?res.consumption_status:f.consumption_status,
+          remarks:[f.remarks,res?.remarks].filter(x=>String(x||'').trim()).join('; ')}});
+    }
     function removeItem(i){setForm(f=>({...f,items:f.items.filter((_,j)=>j!==i)}))}
     function moveItem(i,d){setForm(f=>{const a=[...f.items];const j=i+d;if(j<0||j>=a.length)return f;[a[i],a[j]]=[a[j],a[i]];return {...f,items:a}})}
     async function saveMeal(e){
@@ -392,6 +415,10 @@
             h('button',{type:'button',role:'tab','aria-selected':entryType==='meal',className:entryType==='meal'?'active':'',onClick:()=>setEntryType('meal')},'🍛 Meal'),
             h('button',{type:'button',role:'tab','aria-selected':entryType==='bev',className:entryType==='bev'?'active':'',onClick:()=>setEntryType('bev')},'☕ Beverage'))
         ),
+        patientId&&typeof NursingNoteVoice==='function'&&h('div',{className:'fi-voice',style:{margin:'4px 0 12px'}},
+          h(NursingNoteVoice,{mode:'Meal',single:true,extra:{context:voiceContext()},onResult:onMealVoice,workingText:'Filling the form from your voice…',
+            hint:'Say what was given and how much was eaten — e.g. “lunch-ku rice, sambar, keerai kuduthen, paadhi saptanga, 1 mani”. The form is filled in English; check it, then Scan to Save.'}),
+          voiceHeard&&h('div',{className:'small-note',style:{marginTop:'6px'}},h('b',null,'Heard:'),' ',h('span',{className:'samara-no-translate'},voiceHeard))),
         entryType==='meal'?h('form',{className:'fi-form',onSubmit:saveMeal},
           h('div',{className:'fi-row'},
             h('div',{className:'field'},h('label',null,'Entry Date'),h(StrictDateInput,{value:form.meal_date,max:todayISOIndia(),required:true,onChange:e=>setForm({...form,meal_date:e.target.value})})),

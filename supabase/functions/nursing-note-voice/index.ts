@@ -1,4 +1,5 @@
 // Samara Care ERP 2.18.139 — Nursing Notes voice assistant (Edge Function: nursing-note-voice).
+// 2.20.79: + mode "Meal" — Meal / Beverage entry by voice (Tamil / Tamiglish / English → English form fields); STD / Kitchen allowed for this mode only.
 // The nurse speaks a nursing note in Tamil (incl. Chennai / colloquial Tamil, Tamil-English) or English.
 // Gemini listens to the recording (or reads the typed / browser-recognised text) and returns:
 //   heard_text   – what was said, in the language spoken
@@ -77,6 +78,34 @@ RULES — faithful physiotherapy documentation:
 4. Use English only (Latin script) in english_note. Keep names as spoken (transliterated).
 Return JSON only: {"heard_text":"...","english_note":"..."}`;
 
+// 2.20.79: Meal / Beverage voice (mode "Meal") — the ANM says what the Guest was served and how much she ate,
+// in Tamil, Chennai / colloquial Tamil, Tamiglish (Tamil + English words) or English; the form is filled in English.
+const MEAL_SYSTEM = `You are the voice assistant for MEAL & BEVERAGE ENTRY at Samara Assisted Living (a nursing care home in Chennai; residents are called "Guests").
+A nurse / caregiver (ANM) has spoken (or typed) what ONE Guest was given to eat or drink and how much was taken. The speech may be Tamil, Chennai / colloquial Tamil, Tamiglish (Tamil mixed with English words, e.g. "lunch-ku rice, sambar kuduthen, half dhaan saptanga"), or English.
+You receive the allowed lists in the request. Fill the form fields from what was said.
+
+COMMON LOCAL USAGE (use context; do not copy blindly):
+- காலை டிஃபன் / breakfast / காலைல = Tiffin; மதியம் / lunch / சாப்பாடு (at noon) = Lunch; இரவு / நைட் / dinner = Dinner
+- முழுசா / ஃபுல்லா / எல்லாம் சாப்டாங்க / full-ah = Consumed fully; பெரும்பாலும் / மோஸ்ட்லி / கொஞ்சம் மிச்சம் = Consumed mostly
+- பாதி / ஹாஃப் / கொஞ்சம் தான் / half dhaan = Consumed partially; ருசி பார்த்தாங்க / டேஸ்ட் மட்டும் = Tasted only
+- சாப்பிடல / சாப்டல / வேண்டாம்னு சொன்னாங்க / refuse பண்ணாங்க = Refused; வாந்தி / வாமிட் = Vomited; ட்யூப் ஃபீட் முடிஞ்சது / Ryle's feed = Tube feed completed
+- இட்லி = Idli, தோசை = Dosa, பொங்கல் = Ven Pongal, உப்புமா = Upma, சாதம் / ரைஸ் = Rice, தயிர் சாதம் = Curd Rice, சாம்பார் = Sambar, ரசம் = Rasam, கூட்டு = Kootu, பொரியல் = Poriyal, கீரை = Keerai, மோர் = Buttermilk, தயிர் = Curd, கஞ்சி = Kanji / Porridge, சப்பாத்தி = Chapati
+- டீ = Tea, காபி = Coffee, பால் = Milk, பூஸ்ட் = Boost, ஹார்லிக்ஸ் = Horlicks, ஜூஸ் = Fresh Juice (orange / சாத்துக்குடி = Mosambi / மாதுளை = Pomegranate / தர்பூசணி = Watermelon)
+- ஒரு டம்ளர் / ஒரு கிளாஸ் / ஒரு கப் = quantity 1 with unit tumbler / glass / cup; "150 ml" = 150 ml; அரை டம்ளர் = 0.5 tumbler
+- இப்போ / இப்ப / just now = the current time given; "எட்டு மணிக்கு" / "8 o'clock" = 08:00 in the morning, 20:00 at night (use the meal / time of day to decide); "ஒரு மணி" at lunch = 13:00
+
+RULES:
+1. heard_text: faithful transcript of what was said, in the language / script spoken (repeat the text if the input is text).
+2. entry: "meal" if food (Breakfast / Lunch / Dinner items) was described, "beverage" if only a drink was described.
+3. meal_type: one of Tiffin, Lunch, Dinner — only if said or clearly implied by the words or the time; else "".
+4. items: food items served, each EXACTLY as written in the given food list when it matches (same spelling). Items said that are not in the list go to new_items, written in simple English (e.g. "Ragi Kali"). Keep the order spoken. Do not add items that were not said.
+5. consumption_status: EXACTLY one of the given intake options, only if said; else "".
+6. time: "HH:MM" 24-hour, only if said ("now" = the given current time); else "".
+7. beverage: EXACTLY one of the given beverages, only for a drink; juice_name for Fresh Juice (e.g. "Orange"); quantity as a number and quantity_unit EXACTLY one of the given units, only if said.
+8. remarks: anything else said that matters (refused an item, needed feeding help, choking / cough, complaint, spilled, family brought food …) in short simple English. "" if nothing.
+9. Never invent or guess. Keep negations exactly. Use English (Latin script) in every field except heard_text.
+Return JSON only: {"heard_text":"...","entry":"meal|beverage","meal_type":"","items":[],"new_items":[],"consumption_status":"","time":"","beverage":"","juice_name":"","quantity":"","quantity_unit":"","remarks":""}`;
+
 function b64(bytes: Uint8Array) {
   let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
@@ -136,8 +165,9 @@ Deno.serve(async (req) => {
     const user = auth?.user; if (!user) return out({ error: "Please sign in to the ERP again.", code: "AUTH" }, 401);
     const { data: prof } = await admin.from("profiles").select("*")
       .or(`id.eq.${user.id},auth_user_id.eq.${user.id}`).limit(1).maybeSingle();
-    if (!prof || prof.is_active === false || prof.active === false || !["Admin", "Manager", "Nurse", "Caregiver", "Physiotherapist"].includes(String(prof.role)))
+    if (!prof || prof.is_active === false || prof.active === false || !["Admin", "Manager", "Nurse", "Caregiver", "Physiotherapist", "STD", "Kitchen"].includes(String(prof.role)))
       return out({ error: "Nursing Notes voice is for nursing staff only." }, 403);
+    let mealCtx = "";
 
     const parts: unknown[] = [];
     let spoken = "ta-IN";
@@ -147,6 +177,7 @@ Deno.serve(async (req) => {
       const fd = await req.formData();
       spoken = String(fd.get("spoken_language") || spoken);
       mode = String(fd.get("mode") || mode);
+      mealCtx = String(fd.get("context") || "").slice(0, 12000);
       const audio = fd.get("audio");
       if (!(audio instanceof File) || audio.size < 800) return out({ error: "No speech was captured. Please record again." }, 400);
       if (audio.size > 15_000_000) return out({ error: "The recording is too long. Please keep one note under about 5 minutes." }, 400);
@@ -157,11 +188,32 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       spoken = String(body?.spoken_language || spoken);
       mode = String(body?.mode || mode);
+      mealCtx = typeof body?.context === "string" ? body.context.slice(0, 12000) : JSON.stringify(body?.context || "").slice(0, 12000);
       const text = clean(body?.text);
       if (text.length < 3) return out({ error: "No note text was received." }, 400);
       parts.push({ text: `The nurse's note (${spoken.startsWith("en") ? "English" : "Tamil / mixed"}), from speech recognition or typing:\n${text}\n\nReturn the JSON.` });
     }
 
+    if (["STD", "Kitchen"].includes(String(prof.role)) && mode !== "Meal")
+      return out({ error: "This login can use voice for meals and beverages only." }, 403);
+    if (mode === "Meal") {
+      parts.unshift({ text: `Allowed lists and the current time (JSON):\n${mealCtx || "{}"}` });
+      const { x, model } = await gemini(parts, MEAL_SYSTEM);
+      const arr = (v: unknown) => (Array.isArray(v) ? v : []).map((y) => clean(y).slice(0, 80)).filter(Boolean).slice(0, 20);
+      const t = clean(x.time); const hhmm = /^([01]?\d|2[0-3]):[0-5]\d$/.test(t) ? t.padStart(5, "0") : "";
+      const res = {
+        ok: true, model, heard_text: clean(x.heard_text),
+        entry: clean(x.entry).toLowerCase() === "beverage" ? "beverage" : "meal",
+        meal_type: ["Tiffin", "Lunch", "Dinner"].includes(clean(x.meal_type)) ? clean(x.meal_type) : "",
+        items: arr(x.items), new_items: arr(x.new_items),
+        consumption_status: clean(x.consumption_status), time: hhmm,
+        beverage: clean(x.beverage), juice_name: clean(x.juice_name).slice(0, 60),
+        quantity: (() => { const q = Number(String(x.quantity ?? "").replace(/[^0-9.]/g, "")); return q > 0 && q < 5000 ? String(q) : ""; })(),
+        quantity_unit: clean(x.quantity_unit), remarks: clean(x.remarks).slice(0, 500),
+      };
+      if (!res.heard_text && !res.items.length && !res.new_items.length && !res.beverage) return out({ error: "No usable entry was heard. Please speak again." }, 422);
+      return out(res);
+    }
     const physio = mode === "Physio";
     if (String(prof.role) === "Physiotherapist" && !physio)
       return out({ error: "This login can use voice for Physio Notes only." }, 403);

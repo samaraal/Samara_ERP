@@ -183,22 +183,24 @@
     return {english_note:text,heard_text:String(j.transcript||spoken||'').trim()};
   }
 
-  function NursingNoteVoice({mode,onResult}){
+  // 2.20.79: also used by Meals & Beverages (mode 'Meal', extra = {context}, single Tamil / Tamiglish / English button, no plain fallback)
+  function NursingNoteVoice({mode,onResult,extra,single,hint,workingText}){
     const [state,setState]=React.useState('idle'); // idle | recording | processing
     const [msg,setMsg]=React.useState('');
     const recRef=React.useRef(null),streamRef=React.useRef(null),chunksRef=React.useRef([]),langRef=React.useRef('ta-IN'),srRef=React.useRef(null);
     React.useEffect(()=>()=>{try{recRef.current?.state!=='inactive'&&recRef.current?.stop()}catch(_){}try{streamRef.current?.getTracks().forEach(t=>t.stop())}catch(_){}try{srRef.current?.stop()}catch(_){}},[]);
     async function process(blob,spokenText){
-      setState('processing');setMsg('Arranging your note… (Tamil is converted to simple English)');
+      setState('processing');setMsg(workingText||'Arranging your note… (Tamil is converted to simple English)');
       const lang=langRef.current;
       try{
         let res;
-        if(blob){const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';const fd=new FormData();fd.append('audio',blob,`nursing-note.${ext}`);fd.append('spoken_language',lang);fd.append('mode',mode);res=await nnVoiceCall(fd,true)}
-        else res=await nnVoiceCall({text:spokenText,spoken_language:lang,mode},false);
+        if(blob){const ext=(blob.type||'').includes('mp4')?'m4a':(blob.type||'').includes('ogg')?'ogg':'webm';const fd=new FormData();fd.append('audio',blob,`nursing-note.${ext}`);fd.append('spoken_language',lang);fd.append('mode',mode);if(extra?.context)fd.append('context',JSON.stringify(extra.context));res=await nnVoiceCall(fd,true)}
+        else res=await nnVoiceCall({text:spokenText,spoken_language:lang,mode,context:extra?.context||null},false);
         onResult({...res,voice:true,lang,structured:true});
         setMsg('✓ Filled from your voice. Check every field, correct any word, then Save.');
       }catch(e){
         console.warn('Nursing note voice (AI) failed, using plain voice:',e?.message||e);
+        if(mode==='Meal'){setMsg(e?.message||'Voice could not be processed. Please fill the form or try again.');return}
         try{
           const res=await nnPlainVoice(blob,lang,spokenText);
           onResult({...res,voice:true,lang,structured:false});
@@ -216,7 +218,7 @@
           rec.ondataavailable=e=>{if(e.data?.size)chunksRef.current.push(e.data)};
           rec.onstop=()=>{const blob=new Blob(chunksRef.current,{type:rec.mimeType||'audio/webm'});chunksRef.current=[];try{stream.getTracks().forEach(t=>t.stop())}catch(_){}streamRef.current=null;recRef.current=null;
             if(blob.size<1000){setState('idle');setMsg('No speech was captured. Please try again.');return}process(blob,'')};
-          rec.start();setState('recording');setMsg(lang==='ta-IN'?'🎤 Listening in Tamil… speak the whole note, then tap Stop.':'🎤 Listening in English… speak the whole note, then tap Stop.');
+          rec.start();setState('recording');setMsg(single?'🎤 Listening… speak (Tamil / Tamiglish / English), then tap Stop.':lang==='ta-IN'?'🎤 Listening in Tamil… speak the whole note, then tap Stop.':'🎤 Listening in English… speak the whole note, then tap Stop.');
           return;
         }catch(e){setState('idle');setMsg(e?.name==='NotAllowedError'?'Microphone permission is blocked. Please allow the microphone for Samara Care.':(e.message||'Unable to start the microphone.'));return}
       }
@@ -233,9 +235,10 @@
         h('strong',{style:{color:'#a3124f'}},'🎙 Voice assistant'),
         state==='recording'?h('button',{type:'button',className:'btn nn-rec',onClick:stop},'■ Stop'):
           h(React.Fragment,null,
+            single?h('button',{type:'button',className:'btn btn-primary',disabled:state!=='idle',onClick:()=>start('ta-IN')},state==='processing'?'Processing…':'🎤 பேசு / Speak'):
             h('button',{type:'button',className:'btn btn-primary',disabled:state!=='idle',onClick:()=>start('ta-IN')},state==='processing'?'Processing…':'🎤 Speak in Tamil'),
-            h('button',{type:'button',className:'btn btn-secondary',disabled:state!=='idle',onClick:()=>start('en-IN')},'🎤 Speak in English'))),
-      h('div',{className:'nn-voice-msg'},msg||(mode==='DAR'?'Speak the whole note — what you saw, what you did and how the Guest responded. It is arranged into D · A · R for you to check.':'Speak the note. It is written in simple English for you to check.'))
+            !single&&h('button',{type:'button',className:'btn btn-secondary',disabled:state!=='idle',onClick:()=>start('en-IN')},'🎤 Speak in English'))),
+      h('div',{className:'nn-voice-msg'},msg||hint||(mode==='DAR'?'Speak the whole note — what you saw, what you did and how the Guest responded. It is arranged into D · A · R for you to check.':'Speak the note. It is written in simple English for you to check.'))
     );
   }
 

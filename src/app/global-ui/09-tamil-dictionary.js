@@ -4343,4 +4343,13 @@
 "From Duty Assignment and approved Leave / Permission. Staff on approved leave are not counted as on duty. Physiotherapy from today’s active plans.": "டியூட்டி ஒதுக்கீடு, அனுமதித்த லீவ் / பர்மிஷனிலிருந்து. லீவில் உள்ளவர்கள் டியூட்டியில் கணக்கில் இல்லை. பிசியோதெரபி இன்றைய திட்டங்களிலிருந்து.",
 "📍 Bedside check": "📍 படுக்கை சரிபார்ப்பு",
 "Bedside check": "படுக்கை சரிபார்ப்பு",
+// 2.20.79: meal voice
+"🎤 Listening… speak (Tamil / Tamiglish / English), then tap Stop.": "🎤 கேட்கிறது… பேசுங்கள் (தமிழ் / தமிங்கிலீஷ் / ஆங்கிலம்), முடிந்ததும் நிறுத்து அழுத்து.",
+"Say what was given and how much was eaten — e.g. “lunch-ku rice, sambar, keerai kuduthen, paadhi saptanga, 1 mani”. The form is filled in English; check it, then Scan to Save.": "என்ன கொடுத்தீர்கள், எவ்வளவு சாப்பிட்டார்கள் என்று சொல்லுங்கள் — எ.கா. “மதியம் சாதம், சாம்பார், கீரை குடுத்தேன், பாதி சாப்டாங்க, 1 மணிக்கு”. படிவம் ஆங்கிலத்தில் நிரப்பப்படும்; சரிபார்த்து, பிறகு ஸ்கேன் செய்து சேமி.",
+"Filling the form from your voice…": "உங்கள் குரலிலிருந்து படிவம் நிரப்பப்படுகிறது…",
+"✓ Filled from your voice. Check every field (yellow = not heard), then Scan to Save.": "✓ உங்கள் குரலிலிருந்து நிரப்பப்பட்டது. எல்லாவற்றையும் சரிபார்த்து (மஞ்சள் = கேட்கவில்லை), பிறகு ஸ்கேன் செய்து சேமி.",
+"Voice could not be processed. Please fill the form or try again.": "குரல் புரியவில்லை. படிவத்தை நிரப்புங்கள் அல்லது மீண்டும் முயற்சி செய்யுங்கள்.",
+"Heard:": "கேட்டது:",
+"🎙 Voice entry": "🎙 குரல் பதிவு",
+"🎤 பேசு / Speak": "🎤 பேசு",
 };

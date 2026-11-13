@@ -1,3 +1,6 @@
+## 2.20.79 — 2026-11-13
+- Meals & Beverages by voice: ANM taps 🎤 பேசு and says what was given and how much was eaten in Tamil, Tamiglish or English — the form (meal, items from the food list, time, how much eaten, beverage, quantity, remarks) is filled in English to check, then Scan to Save. Uses the Nursing Notes voice service (mode Meal) — needs the updated nursing-note-voice Edge Function deployed.
+
 ## 2.20.78 — 2026-11-13
 - தமிழ் screen: ~370 more Tamil words for the screens ANMs use — Home, Scan & Administer and bed-scan messages, unsaved-entry pop-up, Daily Care / sugar, Food items, Intake / Output, Nursing Notes, Shift Tasks, Talk to Guest, On Duty Today. Greeting, shift name and sentences with names / numbers inside are now translated too. "Talk to Guest" tile no longer repeats the English.
 
