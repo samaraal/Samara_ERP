@@ -1,3 +1,6 @@
+## 2.20.94 — 2026-11-13
+- Nurse screen saver: the medicine card now flips through every dose still to give in the shift (and the next 4 hours), not only the next 2 hours — 11 PM doses are shown in the evening.
+
 ## 2.20.93 — 2026-11-13
 - Ward Stock: the Nursing Manager can do the Opening / Closing count from her own (Manager) login too — needed when she covers a nurse shift (SQL 402).
 

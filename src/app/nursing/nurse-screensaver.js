@@ -723,7 +723,9 @@
     // 2.18.20: the big left box is for MEDICINES only — one Guest at a time, late first, then by time.
     // 2.18.25: flip only late doses + doses due within 2 hours (if none, the next dose time); 5 s per card above 6 cards.
     const medAll=all.filter(x=>x.kind==='med').sort((a,b)=>(b.state==='overdue'?1:0)-(a.state==='overdue'?1:0)||a.at-b.at||nssRoomSort(a.patient).localeCompare(nssRoomSort(b.patient),undefined,{numeric:true}));
-    const medSoon=medAll.filter(x=>x.state==='overdue'||x.at.getTime()<=now.getTime()+2*3600000);
+    // 2.20.94: show every dose still to give in this shift (and the next 4 hours), not only the next 2 hours —
+    // at 20:30 the 23:00 doses were missing from the screen saver.
+    const medSoon=medAll.filter(x=>x.state==='overdue'||x.at.getTime()<=now.getTime()+NURSE_SAVER_HORIZON_MS||!x.nextShift);
     const medQueue=medSoon.length?medSoon:medAll.filter(x=>medAll[0]&&x.at.getTime()===medAll[0].at.getTime());
     const medLater=medAll.length-medQueue.length;
     const medSec=medQueue.length>6?5:7;
