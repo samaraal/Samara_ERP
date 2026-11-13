@@ -100,6 +100,54 @@
       out?.mode==='send'?h('div',{className:'success',style:{marginTop:10}},`Sent ${d?.sent||0} · failed ${d?.failed||0} · already sent ${d?.skipped||0}`+(d?.message?` · ${d.message}`:'')):null,
       out?.mode==='template_status'?h('div',{style:{marginTop:10}},(d?.meta?.data||[]).length?(d.meta.data.map(t=>h('div',{key:t.name},`${t.name}: `,h('strong',null,t.status),t.rejected_reason&&t.rejected_reason!=='NONE'?` · ${t.rejected_reason}`:''))):'Template not found on Meta yet.'):null);
   }
+  // 2.20.70: STAFF REGISTER — one list of every machine number and every active employee, ERP <-> easy TimePro (SQL 396)
+  const BIO_FLAG={new_on_machine:['New on machine — not linked','#b42318'],number_reused:['Number reused','#b42318'],removed_from_machine:['Removed from machine','#b42318'],
+    different_name:['Different name in easy TimePro','#b45309'],left_still_active:['Left — being blocked','#b45309'],blocked_on_machine:['Blocked on machine','#b45309'],
+    never_punched:['No punch yet','#b45309'],not_on_machine:['Not on machine yet','#b45309'],old_number:['Old number','#6b7280'],
+    left:['Left','#6b7280'],suspended:['Suspended','#6b7280'],not_erp:['Not an ERP employee','#6b7280'],ok:['OK','#16703c']};
+  function BioStaffRegister({emps}){
+    const [d,setD]=React.useState(null),[err,setErr]=React.useState(''),[busy,setBusy]=React.useState(''),[pick,setPick]=React.useState({}),[show,setShow]=React.useState('problems');
+    async function load(){try{const r=await client.rpc('biometric_register',{p_action:'list',p:{}});if(r.error)throw r.error;setD(r.data);setErr('')}catch(e){setErr(e.message||String(e))}}
+    React.useEffect(()=>{load()},[]);
+    async function act(action,row,extra={}){
+      setBusy(row.emp_code+action);
+      try{const r=await client.rpc('biometric_register',{p_action:action,p:{emp_code:row.emp_code,...extra}});if(r.error)throw r.error;await load();}
+      catch(e){alert(e.message||String(e))}finally{setBusy('')}
+    }
+    const rows=d?.rows||[],can=Boolean(d?.can_act),sy=d?.sync||{};
+    const ageMin=sy.last_at?Math.round((Date.now()-new Date(sy.last_at).getTime())/60000):null;
+    const problem=r=>!['ok','left','not_erp','suspended'].includes(r.flag);
+    const list=show==='problems'?rows.filter(problem):rows;
+    const empOpts=(emps||[]).filter(e=>e.is_active!==false&&e.active!==false);
+    const fmtAt=v=>v?`${formatDateIN(v)} ${bioTime(v)}`:'—';
+    return h('section',{className:'card'},
+      h('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:10}},
+        h('span',{className:'badge',style:{background:ageMin!==null&&ageMin<=30?'#e7f6ef':'#fde2e2',color:ageMin!==null&&ageMin<=30?'#17603a':'#a3122a'}},
+          sy.last_at?`Last sync from the Samara PC: ${fmtAt(sy.last_at)}${ageMin!==null?` (${ageMin<60?ageMin+' min':Math.round(ageMin/60)+' h'} ago)`:''}`:'No sync received yet'),
+        sy.last_list_at?h('span',{className:'badge'},`easy TimePro list received: ${fmtAt(sy.last_list_at)}`):h('span',{className:'badge warn'},'easy TimePro list not received yet — update the PC program (Staff Sync tab)'),
+        sy.ok===false?h('span',{className:'badge warn'},`Last error: ${sy.error||''}`):null,
+        h('select',{value:show,onChange:e=>setShow(e.target.value),'aria-label':'Show'},h('option',{value:'problems'},`Needs attention (${rows.filter(problem).length})`),h('option',{value:'all'},`All (${rows.length})`)),
+        h('button',{type:'button',className:'btn btn-secondary',onClick:load},'↻ Refresh')),
+      h('p',{className:'muted'},'ERP decides who works at Samara (join / leave / suspension, name, department); easy TimePro holds the machine number and fingerprint. Every change on either side shows here. A machine number is never given to another person.'),
+      err?h('div',{className:'message error'},err):null,
+      !d?h('p',{className:'muted'},err?'—':'Loading…'):
+      h('div',{className:'table-wrap'},h('table',{className:'table'},
+        h('thead',null,h('tr',null,['Machine no.','In easy TimePro','ERP employee','Last punch','Status','Action'].map(c=>h('th',{key:c},c)))),
+        h('tbody',null,list.length?list.map(r=>{const f=BIO_FLAG[r.flag]||[r.flag,'#6b7280'];const k=r.emp_code||r.profile_id;
+          return h('tr',{key:k},
+            h('td',{'data-label':'Machine no.'},r.emp_code?h('strong',null,r.emp_code):'—'),
+            h('td',{'data-label':'In easy TimePro'},r.emp_code?(r.tp_present===false?h('span',{style:{color:'#b42318'}},`Deleted${r.tp_missing_since?' '+formatDateIN(r.tp_missing_since):''}${r.tp_name?` (was ${r.tp_name})`:''}`):h('span',null,r.tp_name||'—',r.tp_status&&r.tp_status!=='active'?h('small',{style:{display:'block',color:'#8a5a70'}},r.tp_status==='blocked'?'Blocked area':'Resigned'):null)):'—'),
+            h('td',{'data-label':'ERP employee'},r.erp_name?h('span',null,h('strong',null,r.erp_name),h('small',{style:{display:'block',color:'#8a5a70'}},[r.erp_id,r.designation,r.erp_active===false?`Left${r.last_day?' '+formatDateIN(r.last_day):''}`:''].filter(Boolean).join(' · '))):
+              can&&r.emp_code&&r.flag!=='not_erp'?h('select',{value:pick[k]||'',onChange:e=>setPick({...pick,[k]:e.target.value}),'aria-label':`Employee for machine no. ${r.emp_code}`},h('option',{value:''},'— choose employee —'),empOpts.map(e=>h('option',{key:e.id,value:e.id},[e.title,e.full_name].filter(Boolean).join(' ')+(e.employee_id?` (${e.employee_id})`:'')))):'—'),
+            h('td',{'data-label':'Last punch'},r.emp_code?fmtAt(r.last_punch):'—'),
+            h('td',{'data-label':'Status'},h('span',{className:'badge',style:{background:f[1]+'18',color:f[1],borderColor:f[1]+'55',fontWeight:800}},f[0]),r.message?h('small',{style:{display:'block',marginTop:4,maxWidth:420}},r.message):null),
+            h('td',{'data-label':'Action'},!can||!r.emp_code?null:h('div',{className:'employee-actions'},
+              !r.erp_name&&r.flag!=='not_erp'?h('button',{type:'button',className:'btn btn-primary',disabled:!pick[k]||!!busy,onClick:()=>act('link',r,{profile_id:pick[k]})},'Link'):null,
+              !r.erp_name&&r.flag!=='not_erp'?h('button',{type:'button',className:'btn btn-secondary',disabled:!!busy,onClick:()=>{if(confirm(`Mark machine no. ${r.emp_code} (${r.tp_name||'—'}) as not an ERP employee?`))act('not_erp',r)}},'Not an ERP employee'):null,
+              r.flag==='removed_from_machine'&&!r.readd_requested?h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:()=>{if(confirm(`Add ${r.erp_name} back to easy TimePro as machine no. ${r.emp_code}? The fingerprint must then be enrolled again on the machine.`))act('readd',r)}},'Re-add to machine'):null,
+              r.flag==='different_name'&&!r.use_erp_name?h('button',{type:'button',className:'btn btn-primary',disabled:!!busy,onClick:()=>{if(confirm(`"${r.tp_name}" in easy TimePro is the same person as ${r.erp_name}? The next sync writes the ERP name into easy TimePro.`))act('use_erp_name',r)}},'Use ERP name'):null)));})
+        :h('tr',null,h('td',{colSpan:6,className:'empty'},show==='problems'?'Nothing needs attention — ERP and easy TimePro agree.':'No machine numbers yet.'))))));
+  }
   function BiometricAttendance({profile}){
     const isAdmin=profile?.role==='Admin';
     const [tab,setTab]=React.useState('Punches');
@@ -206,7 +254,7 @@
         unlinked.length?h('span',{className:'badge warn'},`${unlinked.length} machine code(s) not linked to an employee`):null,
         sync?h('span',{className:`badge ${syncFresh&&sync?.sync?.ok!==false?'':'warn'}`},lastSync?`Staff sync: ${formatDateIN(lastSync)} ${bioTime(lastSync)}${sync?.sync?.ok===false?' — error':''}`:'Staff sync not set up yet'):null,
         status?.push?.last_push_error?h('span',{className:'badge off',style:{background:'#fde2e2',color:'#a3122a'}},`Last error: ${status.push.last_push_error}`):null),
-      h('div',{className:'bio-tabs'},['Punches','Link Staff','Staff Sync',...(isAdmin?['Daily WhatsApp','Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
+      h('div',{className:'bio-tabs'},['Punches','Staff Register','Link Staff','Staff Sync',...(isAdmin?['Daily WhatsApp','Setup (easy TimePro)']:[])].map(t=>h('button',{key:t,type:'button',className:`btn ${tab===t?'btn-primary':'btn-secondary'}`,onClick:()=>setTab(t)},t==='Link Staff'&&unlinked.length?`${t} (${unlinked.length})`:t))),
 
       tab==='Punches'&&h('section',{className:'card'},
         h('div',{className:'bio-filters'},
@@ -247,6 +295,7 @@
           ];}):h('tr',null,h('td',{colSpan:9,className:'empty'},busy?'Loading…':'No punches for this period.'))))),
         h('div',{className:'small-note',style:{marginTop:8}},'Each row is one shift. A Night shift (7 PM – 7 AM) is shown under the date it starts, with its next-morning Out punch. The shift comes from the Duty Roster; * = not in the roster, worked out from the punch times.')),
 
+      tab==='Staff Register'&&h(BioStaffRegister,{emps}),
       tab==='Link Staff'&&h('section',{className:'card'},
         h('p',{className:'muted'},'Each staff member has a number on the machine (Employee ID in easy TimePro). Link each number once to the right ERP employee. The name stored in the machine is shown only to help you.'),
         h('div',{className:'table-wrap'},h('table',{className:'table'},

@@ -1,3 +1,8 @@
+## 2.20.70 — 13-11-2026 — Biometric: two-way ERP ↔ easy TimePro + Staff Register
+- Biometric Attendance → new **Staff Register**: every machine number and every active employee, with what easy TimePro shows, the linked ERP employee, last punch and a status (New on machine, Number reused, Removed from machine, Different name, Not on machine yet, No punch yet, Left / Suspended). Admin / HR: Link, Not an ERP employee, Re-add to machine, Use ERP name. One number per person; never reused.
+- PC program 2.20.70: sends easy TimePro’s user list when it changes and in full every hour; no longer re-adds numbers deleted in easy TimePro or overwrites another person’s name without Admin. Pop-up alerts to Admin / Directors / HR incl. "Biometric staff sync has stopped" (30 min, 7:30 AM–10:30 PM). (SQL 396)
+- Madhu Mithra stays on machine no. 32; her punch of 13-11 on no. 23 moved to 32.
+
 ## 2.20.69 — 13-11-2026 — Clinical Escalations: one row of boxes, Status filter on the register
 - The five boxes (Open escalations, Critical, Medication, Food & Meals, Regularisation) are slightly smaller and fit in one row on computers.
 - The **Status** filter (Open / Resolved / All) now sits in the heading of the **Escalation Register** it filters. Frontend only.

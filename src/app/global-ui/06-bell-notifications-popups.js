@@ -466,9 +466,14 @@
         // 2.20.53: Night Stock (SQL 387) — opening / closing count due, morning verification, returned nights, count differences
         if(isNursing||foodAdmin)jobs.push(client.rpc('night_stock_alerts').then(r=>r,()=>({data:[],error:null})));
         else jobs.push(Promise.resolve({data:[],error:null}));
-        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns,receiptProblems,nightStock]=await Promise.all(jobs);
+        // 2.20.70: biometric ERP <-> easy TimePro problems + sync stopped -> Admin / Directors / HR (SQL 396)
+        if(role==='admin'||role==='hr')jobs.push(client.rpc('biometric_register_alerts').then(r=>r,()=>({data:[],error:null})));
+        else jobs.push(Promise.resolve({data:[],error:null}));
+        const [dis,charges,food,withheld,overdue,indentDue,staffReturn,foodWa,ioAlerts,kitchenAlerts,pettyAlerts,spotPrepRows,chargeReturns,receiptProblems,nightStock,bioAlerts]=await Promise.all(jobs);
         const returnRows=(!chargeReturns?.error&&Array.isArray(chargeReturns?.data))?chargeReturns.data.filter(a=>a.audience==='nurse'):[];
         const candidates=[];
+        ((!bioAlerts?.error&&Array.isArray(bioAlerts?.data))?bioAlerts.data:[]).forEach(a=>candidates.push({key:`bio-${a.kind}-${a.emp_code||'sync'}-${Math.floor(Date.now()/(a.kind==='sync_stopped'?3600000:14400000))}`,kind:'Biometric',
+          title:a.title,detail:a.message,page:'Biometric Attendance',urgent:a.kind==='sync_stopped'||a.kind==='number_reused',at:a.since}));
         ((!nightStock?.error&&Array.isArray(nightStock?.data))?nightStock.data:[]).forEach(a=>candidates.push({key:`${a.alert_key}-${Math.floor(Date.now()/1800000)}`,kind:'Ward Stock',title:a.title,detail:a.detail,page:'Ward Stock',record:{id:a.night_date,label:a.title},urgent:['nurse','verifier'].includes(a.audience)||String(a.alert_key||'').startsWith('ws-noaccept-'),at:a.alert_at}));
         const receiptRows=(!receiptProblems?.error&&Array.isArray(receiptProblems?.data))?receiptProblems.data:[];
         if(receiptRows.length){

@@ -13,6 +13,10 @@
   Department = the employee's ERP department (created in easy TimePro when missing; staff are
   moved when their ERP department changes). No ERP department -> Mogappair (or easy TimePro's first department).
   Staff in easy TimePro not linked to an ERP employee are only reported, never changed.
+  2.20.70 (two-way): easy TimePro's user list goes back to the ERP (when it changed, and in full every hour),
+  so additions / deletions / renames made in easy TimePro show in ERP -> Biometric Attendance -> Staff Register.
+  A number deleted in easy TimePro is NOT added back unless Admin presses "Re-add to machine" in the ERP.
+  A different person's name in easy TimePro is NOT overwritten unless Admin presses "Use ERP name".
 
   First time (on the PC where easy TimePro runs): right-click this file -> Run with PowerShell,
   or use the setup command from ERP -> HR -> Biometric Attendance -> Staff Sync.
@@ -27,7 +31,7 @@
 param([switch]$Setup, [switch]$Run, [switch]$DryRun, [switch]$Uninstall, [switch]$Diagnose)
 
 $ErrorActionPreference = 'Stop'
-$AgentVersion = '2.20.26'
+$AgentVersion = '2.20.70'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $AppDir     = Join-Path $env:LOCALAPPDATA 'SamaraBiometricSync'
 $ConfigPath = Join-Path $AppDir 'config.json'
@@ -196,6 +200,13 @@ function Set-TpEmployee([string]$code, $fields) {
 function Move-TpArea([string]$code, [string]$areaCode) {
   Invoke-Tp 'Post' '/personnel/api/employees/adjust_area/' @{ emp_code = @($code); area_code = @($areaCode) } | Out-Null
 }
+function Test-SamePerson([string]$a, [string]$b) {
+  $x = ($a.ToLower() -replace '^(dr|mr|mrs|ms|miss|smt|sr)\.?\s+','') -replace '[^a-z]',''
+  $y = ($b.ToLower() -replace '^(dr|mr|mrs|ms|miss|smt|sr)\.?\s+','') -replace '[^a-z]',''
+  if (-not $x -or -not $y) { return $true }
+  if ($x.Contains($y) -or $y.Contains($x)) { return $true }
+  return ($x.Substring(0, [Math]::Min(4,$x.Length)) -eq $y.Substring(0, [Math]::Min(4,$y.Length)))
+}
 function Get-ShortName($name) {
   # easy TimePro refuses digits in names
   $n = (([string]$name) -replace '[0-9]', '' -replace '\s+', ' ').Trim()
@@ -258,7 +269,18 @@ function Invoke-Sync([bool]$dry) {
 
     $maxCode = 0
     foreach ($k in (@($tpEmps.Keys) + @($resigned.Keys))) { $n = 0; if ([int]::TryParse([string]$k, [ref]$n) -and $n -gt $maxCode) { $maxCode = $n } }
-    foreach ($k in $tpEmps.Keys) { [void]$deviceUsers.Add(@{ emp_code = [string]$k; name = [string]$tpEmps[$k].first_name }) }
+    foreach ($k in $tpEmps.Keys) {
+      $st = 'active'; if ((@(Get-AreaCodes $tpEmps[$k])) -contains $blockedArea) { $st = 'blocked' }
+      if ($resigned.ContainsKey([string]$k)) { $st = 'resigned' }
+      [void]$deviceUsers.Add(@{ emp_code = [string]$k; name = [string]$tpEmps[$k].first_name; status = $st })
+    }
+    foreach ($k in $resigned.Keys) {
+      if ($tpEmps.ContainsKey([string]$k)) { continue }
+      $rn = ''; $rr = $null
+      foreach ($r in (Get-TpAll '/personnel/api/resigns/')) { if (($r.employee -is [System.Management.Automation.PSCustomObject]) -and [string]$r.employee.emp_code -eq [string]$k) { $rr = $r; break } }
+      if ($rr) { $rn = [string]$rr.employee.first_name }
+      [void]$deviceUsers.Add(@{ emp_code = [string]$k; name = $rn; status = 'resigned' })
+    }
 
     $linkedCodes = @{}; foreach ($s in $staff) { if ($s.emp_code) { $linkedCodes[[string]$s.emp_code] = $true } }
     foreach ($s in $staff) {
@@ -315,15 +337,21 @@ function Invoke-Sync([bool]$dry) {
               $e = @((Invoke-Tp 'Get' ("/personnel/api/employees/?emp_code=" + $code)).data) | Where-Object { [string]$_.emp_code -eq $code } | Select-Object -First 1
               if (-not $e) { throw 'Reinstated, but the employee was not found afterwards.' }
             }
+            if (-not $e -and -not $s.readd) {
+              # 2.20.70: deleted in easy TimePro -> NOT added back; the ERP shows "Removed from machine" to Admin
+              [void]$actions.Add(@{ type = 'missing'; emp_code = $code; name = $s.name; note = 'Not in easy TimePro (deleted there?) - not added back; Admin decides in the ERP Staff Register' })
+              Write-Log "MISSING   $label (deleted in easy TimePro - waiting for Admin)"
+              continue
+            }
             if (-not $e) {
-              # linked number not in easy TimePro (deleted there?) -> add it back under the same number
+              # Admin pressed "Re-add to machine": add it back under the same number
               $body = [ordered]@{ emp_code = $code; first_name = (Get-ShortName $s.name); department = (Get-DeptCode $s.department $dry); area = @($activeArea) }
               if ($pos) { $body.position = [string]$pos.position_code }
               if ($s.date_of_joining) { $body.hire_date = [string]$s.date_of_joining }
               if ($s.gender) { $body.gender = [string]$s.gender }
               if ($s.mobile) { $body.mobile = [string]$s.mobile }
               if (-not $dry) { Invoke-Tp 'Post' '/personnel/api/employees/' $body | Out-Null }
-              [void]$actions.Add(@{ type = 'added'; emp_code = $code; name = $s.name; note = 'New employee added to easy TimePro' })
+              [void]$actions.Add(@{ type = 'added'; emp_code = $code; name = $s.name; note = 'Added back to easy TimePro (Admin: Re-add to machine) - enrol fingerprint / face' })
               $summary.added++
               Write-Log "ADDED     $label"
               continue
@@ -340,6 +368,13 @@ function Invoke-Sync([bool]$dry) {
               Write-Log "AREA      $label -> $note"
             }
             $want = Get-ShortName $s.name
+            if ([string]$e.first_name -ne $want -and -not (Test-SamePerson ([string]$e.first_name) $s.name) -and -not $s.use_erp_name) {
+              # 2.20.70: easy TimePro shows another person's name on this number -> do not overwrite; Admin decides
+              [void]$actions.Add(@{ type = 'name_conflict'; emp_code = $code; name = $s.name; note = ('easy TimePro shows "' + [string]$e.first_name + '" - not changed; Admin: Use ERP name, or enrol on own number') })
+              Write-Log "CONFLICT  $label (easy TimePro: $($e.first_name))"
+              if (-not $changed) { $summary.unchanged++ }
+              continue
+            }
             $patch = @{}
             if ([string]$e.first_name -ne $want) { $patch.first_name = $want }
             if ($s.mobile -and [string]$e.mobile -ne [string]$s.mobile) { $patch.mobile = [string]$s.mobile }
@@ -379,7 +414,9 @@ function Invoke-Sync([bool]$dry) {
                 $rtype = 1; if ($s.reason -eq 'Termination') { $rtype = 2 }
                 Invoke-Tp 'Post' '/personnel/api/resigns/' @{ employee = $code; resign_date = $today; report_generation_end_date = $today; resign_type = $rtype; disableatt = $true; reason = ('Samara ERP: ' + [string]$s.reason) } | Out-Null
               }
-              [void]$actions.Add(@{ type = 'resigned'; emp_code = $code; name = $s.name; note = ('Blocked and marked Resigned (' + [string]$s.reason + ')') })
+              $rnote = 'Blocked and marked Resigned (' + [string]$s.reason + ')'
+              if ($e.first_name -and -not (Test-SamePerson ([string]$e.first_name) $s.name)) { $rnote += ' - easy TimePro had given this number to "' + [string]$e.first_name + '": numbers are never reused, enrol that person on her own number' }
+              [void]$actions.Add(@{ type = 'resigned'; emp_code = $code; name = $s.name; note = $rnote })
               $summary.resigned++
               Write-Log "RESIGNED  $label ($($s.reason))"
             } else { $summary.unchanged++ }
@@ -404,11 +441,24 @@ function Invoke-Sync([bool]$dry) {
   }
 
   # Report to the ERP (HR -> Biometric Attendance -> Staff Sync). "not_in_erp" lines alone do not count as changes.
-  $real = @($actions | Where-Object { $_.type -ne 'not_in_erp' })
+  # 2.20.70: easy TimePro's user list -> ERP when it changed, and in full at least once an hour
+  $fullList = $false
+  if ($deviceUsers.Count -gt 0 -and $errors.Count -eq 0) {
+    $sig = (@($deviceUsers | ForEach-Object { '{0}|{1}|{2}' -f $_.emp_code, $_.name, $_.status } | Sort-Object) -join ';')
+    $sigPath = Join-Path $AppDir 'timepro-list.txt'
+    $prev = $null; $prevAt = [datetime]::MinValue
+    if (Test-Path $sigPath) { $prev = Get-Content $sigPath -Raw; $prevAt = (Get-Item $sigPath).LastWriteTime }
+    if ($prev -ne $sig -or ((Get-Date) - $prevAt).TotalMinutes -ge 60) {
+      $fullList = $true
+      if (-not $dry) { Set-Content -Path $sigPath -Value $sig -NoNewline -Encoding UTF8 }
+    }
+  }
+  if (-not $fullList) { $deviceUsers = New-Object System.Collections.ArrayList }
+  $real = @($actions | Where-Object { $_.type -ne 'not_in_erp' -and $_.type -ne 'missing' -and $_.type -ne 'name_conflict' })
   $send = $real
   if ($real.Count -gt 0 -or $errors.Count -gt 0 -or $dry) { $send = @($actions) }
   $report = @{ ok = ($errors.Count -eq 0); dry_run = $dry; summary = $summary; actions = @($send); errors = @($errors);
-               links = @($links); device_users = @($deviceUsers);
+               links = @($links); device_users = @($deviceUsers); full_list = $fullList;
                agent = ("Samara Biometric Sync {0} on {1}" -f $AgentVersion, $env:COMPUTERNAME) }
   try { Invoke-RestMethod -Method Post -Uri $erpUrl -Body (ConvertTo-JsonBody $report) -ContentType 'application/json; charset=utf-8' -TimeoutSec 60 | Out-Null }
   catch { Write-Log "Could not send the result to the ERP: $($_.Exception.Message)" }
