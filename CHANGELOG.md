@@ -1,3 +1,6 @@
+## 2.20.63a — 13-11-2026 — Ward Stock: Nurse mode = Nurse (SQL 393)
+- Nursing Manager in **Switch to Nurse** mode now gets the Nurse Ward Stock screen: **Opening Count / Accept** and **Closing Count** boxes, blind counts, and the server accepts her counts. Her Nursing Manager alerts stay on. Switch off = as before. SQL 393 also includes the SQL 392 alert, so running 393 alone is enough.
+
 ## 2.20.63 — 13-11-2026 — Ward Stock: alert when no nurse has accepted
 - New alert to the **Nursing Manager and Admin**: if no nurse has done the **Opening Count / Accept** 60 minutes after the shift started (08:00 for Day, 20:00 for Night), a pop-up + bell alert "Ward Stock not accepted by the nurse" says how long it is overdue. It repeats every 30 minutes and clears by itself once a nurse accepts. (SQL 392)
 
