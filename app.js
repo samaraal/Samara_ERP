@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.91';
+  const APP_VERSION = '2.20.92';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -44267,9 +44267,9 @@ function RoomsBeds({profile,onNavigate}){
   // Counts are entered without seeing the ERP figure; differences are shown after "Check".
   // 2.20.55: Samara baby-pink gradient boxes; box title bold and larger, status line smaller.
   function ensureNightStockCss(){
-    if(document.getElementById('night-stock-css-2'))return;{const old=document.getElementById('night-stock-css');if(old)old.remove();}
-    const st=document.createElement('style');st.id='night-stock-css-2';
-    st.textContent=`.night-stock .ns-count .table-wrap{max-width:760px}.night-stock .ns-count table{width:100%;border-collapse:separate;border-spacing:0}.night-stock .ns-count th:nth-child(1),.night-stock .ns-count td:nth-child(1){width:48px;text-align:center;color:#8a5a70}.night-stock .ns-count th:nth-child(3),.night-stock .ns-count td:nth-child(3){width:80px;color:#6b4a5b}.night-stock .ns-count th:nth-child(4),.night-stock .ns-count td:nth-child(4){width:130px}.night-stock .ns-count tbody tr:nth-child(odd) td{background:#ffffff}.night-stock .ns-count tbody tr:nth-child(even) td{background:#fbe9f1}.night-stock .ns-count tbody tr:hover td{background:#f6d3e3}.night-stock .ns-count tbody tr:focus-within td{background:#fff3c4;box-shadow:inset 0 2px 0 #e8b400,inset 0 -2px 0 #e8b400}.night-stock .ns-count td{padding:7px 10px;font-size:15px}.night-stock .ns-count input{width:110px;font-size:16px;font-weight:700;text-align:center}.night-stock .ns-boxes .dr-box{background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%);border:1px solid #edb5ce;border-top:4px solid #a91360;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);padding:14px 16px;gap:6px}
+    if(document.getElementById('night-stock-css-3'))return;['night-stock-css','night-stock-css-2'].forEach(id=>{const old=document.getElementById(id);if(old)old.remove()});
+    const st=document.createElement('style');st.id='night-stock-css-3';
+    st.textContent=`.night-stock .ns-count .table-wrap{max-width:820px;overflow-x:auto}.night-stock .ns-count table{width:100%;min-width:0!important;table-layout:fixed;border-collapse:separate;border-spacing:0}.night-stock .ns-count th:nth-child(1),.night-stock .ns-count td:nth-child(1){width:48px;text-align:center;color:#8a5a70}.night-stock .ns-count th:nth-child(3),.night-stock .ns-count td:nth-child(3){width:80px;color:#6b4a5b}.night-stock .ns-count th:nth-child(4),.night-stock .ns-count td:nth-child(4){width:150px;overflow:visible}.night-stock .ns-count th:nth-child(5),.night-stock .ns-count td:nth-child(5){width:190px}.night-stock .ns-count tbody tr:nth-child(odd) td{background:#ffffff}.night-stock .ns-count tbody tr:nth-child(even) td{background:#fbe9f1}.night-stock .ns-count tbody tr:hover td{background:#f6d3e3}.night-stock .ns-count tbody tr:focus-within td{background:#fff3c4;box-shadow:inset 0 2px 0 #e8b400,inset 0 -2px 0 #e8b400}.night-stock .ns-count td{padding:7px 10px;font-size:15px;white-space:normal}.night-stock .ns-count td:nth-child(2){word-break:break-word}.night-stock .ns-count input{width:100%!important;max-width:120px!important;min-width:0;box-sizing:border-box;font-size:16px;font-weight:700;text-align:center}.night-stock .ns-boxes .dr-box{background:linear-gradient(135deg,#fff5f9 0%,#fbdce9 55%,#f5bdd5 100%);border:1px solid #edb5ce;border-top:4px solid #a91360;color:#56243e;box-shadow:0 8px 20px rgba(143,23,76,.08);padding:14px 16px;gap:6px}
 .night-stock .ns-boxes .dr-box:hover,.night-stock .ns-boxes .dr-box:focus-visible{box-shadow:0 10px 24px rgba(143,23,76,.18)}
 .night-stock .ns-boxes .dr-box-label{font-size:18px;font-weight:900;color:#7a1247;min-height:0;line-height:1.25}
 .night-stock .ns-boxes .dr-box-value{font-size:13px;font-weight:600;color:#5b3a4b}`;

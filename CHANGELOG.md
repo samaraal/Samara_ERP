@@ -1,3 +1,6 @@
+## 2.20.92 — 2026-11-13
+- Ward Stock count table: the count boxes are no longer cut off at the right edge.
+
 ## 2.20.91 — 2026-11-13
 - Ward Stock counts (Opening / Closing / Verify): compact table (item and count box close together, no long reach across the screen), alternate row colours, the row being typed in is highlighted yellow.
 
