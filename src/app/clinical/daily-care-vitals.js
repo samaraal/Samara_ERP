@@ -95,6 +95,14 @@
         showToast('error','Please select a patient before saving the care record.');
         return;
       }
+      // 2.20.97: Nebulisation is recorded ONLY in the MAR (SQL 374) — giving the nebulisation medicine there closes the task,
+      // shows it to the family and raises the charge. A Daily Care entry would do none of that.
+      if(/nebuli[sz]/i.test(String(form.care_type||''))){
+        showToast('error','Nebulisation is recorded only in Medication (MAR): give the nebulisation medicine there — it completes this task and the charge automatically.');
+        try{saveTaskNavigationContext({page:'Medicines',patient_id:form.patient_id,filter_only:true})}catch(_){}
+        try{window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Medicines'}}))}catch(_){}
+        return;
+      }
       // 2.20.13: Blood Glucose Monitoring done → the reading is compulsory (saved to Vital Signs as well).
       const sugarEntry=dcIsGlucose(form.care_type)&&form.status==='Completed';
       const sugarNum=Number(form.sugar_value);

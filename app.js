@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.96';
+  const APP_VERSION = '2.20.97';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -29696,7 +29696,9 @@ Please keep these login details confidential.`;
                   h('span',{className:'task-row-number'},careIndex+1),
                   h('div',null,h('strong',null,x.time?`${nprocTime12(x.time)} · ${x.label}`:x.label),isNursingProcedureOrder(x.order)?h('span',{className:'pill',style:{marginLeft:'6px',background:'#fde7f1',color:'#a91360'}},'Nursing Procedure'):null,h('small',null,`${x.order.frequency||'Daily'}${x.order.instruction?` · ${x.order.instruction}`:''}`)), // 2.18.26 tag
                   x.log?h('span',{className:'badge'},x.log.status):h('span',{className:'pill warning'},'Pending'),
-                  x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):h('div',{className:'employee-actions'},
+                  x.log?h('button',{type:'button',className:'btn btn-secondary clinical-action-done',disabled:true},'Done ✓'):
+                  /nebuli[sz]/i.test(String(x.label||x.order?.care_type||''))?h('button',{className:'btn btn-primary',title:'Nebulisation is recorded only in the MAR — giving the nebulisation medicine closes this task and raises the charge',onClick:()=>openRegularTask('Medicines',{patient_id:x.patient_id,filter_only:true})},'💊 Give in MAR'): // 2.20.97 (SQL 374 rule)
+                  h('div',{className:'employee-actions'},
                     h('button',{className:'btn btn-primary',onClick:()=>openRegularTask('Daily Care',{
                       patient_id:x.patient_id,care_order_id:x.order.id,care_type:x.label,shift:x.taskShift,scheduled_time:x.time||null,status:'Completed'
                     })},'Complete'),
@@ -37859,6 +37861,14 @@ function RoomsBeds({profile,onNavigate}){
       {const _bb=await bedsideSaveCheck(profile,form.patient_id,bedsideScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.19.96
       if(!form.patient_id){
         showToast('error','Please select a patient before saving the care record.');
+        return;
+      }
+      // 2.20.97: Nebulisation is recorded ONLY in the MAR (SQL 374) — giving the nebulisation medicine there closes the task,
+      // shows it to the family and raises the charge. A Daily Care entry would do none of that.
+      if(/nebuli[sz]/i.test(String(form.care_type||''))){
+        showToast('error','Nebulisation is recorded only in Medication (MAR): give the nebulisation medicine there — it completes this task and the charge automatically.');
+        try{saveTaskNavigationContext({page:'Medicines',patient_id:form.patient_id,filter_only:true})}catch(_){}
+        try{window.dispatchEvent(new CustomEvent('samara-open-page',{detail:{page:'Medicines'}}))}catch(_){}
         return;
       }
       // 2.20.13: Blood Glucose Monitoring done → the reading is compulsory (saved to Vital Signs as well).
