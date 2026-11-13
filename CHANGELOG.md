@@ -1,3 +1,6 @@
+## 2.20.82 — 2026-11-13
+- Bedside: ONE scan is enough. After ✅ Bed verified, Save saves directly (no second "Scan to Save" scan). Only if the scan is older than 12 minutes is the sticker asked once more. Scan & Administer now also records the verified scan for the database check.
+
 ## 2.20.81 — 2026-11-13
 - Rent / Genset Account: the chosen bill / receipt is now shown (photo preview, tap for full size; PDF opens in a new tab) with ✕ Remove, before Save.
 

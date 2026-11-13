@@ -66,7 +66,9 @@
       const own=scan&&scan.code&&(!scan.patientId||String(scan.patientId)===String(patientId))?scan:null;
       const s=own||bedsideSessionGet(patientId);
       const r=s?.check?.result;
-      if(r==='verified')return await bedsideScanToSaveCheck(patientId); // 2.20.14: second scan at Save
+      // 2.20.82: one scan is enough — a ✅ verified bed scan in the last 12 minutes saves directly (the database accepts a
+      // scan for 15 minutes, SQL 400). Only an older scan asks for the sticker once more (Scan to Save).
+      if(r==='verified'){const age=Date.now()-Number(s.at||0);if(s.at&&age>=0&&age<=12*60*1000)return '';return await bedsideScanToSaveCheck(patientId);}
       if(r==='wrong_bed')return 'This sticker belongs to another bed. Go to the Guest\'s own bed and scan its sticker. Saving is not allowed.';
       if(s&&s.code&&r)return 'The bed sticker could not be confirmed for this Guest. Scan the sticker on the Guest\'s bed again, or ask the Nursing Manager.';
       return 'Scanning the bed QR is compulsory. Tap 📷 Scan bed QR (or use Scan & Administer) at the Guest\'s bed, then save. Sticker or camera problem? Ask the Nursing Manager to make this entry.';
@@ -108,7 +110,7 @@
   }
   // Save-button wording: "📷 Scan to Save" where the second scan applies (phone, Nurse / Caregiver, scan compulsory).
   function bedsideSaveText(profile,text){
-    try{return bedsideModeCache.mode==='qr_required'&&bedsideBlockedRole(profile)?`📷 Scan to Save · ${text}`:text;}catch(_){return text}
+    return text; // 2.20.82: one scan only — the Save button just saves (a scan older than 12 minutes asks once more)
   }
   function useBedsideMode(){
     const [mode,setMode]=React.useState(bedsideModeCache.mode);
@@ -227,7 +229,7 @@
     React.useEffect(()=>{
       if(!bedsideOn(mode)||!patient?.id||value?.code)return;
       const s=bedsideSessionGet(patient.id);
-      if(s)onChange({code:s.code,check:s.check||null,reason:'',patientId:patient.id,fromScanFirst:true});
+      if(s)onChange({code:s.code,check:s.check||null,reason:'',patientId:patient.id,fromScanFirst:true,at:s.at});
     },[mode,patient?.id,value?.code]);
     if(!bedsideOn(mode)||!patient?.id)return null;
     if(bedsideModeCache.block&&bedsideIsComputer()&&bedsideBlockedRole(profile))return h('div',{className:'bedside-box'},h(BedsideCss),h('div',{className:'bedside-res bad'},`🔒 ${BEDSIDE_COMPUTER_MSG}`));
@@ -238,7 +240,7 @@
       try{
         const r=await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:patient?.id||null});
         if(r.error)throw r.error;
-        onChange({code,check:r.data||null,reason:'',patientId:patient?.id});
+        onChange({code,check:r.data||null,reason:'',patientId:patient?.id,at:Date.now()});
       }catch(e){onChange({code,check:{result:'error',message:e?.message||'Could not check the sticker'},reason:'',patientId:patient?.id})}
       finally{setChecking(false)}
     }
@@ -533,6 +535,7 @@
         const s={code,patientId:g.id,name:formalName(g)||g.full_name||'Guest',guestCode:g.patient_id||'',room:d.room_no,bed:d.bed_no,
           check:{result:'verified',scanned_room_no:d.room_no,scanned_bed_no:d.bed_no,guest_room_no:g.room_no,guest_bed_no:g.bed_no}};
         bedsideSessionSet(s);setSession({...s,at:Date.now()});
+        try{await client.rpc('bedside_check_tag',{p_code:code,p_patient_id:g.id})}catch(_){} // 2.20.82: records the verified scan for the database check
         try{navigator.vibrate?.([60,40,60])}catch(_){}
       }catch(e){setMsg(`⚠️ ${e?.message||'Could not read the sticker.'} Try again.`)}
       finally{setBusy(false)}
