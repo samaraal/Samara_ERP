@@ -1,3 +1,6 @@
+## 2.20.68 — 13-11-2026 — My To-Do & Follow-up: summary boxes
+- Removed the "Open list →" text from the Due Today / Overdue / Follow-ups Pending / Completed Today boxes. Tapping a box still shows those items in **My List** and now also scrolls down to it. Frontend only.
+
 ## 2.20.67 — 13-11-2026 — My To-Do & Follow-up: one taller pink banner with Back and Refresh inside
 - Computers: the pink banner now runs the full width and holds **‹ Back** (left), the title, the name and **↻ Refresh** (right) — buttons in white outline on pink, bigger title. Phones unchanged. styles.css only, no SQL.
 

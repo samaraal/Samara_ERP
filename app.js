@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.67';
+  const APP_VERSION = '2.20.68';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -283,7 +283,7 @@ function initSamaraInaugurationInvitation(){
   }
   window.samaraFriendlyError=samaraFriendlyError;
 
-  const APP_BUILD_DATE = '13-Nov-2026 To-Do pink top banner';
+  const APP_BUILD_DATE = '13-Nov-2026 To-Do boxes open My List';
   const APP_SCHEMA_VERSION = '38';
 
   // 2.15.1: ONE list of Pharmacy & Stores sections, used everywhere (sidebar, dashboards, Store Master,
@@ -18157,9 +18157,11 @@ function Dashboard({profile,onNavigate,alertEngine}){
       quickUpdate(r,{follow_up_at:d.toISOString(),status:r.status==='Completed'?'Pending':r.status});
     }
 
-    const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',onClick:()=>setFilter(key),
+    // 2.20.68: tapping a box shows those items in "My List" and scrolls down to it ("Open list →" text removed)
+    const stat=(label,value,key)=>h('button',{type:'button',className:'card stat',value:`${label} list`,title:`Show ${label} items in My List`,
+      onClick:()=>{setFilter(key);window.requestAnimationFrame(()=>{const el=document.getElementById('mpt-my-list');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})})},
       style:{cursor:'pointer',textAlign:'left',border:filter===key?'2px solid #a91653':undefined}},
-      h('span',null,label),h('strong',null,value),h('small',null,'Open list →'));
+      h('span',null,label),h('strong',null,value));
 
     // 2.20.66: on desktop the title banner sits in the top bar between ‹ Back and ↻ Refresh; on phones it stays here.
     const titleBanner=h('div',{className:'shift-summary'+(titleSlot?' shift-summary-in-toolbar':'')},
@@ -18206,7 +18208,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
           )
         )
       ),
-      h(Section,{title:'My List',subtitle:`${visible.length} item(s) · ${filter}`},
+      h('div',{id:'mpt-my-list',style:{scrollMarginTop:'90px'}},h(Section,{title:'My List',subtitle:`${visible.length} item(s) · ${filter}`},
         h('div',{className:'actions',style:{marginBottom:'10px'}},
           ['Open','Today','Overdue','Follow-up','Completed','All'].map(x=>h('button',{type:'button',key:x,className:`btn ${filter===x?'btn-primary':'btn-secondary'}`,onClick:()=>setFilter(x)},x))
         ),
@@ -18233,7 +18235,7 @@ function Dashboard({profile,onNavigate,alertEngine}){
             )
           )
         )):h('p',{className:'empty'},'No items in this view.')
-      )
+      ))
     );
   }
 
