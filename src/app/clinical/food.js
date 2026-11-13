@@ -354,14 +354,20 @@
       if(!bev.beverage)return alert('Choose the beverage: Tea, Coffee, Milk, Boost, Horlicks or Fresh Juice.');
       if(bev.beverage==='Fresh Juice'&&!bev.juice_name.trim())return alert('Enter which juice was given (for example Orange, Mosambi, Pomegranate).');
       if(!bev.given_time)return alert('Enter the time the beverage was given.');
-      if(bev.given_date===todayISOIndia()&&bev.given_time>nowHHMM())return alert('The beverage time cannot be later than now.');
+      // 2.20.83: a time a few minutes ahead (rounded up, phone clock) is taken as now; more than 15 minutes ahead is refused with both times shown.
+      let bevTime=bev.given_time;
+      if(bev.given_date===todayISOIndia()&&bevTime>nowHHMM()){
+        const mins=t=>{const [a,b]=String(t).split(':').map(Number);return a*60+b};const ahead=mins(bevTime)-mins(nowHHMM());
+        if(ahead<=15)bevTime=nowHHMM();
+        else return alert(`The time entered (${bevTime}) is later than now (${nowHHMM()}). Enter the time the ${bev.beverage||'beverage'} was actually given — 24-hour clock, e.g. 17:15 for 5:15 PM.`);
+      }
       const qty=String(bev.quantity||'').trim()===''?null:Number(bev.quantity);
       const unit=bev.quantity_unit||'ml';
       if(qty!==null&&(!Number.isFinite(qty)||qty<=0||qty>5000))return alert('Enter a quantity above 0 (or leave it blank).');
       if(qty!==null&&unit==='ml'&&qty>2000)return alert('Quantity must be 2000 ml or less.');
       if(saving)return;
       setSaving(true);
-      const payload={patient_id:patientId,given_date:bev.given_date,given_time:bev.given_time,given_at:`${bev.given_date}T${bev.given_time}:00+05:30`,beverage:bev.beverage,juice_name:bev.beverage==='Fresh Juice'?bev.juice_name.trim():null,quantity_ml:qty!==null&&unit==='ml'?Math.round(qty):null,quantity:qty,quantity_unit:qty===null?null:unit,consumption_status:bev.consumption_status,remarks:bev.remarks||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
+      const payload={patient_id:patientId,given_date:bev.given_date,given_time:bevTime,given_at:`${bev.given_date}T${bevTime}:00+05:30`,beverage:bev.beverage,juice_name:bev.beverage==='Fresh Juice'?bev.juice_name.trim():null,quantity_ml:qty!==null&&unit==='ml'?Math.round(qty):null,quantity:qty,quantity_unit:qty===null?null:unit,consumption_status:bev.consumption_status,remarks:bev.remarks||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
       let {error}=await client.from('beverage_records').insert(payload);
       // Before 179_beverage_quantity_unit.sql is run: save without the unit columns (ml only).
       if(error&&/quantity_unit|'quantity'|column .*quantity/i.test(error.message||'')){
@@ -373,8 +379,8 @@
         if(/beverage_records|does not exist|schema cache/i.test(error.message||'')){setBevReady(false);return alert('Beverage entries need a one-time database update: run supabase/sql/177_beverage_records.sql in Supabase, then save again.')}
         return alert(error.message);
       }
-      bedsideRecordTask({kind:'beverage',patientId,date:bev.given_date,time:bev.given_time,label:bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage,scan:bedsideScan});setBedsideScan(null); // 2.19.94
-      showSamaraActionToast('success','Beverage saved',`${bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage} at ${bev.given_time}`);
+      bedsideRecordTask({kind:'beverage',patientId,date:bev.given_date,time:bevTime,label:bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage,scan:bedsideScan});setBedsideScan(null); // 2.19.94
+      showSamaraActionToast('success','Beverage saved',`${bev.beverage==='Fresh Juice'?`Fresh Juice (${bev.juice_name.trim()})`:bev.beverage} at ${bevTime}`);
       setBev(b=>({...blankBev(),given_date:b.given_date}));
       load();
     }
