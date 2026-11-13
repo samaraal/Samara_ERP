@@ -1,3 +1,6 @@
+## 2.20.87 — 2026-11-13
+- New Patient Indent: the item list waits for the Ward Stock list ("Loading items…") instead of showing all items for a second and then dropping to fewer.
+
 ## 2.20.86 — 2026-11-13
 - Clinical Voice Alerts ON / OFF (Admin): new "🗣️ Voice Alerts: ON / 🔇 OFF" button at the top of Clinical Alerts (also a tick box in Alert Settings). OFF stops the spoken voice on every device within a minute; chime, pop-ups, bell and notifications continue. Other logins see "🔇 Voice Alerts OFF (by Admin)". Needs supabase/sql/402_clinical_voice_master_switch.sql.
 
