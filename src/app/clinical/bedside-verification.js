@@ -40,9 +40,10 @@
   // Managers — except Admin / Director and the Nursing Manager's own login (emergency entry). The database enforces the same rule.
   function bedsideBlockedRole(profile){
     try{
-      const role=String(profile?.__nurseMode?.role||profile?.role||'').trim().toLowerCase();
+      if(profile?.__nurseMode)return true; // 2.20.77: Nursing Manager in Nurse mode works exactly like a nurse (scan first)
+      const role=String(profile?.role||'').trim().toLowerCase();
       if(['admin','administrator','director'].includes(role))return false;
-      const des=String(profile?.__nurseMode?.designation||profile?.designation||'').trim().toLowerCase().replace(/[._-]+/g,' ');
+      const des=String(profile?.designation||'').trim().toLowerCase().replace(/[._-]+/g,' ');
       if(des==='nurse manager'||des==='nursing manager')return false;
       return Boolean(role);
     }catch(_){return true}

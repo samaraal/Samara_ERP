@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.76';
+  const APP_VERSION = '2.20.77';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -13855,6 +13855,8 @@ https://samaraassistedliving.com/`;
         .topbar-quick-tools .odt-top-button{height:38px;padding:0 14px;font-size:14px;display:inline-flex;align-items:center;gap:4px}
         .topbar-quick-tools .samara-lang-switch{height:38px;margin:0;flex:0 0 auto;min-width:118px}
         .topbar-quick-tools .samara-lang-switch button{white-space:nowrap;writing-mode:horizontal-tb;padding:0 14px}
+        /* 2.20.77: Nurse-mode switch ("↩ Back to Nursing Manager") gets its own full row on phones so it is never cut */
+        .topbar .nurse-mode-switch{grid-column:1/-1!important;justify-self:start!important;width:auto!important;max-width:100%!important;height:auto!important;min-height:38px;overflow:visible!important;order:4}
       }
       .odt-modal{max-width:760px}
       .odt-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
@@ -16019,7 +16021,7 @@ https://samaraassistedliving.com/`;
           // 2.18.122: physiotherapy approvals / unbilled sessions are not shown at the top (owner's choice) —
           // they stay in Notifications, the Physiotherapy Dashboard and Patient Rates & Billing.
           (SamaraLang.allowed(profile)||['Admin','Manager','STD','Nurse','Caregiver'].some(r=>hasDutyRole(profile,r)))&&h('div',{className:'topbar-quick-tools'},h(OnDutyToday,{profile}),h(LanguageSwitch,{profile})), // 2.15.72: one row on phones
-          canNurseMode&&h('button',{type:'button',className:'btn nurse-mode-switch'+(nurseOn?' on':''),onClick:toggleNurseMode,title:nurseOn?'Return to your Nursing Manager screens':'Use the ERP as a Nurse (same login, manager alerts stay on)',style:{background:nurseOn?'#b01867':'#fff0f7',color:nurseOn?'#fff':'#b01867',border:'1.5px solid #b01867',borderRadius:'999px',padding:'6px 12px',fontWeight:700,whiteSpace:'nowrap'}},nurseOn?'↩ Back to Nursing Manager':'🩺 Switch to Nurse'),
+          canNurseMode&&h('button',{type:'button',className:'btn nurse-mode-switch'+(nurseOn?' on':''),onClick:toggleNurseMode,title:nurseOn?'Return to your Nursing Manager screens':'Use the ERP as a Nurse (same login, manager alerts stay on)',style:{background:nurseOn?'#b01867':'#fff0f7',color:nurseOn?'#fff':'#b01867',border:'1.5px solid #b01867',borderRadius:'999px',padding:'6px 12px',fontWeight:700,whiteSpace:'nowrap',width:'auto',minWidth:'max-content',flex:'0 0 auto'}},nurseOn?'↩ Back to Nursing Manager':'🩺 Switch to Nurse'),
           h('span',{className:'badge'},profile.role)
         ),
         h(MobileMenu,{page,profile,onOpenMenu:()=>setMobileDrawerOpen(true)}),
@@ -38453,9 +38455,10 @@ function RoomsBeds({profile,onNavigate}){
   // Managers — except Admin / Director and the Nursing Manager's own login (emergency entry). The database enforces the same rule.
   function bedsideBlockedRole(profile){
     try{
-      const role=String(profile?.__nurseMode?.role||profile?.role||'').trim().toLowerCase();
+      if(profile?.__nurseMode)return true; // 2.20.77: Nursing Manager in Nurse mode works exactly like a nurse (scan first)
+      const role=String(profile?.role||'').trim().toLowerCase();
       if(['admin','administrator','director'].includes(role))return false;
-      const des=String(profile?.__nurseMode?.designation||profile?.designation||'').trim().toLowerCase().replace(/[._-]+/g,' ');
+      const des=String(profile?.designation||'').trim().toLowerCase().replace(/[._-]+/g,' ');
       if(des==='nurse manager'||des==='nursing manager')return false;
       return Boolean(role);
     }catch(_){return true}

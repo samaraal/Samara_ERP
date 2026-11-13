@@ -1,3 +1,7 @@
+## 2.20.77 — 2026-11-13
+- Nursing Manager in Nurse mode now works exactly like a nurse: no direct Medication / Vitals / Intake-Output / Daily Care / Food tiles, Scan bottom bar, bed scan before every save. Her own Manager view keeps emergency entry.
+- Phone top bar: "↩ Back to Nursing Manager" button shown in full (own row) instead of cut.
+
 ## 2.20.76 — 2026-11-13
 - Nursing Home (bedside scan compulsory): Medication / Vitals / Intake-Output / Daily Care / Food tiles and the Meds / Vitals / Care bottom buttons removed for Nurse / Caregiver logins — every Guest entry starts with 📷 Scan & Administer. Bottom bar: Scan · Notes · Tasks · Talk · More.
 - Intake / Output: bedside scan needed to save (also in SQL 400); opens the scanned Guest; added to Scan & Administer.

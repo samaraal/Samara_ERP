@@ -160,6 +160,8 @@
         .topbar-quick-tools .odt-top-button{height:38px;padding:0 14px;font-size:14px;display:inline-flex;align-items:center;gap:4px}
         .topbar-quick-tools .samara-lang-switch{height:38px;margin:0;flex:0 0 auto;min-width:118px}
         .topbar-quick-tools .samara-lang-switch button{white-space:nowrap;writing-mode:horizontal-tb;padding:0 14px}
+        /* 2.20.77: Nurse-mode switch ("↩ Back to Nursing Manager") gets its own full row on phones so it is never cut */
+        .topbar .nurse-mode-switch{grid-column:1/-1!important;justify-self:start!important;width:auto!important;max-width:100%!important;height:auto!important;min-height:38px;overflow:visible!important;order:4}
       }
       .odt-modal{max-width:760px}
       .odt-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}
