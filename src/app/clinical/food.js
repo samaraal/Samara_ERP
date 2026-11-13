@@ -193,6 +193,7 @@
     const [form,setForm]=React.useState(blankMeal);
     const [bev,setBev]=React.useState(blankBev);
     const [pick,setPick]=React.useState('');
+    const [foodSearch,setFoodSearch]=React.useState(''),[searchOpen,setSearchOpen]=React.useState(false); // 2.20.65
     const [foodList,setFoodList]=React.useState(null),[showItemManager,setShowItemManager]=React.useState(false);
     // 2.15.35: Guest-wise Food & Beverage Register — one Guest, Today or a period (Apply).
     const [regGuest,setRegGuest]=React.useState(''),[regPeriod,setRegPeriod]=React.useState('today'),[regFrom,setRegFrom]=React.useState(''),[regTo,setRegTo]=React.useState('');
@@ -356,10 +357,18 @@
     }
     const groups=foodGroupsFrom(foodList,form.meal_type);
     const cats=foodCatsFrom(foodList,form.meal_type);
+    const HEAD_LABEL={Main:'🍚 Main items',Side:'🥣 Sides / curries',Other:'🍌 Others'};
+    // 2.20.65: search sections (headings with their dishes), already-added items left out
+    const searchQ=foodKey(foodSearch);
+    const searchHits=[
+      ...Object.entries(groups).flatMap(([g,list])=>[[HEAD_LABEL[g],list],...Object.entries(cats[g]||{}).map(([c,l])=>[`${FOOD_CAT_ICON[c]||(g==='Side'?'🥗':'▸')} ${c}`,l])])
+    ].map(([title,list])=>({title,items:list.filter(x=>!form.items.includes(x)&&(!searchQ||foodKey(x).includes(searchQ)||foodKey(title).includes(searchQ)))})).filter(sec=>sec.items.length);
+    const exactHit=!!searchQ&&searchHits.some(sec=>sec.items.some(x=>foodKey(x)===searchQ))||form.items.some(x=>foodKey(x)===searchQ);
+    function pickSearched(x){addItem(x);setFoodSearch('');setSearchOpen(false)}
+    function addSearchedNew(){const t=foodSearch;setFoodSearch('');setSearchOpen(false);addTypedItem(t)}
     const pickCat=String(pick||'').startsWith('__cat:')?String(pick).split(':'):null; // ['__cat', group, category]
     // 2.20.51: every heading opens its own list — Main items / Sides / Poriyal / Kootu … / Others / Added earlier
     const catName=pickCat?pickCat.slice(2).join(':'):'';
-    const HEAD_LABEL={Main:'🍚 Main items',Side:'🥣 Sides / curries',Other:'🍌 Others'};
     const catItems=!pickCat?[]:pickCat[1]==='earlier'?earlierItems:catName===''?(groups[pickCat[1]]||[]):((cats[pickCat[1]]||{})[catName]||[]);
     const catTitle=!pickCat?'':pickCat[1]==='earlier'?'Added earlier':catName||HEAD_LABEL[pickCat[1]]||pickCat[1];
     const guestName=r=>r.patients?[r.patients.title,r.patients.full_name].filter(Boolean).join(' '):'—';
@@ -397,20 +406,26 @@
                 i>0&&h('button',{type:'button',className:'fi-chip-move',title:'Move left','aria-label':`Move ${it} left`,onClick:()=>moveItem(i,-1)},'‹'),
                 h('span',null,it),
                 h('button',{type:'button',className:'fi-chip-x',title:'Remove','aria-label':`Remove ${it}`,onClick:()=>removeItem(i)},'×'))):h('span',{className:'fi-empty'},'No items yet — choose from the list below, e.g. Idli, then Sambar, then Coconut Chutney.')),
-            h('div',{className:'fi-add'},
-              // 2.20.52: one list — each menu is a heading with its dishes under it
-              h('select',{value:pick==='__other'?pick:'','aria-label':'Add food item',onChange:e=>{const v=e.target.value;if(v==='__other'){setPick(v);return}addItem(v)}},
-                h('option',{value:''},'＋ Add food item…'),
-                Object.entries(groups).flatMap(([g,list])=>[
-                  list.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'h-'+g,label:HEAD_LABEL[g]},list.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
-                  ...Object.entries(cats[g]||{}).map(([c,l])=>l.filter(x=>!form.items.includes(x)).length?h('optgroup',{key:'c-'+g+c,label:`${FOOD_CAT_ICON[c]||(g==='Side'?'🥗':'▸')} ${c}`},l.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null)]),
-                earlierItems.filter(x=>!form.items.includes(x)).length?h('optgroup',{label:'🕘 Added earlier'},earlierItems.filter(x=>!form.items.includes(x)).map(x=>h('option',{key:x,value:x},x))):null,
-                h('option',{value:'__other'},'✎🎤 Not in the list — type or say the item')),
-              pick==='__other'&&h('div',{className:'fi-other'},
-                h('small',{style:{display:'block',width:'100%',color:'#8a5a70'}},'Type the item, or tap 🎤 Voice and say it in Tamil or English — then tap Add.'),
-                h('input',{type:'text',autoFocus:true,maxLength:60,value:form.custom,'data-samara-voice':'on','aria-label':'Food item not in the list',placeholder:'e.g. Pumpkin Kootu',onChange:e=>setForm({...form,custom:e.target.value}),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();addTypedItem(form.custom)}}}),
-                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>addTypedItem(form.custom)},'Add'),
-                h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setPick('');setForm({...form,custom:''})}},'Cancel'))
+            // 2.20.65: search box — type (or say) a few letters, the list below shows only matching dishes under their headings;
+            // tap a dish to add it. Nothing matches → "＋ Add … as a new item" (goes to Others for everyone, SQL 394).
+            h('div',{className:'fi-add fi-search-wrap',style:{position:'relative',maxWidth:560}},
+              h('input',{type:'search',value:foodSearch,'data-samara-voice':'on','aria-label':'Search food item',autoComplete:'off',maxLength:60,
+                placeholder:'🔍 Search food item… (e.g. idli, kootu)',
+                style:{minHeight:46,fontWeight:700,color:'#8c0f4d',border:'1.5px solid #e2c7d4',borderRadius:12,background:'#fff',padding:'0 12px',width:'100%',boxSizing:'border-box'},
+                onFocus:()=>setSearchOpen(true),
+                onChange:e=>{setFoodSearch(e.target.value);setSearchOpen(true)},
+                onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();if(searchHits.length===1)pickSearched(searchHits[0].items[0]);else if(foodSearch.trim()&&!exactHit)addSearchedNew()}else if(e.key==='Escape')setSearchOpen(false)}}),
+              searchOpen&&h('div',{className:'fi-search-panel',role:'listbox','aria-label':'Food items',
+                style:{marginTop:6,maxHeight:340,overflowY:'auto',background:'#fff',border:'1.5px solid #e2c7d4',borderRadius:12,boxShadow:'0 8px 22px rgba(140,15,77,.12)'}},
+                searchHits.map(sec=>h('div',{key:sec.title},
+                  h('div',{style:{position:'sticky',top:0,background:'linear-gradient(90deg,#fde7f0,#fff4f8)',color:'#8c0f4d',fontWeight:800,fontSize:13,padding:'6px 12px'}},sec.title),
+                  sec.items.map(x=>h('button',{key:x,type:'button',role:'option',onClick:()=>pickSearched(x),
+                    style:{display:'block',width:'100%',textAlign:'left',background:'none',border:0,borderBottom:'1px solid #f5e3ea',padding:'11px 16px',fontSize:16,color:'#3a1f2b',cursor:'pointer'}},x)))),
+                !searchHits.length&&h('div',{style:{padding:'12px 14px',color:'#8a5a70'}},foodSearch.trim()?`"${foodSearch.trim()}" is not in the list.`:'All items are already added.'),
+                foodSearch.trim().length>=2&&!exactHit&&h('button',{type:'button',onClick:addSearchedNew,
+                  style:{display:'block',width:'100%',textAlign:'left',border:0,borderTop:'1.5px dashed #e2c7d4',background:'#fff7fa',padding:'12px 14px',fontWeight:800,color:'#8c0f4d',cursor:'pointer'}},`＋ Add "${foodSearch.trim()}" as a new item`),
+                h('div',{style:{display:'flex',justifyContent:'flex-end',padding:6,borderTop:'1px solid #f5e3ea'}},
+                  h('button',{type:'button',className:'btn btn-secondary',onClick:()=>{setSearchOpen(false);setFoodSearch('')}},'Close list')))
             )
           ),
           h('div',{className:'fi-row'},miniSelect('Food consumed',form.consumption_status,INTAKE_OPTIONS,v=>setForm({...form,consumption_status:v}))),

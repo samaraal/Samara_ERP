@@ -1,3 +1,8 @@
+## 2.20.65 — 13-11-2026 — Food & Beverage: search box for food items (SQL 395)
+- **＋ Add food item** is now a **🔍 Search food item** box: type (or say) a few letters — only matching dishes show under their headings (typing a heading such as "kootu" shows all Kootu). Tap a dish to add it. Capitals / spaces ignored.
+- Nothing matches → **＋ Add "…" as a new item** (same duplicate check as before; goes to **Others** for everyone). The separate "Not in the list" option and the "Added earlier" group are removed from the staff list.
+- SQL 395 clears the current Others items; Others fills again only with items staff add from now on.
+
 ## 2.20.64 — 13-11-2026 — Food & Beverage: one food list for all meals (SQL 394)
 - **＋ Add food item** now shows ONE list for Breakfast, Lunch and Dinner, under headings: Tiffin Items, Rice, Chutney & Tiffin Sides, Kuzhambu / Gravy, Kootu, Poriyal, Aviyal, Accompaniments, Non-veg, Others (list approved by Admin). Old per-meal lists are switched off (saved meals unchanged).
 - **Not in the list → type or say the item**: if it is already in the list (capitals / spaces ignored, e.g. "IDLI" = Idli) the list spelling is used; a close spelling asks "Did you mean …?"; a new item is added to the list under **Others** for everyone. Items Admin removed or hid are not brought back. Admin: ⚙ Manage item list → "Single list (all meals)" tab to rename, remove or move items (▸) to a heading.
