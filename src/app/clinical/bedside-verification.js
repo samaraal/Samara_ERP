@@ -495,6 +495,14 @@
 .bsa-task.overdue{border-color:#e8a0a0;background:#fff7f7}.bsa-task .bsa-ic{font-size:20px}.bsa-task .bsa-txt{flex:1;min-width:0;overflow-wrap:anywhere}.bsa-task .bsa-txt b{display:block;color:#3a1028;font-size:14px}.bsa-task .bsa-txt small{color:#5d1039}
 .bsa-task.overdue .bsa-txt small{color:#b42318;font-weight:700}.bsa-quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.bsa-quick .btn{flex:1 1 130px}`;
 
+  // 2.20.95 (Admin, 13-11-2026): medicine time window. Time-critical medicines (insulin, antibiotics, Parkinson's,
+  // epilepsy, blood thinners) may be given 30 min before / after their time, all others 60 min. Earlier than the window:
+  // staff cannot give it (only the Nursing Manager / Admin, with a reason); later than the window: a reason is needed.
+  // medication_orders.time_critical (SQL 403) overrides the name rule when the doctor / Nursing Manager sets it.
+  const MED_TIME_CRITICAL_RE=/insulin|lantus|glargine|basalog|toujeo|tresiba|degludec|actrapid|humulin|huminsulin|mixtard|novomix|novorapid|aspart|humalog|lispro|apidra|glulisine|ryzodeg|wosulin|insugen|amoxi|augmentin|clavam|moxikind|azithro|azee|cef|cipro|levoflo|oflox|norflox|metronid|flagyl|doxy|linezolid|meropenem|piperacillin|tazo|clindamycin|vancomycin|nitrofurantoin|cotrimoxazole|septran|levodopa|syndopa|carbidopa|tidomet|pramipexole|ropinirole|rasagiline|levetiracetam|levipil|keppra|phenytoin|eptoin|valpro|encorate|valparin|carbamazepine|tegretol|oxcarbazepine|oxetol|lacosamide|clobazam|frisium|warfarin|acitrom|acenocoumarol|apixaban|eliquis|rivaroxaban|xarelto|dabigatran|enoxaparin|clexane|heparin/i;
+  function medIsTimeCritical(order){if(order&&typeof order.time_critical==='boolean')return order.time_critical;return MED_TIME_CRITICAL_RE.test(`${order?.medicine_name||''} ${order?.strength||''}`)}
+  function medWindowMinutes(order){return medIsTimeCritical(order)?30:60}
+  function medCanGiveOutsideWindow(profile){try{if(profile?.__nurseMode)return false;const r=String(profile?.role||'');return r==='Admin'||isNursingManagerProfile(profile)}catch(_){return false}}
   function BedsideScanAdminister({profile,onNavigate}){
     const mode=useBedsideMode();
     const isNM=isNursingManagerProfile(profile)||Boolean(profile?.__nurseMode);
@@ -515,7 +523,10 @@
           const pid=String(session.patientId);
           const mine=[...(d?.overdue||[]),...(d?.next||[])].filter(x=>!x.nextShift&&!x.done&&(
             String(x.patient?.id||'')===pid||(x.group==='meal'&&(x.pendingGuests||[]).some(p=>String(p?.id)===pid))));
-          if(live)setTasks(mine);
+          // 2.20.95: medicines — only doses due now (inside their window) or overdue; later doses are shown as one grey line
+          const nowMs=Date.now();
+          const inWin=x=>{if(x.group!=='med'||x.state==='overdue')return true;const w=Math.min(...((x.orders||[]).map(medWindowMinutes)),60);return nowMs>=x.at.getTime()-w*60000};
+          if(live)setTasks(mine.filter(inWin).concat(mine.filter(x=>!inWin(x)).map(x=>({...x,later:true}))));
         }catch(e){if(live){setTasks([]);setTaskErr('Could not load the due list — use the buttons below.')}}
       })();
       return()=>{live=false};
@@ -552,6 +563,7 @@
     const dayOf=d=>{try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(_){return todayISOIndia()}};
     const mealCode=l=>/break|tiffin/i.test(l||'')?'Tiffin':/lunch/i.test(l||'')?'Lunch':/dinner/i.test(l||'')?'Dinner':'';
     function taskRow(x,i){
+      if(x.later)return null;
       const when=x.anyTime?'Any time this shift':x.awaiting?'Awaiting approval':hhmm(x.at);
       const late=x.state==='overdue';
       let ic='🧼',title=x.title||'Care',page='Daily Care',ctx={care_type:x.title||'',scheduled_time:x.fixedTime||''},btn='Record';
@@ -579,7 +591,10 @@
               h('button',{type:'button',className:'btn btn-secondary',onClick:end},'Done'))),
           h('div',{className:'bsa-list'},
             tasks===null?h('div',{className:'small-note'},'Loading this Guest\'s due work…'):
-            tasks.length?tasks.map(taskRow).filter(Boolean):h('div',{className:'small-note'},'Nothing due right now for this Guest in this shift.'),
+            tasks.filter(x=>!x.later).length?tasks.map(taskRow).filter(Boolean):h('div',{className:'small-note'},'Nothing due right now for this Guest in this shift.'),
+            (()=>{const later=tasks?tasks.filter(x=>x.later&&x.group==='med'):[];if(!later.length)return null; // 2.20.95
+              const txt=later.sort((a,b)=>a.at-b.at).map(x=>`${hhmm(x.at)} — ${(x.orders||[]).length||''} medicine${(x.orders||[]).length===1?'':'s'}`.replace(' —  medicines',' — medicines')).join(' · ');
+              return h('div',{className:'bsa-task',style:{opacity:.6,background:'#f6f1f4'}},h('span',{className:'bsa-ic'},'🕒'),h('div',{className:'bsa-txt'},h('b',null,'Later this shift (not yet)'),h('small',null,txt)));})(),
             taskErr&&h('div',{className:'small-note'},taskErr)),
           h('div',{className:'small-note',style:{marginTop:'10px'}},'Something else for this Guest:'),
           h('div',{className:'bsa-quick'},

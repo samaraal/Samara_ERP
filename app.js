@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.94';
+  const APP_VERSION = '2.20.95';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -39371,6 +39371,14 @@ function RoomsBeds({profile,onNavigate}){
 .bsa-task.overdue{border-color:#e8a0a0;background:#fff7f7}.bsa-task .bsa-ic{font-size:20px}.bsa-task .bsa-txt{flex:1;min-width:0;overflow-wrap:anywhere}.bsa-task .bsa-txt b{display:block;color:#3a1028;font-size:14px}.bsa-task .bsa-txt small{color:#5d1039}
 .bsa-task.overdue .bsa-txt small{color:#b42318;font-weight:700}.bsa-quick{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.bsa-quick .btn{flex:1 1 130px}`;
 
+  // 2.20.95 (Admin, 13-11-2026): medicine time window. Time-critical medicines (insulin, antibiotics, Parkinson's,
+  // epilepsy, blood thinners) may be given 30 min before / after their time, all others 60 min. Earlier than the window:
+  // staff cannot give it (only the Nursing Manager / Admin, with a reason); later than the window: a reason is needed.
+  // medication_orders.time_critical (SQL 403) overrides the name rule when the doctor / Nursing Manager sets it.
+  const MED_TIME_CRITICAL_RE=/insulin|lantus|glargine|basalog|toujeo|tresiba|degludec|actrapid|humulin|huminsulin|mixtard|novomix|novorapid|aspart|humalog|lispro|apidra|glulisine|ryzodeg|wosulin|insugen|amoxi|augmentin|clavam|moxikind|azithro|azee|cef|cipro|levoflo|oflox|norflox|metronid|flagyl|doxy|linezolid|meropenem|piperacillin|tazo|clindamycin|vancomycin|nitrofurantoin|cotrimoxazole|septran|levodopa|syndopa|carbidopa|tidomet|pramipexole|ropinirole|rasagiline|levetiracetam|levipil|keppra|phenytoin|eptoin|valpro|encorate|valparin|carbamazepine|tegretol|oxcarbazepine|oxetol|lacosamide|clobazam|frisium|warfarin|acitrom|acenocoumarol|apixaban|eliquis|rivaroxaban|xarelto|dabigatran|enoxaparin|clexane|heparin/i;
+  function medIsTimeCritical(order){if(order&&typeof order.time_critical==='boolean')return order.time_critical;return MED_TIME_CRITICAL_RE.test(`${order?.medicine_name||''} ${order?.strength||''}`)}
+  function medWindowMinutes(order){return medIsTimeCritical(order)?30:60}
+  function medCanGiveOutsideWindow(profile){try{if(profile?.__nurseMode)return false;const r=String(profile?.role||'');return r==='Admin'||isNursingManagerProfile(profile)}catch(_){return false}}
   function BedsideScanAdminister({profile,onNavigate}){
     const mode=useBedsideMode();
     const isNM=isNursingManagerProfile(profile)||Boolean(profile?.__nurseMode);
@@ -39391,7 +39399,10 @@ function RoomsBeds({profile,onNavigate}){
           const pid=String(session.patientId);
           const mine=[...(d?.overdue||[]),...(d?.next||[])].filter(x=>!x.nextShift&&!x.done&&(
             String(x.patient?.id||'')===pid||(x.group==='meal'&&(x.pendingGuests||[]).some(p=>String(p?.id)===pid))));
-          if(live)setTasks(mine);
+          // 2.20.95: medicines — only doses due now (inside their window) or overdue; later doses are shown as one grey line
+          const nowMs=Date.now();
+          const inWin=x=>{if(x.group!=='med'||x.state==='overdue')return true;const w=Math.min(...((x.orders||[]).map(medWindowMinutes)),60);return nowMs>=x.at.getTime()-w*60000};
+          if(live)setTasks(mine.filter(inWin).concat(mine.filter(x=>!inWin(x)).map(x=>({...x,later:true}))));
         }catch(e){if(live){setTasks([]);setTaskErr('Could not load the due list — use the buttons below.')}}
       })();
       return()=>{live=false};
@@ -39428,6 +39439,7 @@ function RoomsBeds({profile,onNavigate}){
     const dayOf=d=>{try{return d.toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})}catch(_){return todayISOIndia()}};
     const mealCode=l=>/break|tiffin/i.test(l||'')?'Tiffin':/lunch/i.test(l||'')?'Lunch':/dinner/i.test(l||'')?'Dinner':'';
     function taskRow(x,i){
+      if(x.later)return null;
       const when=x.anyTime?'Any time this shift':x.awaiting?'Awaiting approval':hhmm(x.at);
       const late=x.state==='overdue';
       let ic='🧼',title=x.title||'Care',page='Daily Care',ctx={care_type:x.title||'',scheduled_time:x.fixedTime||''},btn='Record';
@@ -39455,7 +39467,10 @@ function RoomsBeds({profile,onNavigate}){
               h('button',{type:'button',className:'btn btn-secondary',onClick:end},'Done'))),
           h('div',{className:'bsa-list'},
             tasks===null?h('div',{className:'small-note'},'Loading this Guest\'s due work…'):
-            tasks.length?tasks.map(taskRow).filter(Boolean):h('div',{className:'small-note'},'Nothing due right now for this Guest in this shift.'),
+            tasks.filter(x=>!x.later).length?tasks.map(taskRow).filter(Boolean):h('div',{className:'small-note'},'Nothing due right now for this Guest in this shift.'),
+            (()=>{const later=tasks?tasks.filter(x=>x.later&&x.group==='med'):[];if(!later.length)return null; // 2.20.95
+              const txt=later.sort((a,b)=>a.at-b.at).map(x=>`${hhmm(x.at)} — ${(x.orders||[]).length||''} medicine${(x.orders||[]).length===1?'':'s'}`.replace(' —  medicines',' — medicines')).join(' · ');
+              return h('div',{className:'bsa-task',style:{opacity:.6,background:'#f6f1f4'}},h('span',{className:'bsa-ic'},'🕒'),h('div',{className:'bsa-txt'},h('b',null,'Later this shift (not yet)'),h('small',null,txt)));})(),
             taskErr&&h('div',{className:'small-note'},taskErr)),
           h('div',{className:'small-note',style:{marginTop:'10px'}},'Something else for this Guest:'),
           h('div',{className:'bsa-quick'},
@@ -40006,7 +40021,7 @@ function RoomsBeds({profile,onNavigate}){
       const due=new Date(`${dueDate}T${dueTime}:00+05:30`).getTime(),given=new Date(marForm.administered_at).getTime();
       if(!Number.isFinite(due)||!Number.isFinite(given))return null;
       const minutes=Math.round((due-given)/60000);
-      if(minutes<120)return null;
+      if(minutes<=medWindowMinutes(marTarget))return null; // 2.20.95: outside the time window (30 / 60 min)
       const givenDate=clinicalDateTimeInIndia(new Date(given))?.date||'';
       return {minutes,dueDate,dueTime,laterDay:Boolean(givenDate)&&dueDate>givenDate};
     }
@@ -40072,6 +40087,9 @@ function RoomsBeds({profile,onNavigate}){
       if(lateGivenMinutes&&!marForm.late_given_reason){const text=`This medicine is being given ${medicationDurationText(lateGivenMinutes)} late. Select the reason for giving it late.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(lateGivenMinutes&&marForm.late_given_reason==='Other'&&!String(marForm.late_given_details||'').trim()){const text='Write the reason for giving the medicine late.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       const early=marEarlyCheck();
+      if(early&&!early.laterDay&&!medCanGiveOutsideWindow(profile)){ // 2.20.95: staff cannot give before the window
+        const w=medWindowMinutes(marTarget);const text=`Not yet — ${medicineLabel(marTarget)} is due at ${medicationTimeLabel(early.dueTime)} and can be given from ${w} minutes before (${medIsTimeCritical(marTarget)?'time-critical medicine':'usual window'}). If it must be given early (doctor's instruction, going out, before a test), ask the Nursing Manager to record it with the reason.`;
+        setMarMessage(text);showSamaraActionToast('error','Too early to give',text);return;}
       if(early?.laterDay){const text=`This dose is due on ${formatDateIN(early.dueDate)} at ${medicationTimeLabel(early.dueTime)} — ${medicationDurationText(early.minutes)} from the time you entered. It cannot be recorded as given now. Check the date and time: you may be recording the wrong dose.`;setMarMessage(text);showSamaraActionToast('error','Wrong dose?',text);return;}
       if(early&&!marForm.early_given_reason){const text=`This medicine is being given ${medicationDurationText(early.minutes)} before its time (${medicationTimeLabel(early.dueTime)}). Select the reason for giving it early.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(early&&marForm.early_given_reason==='Other'&&!String(marForm.early_given_details||'').trim()){const text='Write the reason for giving the medicine early.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
@@ -40440,6 +40458,11 @@ function RoomsBeds({profile,onNavigate}){
       else if(log)action=h('span',{className:`mar-chip ${String(log.status)==='Withheld'?'held':'warn'}`},statusText);
       else if(variable)action=h('button',{type:'button',className:'mar-act go',onClick:()=>openMar(item.order,item.time,item.date)},'Sugar + units');
       else if(warn)action=h('button',{type:'button',className:'mar-act check',onClick:()=>openMar(item.order,item.time,item.date)},`Check ${warn.reason&&/sugar|glucose/i.test(warn.reason)?'sugar':'BP'} first`);
+      else if(minutes<-medWindowMinutes(item.order)){ // 2.20.95: too early — staff cannot give; Nursing Manager / Admin with a reason
+        const from=(()=>{const [hh,mm]=String(item.time).split(':').map(Number);const t=hh*60+mm-medWindowMinutes(item.order);const x=(t+1440)%1440;return `${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`})();
+        action=medCanGiveOutsideWindow(profile)?h('button',{type:'button',className:'mar-act late',onClick:()=>openMar(item.order,item.time,item.date)},'Give early (reason)')
+          :h('span',{className:'mar-chip',title:`${medIsTimeCritical(item.order)?'Time-critical medicine — ±30 min':'±60 min'} window`},`Not yet — from ${from}`);
+      }
       else if(minutes>=30)action=h('button',{type:'button',className:'mar-act late',onClick:()=>openMar(item.order,item.time,item.date)},'Administer (late)');
       else action=h('button',{type:'button',className:'mar-act go',onClick:()=>askAdminister(item)},'Administer now');
       const details=[item.order.route,item.order.food_instruction].filter(Boolean).join(' · ');

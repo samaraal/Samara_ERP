@@ -1,3 +1,7 @@
+## 2.20.95 — 2026-11-13
+- Medicine time window: a dose can be given from 60 min before its time (30 min for time-critical medicines — insulin, antibiotics, Parkinson's, epilepsy, blood thinners). Earlier: "Not yet — from HH:MM" for staff; only the Nursing Manager / Admin can give early, with a reason. Enforced in the database (SQL 403).
+- Scan & Administer: after the bed scan only medicines due now (inside the window) or overdue are shown; later doses appear as one grey "Later this shift (not yet)" line.
+
 ## 2.20.94 — 2026-11-13
 - Nurse screen saver: the medicine card now flips through every dose still to give in the shift (and the next 4 hours), not only the next 2 hours — 11 PM doses are shown in the evening.
 

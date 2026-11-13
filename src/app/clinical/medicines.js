@@ -537,7 +537,7 @@
       const due=new Date(`${dueDate}T${dueTime}:00+05:30`).getTime(),given=new Date(marForm.administered_at).getTime();
       if(!Number.isFinite(due)||!Number.isFinite(given))return null;
       const minutes=Math.round((due-given)/60000);
-      if(minutes<120)return null;
+      if(minutes<=medWindowMinutes(marTarget))return null; // 2.20.95: outside the time window (30 / 60 min)
       const givenDate=clinicalDateTimeInIndia(new Date(given))?.date||'';
       return {minutes,dueDate,dueTime,laterDay:Boolean(givenDate)&&dueDate>givenDate};
     }
@@ -603,6 +603,9 @@
       if(lateGivenMinutes&&!marForm.late_given_reason){const text=`This medicine is being given ${medicationDurationText(lateGivenMinutes)} late. Select the reason for giving it late.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(lateGivenMinutes&&marForm.late_given_reason==='Other'&&!String(marForm.late_given_details||'').trim()){const text='Write the reason for giving the medicine late.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       const early=marEarlyCheck();
+      if(early&&!early.laterDay&&!medCanGiveOutsideWindow(profile)){ // 2.20.95: staff cannot give before the window
+        const w=medWindowMinutes(marTarget);const text=`Not yet — ${medicineLabel(marTarget)} is due at ${medicationTimeLabel(early.dueTime)} and can be given from ${w} minutes before (${medIsTimeCritical(marTarget)?'time-critical medicine':'usual window'}). If it must be given early (doctor's instruction, going out, before a test), ask the Nursing Manager to record it with the reason.`;
+        setMarMessage(text);showSamaraActionToast('error','Too early to give',text);return;}
       if(early?.laterDay){const text=`This dose is due on ${formatDateIN(early.dueDate)} at ${medicationTimeLabel(early.dueTime)} — ${medicationDurationText(early.minutes)} from the time you entered. It cannot be recorded as given now. Check the date and time: you may be recording the wrong dose.`;setMarMessage(text);showSamaraActionToast('error','Wrong dose?',text);return;}
       if(early&&!marForm.early_given_reason){const text=`This medicine is being given ${medicationDurationText(early.minutes)} before its time (${medicationTimeLabel(early.dueTime)}). Select the reason for giving it early.`;setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
       if(early&&marForm.early_given_reason==='Other'&&!String(marForm.early_given_details||'').trim()){const text='Write the reason for giving the medicine early.';setMarMessage(text);showSamaraActionToast('error','Reason needed',text);return;}
@@ -971,6 +974,11 @@
       else if(log)action=h('span',{className:`mar-chip ${String(log.status)==='Withheld'?'held':'warn'}`},statusText);
       else if(variable)action=h('button',{type:'button',className:'mar-act go',onClick:()=>openMar(item.order,item.time,item.date)},'Sugar + units');
       else if(warn)action=h('button',{type:'button',className:'mar-act check',onClick:()=>openMar(item.order,item.time,item.date)},`Check ${warn.reason&&/sugar|glucose/i.test(warn.reason)?'sugar':'BP'} first`);
+      else if(minutes<-medWindowMinutes(item.order)){ // 2.20.95: too early — staff cannot give; Nursing Manager / Admin with a reason
+        const from=(()=>{const [hh,mm]=String(item.time).split(':').map(Number);const t=hh*60+mm-medWindowMinutes(item.order);const x=(t+1440)%1440;return `${String(Math.floor(x/60)).padStart(2,'0')}:${String(x%60).padStart(2,'0')}`})();
+        action=medCanGiveOutsideWindow(profile)?h('button',{type:'button',className:'mar-act late',onClick:()=>openMar(item.order,item.time,item.date)},'Give early (reason)')
+          :h('span',{className:'mar-chip',title:`${medIsTimeCritical(item.order)?'Time-critical medicine — ±30 min':'±60 min'} window`},`Not yet — from ${from}`);
+      }
       else if(minutes>=30)action=h('button',{type:'button',className:'mar-act late',onClick:()=>openMar(item.order,item.time,item.date)},'Administer (late)');
       else action=h('button',{type:'button',className:'mar-act go',onClick:()=>askAdminister(item)},'Administer now');
       const details=[item.order.route,item.order.food_instruction].filter(Boolean).join(' · ');
