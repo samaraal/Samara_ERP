@@ -572,6 +572,7 @@
       else if(x.group==='meal'){ic='🍛';title=x.mealLabel||'Meal';page='Food & Diet';ctx={meal_type:mealCode(x.mealLabel),meal_date:dayOf(x.at)};btn='Record'}
       else if(x.group==='proc'){ic='🩹'}
       if(x.group==='med'&&isCaregiver)return null;
+      if((x.group==='care'||x.group==='proc')&&/nebuli[sz]/i.test(String(x.title||''))){ic='💊';page='Medicines';ctx={filter_only:true};btn='Give in MAR'} // 2.20.98: nebulisation only in the MAR
       const sub=x.group==='med'?(x.medLine||''):(x.note||'');
       const disabled=!can(page)||(x.awaiting&&x.group==='proc');
       return h('div',{key:`${x.group}-${i}`,className:`bsa-task ${late?'overdue':''}`},

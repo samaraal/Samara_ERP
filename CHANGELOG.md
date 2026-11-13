@@ -1,3 +1,6 @@
+## 2.20.98 — 2026-11-13
+- Scan & Administer: a nebulisation task opens Medication (MAR) — "Give in MAR" — not Daily Care.
+
 ## 2.20.97 — 2026-11-13
 - Nebulisation tasks no longer open Daily Care: in Shift Tasks the button is "💊 Give in MAR"; a nebulisation entry in Daily Care is refused and opens Medication (MAR). Giving the nebulisation medicine in the MAR closes the task, shows it to the family and raises the charge (SQL 374 rule).
 
