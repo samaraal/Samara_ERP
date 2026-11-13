@@ -238,7 +238,7 @@ function initSamaraInaugurationInvitation(){
 
 (() => {
   'use strict';
-  const APP_VERSION = '2.20.98';
+  const APP_VERSION = '2.20.99';
 
   // Shared overdue label helper used by both the clinical alert engine and UI pages.
   // Keep this in application scope: ClinicalAlertsPage and the global notification
@@ -38303,7 +38303,7 @@ function RoomsBeds({profile,onNavigate}){
       if(isStool&&!(Number(cf.stool_count)>0))return showSamaraActionToast('error','Enter the count','How many times (1 or more).');
       const item=(cf.item==='Other…'?cf.custom:(['urine','other'].includes(col.key)?cf.custom:cf.item)).trim()||null;
       if(cf.item==='Other…'&&!item)return showSamaraActionToast('error','Type the item','Type what was given (e.g. Glucon-D, Horlicks).');
-      {const _bb=await bedsideSaveCheck(profile,patientId,ioScan);if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.20.76: bedside scan (SQL 400)
+      {const _bb=await bedsideSaveCheck(profile,patientId,ioScan,{singleScan:true});if(_bb){showSamaraActionToast('error','Bedside check needed',_bb);return;}} // 2.20.76: bedside scan (SQL 400)
       setBusy(true);
       const payload={patient_id:patientId,entry_at:at.toISOString(),direction,category,item,volume_ml:vol,stool_count:isStool?Math.round(Number(cf.stool_count)):null,stool_type:isStool?cf.stool_type:null,remarks:cf.remarks.trim()||null,recorded_by:profile.id,recorded_by_name:profile.full_name||null};
       const {data,error}=await client.from('io_entries').insert(payload).select('id').single();
@@ -38529,7 +38529,7 @@ function RoomsBeds({profile,onNavigate}){
             h(BedsideSafe,null,h(BedsideDosePanel,{profile,patient:patientRow,value:ioScan,onChange:setIoScan,disabled:busy})), // 2.20.80: 📷 Scan bed QR here
             h('div',{className:'actions',style:{display:'flex',gap:'8px',marginTop:'10px'}},
               h('button',{type:'button',className:'btn btn-secondary',style:{flex:1},onClick:()=>{setCell(null);setCf(null)}},'Cancel'),
-              h('button',{type:'button',className:'btn btn-primary',style:{flex:2},disabled:busy,onClick:saveCell},busy?'Saving…':bedsideSaveText(profile,`Save ${c.label}`)))));
+              h('button',{type:'button',className:'btn btn-primary',style:{flex:2},disabled:busy,onClick:saveCell},busy?'Saving…':bedsideSaveText(profile,`Save ${c.label}`,{singleScan:true})))));
       })()
     );
   }
@@ -38943,7 +38943,7 @@ function RoomsBeds({profile,onNavigate}){
   }
   // 2.19.97: one check before every bedside save — computer block, then the compulsory scan.
   // scan = the screen's scan value; a Scan & Administer bed check (10 min, same Guest) also counts.
-  async function bedsideSaveCheck(profile,patientId,scan){
+  async function bedsideSaveCheck(profile,patientId,scan,opts){
     try{
       const b=await bedsideBlockedHere(profile);if(b)return b;
       if(!bedsideBlockedRole(profile)||!patientId)return '';
@@ -38954,7 +38954,9 @@ function RoomsBeds({profile,onNavigate}){
       const r=s?.check?.result;
       // 2.20.82: one scan is enough — a ✅ verified bed scan in the last 12 minutes saves directly (the database accepts a
       // scan for 15 minutes, SQL 400). Only an older scan asks for the sticker once more (Scan to Save).
-      if(r==='verified'){const age=Date.now()-Number(s.at||0);if(s.at&&age>=0&&age<=12*60*1000)return '';return await bedsideScanToSaveCheck(patientId);}
+      if(r==='verified'){ // 2.20.99 (Admin): every Save needs the bed scan again (Scan to Save) — except Intake / Output (one scan within 12 min)
+        if(opts&&opts.singleScan){const age=Date.now()-Number(s.at||0);if(s.at&&age>=0&&age<=12*60*1000)return '';}
+        return await bedsideScanToSaveCheck(patientId);}
       if(r==='wrong_bed')return 'This sticker belongs to another bed. Go to the Guest\'s own bed and scan its sticker. Saving is not allowed.';
       if(s&&s.code&&r)return 'The bed sticker could not be confirmed for this Guest. Scan the sticker on the Guest\'s bed again, or ask the Nursing Manager.';
       return 'Scanning the bed QR is compulsory. Tap 📷 Scan bed QR (or use Scan & Administer) at the Guest\'s bed, then save. Sticker or camera problem? Ask the Nursing Manager to make this entry.';
@@ -38995,8 +38997,8 @@ function RoomsBeds({profile,onNavigate}){
     return 'Not saved — the bed sticker could not be confirmed for this Guest. Scan again, or ask the Nursing Manager.';
   }
   // Save-button wording: "📷 Scan to Save" where the second scan applies (phone, Nurse / Caregiver, scan compulsory).
-  function bedsideSaveText(profile,text){
-    return text; // 2.20.82: one scan only — the Save button just saves (a scan older than 12 minutes asks once more)
+  function bedsideSaveText(profile,text,opts){
+    try{return !(opts&&opts.singleScan)&&bedsideModeCache.mode==='qr_required'&&bedsideBlockedRole(profile)?`📷 Scan to Save · ${text}`:text;}catch(_){return text} // 2.20.99: Scan to Save again (not Intake / Output)
   }
   function useBedsideMode(){
     const [mode,setMode]=React.useState(bedsideModeCache.mode);

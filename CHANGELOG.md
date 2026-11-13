@@ -1,3 +1,6 @@
+## 2.20.99 — 2026-11-13
+- Bedside: every Save needs the bed sticker scanned again (📷 Scan to Save) — medicines, meals, beverages, daily care, vitals, shift tasks. Intake / Output: one scan is enough (within 12 minutes).
+
 ## 2.20.98 — 2026-11-13
 - Scan & Administer: a nebulisation task opens Medication (MAR) — "Give in MAR" — not Daily Care.
 
